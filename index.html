@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/connectrip-logo.png" />
+  <link rel="apple-touch-icon" href="/icon-192x192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자와 승무원을 연결하는 여행 정보 공유 플랫폼 ConnecTrip." />
+  <meta name="keywords" content="여행 동행, 승무원, 여행 정보, 물품거래, 여행 Q&A, ConnecTrip, 커넥트립" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="ConnecTrip" />
+  <link rel="canonical" href="https://connectrip.com/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="ConnecTrip - 여행자와 승무원을 연결하는 여행 플랫폼" />
+  <meta property="og:description" content="동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자를 위한 모든 것." />
+  <meta property="og:image" content="https://connectrip.com/icon-512x512.png" />
+  <meta property="og:url" content="https://connectrip.com/" />
+  <meta property="og:site_name" content="ConnecTrip" />
+  <meta property="og:locale" content="ko_KR" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ConnecTrip - 여행자와 승무원을 연결하는 여행 플랫폼" />
+  <meta name="twitter:description" content="동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자를 위한 모든 것." />
+  <meta name="twitter:image" content="https://connectrip.com/icon-512x512.png" />
+
+  <!-- Structured Data: WebSite -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "ConnecTrip",
+    "alternateName": "커넥트립",
+    "url": "https://connectrip.com",
+    "description": "여행자와 승무원을 연결하는 여행 정보 공유 플랫폼",
+    "inLanguage": "ko",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://connectrip.com/search?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+
+  <!-- Structured Data: Organization -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ConnecTrip",
+    "alternateName": "커넥트립",
+    "url": "https://connectrip.com",
+    "logo": "https://connectrip.com/icon-512x512.png",
+    "description": "여행자와 승무원을 연결하는 여행 정보 공유 플랫폼",
+    "sameAs": [],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "contactType": "customer service",
+      "availableLanguage": ["Korean", "English"]
+    }
+  }
+  </script>
+
+  <!-- Kakao SDK -->
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous"></script>
+
+  <title>ConnecTrip - 여행자와 승무원을 연결하는 여행 정보 공유 플랫폼</title>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+  <script>
+    // Force unregister old service workers and clear caches on version change
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        registrations.forEach(function(reg) { reg.unregister(); });
+      });
+      caches.keys().then(function(names) {
+        names.forEach(function(name) { caches.delete(name); });
+      });
+    }
+  </script>
+</body>
+
+</html>
