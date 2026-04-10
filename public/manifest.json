@@ -1,6 +1,6 @@
 {
-  "name": "ConnecTrip - 여행자와 승무원을 연결하는 플랫폼",
-  "short_name": "ConnecTrip",
+  "name": "ConnectTrip - 여행자와 승무원을 연결하는 플랫폼",
+  "short_name": "ConnectTrip",
   "description": "동행 찾기, 여행 정보, 승무원 추천까지. 여행자를 위한 모든 것.",
   "start_url": "/",
   "display": "standalone",

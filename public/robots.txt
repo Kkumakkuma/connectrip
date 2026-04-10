@@ -3,7 +3,7 @@ Allow: /
 Disallow: /admin
 Disallow: /mypage
 
-Sitemap: https://connectrip.com/sitemap.xml
+Sitemap: https://connecttrip.co.kr/sitemap.xml
 
 # Crawl-delay for polite crawling
 User-agent: Googlebot

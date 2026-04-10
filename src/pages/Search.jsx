@@ -56,7 +56,7 @@ const Search = () => {
 
   return (
     <section className="py-24 bg-gray-50 min-h-screen">
-      <SEOHead title="검색 결과 - ConnecTrip" description="ConnecTrip에서 동행, 장터, Q&A, 승무원 게시판을 통합 검색하세요." />
+      <SEOHead title="검색 결과 - ConnectTrip" description="ConnectTrip에서 동행, 장터, Q&A, 승무원 게시판을 통합 검색하세요." />
       <div className="container mx-auto px-4 max-w-4xl">
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">검색 결과</h1>

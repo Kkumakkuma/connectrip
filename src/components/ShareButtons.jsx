@@ -6,7 +6,7 @@ const ShareButtons = ({ title, description, url }) => {
   const [showMenu, setShowMenu] = useState(false);
 
   const shareUrl = url || window.location.href;
-  const shareTitle = title || 'ConnecTrip';
+  const shareTitle = title || 'ConnectTrip';
   const shareDesc = description || '여행자와 승무원을 연결하는 여행 플랫폼';
 
   const handleKakaoShare = () => {
@@ -19,7 +19,7 @@ const ShareButtons = ({ title, description, url }) => {
         content: {
           title: shareTitle,
           description: shareDesc,
-          imageUrl: 'https://connectrip.com/icon-512x512.png',
+          imageUrl: 'https://connecttrip.co.kr/icon-512x512.png',
           link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
         },
         buttons: [

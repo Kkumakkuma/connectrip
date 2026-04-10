@@ -57,7 +57,7 @@ const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
                     <User size={12} />
                     <span>{dest.profiles?.name || '익명 승무원'}</span>
                 </div>
-                <ShareButtons title={`${dest.name} - ConnecTrip 추천 여행지`} description={dest.description} />
+                <ShareButtons title={`${dest.name} - ConnectTrip 추천 여행지`} description={dest.description} />
             </div>
         </div>
     </motion.div>

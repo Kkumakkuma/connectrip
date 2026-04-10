@@ -115,7 +115,7 @@ const CrewOnly = () => {
     // 인증된 경우
     return (
         <section id="crew-only" className="py-20 bg-gray-50 min-h-screen">
-            <SEOHead title="승무원 전용 - ConnecTrip" description="항공 승무원을 위한 전용 커뮤니티. 스케줄 공유, 할인 정보, 비행 꿀팁." />
+            <SEOHead title="승무원 전용 - ConnectTrip" description="항공 승무원을 위한 전용 커뮤니티. 스케줄 공유, 할인 정보, 비행 꿀팁." />
             <div className="container">
                 <AnimatePresence mode="wait">
                     {mode === 'main' && (

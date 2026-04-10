@@ -116,7 +116,7 @@ const TravelQnA = () => {
 
     return (
         <section id="qna" className="py-20 bg-gray-50">
-            <SEOHead title="여행후기 및 Q&A - ConnecTrip" description="여행 후기를 공유하고, 여행 관련 질문과 답변을 나누세요." />
+            <SEOHead title="여행후기 및 Q&A - ConnectTrip" description="여행 후기를 공유하고, 여행 관련 질문과 답변을 나누세요." />
             <div className="container">
                 <AnimatePresence mode="wait">
                     {/* 메인: 후기 vs Q&A 선택 */}

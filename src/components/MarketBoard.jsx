@@ -205,7 +205,7 @@ const MarketBoard = () => {
 
     return (
         <section id="market" className="py-20 bg-gray-50 min-h-[80vh]">
-            <SEOHead title="물품거래 및 나눔 - ConnecTrip" description="여행 물품 거래, 나눔, 중고 거래를 ConnecTrip에서 만나보세요." />
+            <SEOHead title="물품거래 및 나눔 - ConnectTrip" description="여행 물품 거래, 나눔, 중고 거래를 ConnectTrip에서 만나보세요." />
             <div className="container mx-auto px-4">
                 <AnimatePresence mode="wait">
                     {mode === 'main' && (

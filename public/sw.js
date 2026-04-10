@@ -42,7 +42,7 @@ self.addEventListener('fetch', (event) => {
 
 // Push Notifications
 self.addEventListener('push', (event) => {
-  const data = event.data?.json() || { title: 'ConnecTrip', body: '새로운 알림이 있습니다.' };
+  const data = event.data?.json() || { title: 'ConnectTrip', body: '새로운 알림이 있습니다.' };
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,

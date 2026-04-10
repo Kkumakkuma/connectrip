@@ -52,7 +52,7 @@ const CompanionBoard = () => {
 
     return (
         <>
-            <SEOHead title="여행 동행자 모집 - ConnecTrip" description="함께 여행할 동행자를 찾아보세요. 지역별 여행 동행 모집 게시판." />
+            <SEOHead title="여행 동행자 모집 - ConnectTrip" description="함께 여행할 동행자를 찾아보세요. 지역별 여행 동행 모집 게시판." />
             <div className="max-w-7xl mx-auto px-4 py-24 pt-32">
                 <div className="max-w-4xl mx-auto text-center mb-20 animate-fade-in">
                     <span className="text-blue-600 font-black tracking-widest uppercase mb-4 block">Regional Companion Search</span>

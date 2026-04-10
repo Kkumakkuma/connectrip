@@ -7,7 +7,7 @@ const Footer = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', marginBottom: '3rem' }}>
                     <img
                         src="/footer-logo.png"
-                        alt="ConnecTrip"
+                        alt="ConnectTrip"
                         style={{
                             height: '120px',
                             width: 'auto',
@@ -36,7 +36,7 @@ const Footer = () => {
                 </div>
 
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem', textAlign: 'center', fontSize: '0.9rem', opacity: 0.5 }}>
-                    <p>&copy; {new Date().getFullYear()} ConnecTrip. All rights reserved.</p>
+                    <p>&copy; {new Date().getFullYear()} ConnectTrip. All rights reserved.</p>
                 </div>
             </div>
             <style>{`

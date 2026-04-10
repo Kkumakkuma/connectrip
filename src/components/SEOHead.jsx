@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 
-const BASE_URL = 'https://connectrip.com';
+const BASE_URL = 'https://connecttrip.co.kr';
 const DEFAULTS = {
-  title: 'ConnecTrip - 여행자와 승무원을 연결하는 여행 플랫폼',
+  title: 'ConnectTrip - 여행자와 승무원을 연결하는 여행 플랫폼',
   description: '동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자를 위한 모든 것.',
 };
 

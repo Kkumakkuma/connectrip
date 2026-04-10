@@ -181,7 +181,7 @@ const RegionalBoard = () => {
                                                             <button className="flex-1 py-3 bg-gray-50 text-gray-600 rounded-xl font-bold hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
                                                                 <MessageCircle size={18} /> 실시간 그룹 채팅하기
                                                             </button>
-                                                            <ShareButtons title={`${post.title} - ConnecTrip 동행 모집`} description={post.content} />
+                                                            <ShareButtons title={`${post.title} - ConnectTrip 동행 모집`} description={post.content} />
                                                         </div>
                                                     </div>
                                                 </div>

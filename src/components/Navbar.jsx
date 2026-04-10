@@ -101,7 +101,7 @@ const Navbar = () => {
         >
           <img
             src="/connectrip-logo.png"
-            alt="ConnecTrip"
+            alt="ConnectTrip"
             className="h-14 w-auto object-contain transition-transform group-hover:scale-105"
             style={{
               filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'

@@ -104,7 +104,7 @@ const Signup = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-20">
-            <SEOHead title="회원가입 - ConnecTrip" description="ConnecTrip에 가입하고 여행자와 승무원 커뮤니티에 참여하세요." />
+            <SEOHead title="회원가입 - ConnectTrip" description="ConnectTrip에 가입하고 여행자와 승무원 커뮤니티에 참여하세요." />
             <div className="max-w-7xl mx-auto px-4 pt-12">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
