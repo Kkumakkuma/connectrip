@@ -216,7 +216,7 @@ const MarketBoard = () => {
                             exit={{ opacity: 0, y: -20 }}
                             className="max-w-4xl mx-auto"
                         >
-                            <div className="text-center mb-16">
+                            <div className="text-center mb-8">
                                 <span className="text-blue-600 font-bold tracking-widest uppercase mb-2 block animate-fade-in">Marketplace</span>
                                 <h2 className="text-4xl font-black mb-4">물품거래 및 나눔 게시판</h2>
                                 <p className="text-gray-500">필요한 물건을 찾거나, 동료들을 위해 따뜻한 나눔을 실천해보세요.</p>
@@ -228,13 +228,13 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('sell')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-blue-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-blue-100 group"
                                 >
-                                    <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
-                                        <ShoppingBag size={40} />
+                                    <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600 group-hover:scale-110 transition-transform">
+                                        <ShoppingBag size={28} />
                                     </div>
-                                    <h3 className="text-2xl font-bold mb-3">물품팔아요</h3>
-                                    <p className="text-gray-500 mb-6">
+                                    <h3 className="text-xl font-bold mb-2">물품팔아요</h3>
+                                    <p className="text-gray-500 text-sm mb-3">
                                         여행 용품, 승무원 필수템 등 판매할 물건을 등록하세요.
                                         합리적인 가격으로 거래해보세요!
                                     </p>
@@ -247,13 +247,13 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('buy')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-green-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-green-100 group"
                                 >
-                                    <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mb-6 text-green-600 group-hover:scale-110 transition-transform">
-                                        <Search size={40} />
+                                    <div className="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mb-4 text-green-600 group-hover:scale-110 transition-transform">
+                                        <Search size={28} />
                                     </div>
-                                    <h3 className="text-2xl font-bold mb-3">물품구해요</h3>
-                                    <p className="text-gray-500 mb-6">
+                                    <h3 className="text-xl font-bold mb-2">물품구해요</h3>
+                                    <p className="text-gray-500 text-sm mb-3">
                                         필요한 여행 용품이나 물건을 찾고 계신가요?
                                         구매 요청을 올려보세요!
                                     </p>
@@ -266,13 +266,13 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('share')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-pink-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-pink-100 group"
                                 >
-                                    <div className="w-20 h-20 bg-pink-100 rounded-2xl flex items-center justify-center mb-6 text-pink-500 group-hover:scale-110 transition-transform">
-                                        <Heart size={40} />
+                                    <div className="w-14 h-14 bg-pink-100 rounded-2xl flex items-center justify-center mb-4 text-pink-500 group-hover:scale-110 transition-transform">
+                                        <Heart size={28} />
                                     </div>
-                                    <h3 className="text-2xl font-bold mb-3">무료 나눔</h3>
-                                    <p className="text-gray-500 mb-6">
+                                    <h3 className="text-xl font-bold mb-2">무료 나눔</h3>
+                                    <p className="text-gray-500 text-sm mb-3">
                                         남은 유심, 교통카드 잔액, 할인 쿠폰 등 작지만 소중한 물건을 나눠보세요.
                                         따뜻한 마음이 모여 더 즐거운 비행이 됩니다.
                                     </p>
@@ -285,13 +285,13 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('groupbuy')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-purple-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-purple-100 group"
                                 >
-                                    <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 text-purple-600 group-hover:scale-110 transition-transform">
-                                        <Users size={40} />
+                                    <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center mb-4 text-purple-600 group-hover:scale-110 transition-transform">
+                                        <Users size={28} />
                                     </div>
-                                    <h3 className="text-2xl font-bold mb-3">공동구매</h3>
-                                    <p className="text-gray-500 mb-6">
+                                    <h3 className="text-xl font-bold mb-2">공동구매</h3>
+                                    <p className="text-gray-500 text-sm mb-3">
                                         면세품, 현지 특산물 등 함께 사면 더 저렴!
                                         공동구매를 모집하거나 참여해보세요.
                                     </p>
