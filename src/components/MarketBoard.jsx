@@ -223,7 +223,7 @@ const MarketBoard = () => {
                             </div>
 
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                                 {/* 물품팔아요 */}
                                 <motion.div
                                     whileHover={{ y: -10 }}
