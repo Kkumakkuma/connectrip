@@ -1,0 +1,34 @@
+name: Supabase Keep-Alive
+
+# Free 플랜의 inactivity pause(7일 무활동 시 자동 정지) 방지용.
+# 매일 한 번 가벼운 SELECT를 보내 활동 카운트를 갱신한다.
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 매일 09:00 UTC = KST 18:00
+  workflow_dispatch:       # 수동 실행도 허용
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST (regions)
+        run: |
+          set -e
+          STATUS=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/regions?select=id&limit=1")
+          echo "HTTP $STATUS"
+          head -c 500 /tmp/body.txt; echo
+          # 401/403도 활동으로 카운트되긴 하지만, 의미있는 신호로 받기 위해 2xx만 통과
+          if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 300 ]; then
+            echo "Keep-alive ping failed (HTTP $STATUS)"
+            exit 1
+          fi
+
+      - name: Ping Supabase Auth health (백업)
+        if: always()
+        run: |
+          curl -sS -o /dev/null -w "Auth health: HTTP %{http_code}\n" \
+            "${{ secrets.SUPABASE_URL }}/auth/v1/health"
