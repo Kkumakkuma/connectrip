@@ -6,6 +6,7 @@ import Signup from './pages/Signup';
 import SignupEmail from './pages/SignupEmail';
 import SignupComplete from './pages/SignupComplete';
 import ProfileCompleteGate from './components/ProfileCompleteGate';
+import RouteResetGuard from './components/RouteResetGuard';
 import Destinations from './components/Destinations';
 import TravelQnA from './components/TravelQnA';
 import MarketBoard from './components/MarketBoard';
@@ -40,6 +41,7 @@ function App() {
   return (
     <Router>
       <ProfileCompleteGate />
+      <RouteResetGuard />
       <div className="App">
         <Navbar />
         <main>
