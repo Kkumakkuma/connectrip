@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Plane, Mail, Lock, Eye, EyeOff, Shield, CheckCircle } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -10,6 +10,7 @@ import SEOHead from '../components/SEOHead';
 const Signup = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const location = useLocation();
     const { signUp, signIn, signInWithProvider, updateProfile, isLoggedIn } = useAuth();
     const [userType, setUserType] = useState(null);
     const [mode, setMode] = useState(searchParams.get('mode') === 'login' ? 'login' : 'signup');
@@ -20,6 +21,20 @@ const Signup = () => {
             navigate('/');
         }
     }, [isLoggedIn, searchParams, navigate]);
+
+    // Navbar "회원가입" 링크로 /signup 에 새로 진입하거나 라우트 키가 바뀌면
+    // 가입 유형 선택 화면으로 초기화 (이전에 선택해둔 traveler/crew 상태 리셋)
+    useEffect(() => {
+        setUserType(null);
+        setError('');
+        setEmail('');
+        setPassword('');
+        setAirlineEmail('');
+        setAirlineInfo(null);
+        // mode 는 URL 쿼리에 따름
+        setMode(searchParams.get('mode') === 'login' ? 'login' : 'signup');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.key]);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
