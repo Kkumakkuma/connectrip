@@ -30,7 +30,7 @@ ALTER TABLE public.profiles
 CREATE INDEX IF NOT EXISTS idx_profiles_referred_by ON public.profiles (referred_by);
 
 -- 추천 보너스 지급 함수: referred_by 가 세팅되고 referral_bonus_given=false 면
--- 본인+추천인 양쪽에 포인트 +10,000 지급 후 플래그 true 로.
+-- 본인+추천인 양쪽에 포인트 +3,000 지급 후 플래그 true 로.
 CREATE OR REPLACE FUNCTION public.grant_referral_bonus(p_user_id UUID)
 RETURNS VOID AS $$
 DECLARE
@@ -45,13 +45,13 @@ BEGIN
   END IF;
 
   UPDATE public.profiles
-    SET points_balance = COALESCE(points_balance, 0) + 10000,
+    SET points_balance = COALESCE(points_balance, 0) + 3000,
         referral_bonus_given = TRUE,
         updated_at = NOW()
     WHERE id = p_user_id;
 
   UPDATE public.profiles
-    SET points_balance = COALESCE(points_balance, 0) + 10000,
+    SET points_balance = COALESCE(points_balance, 0) + 3000,
         updated_at = NOW()
     WHERE id = v_referrer;
 END;

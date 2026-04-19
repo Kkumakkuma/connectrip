@@ -391,7 +391,7 @@ export default function SignupComplete() {
 
           {/* 추천인 */}
           <Field
-            label="추천인 닉네임 (선택) — 입력 시 양쪽에 포인트 1만원 지급"
+            label="추천인 닉네임 (선택) — 입력 시 양쪽에 3,000포인트 지급"
             icon={<Gift size={16} />}
             helper={
               !referrerNickname ? null :
