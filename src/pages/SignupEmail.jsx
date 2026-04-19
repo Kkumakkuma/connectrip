@@ -36,7 +36,8 @@ export default function SignupEmail() {
   const [airlineEmail] = useState(initialAirlineEmail);
   const airlineInfo = getAirlineInfo(airlineEmail);
 
-  const [email, setEmail] = useState('');
+  // 승무원이면 항공사 이메일이 곧 로그인 ID. 일반 여행자는 빈 칸에서 시작.
+  const [email, setEmail] = useState(initialUserType === 'crew' ? initialAirlineEmail : '');
   const [emailStatus, setEmailStatus] = useState(null); // 'checking' | 'available' | 'taken'
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -246,17 +247,25 @@ export default function SignupEmail() {
           <input type="text" name="fake-user" autoComplete="username" style={{ display: 'none' }} />
           <input type="password" name="fake-pass" autoComplete="new-password" style={{ display: 'none' }} />
 
-          <Field label="아이디 (이메일)" icon={<Mail size={16} />}
+          <Field label={userType === 'crew' ? '아이디 (항공사 이메일 고정)' : '아이디 (이메일)'} icon={<Mail size={16} />}
             helper={
+              userType === 'crew' ? '승무원 계정은 항공사 이메일이 로그인 ID 로 고정됩니다.' :
               !email ? null :
               emailStatus === 'checking' ? '확인 중...' :
               emailStatus === 'available' ? '사용 가능' :
               emailStatus === 'taken' ? '이미 가입된 이메일' : null
             }
-            helperColor={emailStatus === 'taken' ? '#dc2626' : emailStatus === 'available' ? '#16a34a' : '#64748b'}>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@email.com" style={inputStyle} autoComplete="off"
-              required maxLength={100} />
+            helperColor={
+              userType === 'crew' ? '#6d28d9' :
+              emailStatus === 'taken' ? '#dc2626' :
+              emailStatus === 'available' ? '#16a34a' : '#64748b'
+            }>
+            <input type="email" value={email}
+              onChange={(e) => userType === 'crew' ? null : setEmail(e.target.value)}
+              readOnly={userType === 'crew'}
+              placeholder="example@email.com"
+              style={{ ...inputStyle, background: userType === 'crew' ? '#f8fafc' : 'white', cursor: userType === 'crew' ? 'not-allowed' : 'text' }}
+              autoComplete="off" required maxLength={100} />
           </Field>
 
           <Field label="비밀번호 (6자 이상)" icon={<Lock size={16} />}>

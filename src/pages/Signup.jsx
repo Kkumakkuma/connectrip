@@ -103,6 +103,21 @@ const Signup = () => {
     };
 
     const handleSocialLogin = async (provider) => {
+        // 승무원 가입은 먼저 항공사 이메일 유효성 확인
+        if (mode === 'signup' && userType === 'crew') {
+            if (!airlineEmail || !airlineInfo) {
+                setError('먼저 유효한 항공사 이메일을 입력해주세요.');
+                return;
+            }
+            // OAuth 리다이렉트 후 돌아오면 /signup/complete 에서 이 정보를 꺼내 승무원 프로필에 반영
+            try {
+                sessionStorage.setItem('pendingCrew', JSON.stringify({
+                    airlineEmail,
+                    airlineName: airlineInfo.name,
+                    ts: Date.now(),
+                }));
+            } catch { /* noop */ }
+        }
         setLoading(true);
         setError('');
         try {

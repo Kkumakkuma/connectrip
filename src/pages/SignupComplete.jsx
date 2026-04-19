@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Phone, MapPin, CheckCircle, Loader2, Gift } from 'lucide-react';
+import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield } from 'lucide-react';
+import { getAirlineInfo } from '../lib/airlines';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -43,6 +44,9 @@ export default function SignupComplete() {
   const [addressRoad, setAddressRoad] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
   const [userType, setUserType] = useState('traveler');
+  // OAuth 리턴 시 /signup 에서 승무원을 선택하고 항공사 이메일까지 검증했던 상태를 복원
+  const [airlineEmail, setAirlineEmail] = useState('');
+  const [airlineInfo, setAirlineInfo] = useState(null);
   const [referrerNickname, setReferrerNickname] = useState('');
   const [referrerStatus, setReferrerStatus] = useState(null); // 'checking' | 'valid' | 'invalid' | null
   const [referrerId, setReferrerId] = useState(null);
@@ -62,6 +66,22 @@ export default function SignupComplete() {
       navigate('/');
     }
   }, [profile, navigate]);
+
+  // OAuth 복귀 시 sessionStorage 에 저장된 승무원 항공사 정보 복원
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('pendingCrew');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // 2시간 이상 된 정보는 무시 (단순 TTL)
+        if (parsed && parsed.airlineEmail && Date.now() - (parsed.ts || 0) < 2 * 60 * 60 * 1000) {
+          setUserType('crew');
+          setAirlineEmail(parsed.airlineEmail);
+          setAirlineInfo(getAirlineInfo(parsed.airlineEmail));
+        }
+      }
+    } catch { /* noop */ }
+  }, []);
 
   // 기존 프로필 값 프리필
   useEffect(() => {
@@ -173,6 +193,7 @@ export default function SignupComplete() {
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
     if (!phoneVerified) return false;
     if (!zipcode || !addressRoad) return false;
+    if (userType === 'crew' && !airlineInfo) return false; // 승무원은 항공사 인증 필수
     return true;
   };
 
@@ -201,6 +222,12 @@ export default function SignupComplete() {
         profile_completed: true,
         updated_at: new Date().toISOString(),
       };
+      if (userType === 'crew' && airlineInfo) {
+        updates.airline_email = airlineEmail;
+        updates.airline_name = airlineInfo.name;
+        updates.crew_verified = true;
+        updates.crew_verified_at = new Date().toISOString();
+      }
       if (referrerId && referrerStatus === 'valid') {
         updates.referred_by = referrerId;
       }
@@ -214,6 +241,8 @@ export default function SignupComplete() {
       if (updates.referred_by) {
         await supabase.rpc('grant_referral_bonus', { p_user_id: user.id }).catch(() => {});
       }
+      // 승무원 pending 정보는 이제 사용 완료 → 세션 스토리지에서 제거
+      try { sessionStorage.removeItem('pendingCrew'); } catch { /* noop */ }
       await fetchProfile(user.id);
       navigate('/');
     } catch (err) {
@@ -260,6 +289,28 @@ export default function SignupComplete() {
               ))}
             </div>
           </Field>
+
+          {/* 승무원 항공사 인증 */}
+          {userType === 'crew' && (
+            <Field label="항공사 이메일 (승무원 인증)" icon={<Plane size={16} />}
+              helper={
+                !airlineEmail ? '항공사 사내 이메일을 입력해주세요.' :
+                airlineInfo ? `${airlineInfo.logo} ${airlineInfo.name} 인증됨` :
+                airlineEmail.includes('@') ? '지원되지 않는 항공사 도메인' : '유효한 이메일 형식이 아닙니다'
+              }
+              helperColor={airlineInfo ? '#16a34a' : airlineEmail ? '#dc2626' : '#64748b'}>
+              <input type="email" value={airlineEmail}
+                onChange={(e) => {
+                  setAirlineEmail(e.target.value);
+                  setAirlineInfo(getAirlineInfo(e.target.value));
+                }}
+                placeholder="예: name@koreanair.com" style={inputStyle}
+                autoComplete="off" maxLength={100} />
+              <div style={{ marginTop: 8, padding: '10px 12px', background: '#faf5ff', borderRadius: 8, fontSize: 12, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Shield size={14} /> 승무원 인증은 본 계정 외부로 노출되지 않습니다. 승무원 전용 게시판 접근 권한 용도로만 사용.
+              </div>
+            </Field>
+          )}
 
           {/* 이름 */}
           <Field label="이름 (실명)" icon={<User size={16} />}>
