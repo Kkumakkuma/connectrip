@@ -67,11 +67,12 @@ const Signup = () => {
                         crew_verified_at: new Date().toISOString(),
                     }).eq('id', data.user.id);
                 }
-                alert(`${userType === 'traveler' ? '일반 여행자' : '승무원 (' + (getAirlineInfo(airlineEmail)?.name || '') + ')'} 계정으로 가입이 완료되었습니다!`);
+                alert(`${userType === 'traveler' ? '일반 여행자' : '승무원 (' + (getAirlineInfo(airlineEmail)?.name || '') + ')'} 계정으로 가입되었습니다. 이어서 회원정보를 입력해주세요.`);
+                navigate('/signup/complete');
             } else {
                 await signIn(email, password);
+                navigate('/');
             }
-            navigate('/');
             window.scrollTo(0, 0);
         } catch (err) {
             if (err.message.includes('already registered')) {

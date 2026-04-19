@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Signup from './pages/Signup';
+import SignupComplete from './pages/SignupComplete';
+import ProfileCompleteGate from './components/ProfileCompleteGate';
 import Destinations from './components/Destinations';
 import TravelQnA from './components/TravelQnA';
 import MarketBoard from './components/MarketBoard';
@@ -36,6 +38,7 @@ function App() {
   // corrupt client state after auth changes, breaking all subsequent data fetches
   return (
     <Router>
+      <ProfileCompleteGate />
       <div className="App">
         <Navbar />
         <main>
@@ -50,6 +53,7 @@ function App() {
               }
             />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/signup/complete" element={<SignupComplete />} />
             <Route path="/companion" element={<CompanionBoard />} />
             <Route path="/companion/:regionId" element={<RegionalBoard />} />
             <Route path="/qna" element={<div className="py-20"><TravelQnA /></div>} />

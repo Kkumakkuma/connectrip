@@ -16,6 +16,31 @@ export const AuthProvider = ({ children }) => {
       .select('*')
       .eq('id', userId)
       .single();
+
+    // 프로필 row 가 아예 없으면 (트리거 불발/OAuth 경합) 즉시 최소 프로필 upsert
+    if (!data) {
+      const authUser = (await supabase.auth.getUser()).data?.user;
+      if (authUser) {
+        const meta = authUser.user_metadata || {};
+        const defaultName = meta.full_name || meta.name
+          || (authUser.email ? authUser.email.split('@')[0] : '여행자');
+        const { data: inserted } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            email: authUser.email,
+            name: defaultName,
+            avatar_url: meta.avatar_url || null,
+            provider: authUser.app_metadata?.provider || 'email',
+            profile_completed: false,
+          }, { onConflict: 'id' })
+          .select()
+          .single();
+        setProfile(inserted);
+        return inserted;
+      }
+    }
+
     setProfile(data);
     return data;
   };
