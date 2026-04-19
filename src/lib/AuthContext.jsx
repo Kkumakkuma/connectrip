@@ -54,6 +54,28 @@ export const AuthProvider = ({ children }) => {
 
     let initialDone = false;
 
+    // OAuth 리다이렉트: 해시에 access_token 이 있으면 즉시 세션으로 변환 + URL 정리
+    // (detectSessionInUrl 기본값이 있어도 일부 브라우저·상황에서 자동 처리가 안 될 때 대비)
+    const hashStr = typeof window !== 'undefined' ? window.location.hash : '';
+    if (hashStr && hashStr.includes('access_token=')) {
+      try {
+        const params = new URLSearchParams(hashStr.startsWith('#') ? hashStr.slice(1) : hashStr);
+        const access_token = params.get('access_token');
+        const refresh_token = params.get('refresh_token');
+        if (access_token && refresh_token) {
+          supabase.auth.setSession({ access_token, refresh_token }).catch((err) => {
+            console.warn('setSession from hash failed:', err?.message);
+          });
+        }
+      } catch (e) {
+        console.warn('hash parse failed:', e);
+      }
+      // URL 에서 해시 제거 (토큰이 주소창에 남지 않게)
+      try {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      } catch { /* noop */ }
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!initialDone) {
