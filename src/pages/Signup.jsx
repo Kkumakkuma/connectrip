@@ -264,44 +264,71 @@ const Signup = () => {
                                         </div>
                                     )}
 
-                                    {/* Email/Password Form */}
-                                    <div className="space-y-4 mb-6">
-                                        <div className="relative">
-                                            <Mail size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                                            <input
-                                                type="email"
-                                                placeholder={mode === 'signup' && userType === 'crew' ? '개인 이메일 (로그인용)' : '이메일'}
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                                className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-800"
-                                                onKeyDown={(e) => e.key === 'Enter' && handleEmailAuth()}
-                                            />
-                                        </div>
-                                        <div className="relative">
-                                            <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                                            <input
-                                                type={showPassword ? 'text' : 'password'}
-                                                placeholder="비밀번호 (6자 이상)"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                className="w-full pl-12 pr-12 py-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-800"
-                                                onKeyDown={(e) => e.key === 'Enter' && handleEmailAuth()}
-                                            />
+                                    {/* Email/Password Form — 로그인 모드일 때만 인라인으로 보임. 가입 모드는 전용 페이지로 이동. */}
+                                    {mode === 'login' ? (
+                                        <form className="space-y-4 mb-6" autoComplete="on" onSubmit={(e) => { e.preventDefault(); handleEmailAuth(); }}>
+                                            <div className="relative">
+                                                <Mail size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    autoComplete="username"
+                                                    placeholder="이메일"
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-800"
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <Lock size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    name="password"
+                                                    autoComplete="current-password"
+                                                    placeholder="비밀번호"
+                                                    value={password}
+                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    className="w-full pl-12 pr-12 py-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-800"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                >
+                                                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                                </button>
+                                            </div>
                                             <button
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                type="submit"
+                                                disabled={loading}
+                                                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-50 disabled:hover:scale-100"
                                             >
-                                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                                {loading ? '처리 중...' : '로그인'}
                                             </button>
+                                        </form>
+                                    ) : (
+                                        <div className="space-y-4 mb-6">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const params = new URLSearchParams();
+                                                    if (userType) params.set('type', userType);
+                                                    if (userType === 'crew' && airlineEmail) params.set('airline', airlineEmail);
+                                                    navigate(`/signup/email${params.toString() ? '?' + params.toString() : ''}`);
+                                                }}
+                                                disabled={userType === 'crew' && !airlineInfo}
+                                                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                                            >
+                                                <Mail size={20} />
+                                                이메일로 가입하기
+                                            </button>
+                                            {userType === 'crew' && !airlineInfo && (
+                                                <p className="text-xs text-gray-500 text-center">
+                                                    먼저 유효한 항공사 이메일을 입력해주세요.
+                                                </p>
+                                            )}
                                         </div>
-                                        <button
-                                            onClick={handleEmailAuth}
-                                            disabled={loading}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-50 disabled:hover:scale-100"
-                                        >
-                                            {loading ? '처리 중...' : mode === 'signup' ? '이메일로 가입하기' : '로그인'}
-                                        </button>
-                                    </div>
+                                    )}
 
                                     {/* Divider */}
                                     <div className="flex items-center gap-3 my-6">

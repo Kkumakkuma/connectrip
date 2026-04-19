@@ -31,6 +31,39 @@ CREATE INDEX IF NOT EXISTS idx_profiles_referred_by ON public.profiles (referred
 
 -- 추천 보너스 지급 함수: referred_by 가 세팅되고 referral_bonus_given=false 면
 -- 본인+추천인 양쪽에 포인트 +3,000 지급 후 플래그 true 로.
+-- 신규 사용자 생성 트리거 확장: /signup/email 에서 signUp({ data: metadata }) 로 넘긴
+-- 모든 필드를 profiles 테이블에 자동 반영. 이메일 확인 ON 상태에서도 OK.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  meta JSONB;
+BEGIN
+  meta := COALESCE(NEW.raw_user_meta_data, '{}'::jsonb);
+  INSERT INTO public.profiles (
+    id, email, name, nickname, phone, phone_verified,
+    address_zipcode, address_road, address_detail,
+    user_type, avatar_url, provider, profile_completed, referred_by
+  ) VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(meta->>'name', meta->>'full_name', split_part(NEW.email, '@', 1)),
+    NULLIF(meta->>'nickname', ''),
+    NULLIF(meta->>'phone', ''),
+    COALESCE((meta->>'phone_verified')::boolean, FALSE),
+    NULLIF(meta->>'address_zipcode', ''),
+    NULLIF(meta->>'address_road', ''),
+    NULLIF(meta->>'address_detail', ''),
+    COALESCE(NULLIF(meta->>'user_type', ''), 'traveler'),
+    NULLIF(meta->>'avatar_url', ''),
+    COALESCE(NULLIF(NEW.raw_app_meta_data->>'provider', ''), 'email'),
+    COALESCE((meta->>'profile_completed')::boolean, FALSE),
+    CASE WHEN (meta->>'referred_by') ~ '^[0-9a-fA-F-]{36}$'
+         THEN (meta->>'referred_by')::uuid ELSE NULL END
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION public.grant_referral_bonus(p_user_id UUID)
 RETURNS VOID AS $$
 DECLARE

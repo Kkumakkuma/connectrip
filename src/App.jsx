@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Signup from './pages/Signup';
+import SignupEmail from './pages/SignupEmail';
 import SignupComplete from './pages/SignupComplete';
 import ProfileCompleteGate from './components/ProfileCompleteGate';
 import Destinations from './components/Destinations';
@@ -53,6 +54,7 @@ function App() {
               }
             />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/signup/email" element={<SignupEmail />} />
             <Route path="/signup/complete" element={<SignupComplete />} />
             <Route path="/companion" element={<CompanionBoard />} />
             <Route path="/companion/:regionId" element={<RegionalBoard />} />
