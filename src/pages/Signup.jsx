@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Plane, Mail, Lock, Eye, EyeOff, Shield, CheckCircle, ArrowRight } from 'lucide-react';
+import { User, Plane, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { isAirlineEmail, getAirlineInfo, getAirlineList } from '../lib/airlines';
 import SEOHead from '../components/SEOHead';
 
 const Signup = () => {
@@ -12,9 +11,6 @@ const Signup = () => {
     const location = useLocation();
     const { signIn, isLoggedIn } = useAuth();
     const [mode, setMode] = useState(searchParams.get('mode') === 'login' ? 'login' : 'signup');
-    const [crewAirlineEmail, setCrewAirlineEmail] = useState('');
-    const [crewAirlineInfo, setCrewAirlineInfo] = useState(null);
-    const [crewOpen, setCrewOpen] = useState(false);      // 승무원 카드 눌렀을 때 항공사 이메일 입력 표시
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -31,9 +27,6 @@ const Signup = () => {
         setError('');
         setEmail('');
         setPassword('');
-        setCrewAirlineEmail('');
-        setCrewAirlineInfo(null);
-        setCrewOpen(false);
         setMode(searchParams.get('mode') === 'login' ? 'login' : 'signup');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.key]);
@@ -59,18 +52,6 @@ const Signup = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    const goTravelerSignup = () => {
-        navigate('/signup/email?type=traveler');
-    };
-
-    const proceedCrewSignup = () => {
-        if (!crewAirlineEmail || !crewAirlineInfo) {
-            setError('먼저 유효한 항공사 이메일을 입력해주세요.');
-            return;
-        }
-        navigate(`/signup/email?type=crew&airline=${encodeURIComponent(crewAirlineEmail)}`);
     };
 
     return (
@@ -103,16 +84,10 @@ const Signup = () => {
                                 exit={{ opacity: 0, scale: 0.98 }}
                                 transition={{ duration: 0.25 }}
                             >
-                                {error && (
-                                    <div className="max-w-2xl mx-auto mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                                        {error}
-                                    </div>
-                                )}
-
                                 <div className="grid md:grid-cols-2 gap-6">
-                                    {/* 일반 여행자 카드 — 클릭 즉시 /signup/email?type=traveler */}
+                                    {/* 일반 여행자 카드 → 즉시 /signup/email?type=traveler */}
                                     <motion.button
-                                        onClick={goTravelerSignup}
+                                        onClick={() => navigate('/signup/email?type=traveler')}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-blue-500 transition-all group text-left"
@@ -134,14 +109,12 @@ const Signup = () => {
                                         </div>
                                     </motion.button>
 
-                                    {/* 승무원 카드 — 클릭 시 항공사 이메일 입력 표시, 검증 후 /signup/email?type=crew&airline=... */}
+                                    {/* 승무원 카드 → 즉시 /signup/email?type=crew, 페이지 안에서 항공사 이메일 인증 */}
                                     <motion.button
-                                        onClick={() => { setCrewOpen(true); setError(''); }}
-                                        whileHover={{ scale: crewOpen ? 1 : 1.02 }}
-                                        whileTap={{ scale: crewOpen ? 1 : 0.98 }}
-                                        className={`bg-white rounded-3xl p-8 shadow-2xl border-2 transition-all group text-left ${
-                                            crewOpen ? 'border-purple-500 ring-4 ring-purple-100' : 'border-gray-200 hover:border-purple-500'
-                                        }`}
+                                        onClick={() => navigate('/signup/email?type=crew')}
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-purple-500 transition-all group text-left"
                                     >
                                         <div className="flex flex-col items-center text-center space-y-4">
                                             <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -153,93 +126,13 @@ const Signup = () => {
                                             </p>
                                             <div className="pt-4">
                                                 <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-600 px-4 py-2 rounded-full font-semibold">
-                                                    <span>{crewOpen ? '항공사 이메일 입력 중' : '승무원으로 가입'}</span>
-                                                    {!crewOpen && <ArrowRight size={16} />}
+                                                    <span>승무원으로 가입</span>
+                                                    <ArrowRight size={16} />
                                                 </div>
                                             </div>
                                         </div>
                                     </motion.button>
                                 </div>
-
-                                {/* 승무원 항공사 이메일 입력 (카드 아래에 펼쳐짐) */}
-                                <AnimatePresence>
-                                    {crewOpen && (
-                                        <motion.div
-                                            initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                                            animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
-                                            exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                                            transition={{ duration: 0.25 }}
-                                            className="max-w-2xl mx-auto overflow-hidden"
-                                        >
-                                            <div className="p-6 bg-purple-50 border-2 border-purple-200 rounded-2xl">
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <Shield size={20} className="text-purple-600" />
-                                                    <span className="font-bold text-purple-800">승무원 인증</span>
-                                                </div>
-                                                <p className="text-sm text-purple-700 mb-4">
-                                                    항공사 사내 이메일로 먼저 신원을 확인합니다. 이 이메일이 가입 시 로그인 ID가 됩니다.
-                                                </p>
-                                                <div className="relative mb-3">
-                                                    <Plane size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400" />
-                                                    <input
-                                                        type="email"
-                                                        placeholder="항공사 이메일 (예: name@koreanair.com)"
-                                                        value={crewAirlineEmail}
-                                                        onChange={(e) => {
-                                                            const v = e.target.value;
-                                                            setCrewAirlineEmail(v);
-                                                            setCrewAirlineInfo(isAirlineEmail(v) ? getAirlineInfo(v) : null);
-                                                        }}
-                                                        autoComplete="off"
-                                                        className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none transition-all text-gray-800 text-sm"
-                                                    />
-                                                </div>
-                                                {crewAirlineInfo && (
-                                                    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg mb-3">
-                                                        <CheckCircle size={16} className="text-green-600" />
-                                                        <span className="text-sm text-green-700 font-semibold">
-                                                            {crewAirlineInfo.logo} {crewAirlineInfo.name} 확인됨
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                {crewAirlineEmail && !crewAirlineInfo && crewAirlineEmail.includes('@') && (
-                                                    <div className="text-xs text-red-500 mb-3">
-                                                        지원되지 않는 항공사 도메인입니다.
-                                                    </div>
-                                                )}
-                                                <details className="mb-4">
-                                                    <summary className="text-xs text-purple-600 cursor-pointer">지원 항공사 목록 보기</summary>
-                                                    <div className="mt-2 grid grid-cols-2 gap-1">
-                                                        {getAirlineList().map(a => (
-                                                            <div key={a.domain} className="text-xs text-gray-600 py-1">
-                                                                {a.logo} {a.name}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </details>
-
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { setCrewOpen(false); setCrewAirlineEmail(''); setCrewAirlineInfo(null); setError(''); }}
-                                                        className="px-4 py-3 bg-white text-gray-700 rounded-xl font-semibold border border-gray-200 hover:bg-gray-50 transition-all"
-                                                    >
-                                                        취소
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={proceedCrewSignup}
-                                                        disabled={!crewAirlineInfo}
-                                                        className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    >
-                                                        <span>승무원 가입 계속</span>
-                                                        <ArrowRight size={18} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
 
                                 {/* 2중 인증 안내 */}
                                 <div className="max-w-2xl mx-auto mt-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
@@ -327,7 +220,6 @@ const Signup = () => {
                                 onClick={() => {
                                     setMode(mode === 'signup' ? 'login' : 'signup');
                                     setError('');
-                                    setCrewOpen(false);
                                 }}
                                 className="text-blue-600 hover:text-blue-700 font-semibold hover:underline"
                             >

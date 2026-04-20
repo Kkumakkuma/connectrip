@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Gift, CheckCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Gift, CheckCircle, Loader2, Plane, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { getAirlineInfo } from '../lib/airlines';
+import { getAirlineInfo, isAirlineEmail, getAirlineList } from '../lib/airlines';
 
 function loadDaumPostcode() {
   return new Promise((resolve, reject) => {
@@ -33,11 +33,19 @@ export default function SignupEmail() {
   const initialUserType = searchParams.get('type') === 'crew' ? 'crew' : 'traveler';
   const initialAirlineEmail = searchParams.get('airline') || '';
   const [userType] = useState(initialUserType);
-  const [airlineEmail] = useState(initialAirlineEmail);
-  const airlineInfo = getAirlineInfo(airlineEmail);
+  // 승무원은 이 페이지 안에서 항공사 이메일을 직접 입력/수정할 수 있어야 함
+  const [airlineEmail, setAirlineEmail] = useState(initialAirlineEmail);
+  const airlineInfo = isAirlineEmail(airlineEmail) ? getAirlineInfo(airlineEmail) : null;
 
   // 승무원이면 항공사 이메일이 곧 로그인 ID. 일반 여행자는 빈 칸에서 시작.
   const [email, setEmail] = useState(initialUserType === 'crew' ? initialAirlineEmail : '');
+
+  // 승무원: 항공사 이메일 변경되면 로그인 ID(email) 자동 동기화
+  useEffect(() => {
+    if (userType === 'crew') {
+      setEmail(airlineEmail);
+    }
+  }, [userType, airlineEmail]);
   const [emailStatus, setEmailStatus] = useState(null); // 'checking' | 'available' | 'taken'
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -260,6 +268,53 @@ export default function SignupEmail() {
           {/* 브라우저 자동완성 차단 트랩 (화면에 안 보임) */}
           <input type="text" name="fake-user" autoComplete="username" style={{ display: 'none' }} />
           <input type="password" name="fake-pass" autoComplete="new-password" style={{ display: 'none' }} />
+
+          {/* 승무원 전용: 항공사 이메일 인증 블록 (폼 최상단) */}
+          {userType === 'crew' && (
+            <div style={{ marginBottom: 16, padding: 16, background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Shield size={16} color="#7c3aed" />
+                <strong style={{ color: '#6d28d9', fontSize: 14 }}>승무원 인증 (1단계)</strong>
+              </div>
+              <p style={{ fontSize: 12, color: '#6b46c1', marginBottom: 10, lineHeight: 1.5 }}>
+                항공사 사내 이메일로 먼저 신원을 확인합니다. 이 이메일이 자동으로 아래 로그인 ID에 들어갑니다.
+              </p>
+              <div style={{ position: 'relative', marginBottom: 8 }}>
+                <Plane size={14} style={{ position: 'absolute', left: 12, top: 13, color: '#a78bfa' }} />
+                <input
+                  type="email"
+                  value={airlineEmail}
+                  onChange={(e) => setAirlineEmail(e.target.value)}
+                  placeholder="항공사 이메일 (예: name@koreanair.com)"
+                  autoComplete="off"
+                  style={{ ...inputStyle, paddingLeft: 32 }}
+                />
+              </div>
+              {airlineInfo && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8 }}>
+                  <CheckCircle size={14} color="#16a34a" />
+                  <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600 }}>
+                    {airlineInfo.logo} {airlineInfo.name} 확인됨
+                  </span>
+                </div>
+              )}
+              {airlineEmail && !airlineInfo && airlineEmail.includes('@') && (
+                <p style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
+                  지원되지 않는 항공사 도메인입니다.
+                </p>
+              )}
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ fontSize: 11, color: '#6d28d9', cursor: 'pointer' }}>지원 항공사 목록</summary>
+                <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                  {getAirlineList().map(a => (
+                    <div key={a.domain} style={{ fontSize: 11, color: '#64748b', padding: '2px 0' }}>
+                      {a.logo} {a.name}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
 
           <Field label={userType === 'crew' ? '아이디 (항공사 이메일 고정)' : '아이디 (이메일)'} icon={<Mail size={16} />}
             helper={
