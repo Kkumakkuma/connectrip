@@ -255,7 +255,7 @@ export default function SignupComplete() {
   if (!isLoggedIn) return null;
 
   return (
-    <div style={{ maxWidth: 520, margin: '40px auto', padding: '0 20px' }}>
+    <div style={{ maxWidth: 520, margin: '120px auto 40px', padding: '0 20px' }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

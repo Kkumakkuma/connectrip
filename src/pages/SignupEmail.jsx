@@ -290,7 +290,7 @@ export default function SignupEmail() {
   }
 
   return (
-    <div style={{ maxWidth: 560, margin: '40px auto', padding: '0 20px' }}>
+    <div style={{ maxWidth: 560, margin: '120px auto 40px', padding: '0 20px' }}>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         style={{ background: 'white', borderRadius: 16, padding: 32, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <h1 style={{ fontSize: 22, marginBottom: 6, color: '#1a365d', fontWeight: 700 }}>
@@ -461,9 +461,9 @@ export default function SignupEmail() {
               autoComplete="off" maxLength={80} />
           </Field>
 
-          <Field label="추천인 닉네임 (선택) - 입력 시 양쪽에 3,000포인트" icon={<Gift size={16} />}
+          <Field label="추천인 닉네임" icon={<Gift size={16} />} required={false}
             helper={
-              !referrerNickname ? null :
+              !referrerNickname ? '선택 사항. 입력 시 양쪽에 3,000포인트가 지급됩니다.' :
               referrerStatus === 'checking' ? '확인 중...' :
               referrerStatus === 'valid' ? '추천인 확인됨' :
               referrerStatus === 'invalid' ? '해당 닉네임 없음' : null
@@ -471,7 +471,7 @@ export default function SignupEmail() {
             helperColor={referrerStatus === 'valid' ? '#16a34a' : referrerStatus === 'invalid' ? '#dc2626' : '#64748b'}>
             <input type="text" value={referrerNickname}
               onChange={(e) => setReferrerNickname(e.target.value)}
-              placeholder="친구의 닉네임 (비워둬도 OK)"
+              placeholder="친구의 닉네임"
               style={inputStyle} autoComplete="off" maxLength={20} />
           </Field>
 
@@ -505,11 +505,13 @@ const inputStyle = {
   border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none', background: 'white',
 };
 
-function Field({ label, icon, helper, helperColor, children }) {
+function Field({ label, icon, helper, helperColor, required = true, children }) {
   return (
     <div style={{ marginBottom: 18 }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#334155', fontWeight: 600, marginBottom: 6 }}>
-        {icon}{label}
+        {icon}
+        <span>{label}</span>
+        {required && <span style={{ color: '#dc2626', fontWeight: 700 }}>*</span>}
       </label>
       {children}
       {helper && (
