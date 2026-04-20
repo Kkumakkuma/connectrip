@@ -52,6 +52,7 @@ export default function SignupEmail() {
   const [emailVerified, setEmailVerified] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
   const [emailVerifying, setEmailVerifying] = useState(false);
+  const [emailError, setEmailError] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -160,13 +161,14 @@ export default function SignupEmail() {
 
   const sendEmailCode = async () => {
     setError('');
+    setEmailError('');
     const cleaned = email.trim().toLowerCase();
     if (!/^[\w.+-]+@[\w.-]+\.[a-z]{2,}$/i.test(cleaned)) {
-      setError('이메일 형식이 올바르지 않습니다.');
+      setEmailError('이메일 형식이 올바르지 않습니다.');
       return;
     }
     if (emailStatus === 'taken') {
-      setError('이미 가입된 이메일입니다.');
+      setEmailError('이미 가입된 이메일입니다.');
       return;
     }
     setEmailSending(true);
@@ -178,21 +180,22 @@ export default function SignupEmail() {
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        setError(data.error || '이메일 발송 실패');
+        setEmailError(data.error || '이메일 발송 실패');
         return;
       }
       setEmailSent(true);
       setEmailCode('');
     } catch (err) {
-      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+      setEmailError('네트워크 오류: ' + (err.message || '알 수 없음'));
     } finally {
       setEmailSending(false);
     }
   };
 
   const verifyEmailCode = async () => {
+    setEmailError('');
     if (!emailCode || emailCode.length !== 6 || !/^[0-9]+$/.test(emailCode)) {
-      setError('이메일 인증번호 6자리를 입력해주세요.');
+      setEmailError('이메일 인증번호 6자리를 입력해주세요.');
       return;
     }
     setEmailVerifying(true);
@@ -205,13 +208,13 @@ export default function SignupEmail() {
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        setError(data.error || '이메일 인증 실패');
+        setEmailError(data.error || '이메일 인증 실패');
         return;
       }
       setEmailVerified(true);
-      setError('');
+      setEmailError('');
     } catch (err) {
-      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+      setEmailError('네트워크 오류: ' + (err.message || '알 수 없음'));
     } finally {
       setEmailVerifying(false);
     }
@@ -458,6 +461,11 @@ export default function SignupEmail() {
                 {emailVerified ? '인증 완료' : emailSending ? '전송 중...' : emailSent ? '재전송' : '인증번호 받기'}
               </button>
             </div>
+            {emailError && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>
+                ⚠️ {emailError}
+              </div>
+            )}
             {emailSent && !emailVerified && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <input type="text" value={emailCode}
