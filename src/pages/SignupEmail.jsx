@@ -47,6 +47,11 @@ export default function SignupEmail() {
     }
   }, [userType, airlineEmail]);
   const [emailStatus, setEmailStatus] = useState(null); // 'checking' | 'available' | 'taken'
+  const [emailCode, setEmailCode] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -145,6 +150,73 @@ export default function SignupEmail() {
   const [phoneSending, setPhoneSending] = useState(false);
   const [phoneVerifying, setPhoneVerifying] = useState(false);
 
+  // 이메일 값 바뀌면 인증 상태 리셋
+  useEffect(() => {
+    setEmailVerified(false);
+    setEmailSent(false);
+    setEmailCode('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email]);
+
+  const sendEmailCode = async () => {
+    setError('');
+    const cleaned = email.trim().toLowerCase();
+    if (!/^[\w.+-]+@[\w.-]+\.[a-z]{2,}$/i.test(cleaned)) {
+      setError('이메일 형식이 올바르지 않습니다.');
+      return;
+    }
+    if (emailStatus === 'taken') {
+      setError('이미 가입된 이메일입니다.');
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const resp = await fetch('/api/send-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleaned }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setError(data.error || '이메일 발송 실패');
+        return;
+      }
+      setEmailSent(true);
+      setEmailCode('');
+    } catch (err) {
+      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const verifyEmailCode = async () => {
+    if (!emailCode || emailCode.length !== 6 || !/^[0-9]+$/.test(emailCode)) {
+      setError('이메일 인증번호 6자리를 입력해주세요.');
+      return;
+    }
+    setEmailVerifying(true);
+    try {
+      const cleaned = email.trim().toLowerCase();
+      const resp = await fetch('/api/verify-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleaned, code: emailCode }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setError(data.error || '이메일 인증 실패');
+        return;
+      }
+      setEmailVerified(true);
+      setError('');
+    } catch (err) {
+      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setEmailVerifying(false);
+    }
+  };
+
   const sendPhoneCode = async () => {
     setError('');
     const cleaned = phone.replace(/[^0-9]/g, '');
@@ -205,6 +277,7 @@ export default function SignupEmail() {
 
   const canSubmit = () => {
     if (!email || emailStatus !== 'available') return false;
+    if (!emailVerified) return false;
     if (!password || password.length < 6) return false;
     if (password !== passwordConfirm) return false;
     if (!name.trim()) return false;
@@ -356,23 +429,50 @@ export default function SignupEmail() {
 
           <Field label={userType === 'crew' ? '아이디 (항공사 이메일 고정)' : '아이디 (이메일)'} icon={<Mail size={16} />}
             helper={
-              userType === 'crew' ? '승무원 계정은 항공사 이메일이 로그인 ID 로 고정됩니다.' :
-              !email ? null :
+              emailVerified ? '이메일 인증 완료' :
+              userType === 'crew' && !airlineInfo ? '위에서 항공사 이메일을 먼저 입력하세요.' :
+              !email ? (userType === 'crew' ? '항공사 이메일이 자동으로 들어갑니다.' : null) :
               emailStatus === 'checking' ? '확인 중...' :
-              emailStatus === 'available' ? '사용 가능' :
+              emailStatus === 'available' && !emailSent ? '사용 가능 — 오른쪽 "인증번호 받기" 버튼을 눌러 본인 확인하세요.' :
+              emailStatus === 'available' && emailSent ? '인증번호가 이메일로 발송됐습니다. 메일함(스팸함 포함)을 확인하고 6자리 입력해주세요.' :
               emailStatus === 'taken' ? '이미 가입된 이메일' : null
             }
             helperColor={
-              userType === 'crew' ? '#6d28d9' :
+              emailVerified ? '#16a34a' :
               emailStatus === 'taken' ? '#dc2626' :
-              emailStatus === 'available' ? '#16a34a' : '#64748b'
+              emailStatus === 'available' ? '#2563eb' : '#64748b'
             }>
-            <input type="email" value={email}
-              onChange={(e) => userType === 'crew' ? null : setEmail(e.target.value)}
-              readOnly={userType === 'crew'}
-              placeholder="example@email.com"
-              style={{ ...inputStyle, background: userType === 'crew' ? '#f8fafc' : 'white', cursor: userType === 'crew' ? 'not-allowed' : 'text' }}
-              autoComplete="off" required maxLength={100} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="email" value={email}
+                onChange={(e) => userType === 'crew' ? null : setEmail(e.target.value)}
+                readOnly={userType === 'crew' || emailVerified}
+                placeholder="example@email.com"
+                style={{ ...inputStyle, flex: 1, background: (userType === 'crew' || emailVerified) ? '#f8fafc' : 'white', cursor: (userType === 'crew' || emailVerified) ? 'not-allowed' : 'text' }}
+                autoComplete="off" required maxLength={100} />
+              <button type="button" onClick={sendEmailCode}
+                disabled={!email || emailStatus !== 'available' || emailVerified || emailSending}
+                style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
+                  background: emailVerified ? '#d1fae5' : emailSending ? '#94a3b8' : (!email || emailStatus !== 'available') ? '#cbd5e1' : '#2563eb',
+                  color: emailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
+                  cursor: emailVerified || emailSending || !email || emailStatus !== 'available' ? 'default' : 'pointer' }}>
+                {emailVerified ? '인증 완료' : emailSending ? '전송 중...' : emailSent ? '재전송' : '인증번호 받기'}
+              </button>
+            </div>
+            {emailSent && !emailVerified && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <input type="text" value={emailCode}
+                  onChange={(e) => setEmailCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="이메일 인증번호 6자리"
+                  style={{ ...inputStyle, flex: 1 }}
+                  autoComplete="off" maxLength={6} inputMode="numeric" />
+                <button type="button" onClick={verifyEmailCode} disabled={emailVerifying}
+                  style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
+                    background: emailVerifying ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', fontWeight: 600,
+                    cursor: emailVerifying ? 'wait' : 'pointer' }}>
+                  {emailVerifying ? '확인 중...' : '인증'}
+                </button>
+              </div>
+            )}
           </Field>
 
           <Field label="비밀번호 (6자 이상)" icon={<Lock size={16} />}>
