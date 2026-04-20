@@ -33,11 +33,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const SUPA_URL = process.env.SUPABASE_URL;
-    const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const SOLAPI_KEY = process.env.SOLAPI_API_KEY;
-    const SOLAPI_SECRET = process.env.SOLAPI_API_SECRET;
-    const SOLAPI_FROM = process.env.SOLAPI_SENDER_NUMBER;
+    const SUPA_URL = (process.env.SUPABASE_URL || '').trim();
+    const SUPA_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+    const SOLAPI_KEY = (process.env.SOLAPI_API_KEY || '').trim();
+    const SOLAPI_SECRET = (process.env.SOLAPI_API_SECRET || '').trim();
+    const SOLAPI_FROM = (process.env.SOLAPI_SENDER_NUMBER || '').trim();
 
     if (!SUPA_URL || !SUPA_KEY || !SOLAPI_KEY || !SOLAPI_SECRET || !SOLAPI_FROM) {
       console.error('[send-otp] 환경변수 누락', {
@@ -83,6 +83,13 @@ export default async function handler(req, res) {
     }
 
     // Solapi 발송
+    console.log('[send-otp] Solapi 호출 준비', {
+      apiKeyLen: SOLAPI_KEY.length,
+      apiKeyPrefix: SOLAPI_KEY.slice(0, 4),
+      secretLen: SOLAPI_SECRET.length,
+      fromNumber: String(SOLAPI_FROM).replace(/[^0-9]/g, ''),
+      toNumber: cleaned.slice(0, 3) + '***',
+    });
     const solResp = await fetch('https://api.solapi.com/messages/v4/send', {
       method: 'POST',
       headers: {
