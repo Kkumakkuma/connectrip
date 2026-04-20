@@ -107,9 +107,13 @@ export default async function handler(req, res) {
     const solData = await solResp.json();
     if (!solResp.ok) {
       console.error('[send-otp] Solapi 발송 실패', solResp.status, solData);
+      const solMsg = solData?.message
+        || solData?.errorMessage
+        || solData?.error
+        || JSON.stringify(solData).slice(0, 200);
       return res.status(502).json({
         ok: false,
-        error: 'SMS 발송에 실패했습니다. 잠시 후 다시 시도하세요.',
+        error: `SMS 발송 실패 (Solapi ${solResp.status}): ${solMsg}`,
       });
     }
 
