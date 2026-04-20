@@ -137,12 +137,23 @@ export default function SignupEmail() {
   const sendPhoneCode = () => {
     setError('');
     const cleaned = phone.replace(/[^0-9]/g, '');
-    if (cleaned.length < 10) { setError('휴대폰 번호를 정확히 입력해주세요.'); return; }
+    if (cleaned.length < 10 || cleaned.length > 11) {
+      setError('휴대폰 번호를 정확히 입력해주세요. (10~11자리 숫자)');
+      return;
+    }
+    if (!/^01[016789]/.test(cleaned)) {
+      setError('올바른 휴대폰 번호 형식이 아닙니다.');
+      return;
+    }
     setPhoneSent(true);
-    alert('개발 중: 실제 SMS는 아직 발송되지 않습니다. 인증번호 칸에 아무 값이나 입력 후 인증 버튼 눌러주세요.');
+    // TODO: SMS 공급자(네이버 SENS) 연동 완료 시 실 OTP 발송 API 호출로 교체
+    alert('📱 SMS 공급자 연동 준비 중입니다.\n\n지금은 테스트 단계로 인증번호 6자리(예: 123456) 아무 숫자나 입력해도 통과됩니다. 정식 오픈 시 실제 문자가 발송됩니다.');
   };
   const verifyPhoneCode = () => {
-    if (!phoneCode || phoneCode.length < 4) { setError('인증번호를 입력해주세요.'); return; }
+    if (!phoneCode || phoneCode.length !== 6 || !/^[0-9]+$/.test(phoneCode)) {
+      setError('인증번호 6자리 숫자를 입력해주세요.');
+      return;
+    }
     setPhoneVerified(true); setError('');
   };
 
@@ -165,6 +176,7 @@ export default function SignupEmail() {
     setSubmitting(true);
     try {
       // Supabase Auth 가입 + 메타데이터에 모든 필드 담기 (SQL 트리거가 profile 에 반영)
+      // identity_verified=false / verification_method='sms_otp_pending' — 통신사 본인인증 도입 시 기존 유저 강제 업그레이드용 플래그
       const metadata = {
         name: name.trim(),
         nickname: nickname.trim(),
@@ -175,6 +187,8 @@ export default function SignupEmail() {
         address_detail: addressDetail,
         user_type: userType,
         profile_completed: true,
+        identity_verified: false,
+        verification_method: 'sms_otp_pending',
       };
       if (referrerId && referrerStatus === 'valid') {
         metadata.referred_by = referrerId;
