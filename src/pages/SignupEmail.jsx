@@ -142,7 +142,10 @@ export default function SignupEmail() {
     }
   };
 
-  const sendPhoneCode = () => {
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneVerifying, setPhoneVerifying] = useState(false);
+
+  const sendPhoneCode = async () => {
     setError('');
     const cleaned = phone.replace(/[^0-9]/g, '');
     if (cleaned.length < 10 || cleaned.length > 11) {
@@ -153,16 +156,51 @@ export default function SignupEmail() {
       setError('올바른 휴대폰 번호 형식이 아닙니다.');
       return;
     }
-    setPhoneSent(true);
-    // TODO: SMS 공급자(네이버 SENS) 연동 완료 시 실 OTP 발송 API 호출로 교체
-    alert('📱 SMS 공급자 연동 준비 중입니다.\n\n지금은 테스트 단계로 인증번호 6자리(예: 123456) 아무 숫자나 입력해도 통과됩니다. 정식 오픈 시 실제 문자가 발송됩니다.');
+    setPhoneSending(true);
+    try {
+      const resp = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleaned }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setError(data.error || '인증번호 발송에 실패했습니다.');
+        return;
+      }
+      setPhoneSent(true);
+      setPhoneCode('');
+    } catch (err) {
+      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setPhoneSending(false);
+    }
   };
-  const verifyPhoneCode = () => {
+  const verifyPhoneCode = async () => {
     if (!phoneCode || phoneCode.length !== 6 || !/^[0-9]+$/.test(phoneCode)) {
       setError('인증번호 6자리 숫자를 입력해주세요.');
       return;
     }
-    setPhoneVerified(true); setError('');
+    setPhoneVerifying(true);
+    try {
+      const cleaned = phone.replace(/[^0-9]/g, '');
+      const resp = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleaned, code: phoneCode }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setError(data.error || '인증 실패');
+        return;
+      }
+      setPhoneVerified(true);
+      setError('');
+    } catch (err) {
+      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setPhoneVerifying(false);
+    }
   };
 
   const canSubmit = () => {
@@ -385,12 +423,12 @@ export default function SignupEmail() {
                 onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="01012345678" style={{ ...inputStyle, flex: 1 }}
                 autoComplete="off" maxLength={11} disabled={phoneVerified} />
-              <button type="button" onClick={sendPhoneCode} disabled={phoneVerified}
+              <button type="button" onClick={sendPhoneCode} disabled={phoneVerified || phoneSending}
                 style={{ padding: '0 14px', borderRadius: 10,
-                  background: phoneVerified ? '#d1fae5' : '#2563eb',
+                  background: phoneVerified ? '#d1fae5' : phoneSending ? '#94a3b8' : '#2563eb',
                   color: phoneVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
                   cursor: phoneVerified ? 'default' : 'pointer' }}>
-                {phoneVerified ? '인증 완료' : phoneSent ? '재전송' : '인증번호'}
+                {phoneVerified ? '인증 완료' : phoneSending ? '전송 중...' : phoneSent ? '재전송' : '인증번호 받기'}
               </button>
             </div>
             {phoneSent && !phoneVerified && (
@@ -399,9 +437,9 @@ export default function SignupEmail() {
                   onChange={(e) => setPhoneCode(e.target.value.replace(/[^0-9]/g, ''))}
                   placeholder="인증번호" style={{ ...inputStyle, flex: 1 }}
                   autoComplete="off" maxLength={6} />
-                <button type="button" onClick={verifyPhoneCode}
-                  style={{ padding: '0 14px', borderRadius: 10, background: '#16a34a', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
-                  인증
+                <button type="button" onClick={verifyPhoneCode} disabled={phoneVerifying}
+                  style={{ padding: '0 14px', borderRadius: 10, background: phoneVerifying ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', fontWeight: 600, cursor: phoneVerifying ? 'wait' : 'pointer' }}>
+                  {phoneVerifying ? '확인 중...' : '인증'}
                 </button>
               </div>
             )}
