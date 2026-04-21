@@ -7,7 +7,7 @@ const ShareButtons = ({ title, description, url }) => {
 
   const shareUrl = url || window.location.href;
   const shareTitle = title || 'ConnectTrip';
-  const shareDesc = description || '여행자와 승무원을 연결하는 여행 플랫폼';
+  const shareDesc = description || '여행자부터 승무원까지 모두를 연결하는 여행 플랫폼';
 
   const handleKakaoShare = () => {
     if (window.Kakao) {
