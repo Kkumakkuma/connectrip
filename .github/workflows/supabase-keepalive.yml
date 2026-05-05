@@ -1,34 +1,58 @@
 name: Supabase Keep-Alive
 
 # Free 플랜의 inactivity pause(7일 무활동 시 자동 정지) 방지용.
-# 매일 한 번 가벼운 SELECT를 보내 활동 카운트를 갱신한다.
+# 2026-05-05: Supabase가 일시정지 경고 메일을 보내옴. 기존 daily ping은 200 OK였지만
+# 활동 카운트로 인식이 약했던 것으로 추정 → 6시간마다 + 여러 테이블 + Auth 쿼리로 강화.
 
 on:
   schedule:
-    - cron: '0 9 * * *'   # 매일 09:00 UTC = KST 18:00
-  workflow_dispatch:       # 수동 실행도 허용
+    - cron: '0 */6 * * *'  # 6시간마다 (00,06,12,18 UTC)
+  workflow_dispatch:        # 수동 실행도 허용
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST (regions)
+      - name: Ping multiple Supabase tables (REST)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           set -e
-          STATUS=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/regions?select=id&limit=1")
-          echo "HTTP $STATUS"
-          head -c 500 /tmp/body.txt; echo
-          # 401/403도 활동으로 카운트되긴 하지만, 의미있는 신호로 받기 위해 2xx만 통과
-          if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 300 ]; then
-            echo "Keep-alive ping failed (HTTP $STATUS)"
-            exit 1
-          fi
+          # 다중 테이블 SELECT — 더 명확한 DB activity로 카운트되도록.
+          # 존재하지 않는 테이블 404는 무시 (스키마 변경 대비).
+          for tbl in regions profiles posts crew_posts dm_messages; do
+            STATUS=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              "$SUPABASE_URL/rest/v1/$tbl?select=*&limit=1")
+            echo "$tbl: HTTP $STATUS"
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "206" ]; then
+              echo "  → ok"
+            elif [ "$STATUS" = "404" ] || [ "$STATUS" = "406" ]; then
+              echo "  → 테이블 없음/스키마 차이 (skip)"
+            elif [ "$STATUS" = "401" ] || [ "$STATUS" = "403" ]; then
+              echo "  → RLS 차단 (활동은 카운트됨)"
+            else
+              echo "  → 예상 외 응답"
+              head -c 300 /tmp/body.txt; echo
+            fi
+          done
 
-      - name: Ping Supabase Auth health (백업)
+      - name: Ping Auth health
         if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         run: |
           curl -sS -o /dev/null -w "Auth health: HTTP %{http_code}\n" \
-            "${{ secrets.SUPABASE_URL }}/auth/v1/health"
+            "$SUPABASE_URL/auth/v1/health"
+
+      - name: Ping Auth settings (인증 시스템 활동 등록)
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          curl -sS -o /dev/null -w "Auth settings: HTTP %{http_code}\n" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/auth/v1/settings"
