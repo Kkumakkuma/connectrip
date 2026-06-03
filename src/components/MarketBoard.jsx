@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Heart, ArrowLeft, Gift, MapPin, Plus, X, Search, Loader2, Users } from 'lucide-react';
+import { ShoppingBag, Heart, ArrowLeft, Gift, MapPin, Plus, X, Search, Users } from 'lucide-react';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import { useAuth } from '../lib/AuthContext';
@@ -10,6 +10,7 @@ import { Coins } from 'lucide-react';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
+import ListState from './ListState';
 
 const regions = [
     {
@@ -57,7 +58,7 @@ const regions = [
 ];
 
 const MarketBoard = () => {
-    const { user, profile, isLoggedIn } = useAuth();
+    const { user, profile, isLoggedIn, fetchProfile } = useAuth();
     const location = useLocation();
     // mode: 'main' | 'sell' | 'share' | 'buy' | 'groupbuy'
     const [mode, setMode] = useState('main');
@@ -75,32 +76,36 @@ const MarketBoard = () => {
     const [groupbuyItems, setGroupbuyItems] = useState([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const itemsPerPage = 8;
 
     // Fetch listings when mode changes
-    useEffect(() => {
-        if (mode === 'main') { setLoading(false); return; }
-        const fetchListings = async () => {
+    const fetchListings = async () => {
+        if (mode === 'main') { setLoading(false); setError(null); return; }
+        try {
             setLoading(true);
-            try {
-                const typeMap = { sell: 'sell', buy: 'buy', share: 'share', groupbuy: 'groupbuy' };
-                const data = await marketApi.getAll(typeMap[mode]) || [];
-                if (mode === 'sell') setSellingItems(data);
-                else if (mode === 'buy') setBuyingRequests(data);
-                else if (mode === 'share') setSharingItems(data);
-                else if (mode === 'groupbuy') setGroupbuyItems(data);
-            } catch (err) {
-                console.error('장터 데이터 로딩 실패:', err);
-                if (mode === 'sell') setSellingItems([]);
-                else if (mode === 'buy') setBuyingRequests([]);
-                else if (mode === 'share') setSharingItems([]);
-                else if (mode === 'groupbuy') setGroupbuyItems([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+            setError(null);
+            const typeMap = { sell: 'sell', buy: 'buy', share: 'share', groupbuy: 'groupbuy' };
+            const data = await marketApi.getAll(typeMap[mode]) || [];
+            if (mode === 'sell') setSellingItems(data);
+            else if (mode === 'buy') setBuyingRequests(data);
+            else if (mode === 'share') setSharingItems(data);
+            else if (mode === 'groupbuy') setGroupbuyItems(data);
+        } catch (err) {
+            console.error('장터 데이터 로딩 실패:', err);
+            if (mode === 'sell') setSellingItems([]);
+            else if (mode === 'buy') setBuyingRequests([]);
+            else if (mode === 'share') setSharingItems([]);
+            else if (mode === 'groupbuy') setGroupbuyItems([]);
+            setError('목록을 불러오지 못했습니다. 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchListings();
-    }, [mode]);
+    }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -145,39 +150,35 @@ const MarketBoard = () => {
         }
     };
 
-    // 복합결제 모달 상태
+    // 포인트 전액 결제 모달 상태
     const [paymentModal, setPaymentModal] = useState(null); // 선택된 아이템
-    const [usePoints, setUsePoints] = useState(0);
-    const [paymentMethod, setPaymentMethod] = useState('bank'); // 'bank' or 'card'
     const [paymentLoading, setPaymentLoading] = useState(false);
 
     const openPaymentModal = (item) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (item.user_id === user.id) { alert('자신의 물품은 구매할 수 없습니다.'); return; }
         setPaymentModal(item);
-        setUsePoints(0);
     };
 
     const handlePayment = async () => {
         if (!paymentModal) return;
-        const totalPrice = parseInt(String(paymentModal.price).replace(/[^0-9]/g, ''));
-        const pointsToUse = Math.min(usePoints, totalPrice, profile?.points_balance || 0);
-        const remainingCash = totalPrice - pointsToUse;
+        const totalPrice = parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')) || 0;
+        const myPoints = profile?.points_balance || 0;
+
+        if (myPoints < totalPrice) {
+            alert(`포인트가 부족합니다.\n필요: ${totalPrice.toLocaleString()}P / 보유: ${myPoints.toLocaleString()}P\n\n현금·카드 결제(PG)는 사업자 등록 후 제공될 예정입니다. 현재는 포인트로 전액 결제만 가능합니다.`);
+            return;
+        }
+
+        if (!window.confirm(`${totalPrice.toLocaleString()}P로 구매하시겠습니까?`)) return;
 
         setPaymentLoading(true);
         try {
-            if (pointsToUse > 0) {
-                await marketTransactionApi.purchaseWithPoints(
-                    paymentModal.id, paymentModal.user_id, user.id, pointsToUse
-                );
-            }
-            if (remainingCash > 0) {
-                // 계좌이체/카드 결제는 수동 처리 (추후 PG 연동)
-                alert(`포인트 ${pointsToUse.toLocaleString()}P 차감 완료!\n\n나머지 ${remainingCash.toLocaleString()}원은 판매자에게 ${paymentMethod === 'bank' ? '계좌이체' : '카드결제'}로 결제해주세요.\n\n(PG 결제 연동 준비 중)`);
-            } else {
-                alert(`${pointsToUse.toLocaleString()}P로 결제 완료!`);
-            }
+            await marketTransactionApi.purchaseWithPoints(paymentModal.id, totalPrice);
             setSellingItems(prev => prev.filter(i => i.id !== paymentModal.id));
+            // 결제 후 포인트 잔액 표시 갱신
+            if (user?.id) fetchProfile?.(user.id);
+            alert('결제 완료!');
             setPaymentModal(null);
         } catch (err) {
             console.error('결제 실패:', err);
@@ -339,11 +340,8 @@ const MarketBoard = () => {
                                     </button>
                                 </div>
 
-                                {loading ? (
-                                    <div className="py-20 text-center">
-                                        <Loader2 size={48} className="mx-auto text-blue-500 animate-spin mb-4" />
-                                        <p className="text-gray-500">불러오는 중...</p>
-                                    </div>
+                                {loading || error ? (
+                                    <ListState loading={loading} error={error} onRetry={fetchListings} color="blue" />
                                 ) : sellingItems.length > 0 ? (
                                     <>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -352,7 +350,7 @@ const MarketBoard = () => {
                                                 .map((item) => (
                                                     <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 group flex flex-col">
                                                         <div className="relative aspect-square overflow-hidden bg-gray-100">
-                                                            {item.img && <img src={item.img} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
+                                                            {item.img && <img src={item.img} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
                                                             <div className="absolute top-3 right-3">
                                                                 <ReportButton postId={item.id} boardType="market" reportedUserId={item.user_id} />
                                                             </div>
@@ -456,11 +454,8 @@ const MarketBoard = () => {
                                     </button>
                                 </div>
 
-                                {loading ? (
-                                    <div className="py-20 text-center">
-                                        <Loader2 size={48} className="mx-auto text-green-500 animate-spin mb-4" />
-                                        <p className="text-gray-500">불러오는 중...</p>
-                                    </div>
+                                {loading || error ? (
+                                    <ListState loading={loading} error={error} onRetry={fetchListings} color="green" />
                                 ) : buyingRequests.length > 0 ? (
                                     <>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -469,7 +464,7 @@ const MarketBoard = () => {
                                                 .map((item) => (
                                                     <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 cursor-pointer group">
                                                         <div className="relative aspect-square overflow-hidden bg-gray-100">
-                                                            {item.img && <img src={item.img} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
+                                                            {item.img && <img src={item.img} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
                                                             <div className="absolute top-3 right-3">
                                                                 <ReportButton postId={item.id} boardType="market" reportedUserId={item.user_id} />
                                                             </div>
@@ -548,13 +543,13 @@ const MarketBoard = () => {
                                             className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none" />
                                     </div>
                                 </div>
-                                {loading ? (
-                                    <div className="text-center py-16"><Loader2 size={48} className="mx-auto text-purple-500 animate-spin mb-4" /><p className="text-gray-500">로딩 중...</p></div>
+                                {loading || error ? (
+                                    <ListState loading={loading} error={error} onRetry={fetchListings} color="purple" loadingText="로딩 중..." />
                                 ) : groupbuyItems.filter(i => !searchQuery || (i.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (i.content||'').toLowerCase().includes(searchQuery.toLowerCase())).length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {groupbuyItems.filter(i => !searchQuery || (i.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (i.content||'').toLowerCase().includes(searchQuery.toLowerCase())).map(item => (
                                             <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100">
-                                                {item.image_url && <div className="h-48 overflow-hidden"><img src={item.image_url} alt={item.title} className="w-full h-full object-cover" /></div>}
+                                                {item.image_url && <div className="h-48 overflow-hidden"><img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" /></div>}
                                                 <div className="p-5">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">공동구매</span>
@@ -614,6 +609,8 @@ const MarketBoard = () => {
                                         >
                                             <img
                                                 src={region.image}
+                                                loading="lazy"
+                                                decoding="async"
                                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                                 alt={region.name}
                                             />
@@ -670,13 +667,17 @@ const MarketBoard = () => {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {sharingItems.filter(item => item.region_id === shareRegion.id).length > 0 ? (
+                                    {loading || error ? (
+                                        <div className="col-span-full">
+                                            <ListState loading={loading} error={error} onRetry={fetchListings} color="pink" />
+                                        </div>
+                                    ) : sharingItems.filter(item => item.region_id === shareRegion.id).length > 0 ? (
                                         sharingItems
                                             .filter(item => item.region_id === shareRegion.id)
                                             .map((item) => (
                                                 <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100">
                                                     <div className="relative h-48 overflow-hidden">
-                                                        <img src={item.img} alt={item.title} className="w-full h-full object-cover" />
+                                                        <img src={item.img} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                         <div className="absolute top-3 left-3 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                                                             <Gift size={12} /> 무료나눔
                                                         </div>
@@ -919,122 +920,73 @@ const MarketBoard = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-            {/* 복합결제 모달 */}
+            {/* 포인트 전액 결제 모달 */}
             <AnimatePresence>
-                {paymentModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4"
-                        onClick={() => setPaymentModal(null)}
-                    >
+                {paymentModal && (() => {
+                    const totalPrice = parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')) || 0;
+                    const myPoints = profile?.points_balance || 0;
+                    const insufficient = myPoints < totalPrice;
+                    return (
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4"
+                            onClick={() => setPaymentModal(null)}
                         >
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-xl font-bold text-gray-800">결제하기</h3>
-                                <button onClick={() => setPaymentModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                                <p className="font-semibold text-gray-800">{paymentModal.title}</p>
-                                <p className="text-2xl font-black text-blue-600 mt-1">{parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')).toLocaleString()}원</p>
-                            </div>
-
-                            <div className="space-y-4">
-                                {/* 포인트 사용 */}
-                                <div>
-                                    <label className="text-sm font-semibold text-gray-700 mb-1 block">포인트 사용</label>
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="number"
-                                            value={usePoints}
-                                            onChange={(e) => {
-                                                const v = Math.max(0, Math.min(
-                                                    parseInt(e.target.value) || 0,
-                                                    parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')),
-                                                    profile?.points_balance || 0
-                                                ));
-                                                setUsePoints(v);
-                                            }}
-                                            className="flex-1 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-800"
-                                            placeholder="0"
-                                        />
-                                        <button
-                                            onClick={() => setUsePoints(Math.min(
-                                                parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')),
-                                                profile?.points_balance || 0
-                                            ))}
-                                            className="px-3 py-3 bg-purple-100 text-purple-700 rounded-xl text-sm font-bold whitespace-nowrap"
-                                        >
-                                            전액사용
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">보유: {(profile?.points_balance || 0).toLocaleString()}P (1P = 1원)</p>
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-xl font-bold text-gray-800">포인트 결제</h3>
+                                    <button onClick={() => setPaymentModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                                 </div>
 
-                                {/* 나머지 금액 */}
-                                {(() => {
-                                    const total = parseInt(String(paymentModal.price).replace(/[^0-9]/g, ''));
-                                    const remaining = total - usePoints;
-                                    return remaining > 0 ? (
-                                        <div>
-                                            <label className="text-sm font-semibold text-gray-700 mb-2 block">
-                                                나머지 결제: <span className="text-blue-600">{remaining.toLocaleString()}원</span>
-                                            </label>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setPaymentMethod('bank')}
-                                                    className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${paymentMethod === 'bank' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}
-                                                >
-                                                    🏦 계좌이체
-                                                </button>
-                                                <button
-                                                    onClick={() => setPaymentMethod('card')}
-                                                    className={`flex-1 py-3 rounded-xl text-sm font-bold border-2 transition-all ${paymentMethod === 'card' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'}`}
-                                                >
-                                                    💳 카드결제
-                                                </button>
-                                            </div>
-                                            <p className="text-xs text-orange-500 mt-2">* 실결제는 PG 연동 후 가능합니다. 현재는 판매자와 직접 거래해주세요.</p>
-                                        </div>
-                                    ) : null;
-                                })()}
+                                <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                                    <p className="font-semibold text-gray-800">{paymentModal.title}</p>
+                                    <p className="text-2xl font-black text-blue-600 mt-1">{totalPrice.toLocaleString()}원</p>
+                                </div>
 
-                                {/* 결제 요약 */}
-                                <div className="bg-blue-50 rounded-xl p-4 space-y-1">
+                                <div className="bg-blue-50 rounded-xl p-4 mb-4 space-y-1">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">상품 가격</span>
-                                        <span className="font-semibold">{parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')).toLocaleString()}원</span>
+                                        <span className="text-gray-600">결제 포인트</span>
+                                        <span className="font-bold text-blue-600">{totalPrice.toLocaleString()}P</span>
                                     </div>
-                                    {usePoints > 0 && (
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-purple-600">포인트 사용</span>
-                                            <span className="font-semibold text-purple-600">-{usePoints.toLocaleString()}P</span>
-                                        </div>
-                                    )}
                                     <div className="flex justify-between text-sm pt-1 border-t border-blue-200">
-                                        <span className="font-bold text-gray-800">추가 결제액</span>
-                                        <span className="font-black text-blue-600">{(parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')) - usePoints).toLocaleString()}원</span>
+                                        <span className="text-gray-600">내 보유 포인트</span>
+                                        <span className={`font-semibold ${insufficient ? 'text-red-500' : 'text-gray-800'}`}>{myPoints.toLocaleString()}P</span>
                                     </div>
+                                    <p className="text-xs text-gray-500 pt-1">1P = 1원</p>
                                 </div>
+
+                                {insufficient && (
+                                    <p className="text-sm text-red-500 mb-4">
+                                        포인트가 부족합니다. 현금·카드 결제(PG)는 사업자 등록 후 제공될 예정입니다.
+                                    </p>
+                                )}
 
                                 <button
                                     onClick={handlePayment}
-                                    disabled={paymentLoading}
-                                    className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                    disabled={paymentLoading || insufficient}
+                                    className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    {paymentLoading ? '처리 중...' : '결제하기'}
+                                    <Coins size={18} />
+                                    {paymentLoading ? '처리 중...' : '포인트로 전액 결제'}
                                 </button>
-                            </div>
+                                <button
+                                    onClick={() => setPaymentModal(null)}
+                                    className="w-full mt-2 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                                >
+                                    취소
+                                </button>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
+                    );
+                })()}
             </AnimatePresence>
 
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />

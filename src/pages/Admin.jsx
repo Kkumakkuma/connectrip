@@ -547,6 +547,8 @@ const Admin = () => {
                               <img
                                 src={match.commendation_screenshot_url}
                                 alt="칭송 캡쳐"
+                                loading="lazy"
+                                decoding="async"
                                 className="max-w-full max-h-64 rounded-lg border border-gray-200 object-contain"
                               />
                             </div>
@@ -584,9 +586,11 @@ const Admin = () => {
                                   if (isNaN(amount) || amount <= 0) { alert('올바른 금액을 입력하세요.'); return; }
                                   setActionLoading(match.id);
                                   try {
-                                    await commendationApi.sendGift(match.id, amount, '관리자 발송: 칭송 감사 선물');
-                                    const { pointsApi } = await import('../lib/db');
-                                    await pointsApi.addTransaction(match.passenger_user_id, amount, 'gift_received', `칭송 감사 선물 (${match.flight_number})`);
+                                    const { supabase } = await import('../lib/supabase');
+                                    const { error: giftErr } = await supabase.rpc('send_commendation_gift', {
+                                      p_match_id: match.id, p_amount: amount, p_message: '관리자 발송: 칭송 감사 선물',
+                                    });
+                                    if (giftErr) throw giftErr;
                                     await fetchData();
                                     alert(`승객에게 ${amount.toLocaleString()}P 선물 발송 완료!`);
                                   } catch (err) {

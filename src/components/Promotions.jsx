@@ -7,6 +7,8 @@ import { useAuth } from '../lib/AuthContext';
 import { reviewsApi, storageApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
+import ListState from './ListState';
+import SEOHead from './SEOHead';
 
 const regions = [
     { id: 'europe', name: '유럽', icon: '🏰', desc: '유럽 감성 숙소와 투어 패키지', image: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=800&auto=format&fit=crop' },
@@ -30,6 +32,7 @@ const Promotions = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         setMode('main');
@@ -38,15 +41,22 @@ const Promotions = () => {
     }, [location.key]);
 
     const fetchPosts = async (regionId, type) => {
-        setLoading(true);
         try {
+            setLoading(true);
+            setError(null);
             const data = await reviewsApi.getAll(regionId, type);
             setPosts(data || []);
         } catch (err) {
             console.error('게시글 로드 실패:', err);
             setPosts([]);
+            setError('게시글을 불러오지 못했습니다. 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
+    };
+
+    const refetch = () => {
+        if (selectedRegion) fetchPosts(selectedRegion.id, mode);
     };
 
     const handleSubmit = async (e) => {
@@ -116,6 +126,8 @@ const Promotions = () => {
     );
 
     return (
+        <>
+        <SEOHead title="여행 후기 게시판 - ConnectTrip" description="여행자와 승무원이 직접 남긴 생생한 여행 후기와 추천 상품 정보. 지역별 여행 경험을 공유하고 확인하세요." />
         <section id="promotions" className="section-padding" style={{ background: '#fff', minHeight: '80vh' }}>
             <div className="container">
                 <AnimatePresence mode="wait">
@@ -162,7 +174,7 @@ const Promotions = () => {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
                                 {regions.map((region) => (
                                     <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }} onClick={() => handleRegionSelect(region)} className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all">
-                                        <img src={region.image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
+                                        <img src={region.image} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                         <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
                                             <div className="mb-2 text-3xl">{region.icon}</div>
@@ -205,15 +217,15 @@ const Promotions = () => {
                                 </div>
                             </div>
 
-                            {loading ? (
-                                <div className="text-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div><p className="mt-4 text-gray-500">로딩 중...</p></div>
+                            {loading || error ? (
+                                <ListState loading={loading} error={error} onRetry={refetch} color={mode === 'promotion' ? 'blue' : 'purple'} loadingText="로딩 중..." />
                             ) : filteredPosts.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                     {filteredPosts.map((item) => (
                                         <div key={item.id} className="rounded-3xl overflow-hidden shadow-lg border border-gray-100 hover:scale-[1.02] transition-transform bg-white">
                                             <div className="relative h-48 overflow-hidden bg-gray-100">
                                                 {item.image_url ? (
-                                                    <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
+                                                    <img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-gray-300">
                                                         {mode === 'promotion' ? <Megaphone size={48} /> : <MessageCircle size={48} />}
@@ -290,7 +302,7 @@ const Promotions = () => {
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</label>
                                     <ImageUpload onUpload={(url) => setFormData({ ...formData, image_url: url })} />
-                                    {formData.image_url && <img src={formData.image_url} alt="미리보기" className="mt-2 h-32 rounded-xl object-cover" />}
+                                    {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
                                 </div>
                                 <div className="flex gap-3 pt-4">
                                     <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
@@ -304,6 +316,7 @@ const Promotions = () => {
 
             {showLoginPrompt && <LoginPrompt onClose={() => setShowLoginPrompt(false)} />}
         </section>
+        </>
     );
 };
 export default Promotions;

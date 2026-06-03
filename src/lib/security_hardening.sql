@@ -1,0 +1,599 @@
+-- ============================================================
+-- ConnectTrip 보안 하드닝 (2026-06-03)
+-- Supabase SQL Editor 에 전체 붙여넣고 Run. 멱등 — 여러 번 실행해도 안전.
+--
+-- 목적:
+--  1) profiles 민감컬럼(role/points/identity/user_type/crew_verified 등) 자가수정 차단
+--  2) 포인트·바우처·선물·장터결제는 검증된 RPC 로만 (양수 무한적립/타인조작/부분결제 차단)
+--  3) 가입 INSERT 경로(handle_new_user)로도 보호컬럼 위조 불가
+--  4) crew_posts 는 인증 승무원만 작성 / reports 는 admin 만 열람
+--  5) 테스트 계정 포인트는 floor 이상 자동 유지
+--
+-- 적용 전 확인(권장):
+--   SELECT tgname FROM pg_trigger WHERE tgrelid='public.profiles'::regclass;
+-- 적용 후:
+--   UPDATE public.profiles SET role='admin' WHERE email='admin@connectrip.com';  -- admin 권한 1회 시드
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- 0. 누락 컬럼 방어 보강 (라이브에 이미 있으면 no-op)
+-- ------------------------------------------------------------
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS role             TEXT DEFAULT 'user',
+  ADD COLUMN IF NOT EXISTS is_banned        BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS crew_verified    BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS crew_verified_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS airline_email    TEXT,
+  ADD COLUMN IF NOT EXISTS airline_name     TEXT;
+
+ALTER TABLE public.market_listings
+  ADD COLUMN IF NOT EXISTS buyer_id UUID REFERENCES public.profiles(id);
+
+-- ------------------------------------------------------------
+-- 1. admin 판별 helper
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public AS $$
+  SELECT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin');
+$$;
+
+-- ------------------------------------------------------------
+-- 2. 항공사 도메인 화이트리스트 (승무원 인증 서버 검증용) + 테스트 계정 floor
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.airline_domains (
+  domain TEXT PRIMARY KEY,
+  name   TEXT NOT NULL
+);
+ALTER TABLE public.airline_domains ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can read airline domains" ON public.airline_domains;
+CREATE POLICY "Anyone can read airline domains" ON public.airline_domains FOR SELECT USING (true);
+INSERT INTO public.airline_domains (domain, name) VALUES
+  ('koreanair.com', '대한항공'), ('flyasiana.com', '아시아나항공'), ('jinair.com', '진에어'),
+  ('airbusan.com', '에어부산'), ('flyairseoul.com', '에어서울'), ('air-incheon.com', '에어인천'),
+  ('twayair.com', '티웨이항공'), ('jejuair.net', '제주항공'), ('airpremia.com', '에어프레미아'),
+  ('aerok.com', '에어로케이'), ('flyparata.com', '파라타항공')
+ON CONFLICT (domain) DO UPDATE SET name = EXCLUDED.name;
+
+CREATE TABLE IF NOT EXISTS public.test_account_floors (
+  email      TEXT PRIMARY KEY,
+  min_points INT NOT NULL DEFAULT 0
+);
+ALTER TABLE public.test_account_floors ENABLE ROW LEVEL SECURITY; -- 정책 없음 = 클라 접근 차단
+INSERT INTO public.test_account_floors (email, min_points) VALUES
+  ('test@connectrip.com',  300000),
+  ('crew@connectrip.com',  300000),
+  ('admin@connectrip.com', 1000000)
+ON CONFLICT (email) DO UPDATE SET min_points = EXCLUDED.min_points;
+
+-- ------------------------------------------------------------
+-- 3. BEFORE UPDATE 가드 트리거
+--    bypass = 서버컨텍스트(auth.uid() IS NULL) | admin | RPC 플래그(app.allow_sensitive='on')
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.profiles_guard()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE
+  v_floor  INT;
+  v_bypass BOOLEAN;
+BEGIN
+  v_bypass := (auth.uid() IS NULL)
+              OR (current_setting('app.allow_sensitive', true) = 'on')
+              OR public.is_admin();
+
+  IF NOT v_bypass THEN
+    IF NEW.role                 IS DISTINCT FROM OLD.role
+    OR NEW.is_banned            IS DISTINCT FROM OLD.is_banned
+    OR NEW.points_balance       IS DISTINCT FROM OLD.points_balance
+    OR NEW.available_likes      IS DISTINCT FROM OLD.available_likes
+    OR NEW.voucher_count        IS DISTINCT FROM OLD.voucher_count
+    OR NEW.user_type            IS DISTINCT FROM OLD.user_type
+    OR NEW.crew_verified        IS DISTINCT FROM OLD.crew_verified
+    OR NEW.phone_verified       IS DISTINCT FROM OLD.phone_verified
+    OR NEW.identity_verified    IS DISTINCT FROM OLD.identity_verified
+    OR NEW.verification_method  IS DISTINCT FROM OLD.verification_method
+    OR NEW.verified_at          IS DISTINCT FROM OLD.verified_at
+    OR NEW.verification_required IS DISTINCT FROM OLD.verification_required
+    OR NEW.referral_bonus_given IS DISTINCT FROM OLD.referral_bonus_given
+    OR NEW.referred_by          IS DISTINCT FROM OLD.referred_by
+    OR NEW.profile_completed    IS DISTINCT FROM OLD.profile_completed
+    OR NEW.phone                IS DISTINCT FROM OLD.phone
+    OR NEW.airline_email        IS DISTINCT FROM OLD.airline_email
+    OR NEW.airline_name         IS DISTINCT FROM OLD.airline_name
+    OR NEW.crew_verified_at     IS DISTINCT FROM OLD.crew_verified_at
+    THEN
+      RAISE EXCEPTION 'protected column modification denied';
+    END IF;
+  END IF;
+
+  -- 테스트 계정 floor 보정 (모든 경로 적용)
+  SELECT min_points INTO v_floor FROM public.test_account_floors WHERE email = NEW.email;
+  IF v_floor IS NOT NULL AND COALESCE(NEW.points_balance, 0) < v_floor THEN
+    NEW.points_balance := v_floor;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_profiles_guard ON public.profiles;
+CREATE TRIGGER trg_profiles_guard
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.profiles_guard();
+
+-- ------------------------------------------------------------
+-- 4. 가입 INSERT 트리거 재정의 — 보호컬럼은 metadata 무시하고 안전 기본값 강제
+--    (이전엔 raw_user_meta_data 의 phone_verified/user_type/identity_verified 를 그대로 INSERT →
+--     직접 auth.signUp 으로 위조 가능했음. 일반 필드만 metadata 허용)
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE meta JSONB;
+BEGIN
+  meta := COALESCE(NEW.raw_user_meta_data, '{}'::jsonb);
+  INSERT INTO public.profiles (
+    id, email, name, nickname, phone,
+    address_zipcode, address_road, address_detail,
+    avatar_url, provider, referred_by,
+    -- 보호컬럼: 항상 안전 기본값 (가입 후 complete_signup_profile RPC 가 서버검증 후 설정)
+    user_type, phone_verified, identity_verified, verification_method,
+    crew_verified, profile_completed
+  ) VALUES (
+    NEW.id, NEW.email,
+    COALESCE(meta->>'name', meta->>'full_name', split_part(NEW.email, '@', 1)),
+    NULLIF(meta->>'nickname', ''),
+    NULLIF(regexp_replace(COALESCE(meta->>'phone',''), '[^0-9]', '', 'g'), ''),
+    NULLIF(meta->>'address_zipcode', ''),
+    NULLIF(meta->>'address_road', ''),
+    NULLIF(meta->>'address_detail', ''),
+    NULLIF(meta->>'avatar_url', ''),
+    COALESCE(NULLIF(NEW.raw_app_meta_data->>'provider', ''), 'email'),
+    CASE WHEN (meta->>'referred_by') ~ '^[0-9a-fA-F-]{36}$' THEN (meta->>'referred_by')::uuid ELSE NULL END,
+    'traveler', FALSE, FALSE, 'sms_otp_pending', FALSE, FALSE
+  );
+  RETURN NEW;
+END;
+$$;
+
+-- ------------------------------------------------------------
+-- 5. 정상 증감 RPC (SECURITY DEFINER, 자기 행만, 트리거 우회 플래그 ON)
+--    set_config(...,true) = 트랜잭션 로컬 → 호출 끝나면 자동 소멸
+-- ------------------------------------------------------------
+
+-- 5-1. 매칭신청권 구매 (포인트 1장당 30,000 차감 + 바우처 증가)
+CREATE OR REPLACE FUNCTION public.purchase_voucher(p_qty INT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE v_cost INT; v_cur INT;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF p_qty IS NULL OR p_qty < 1 OR p_qty > 100 THEN RAISE EXCEPTION 'invalid qty'; END IF;
+  v_cost := 30000 * p_qty;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  SELECT points_balance INTO v_cur FROM public.profiles WHERE id = auth.uid() FOR UPDATE;
+  IF COALESCE(v_cur, 0) < v_cost THEN RAISE EXCEPTION 'insufficient points'; END IF;
+  UPDATE public.profiles
+    SET points_balance = points_balance - v_cost,
+        voucher_count  = COALESCE(voucher_count, 0) + p_qty,
+        updated_at     = NOW()
+    WHERE id = auth.uid();
+  INSERT INTO public.point_transactions(user_id, amount, type, description)
+    VALUES (auth.uid(), -v_cost, 'voucher_purchase', '매칭신청권 ' || p_qty || '개 구매');
+END;
+$$;
+
+-- 5-2. 매칭신청권 사용 (차감) — 양수 수량만
+CREATE OR REPLACE FUNCTION public.use_voucher(p_qty INT DEFAULT 1)
+RETURNS INT
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE v_new INT;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF p_qty IS NULL OR p_qty < 1 OR p_qty > 100 THEN RAISE EXCEPTION 'invalid qty'; END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  UPDATE public.profiles SET voucher_count = voucher_count - p_qty, updated_at = NOW()
+    WHERE id = auth.uid() AND voucher_count >= p_qty
+    RETURNING voucher_count INTO v_new;
+  IF v_new IS NULL THEN RAISE EXCEPTION 'no voucher'; END IF;
+  RETURN v_new;
+END;
+$$;
+
+-- 5-3. 좋아요 → 포인트 전환 (보유 좋아요는 가입 시 고정·보호컬럼이라 총량 제한적)
+CREATE OR REPLACE FUNCTION public.convert_likes_to_points(p_qty INT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF p_qty IS NULL OR p_qty < 1 THEN RAISE EXCEPTION 'invalid qty'; END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  UPDATE public.profiles
+    SET available_likes = available_likes - p_qty,
+        points_balance  = COALESCE(points_balance, 0) + p_qty,
+        updated_at      = NOW()
+    WHERE id = auth.uid() AND available_likes >= p_qty;
+  IF NOT FOUND THEN RAISE EXCEPTION 'insufficient likes'; END IF;
+  INSERT INTO public.point_transactions(user_id, amount, type, description)
+    VALUES (auth.uid(), p_qty, 'likes_convert', '좋아요 ' || p_qty || '개 → 포인트 전환');
+END;
+$$;
+
+-- 5-4. 장터 결제 — 포인트 전액 결제만(부분/현금은 PG 연동 후). 서버가 price 강제.
+--      p_expected_price: 구매자가 화면에서 확인한 가격. 서버 가격과 다르면(판매자 인상 TOCTOU) 거부.
+CREATE OR REPLACE FUNCTION public.market_purchase(p_listing_id UUID, p_expected_price INT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE v_seller UUID; v_price INT; v_status TEXT; v_buyer UUID; v_cur INT;
+BEGIN
+  v_buyer := auth.uid();
+  IF v_buyer IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  SELECT user_id, price, status INTO v_seller, v_price, v_status
+    FROM public.market_listings WHERE id = p_listing_id FOR UPDATE;
+  IF v_seller IS NULL THEN RAISE EXCEPTION 'listing not found'; END IF;
+  IF v_seller = v_buyer THEN RAISE EXCEPTION 'cannot buy own listing'; END IF;
+  IF v_status = 'sold' THEN RAISE EXCEPTION 'already sold'; END IF;
+  IF COALESCE(v_price, 0) <= 0 THEN RAISE EXCEPTION 'invalid listing price'; END IF;
+  IF p_expected_price IS NULL OR p_expected_price <> v_price THEN RAISE EXCEPTION 'price changed'; END IF;
+
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  SELECT points_balance INTO v_cur FROM public.profiles WHERE id = v_buyer FOR UPDATE;
+  IF COALESCE(v_cur, 0) < v_price THEN RAISE EXCEPTION 'insufficient points'; END IF;
+  UPDATE public.profiles SET points_balance = points_balance - v_price, updated_at = NOW() WHERE id = v_buyer;
+  UPDATE public.profiles SET points_balance = COALESCE(points_balance, 0) + v_price, updated_at = NOW() WHERE id = v_seller;
+  INSERT INTO public.point_transactions(user_id, amount, type, description) VALUES
+    (v_buyer,  -v_price, 'market_purchase', '장터 물품 구매 (' || p_listing_id || ')'),
+    (v_seller,  v_price, 'market_sale',     '장터 물품 판매 수익 (' || p_listing_id || ')');
+  UPDATE public.market_listings SET status = 'sold', buyer_id = v_buyer WHERE id = p_listing_id;
+END;
+$$;
+
+-- 5-5. 칭송 감사 선물 — verified 매칭에서만. crew 발송=본인차감+승객가산 / admin 발송=승객가산
+CREATE OR REPLACE FUNCTION public.send_commendation_gift(p_match_id UUID, p_amount INT, p_message TEXT)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE v_crew UUID; v_pass UUID; v_status TEXT; v_admin BOOLEAN; v_cur INT;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF p_amount IS NULL OR p_amount < 1 OR p_amount > 100000 THEN RAISE EXCEPTION 'invalid amount'; END IF;
+  v_admin := public.is_admin();
+  SELECT crew_user_id, passenger_user_id, status INTO v_crew, v_pass, v_status
+    FROM public.commendation_matches WHERE id = p_match_id FOR UPDATE;
+  IF v_crew IS NULL OR v_pass IS NULL THEN RAISE EXCEPTION 'invalid match'; END IF;
+  IF v_status = 'gift_sent' THEN RAISE EXCEPTION 'already sent'; END IF;
+  IF v_status <> 'verified' THEN RAISE EXCEPTION 'match not verified'; END IF;
+  IF NOT v_admin AND v_crew <> auth.uid() THEN RAISE EXCEPTION 'only crew or admin can send gift'; END IF;
+  -- crew 측이 인증 승무원인지 재검증(오염된 verified row 로 admin 발송 위조 차단)
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = v_crew AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) = TRUE
+  ) THEN RAISE EXCEPTION 'crew not verified'; END IF;
+
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  IF NOT v_admin THEN
+    -- 승무원이 본인 포인트로 발송
+    SELECT points_balance INTO v_cur FROM public.profiles WHERE id = v_crew FOR UPDATE;
+    IF COALESCE(v_cur, 0) < p_amount THEN RAISE EXCEPTION 'insufficient points'; END IF;
+    UPDATE public.profiles SET points_balance = points_balance - p_amount, updated_at = NOW() WHERE id = v_crew;
+    INSERT INTO public.point_transactions(user_id, amount, type, description)
+      VALUES (v_crew, -p_amount, 'gift_sent', '칭송 감사 선물 발송');
+  END IF;
+  -- 승객 가산 (crew/admin 공통)
+  UPDATE public.profiles SET points_balance = COALESCE(points_balance, 0) + p_amount, updated_at = NOW() WHERE id = v_pass;
+  INSERT INTO public.point_transactions(user_id, amount, type, description)
+    VALUES (v_pass, p_amount, 'gift_received', '칭송 감사 선물');
+  UPDATE public.commendation_matches
+    SET status = 'gift_sent', gift_points = p_amount, gift_message = p_message, updated_at = NOW()
+    WHERE id = p_match_id;
+END;
+$$;
+
+-- 5-6. 회원가입 프로필 완성 (보호컬럼 user_type/crew_verified/phone_verified 를 서버 검증 후 설정)
+CREATE OR REPLACE FUNCTION public.complete_signup_profile(
+  p_name TEXT, p_nickname TEXT, p_phone TEXT,
+  p_zipcode TEXT, p_road TEXT, p_detail TEXT,
+  p_user_type TEXT, p_airline_email TEXT, p_airline_name TEXT,
+  p_referred_by UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE
+  v_phone_ok    BOOLEAN;
+  v_crew        BOOLEAN := FALSE;
+  v_clean_phone TEXT;
+  v_ref         UUID;
+  v_domain      TEXT;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF p_user_type NOT IN ('traveler', 'crew') THEN RAISE EXCEPTION 'invalid user_type'; END IF;
+  v_clean_phone := regexp_replace(COALESCE(p_phone, ''), '[^0-9]', '', 'g');
+
+  -- 휴대폰 본인인증 서버 재검증 (최근 1시간 내 인증된 번호)
+  SELECT EXISTS (
+    SELECT 1 FROM public.phone_otps
+    WHERE phone = v_clean_phone AND verified_at IS NOT NULL
+      AND verified_at > NOW() - INTERVAL '1 hour'
+  ) INTO v_phone_ok;
+  IF NOT v_phone_ok THEN RAISE EXCEPTION 'phone not verified'; END IF;
+
+  -- 승무원이면 항공사 이메일 도메인을 화이트리스트로 서버 검증
+  IF p_user_type = 'crew' THEN
+    v_domain := lower(split_part(COALESCE(p_airline_email, ''), '@', 2));
+    SELECT EXISTS (SELECT 1 FROM public.airline_domains WHERE domain = v_domain) INTO v_crew;
+    IF NOT v_crew THEN RAISE EXCEPTION 'crew airline verification required'; END IF;
+  END IF;
+
+  v_ref := p_referred_by;
+  IF v_ref = auth.uid() THEN v_ref := NULL; END IF; -- self-referral 차단
+
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  UPDATE public.profiles SET
+    name                = p_name,
+    nickname            = p_nickname,
+    phone               = v_clean_phone,
+    phone_verified      = TRUE,
+    verification_method = COALESCE(verification_method, 'sms_otp'),
+    address_zipcode     = p_zipcode,
+    address_road        = p_road,
+    address_detail      = p_detail,
+    user_type           = p_user_type,
+    airline_email       = CASE WHEN v_crew THEN p_airline_email ELSE airline_email END,
+    airline_name        = CASE WHEN v_crew THEN p_airline_name  ELSE airline_name  END,
+    crew_verified       = CASE WHEN v_crew THEN TRUE ELSE crew_verified END,
+    crew_verified_at    = CASE WHEN v_crew THEN NOW() ELSE crew_verified_at END,
+    referred_by         = COALESCE(referred_by, v_ref),
+    profile_completed   = TRUE,
+    updated_at          = NOW()
+  WHERE id = auth.uid();
+
+  IF v_ref IS NOT NULL THEN
+    PERFORM public.grant_referral_bonus(auth.uid());
+  END IF;
+END;
+$$;
+
+-- 5-7. 추천 보너스 (트리거 우회 + 동시 중복지급 방지: 조건부 UPDATE 원자화)
+CREATE OR REPLACE FUNCTION public.grant_referral_bonus(p_user_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE v_referrer UUID;
+BEGIN
+  IF auth.uid() IS NOT NULL AND p_user_id <> auth.uid() AND NOT public.is_admin() THEN
+    RAISE EXCEPTION 'forbidden';
+  END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  -- 본인 보너스 + 플래그 세팅을 한 번에 (이미 지급됐으면 0 rows → 종료)
+  UPDATE public.profiles
+    SET points_balance = COALESCE(points_balance, 0) + 3000,
+        referral_bonus_given = TRUE, updated_at = NOW()
+    WHERE id = p_user_id
+      AND COALESCE(referral_bonus_given, FALSE) = FALSE
+      AND referred_by IS NOT NULL
+    RETURNING referred_by INTO v_referrer;
+  IF v_referrer IS NULL THEN RETURN; END IF;
+  UPDATE public.profiles
+    SET points_balance = COALESCE(points_balance, 0) + 3000, updated_at = NOW()
+    WHERE id = v_referrer;
+END;
+$$;
+
+-- 5-8. 칭송 매칭 신청 — 신청권 차감 + 매칭 생성을 단일 트랜잭션으로(동시 신청 시 무료매칭 방지)
+CREATE OR REPLACE FUNCTION public.apply_commendation_match(
+  p_flight_number TEXT, p_flight_date DATE, p_partner_id UUID, p_status TEXT, p_role TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE v_crew UUID; v_pass UUID;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF p_role NOT IN ('crew', 'passenger') THEN RAISE EXCEPTION 'invalid role'; END IF;
+  IF p_status NOT IN ('matched', 'pending_crew', 'pending_passenger') THEN RAISE EXCEPTION 'invalid status'; END IF;
+  -- 호출자 본인이 해당 항공편에 등록돼 있어야(자기 스케줄 기반 신청만 허용)
+  IF NOT EXISTS (
+    SELECT 1 FROM public.flight_schedules
+    WHERE flight_number = p_flight_number AND flight_date = p_flight_date AND user_id = auth.uid()
+  ) THEN RAISE EXCEPTION 'you are not on this flight'; END IF;
+  -- crew 역할 신청은 인증된 승무원만
+  IF p_role = 'crew' AND NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) = TRUE
+  ) THEN RAISE EXCEPTION 'crew only'; END IF;
+  -- matched 면 상대가 실제 같은 항공편에 공개 등록돼 있어야(임의 UUID 매칭 차단), pending 이면 상대 없음
+  IF p_status = 'matched' THEN
+    IF p_partner_id IS NULL THEN RAISE EXCEPTION 'partner required'; END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM public.flight_schedules
+      WHERE flight_number = p_flight_number AND flight_date = p_flight_date
+        AND user_id = p_partner_id AND is_public = TRUE
+    ) THEN RAISE EXCEPTION 'partner not on this flight'; END IF;
+  ELSE
+    IF p_partner_id IS NOT NULL THEN RAISE EXCEPTION 'no partner for pending status'; END IF;
+  END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  IF p_role = 'crew' THEN
+    v_crew := auth.uid(); v_pass := p_partner_id;
+    UPDATE public.profiles SET voucher_count = voucher_count - 1, updated_at = NOW()
+      WHERE id = auth.uid() AND voucher_count >= 1;
+    IF NOT FOUND THEN RAISE EXCEPTION 'no voucher'; END IF;
+  ELSE
+    v_crew := p_partner_id; v_pass := auth.uid();
+  END IF;
+  -- 결과 매칭의 crew 측은 반드시 인증 승무원이어야 한다
+  -- (승객이 같은 편 임의 공개 사용자 UUID 를 crew_user_id 로 위조하는 것을 차단)
+  IF v_crew IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = v_crew AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) = TRUE
+  ) THEN RAISE EXCEPTION 'verified crew required'; END IF;
+  INSERT INTO public.commendation_matches(flight_number, flight_date, crew_user_id, passenger_user_id, status)
+    VALUES (p_flight_number, p_flight_date, v_crew, v_pass, p_status);
+END;
+$$;
+
+-- ------------------------------------------------------------
+-- 6. RPC 실행 권한 (anon 차단, authenticated 만)
+-- ------------------------------------------------------------
+REVOKE ALL ON FUNCTION public.purchase_voucher(INT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.use_voucher(INT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.convert_likes_to_points(INT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.market_purchase(UUID, INT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.complete_signup_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.grant_referral_bonus(UUID) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.purchase_voucher(INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.use_voucher(INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.convert_likes_to_points(INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.market_purchase(UUID, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_signup_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) TO authenticated;
+REVOKE ALL ON FUNCTION public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT) TO authenticated;
+-- grant_referral_bonus 는 클라에 직접 노출하지 않는다(REVOKE 만). complete_signup_profile(SECURITY DEFINER) 내부에서만
+-- 호출되어 휴대폰 재검증·프로필 완성을 거친 가입에만 보너스가 지급되도록 한다.
+REVOKE ALL ON FUNCTION public.grant_referral_bonus(UUID) FROM authenticated;
+
+-- 구버전/제거된 함수가 이전 배포에 남아 우회 경로가 되지 않도록 정리 (없으면 no-op)
+DROP FUNCTION IF EXISTS public.market_purchase(UUID);
+DROP FUNCTION IF EXISTS public.adjust_points(INT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.refund_voucher(INT);
+
+-- ------------------------------------------------------------
+-- 7. crew_verified 백필 (기존 승무원이 새 정책에 막히지 않게 — 서버컨텍스트라 트리거 통과)
+-- ------------------------------------------------------------
+UPDATE public.profiles SET crew_verified = TRUE
+  WHERE user_type = 'crew'
+    AND COALESCE(crew_verified, FALSE) = FALSE
+    AND airline_email IS NOT NULL
+    AND lower(split_part(airline_email, '@', 2)) IN (SELECT domain FROM public.airline_domains);
+
+-- ------------------------------------------------------------
+-- 8. 정책 재작성
+-- ------------------------------------------------------------
+
+-- 8-1. profiles: 자기 행만 UPDATE (컬럼 보호는 트리거) + admin 전체 UPDATE
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+CREATE POLICY "Users can update own profile" ON public.profiles
+  FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
+CREATE POLICY "Admins can update any profile" ON public.profiles
+  FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- 8-2. crew_posts: 인증된 승무원만 작성
+DROP POLICY IF EXISTS "Auth users can create crew posts" ON public.crew_posts;
+DROP POLICY IF EXISTS "Crew can create crew posts" ON public.crew_posts;
+CREATE POLICY "Crew can create crew posts" ON public.crew_posts
+  FOR INSERT WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.user_type = 'crew' AND COALESCE(p.crew_verified, FALSE) = TRUE
+    )
+  );
+
+-- 8-3. reports: 작성=인증사용자(본인 reporter), 조회=본인 or admin, 수정=admin
+CREATE TABLE IF NOT EXISTS public.reports (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id      UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reported_user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  post_id          UUID,
+  board_type       TEXT,
+  reason           TEXT,
+  status           TEXT DEFAULT '대기',
+  admin_note       TEXT,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Auth users can create reports" ON public.reports;
+CREATE POLICY "Auth users can create reports" ON public.reports
+  FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Reporters or admin can read reports" ON public.reports;
+CREATE POLICY "Reporters or admin can read reports" ON public.reports
+  FOR SELECT USING (auth.uid() = reporter_id OR public.is_admin());
+DROP POLICY IF EXISTS "Admin can update reports" ON public.reports;
+CREATE POLICY "Admin can update reports" ON public.reports
+  FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- ------------------------------------------------------------
+-- 9. point_transactions 직접 INSERT 차단 (감사로그 위조 방지)
+--    정상 거래기록은 RPC(SECURITY DEFINER)가 RLS 우회로 INSERT 한다.
+-- ------------------------------------------------------------
+DROP POLICY IF EXISTS "Users can create own transactions" ON public.point_transactions;
+
+-- ------------------------------------------------------------
+-- 10. commendation_matches 가드 — status forge / 당사자·선물 필드 위조 차단
+--     (RLS 가 본인행 UPDATE 를 허용하므로, 사용자가 자기 매칭을 'verified' 로 바꿔
+--      send_commendation_gift 의 verified 전제를 위조하던 구멍을 트리거로 봉쇄)
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.commendation_guard()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE v_bypass BOOLEAN; v_me UUID;
+BEGIN
+  v_me := auth.uid();
+  v_bypass := (v_me IS NULL) OR (current_setting('app.allow_sensitive', true) = 'on') OR public.is_admin();
+  IF NOT v_bypass THEN
+    IF TG_OP = 'INSERT' THEN
+      -- 본인이 당사자(crew 또는 passenger)인 매칭만 생성 가능, 초기 상태만 허용
+      IF v_me <> COALESCE(NEW.crew_user_id, '00000000-0000-0000-0000-000000000000'::uuid)
+         AND v_me <> COALESCE(NEW.passenger_user_id, '00000000-0000-0000-0000-000000000000'::uuid) THEN
+        RAISE EXCEPTION 'not your match';
+      END IF;
+      IF NEW.status NOT IN ('pending_crew', 'pending_passenger', 'matched') THEN
+        RAISE EXCEPTION 'invalid initial status';
+      END IF;
+      NEW.gift_points := NULL;
+      NEW.gift_message := NULL;
+      -- crew_user_id 가 지정되면 반드시 인증 승무원이어야(직접 INSERT 로 일반 사용자를 crew 로 위조 차단)
+      IF NEW.crew_user_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = NEW.crew_user_id AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) = TRUE
+      ) THEN RAISE EXCEPTION 'crew_user_id must be verified crew'; END IF;
+    ELSE -- UPDATE
+      IF NEW.crew_user_id      IS DISTINCT FROM OLD.crew_user_id
+      OR NEW.passenger_user_id IS DISTINCT FROM OLD.passenger_user_id
+      OR NEW.gift_points       IS DISTINCT FROM OLD.gift_points
+      OR NEW.gift_message      IS DISTINCT FROM OLD.gift_message THEN
+        RAISE EXCEPTION 'protected match field';
+      END IF;
+      -- 종료 상태(gift_sent/verified)는 되돌리거나 재전이 불가 → 선물 재지급 우회 차단
+      IF OLD.status IN ('gift_sent', 'verified') AND NEW.status IS DISTINCT FROM OLD.status THEN
+        RAISE EXCEPTION 'finalized match cannot change';
+      END IF;
+      -- 승인/발송으로의 전이는 admin/RPC 만 (사용자는 commendation_submitted 제출, rejected 취소만 가능)
+      IF NEW.status IN ('verified', 'gift_sent') AND NEW.status IS DISTINCT FROM OLD.status THEN
+        RAISE EXCEPTION 'status transition not allowed';
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_commendation_guard ON public.commendation_matches;
+CREATE TRIGGER trg_commendation_guard
+  BEFORE INSERT OR UPDATE ON public.commendation_matches
+  FOR EACH ROW EXECUTE FUNCTION public.commendation_guard();
+
+DROP POLICY IF EXISTS "Users can create matches" ON public.commendation_matches;
+DROP POLICY IF EXISTS "Users can create own matches" ON public.commendation_matches;
+CREATE POLICY "Users can create own matches" ON public.commendation_matches
+  FOR INSERT WITH CHECK (auth.uid() = crew_user_id OR auth.uid() = passenger_user_id);
+
+-- ============================================================
+-- 끝. 롤백:  DROP TRIGGER IF EXISTS trg_profiles_guard ON public.profiles;
+--           DROP TRIGGER IF EXISTS trg_commendation_guard ON public.commendation_matches;  (데이터 무손상)
+-- 단 handle_new_user 는 본 파일이 재정의하므로, 롤백 시 signup_extension.sql/safety_verification.sql 의
+-- handle_new_user 정의를 다시 실행해 원복할 것.
+-- ============================================================

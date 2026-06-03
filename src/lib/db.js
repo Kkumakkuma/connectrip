@@ -437,6 +437,70 @@ export const keywordsApi = {
   },
 };
 
+// 키워드 알림: 최근 게시글을 가볍게 폴링해서 키워드와 매칭한다.
+// (Supabase realtime 퍼블리케이션 설정 없이도 동작하도록 폴링 방식 채택.
+//  RPC/보안 로직과 무관한 단순 SELECT 만 수행한다.)
+// select('*') 로 받아 모든 문자열 컬럼을 매칭 대상으로 삼는다 →
+// 보드별 컬럼명(content/description 등) 차이/스키마 변경에 영향받지 않는다.
+const KEYWORD_BOARDS = [
+  { table: 'companion_posts', path: '/companion' },
+  { table: 'qna_posts', path: '/qna' },
+  { table: 'market_listings', path: '/market' },
+  { table: 'reviews', path: '/reviews' },
+  { table: 'destinations', path: '/recommend' },
+];
+
+// 매칭에서 제외할 비텍스트/식별자 성격 컬럼 (오탐 방지)
+const KEYWORD_SKIP_FIELDS = new Set([
+  'id', 'user_id', 'buyer_id', 'region_id', 'image_url', 'avatar_url',
+  'created_at', 'updated_at', 'status', 'type', 'post_type',
+]);
+
+export const keywordAlertsApi = {
+  // sinceIso 이후 새 글 중 keywords(문자열 배열) 와 매칭되는 항목 목록 반환.
+  // 실패한 보드는 조용히 건너뛰고(앱 안정성 우선) 나머지는 정상 반환한다.
+  async findMatches(sinceIso, keywords) {
+    if (!Array.isArray(keywords) || keywords.length === 0) return [];
+    const lowered = keywords.map(k => String(k).toLowerCase()).filter(Boolean);
+    if (lowered.length === 0) return [];
+
+    const results = [];
+    await Promise.all(
+      KEYWORD_BOARDS.map(async (board) => {
+        try {
+          const { data, error } = await supabase
+            .from(board.table)
+            .select('*')
+            .gt('created_at', sinceIso)
+            .order('created_at', { ascending: false })
+            .limit(20);
+          if (error || !data) return;
+          for (const row of data) {
+            const haystack = Object.keys(row)
+              .filter(k => !KEYWORD_SKIP_FIELDS.has(k) && typeof row[k] === 'string')
+              .map(k => row[k])
+              .join(' ')
+              .toLowerCase();
+            const matched = lowered.find(kw => haystack.includes(kw));
+            if (matched) {
+              results.push({
+                id: `${board.table}:${row.id}`,
+                keyword: matched,
+                table: board.table,
+                path: board.path,
+                created_at: row.created_at,
+              });
+            }
+          }
+        } catch {
+          // 개별 보드 실패는 무시 (네트워크/권한 등) — 전체 폴링은 계속 동작
+        }
+      })
+    );
+    return results;
+  },
+};
+
 export const notificationsApi = {
   async getMy(userId) {
     const { data, error } = await supabase
@@ -463,22 +527,9 @@ export const notificationsApi = {
 // ============================================================
 
 export const pointsApi = {
-  async addTransaction(userId, amount, type, description) {
-    // Add transaction
-    await supabase.from('point_transactions').insert({
-      user_id: userId, amount, type, description
-    });
-    // Update balance
-    const { data } = await supabase
-      .from('profiles')
-      .select('points_balance')
-      .eq('id', userId)
-      .single();
-    const newBalance = (data?.points_balance || 0) + amount;
-    await supabase.from('profiles').update({ points_balance: newBalance }).eq('id', userId);
-    return newBalance;
-  },
-
+  // 포인트 가감은 용도별 전용 RPC(purchase_voucher / convert_likes_to_points /
+  // market_purchase / send_commendation_gift / grant_referral_bonus)로만 처리한다.
+  // 임의 사용자 포인트를 직접 조정하는 범용 addTransaction 은 보안상 제거됨.
   async getTransactions(userId) {
     const { data, error } = await supabase
       .from('point_transactions')
@@ -558,30 +609,13 @@ export const flightCompanionsApi = {
 // ============================================================
 
 export const marketTransactionApi = {
-  async purchaseWithPoints(listingId, sellerId, buyerId, amount) {
-    // Deduct points from buyer
-    await pointsApi.addTransaction(
-      buyerId,
-      -amount,
-      'market_purchase',
-      `장터 물품 구매 (ID: ${listingId})`
-    );
-    // Add points to seller
-    await pointsApi.addTransaction(
-      sellerId,
-      amount,
-      'market_sale',
-      `장터 물품 판매 수익 (ID: ${listingId})`
-    );
-    // Mark listing as sold
-    const { data, error } = await supabase
-      .from('market_listings')
-      .update({ status: 'sold', buyer_id: buyerId })
-      .eq('id', listingId)
-      .select()
-      .single();
+  async purchaseWithPoints(listingId, expectedPrice) {
+    // 서버 RPC 가 listing 가격 전액을 포인트로 결제(판매자/금액 위조 불가). 부분·현금 결제는 PG 연동 후.
+    // expectedPrice = 구매자가 화면에서 확인한 가격. 서버가격과 다르면(결제 직전 인상) 거부된다.
+    const { error } = await supabase.rpc('market_purchase', {
+      p_listing_id: listingId, p_expected_price: expectedPrice,
+    });
     if (error) throw error;
-    return data;
   },
 };
 

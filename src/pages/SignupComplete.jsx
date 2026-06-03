@@ -40,6 +40,8 @@ export default function SignupComplete() {
   const [phoneCode, setPhoneCode] = useState('');
   const [phoneSent, setPhoneSent] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneVerifying, setPhoneVerifying] = useState(false);
   const [zipcode, setZipcode] = useState('');
   const [addressRoad, setAddressRoad] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
@@ -164,28 +166,63 @@ export default function SignupComplete() {
     }
   };
 
-  const sendPhoneCode = () => {
+  const sendPhoneCode = async () => {
     setError('');
     const cleaned = phone.replace(/[^0-9]/g, '');
-    if (cleaned.length < 10) {
-      setError('휴대폰 번호를 정확히 입력해주세요.');
+    if (cleaned.length < 10 || cleaned.length > 11) {
+      setError('휴대폰 번호를 정확히 입력해주세요. (10~11자리 숫자)');
       return;
     }
-    // TODO: 실제 SMS OTP 연동 (Supabase phone auth / PortOne / NICE 본인인증 등)
-    // MVP: 인증코드 발송 UI만 제공, 코드 검증은 스킵
-    setPhoneSent(true);
-    setError('');
-    alert('개발 중: 실제 SMS는 아직 발송되지 않습니다. 아래 인증번호 칸에 아무 값이나 입력 후 "인증" 버튼을 눌러주세요. 외부 SMS 업체 연동 후 정식 인증이 활성화됩니다.');
+    if (!/^01[016789]/.test(cleaned)) {
+      setError('올바른 휴대폰 번호 형식이 아닙니다.');
+      return;
+    }
+    setPhoneSending(true);
+    try {
+      const resp = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleaned }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setError(data.error || '인증번호 발송에 실패했습니다.');
+        return;
+      }
+      setPhoneSent(true);
+      setPhoneCode('');
+    } catch (err) {
+      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setPhoneSending(false);
+    }
   };
 
-  const verifyPhoneCode = () => {
-    if (!phoneCode || phoneCode.length < 4) {
-      setError('인증번호를 입력해주세요.');
+  const verifyPhoneCode = async () => {
+    if (!phoneCode || phoneCode.length !== 6 || !/^[0-9]+$/.test(phoneCode)) {
+      setError('인증번호 6자리 숫자를 입력해주세요.');
       return;
     }
-    // TODO: 실제 코드 검증
-    setPhoneVerified(true);
-    setError('');
+    setPhoneVerifying(true);
+    try {
+      const cleaned = phone.replace(/[^0-9]/g, '');
+      const resp = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleaned, code: phoneCode }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setError(data.error || '인증 실패');
+        return;
+      }
+      setPhoneVerified(true);
+      setError('');
+    } catch (err) {
+      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setPhoneVerifying(false);
+    }
   };
 
   const canSubmit = () => {
@@ -210,37 +247,21 @@ export default function SignupComplete() {
     setSaving(true);
     setError('');
     try {
-      const updates = {
-        name: name.trim(),
-        nickname: nickname.trim(),
-        phone,
-        phone_verified: phoneVerified,
-        address_zipcode: zipcode,
-        address_road: addressRoad,
-        address_detail: addressDetail,
-        user_type: userType,
-        profile_completed: true,
-        updated_at: new Date().toISOString(),
-      };
-      if (userType === 'crew' && airlineInfo) {
-        updates.airline_email = airlineEmail;
-        updates.airline_name = airlineInfo.name;
-        updates.crew_verified = true;
-        updates.crew_verified_at = new Date().toISOString();
-      }
-      if (referrerId && referrerStatus === 'valid') {
-        updates.referred_by = referrerId;
-      }
-      const { error: upErr } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
+      // 보호컬럼(user_type/crew_verified/phone_verified)은 서버 RPC 가 검증 후 설정.
+      // 휴대폰은 phone_otps.verified_at 으로 재검증되고, 추천 보너스도 서버가 self-referral 차단 포함 처리.
+      const { error: upErr } = await supabase.rpc('complete_signup_profile', {
+        p_name: name.trim(),
+        p_nickname: nickname.trim(),
+        p_phone: phone,
+        p_zipcode: zipcode,
+        p_road: addressRoad,
+        p_detail: addressDetail,
+        p_user_type: userType,
+        p_airline_email: (userType === 'crew' && airlineInfo) ? airlineEmail : null,
+        p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
+        p_referred_by: (referrerId && referrerStatus === 'valid') ? referrerId : null,
+      });
       if (upErr) throw upErr;
-
-      // 추천인 세팅됐으면 양쪽 보너스 지급 (DB 함수 호출)
-      if (updates.referred_by) {
-        await supabase.rpc('grant_referral_bonus', { p_user_id: user.id }).catch(() => {});
-      }
       // 승무원 pending 정보는 이제 사용 완료 → 세션 스토리지에서 제거
       try { sessionStorage.removeItem('pendingCrew'); } catch { /* noop */ }
       await fetchProfile(user.id);
@@ -365,16 +386,17 @@ export default function SignupComplete() {
               <button
                 type="button"
                 onClick={sendPhoneCode}
-                disabled={phoneVerified}
+                disabled={phoneVerified || phoneSending}
                 style={{
                   padding: '0 14px', borderRadius: 10,
                   background: phoneVerified ? '#d1fae5' : '#2563eb',
                   color: phoneVerified ? '#065f46' : 'white',
                   border: 'none', fontWeight: 600,
-                  cursor: phoneVerified ? 'default' : 'pointer',
+                  cursor: (phoneVerified || phoneSending) ? 'default' : 'pointer',
+                  opacity: phoneSending ? 0.7 : 1,
                 }}
               >
-                {phoneVerified ? '인증 완료' : phoneSent ? '재전송' : '인증번호 받기'}
+                {phoneVerified ? '인증 완료' : phoneSending ? '발송 중...' : phoneSent ? '재전송' : '인증번호 받기'}
               </button>
             </div>
             {phoneSent && !phoneVerified && (
@@ -383,18 +405,21 @@ export default function SignupComplete() {
                   type="text"
                   value={phoneCode}
                   onChange={(e) => setPhoneCode(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="인증번호 4~6자리"
+                  placeholder="인증번호 6자리"
                   style={{ ...inputStyle, flex: 1 }}
                   maxLength={6}
                 />
                 <button
                   type="button"
                   onClick={verifyPhoneCode}
+                  disabled={phoneVerifying}
                   style={{
                     padding: '0 14px', borderRadius: 10, background: '#16a34a',
-                    color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer',
+                    color: 'white', border: 'none', fontWeight: 600,
+                    cursor: phoneVerifying ? 'default' : 'pointer',
+                    opacity: phoneVerifying ? 0.7 : 1,
                   }}
-                >인증</button>
+                >{phoneVerifying ? '확인 중...' : '인증'}</button>
               </div>
             )}
             {phoneVerified && (

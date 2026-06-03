@@ -280,7 +280,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                                 <div className="flex items-center gap-3">
                                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-400 to-teal-400 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
                                     {companion.profiles?.avatar_url ? (
-                                      <img src={companion.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                                      <img src={companion.profiles.avatar_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                     ) : (
                                       (companion.profiles?.name || '?').charAt(0)
                                     )}

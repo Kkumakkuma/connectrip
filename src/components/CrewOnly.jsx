@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Tag, TrendingUp, Loader2 } from 'lucide-react';
+import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Tag, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
@@ -8,6 +8,7 @@ import { useAuth } from '../lib/AuthContext';
 import { crewApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
+import ListState from './ListState';
 
 const CrewOnly = () => {
     const { user, profile, isLoggedIn, isCrew } = useAuth();
@@ -23,6 +24,7 @@ const CrewOnly = () => {
     const [dealsPosts, setDealsPosts] = useState([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const itemsPerPage = 4;
     const location = useLocation();
 
@@ -32,27 +34,30 @@ const CrewOnly = () => {
     }, [location.key]);
 
     // Fetch crew posts when mode changes
-    useEffect(() => {
-        if (mode === 'main' || !isCrew) { setLoading(false); return; }
-        const fetchPosts = async () => {
+    const fetchPosts = async () => {
+        if (mode === 'main' || !isCrew) { setLoading(false); setError(null); return; }
+        try {
             setLoading(true);
-            try {
-                const typeMap = { free: 'free', layover: 'layover', deals: 'deals' };
-                const data = await crewApi.getAll(typeMap[mode]) || [];
-                if (mode === 'free') setFreePosts(data);
-                else if (mode === 'layover') setLayoverPosts(data);
-                else if (mode === 'deals') setDealsPosts(data);
-            } catch (err) {
-                console.error('크루 게시글 로딩 실패:', err);
-                if (mode === 'free') setFreePosts([]);
-                else if (mode === 'layover') setLayoverPosts([]);
-                else if (mode === 'deals') setDealsPosts([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+            setError(null);
+            const typeMap = { free: 'free', layover: 'layover', deals: 'deals' };
+            const data = await crewApi.getAll(typeMap[mode]) || [];
+            if (mode === 'free') setFreePosts(data);
+            else if (mode === 'layover') setLayoverPosts(data);
+            else if (mode === 'deals') setDealsPosts(data);
+        } catch (err) {
+            console.error('크루 게시글 로딩 실패:', err);
+            if (mode === 'free') setFreePosts([]);
+            else if (mode === 'layover') setLayoverPosts([]);
+            else if (mode === 'deals') setDealsPosts([]);
+            setError('게시글을 불러오지 못했습니다. 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchPosts();
-    }, [mode, isCrew]);
+    }, [mode, isCrew]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -218,8 +223,8 @@ const CrewOnly = () => {
                                     const paged = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
                                     const EmptyIcon = mode === 'free' ? MessageSquare : mode === 'layover' ? Plane : Tag;
 
-                                    if (loading) return (
-                                        <div className="py-20 text-center"><Loader2 size={48} className="mx-auto text-blue-500 animate-spin mb-4" /><p className="text-gray-500">불러오는 중...</p></div>
+                                    if (loading || error) return (
+                                        <ListState loading={loading} error={error} onRetry={fetchPosts} color="blue" />
                                     );
                                     if (paged.length === 0) return (
                                         <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">

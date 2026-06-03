@@ -124,10 +124,8 @@ export const AuthProvider = ({ children }) => {
       options: { data: { user_type: userType } }
     });
     if (error) throw error;
-    // Update profile with user_type
-    if (data.user) {
-      await supabase.from('profiles').update({ user_type: userType }).eq('id', data.user.id);
-    }
+    // user_type 은 signUp metadata(options.data)로 전달되어 handle_new_user 트리거가 profiles 에 반영한다.
+    // (보호컬럼이라 클라 직접 update 는 profiles_guard 트리거가 차단하므로 제거)
     return data;
   };
 

@@ -8,6 +8,8 @@ const Footer = () => {
                     <img
                         src="/footer-logo.png"
                         alt="ConnectTrip"
+                        loading="lazy"
+                        decoding="async"
                         style={{
                             height: '120px',
                             width: 'auto',

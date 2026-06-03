@@ -7,6 +7,8 @@ import { destinationsApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import ShareButtons from './ShareButtons';
+import ListState from './ListState';
+import SEOHead from './SEOHead';
 
 const regions = [
     { id: 'europe', name: '유럽', icon: '🏰', desc: '승무원들이 가장 사랑하는 유럽의 숨은 명소', image: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=800&auto=format&fit=crop' },
@@ -29,6 +31,8 @@ const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
             <img
                 src={dest.image_url || 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800&auto=format&fit=crop'}
                 alt={dest.name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
             />
         </div>
@@ -79,6 +83,7 @@ const Destinations = () => {
         return saved ? JSON.parse(saved) : {};
     });
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         localStorage.setItem('userLikes', JSON.stringify(userLikes));
@@ -95,15 +100,22 @@ const Destinations = () => {
     }, [selectedRegion]);
 
     const fetchDestinations = async (regionId) => {
-        setLoading(true);
         try {
+            setLoading(true);
+            setError(null);
             const data = await destinationsApi.getAll(regionId);
             setAllDestinations(data || []);
         } catch (err) {
             console.error('추천지 로드 실패:', err);
             setAllDestinations([]);
+            setError('추천 명소를 불러오지 못했습니다. 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
+    };
+
+    const refetch = () => {
+        if (selectedRegion) fetchDestinations(selectedRegion.id);
     };
 
     const handleToggleLike = async (id) => {
@@ -161,6 +173,8 @@ const Destinations = () => {
     );
 
     return (
+        <>
+        <SEOHead title="여행지 추천 - ConnectTrip" description="승무원들이 직접 추천하는 전 세계 여행지. 유럽, 미주, 동남아 등 지역별 숨은 명소와 핫플레이스를 만나보세요." />
         <section id="destinations" className="section-padding" style={{ background: 'var(--bg-light, #f9fafb)', minHeight: '80vh' }}>
             <div className="container">
                 <AnimatePresence mode="wait">
@@ -175,7 +189,7 @@ const Destinations = () => {
                                 {regions.map((region) => (
                                     <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }} onClick={() => navigate(`/recommend/${region.id}`)}
                                         className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all">
-                                        <img src={region.image} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
+                                        <img src={region.image} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                         <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
                                             <div className="mb-2 text-3xl">{region.icon}</div>
@@ -216,8 +230,8 @@ const Destinations = () => {
                                 </div>
                             </div>
 
-                            {loading ? (
-                                <div className="text-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div><p className="mt-4 text-gray-500">로딩 중...</p></div>
+                            {loading || error ? (
+                                <ListState loading={loading} error={error} onRetry={refetch} color="blue" loadingText="로딩 중..." />
                             ) : filteredDestinations.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                     {filteredDestinations.map(dest => (
@@ -267,7 +281,7 @@ const Destinations = () => {
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</label>
                                     <ImageUpload onUpload={(url) => setFormData({ ...formData, image_url: url })} />
-                                    {formData.image_url && <img src={formData.image_url} alt="미리보기" className="mt-2 h-32 rounded-xl object-cover" />}
+                                    {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
                                 </div>
                                 <div className="flex gap-3 pt-4">
                                     <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
@@ -281,6 +295,7 @@ const Destinations = () => {
 
             {showLoginPrompt && <LoginPrompt onClose={() => setShowLoginPrompt(false)} />}
         </section>
+        </>
     );
 };
 export default Destinations;

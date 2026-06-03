@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, HelpCircle, Plus, X, Search, Loader2, Star, BookOpen, Trash2, User } from 'lucide-react';
+import { MessageSquare, HelpCircle, Plus, X, Search, Star, BookOpen, Trash2, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
@@ -9,6 +9,7 @@ import { qnaApi, reviewsApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
+import ListState from './ListState';
 
 const TravelQnA = () => {
     const { user, profile, isLoggedIn } = useAuth();
@@ -20,30 +21,42 @@ const TravelQnA = () => {
     const [posts, setPosts] = useState([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const itemsPerPage = 6;
 
     const fetchQnA = async () => {
-        setLoading(true);
         try {
+            setLoading(true);
+            setError(null);
             const data = await qnaApi.getAll();
             setPosts(data || []);
         } catch (err) {
             console.error('Q&A 로딩 실패:', err);
             setPosts([]);
+            setError('목록을 불러오지 못했습니다. 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const fetchReviews = async () => {
-        setLoading(true);
         try {
+            setLoading(true);
+            setError(null);
             const data = await reviewsApi.getAll(null, 'review');
             setPosts(data || []);
         } catch (err) {
             console.error('후기 로딩 실패:', err);
             setPosts([]);
+            setError('목록을 불러오지 못했습니다. 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
+    };
+
+    const refetch = () => {
+        if (mode === 'qna') fetchQnA();
+        else if (mode === 'review') fetchReviews();
     };
 
     const handleModeSelect = (newMode) => {
@@ -182,11 +195,8 @@ const TravelQnA = () => {
                                 </div>
                             </div>
 
-                            {loading ? (
-                                <div className="py-20 text-center">
-                                    <Loader2 size={48} className="mx-auto text-blue-500 animate-spin mb-4" />
-                                    <p className="text-gray-500 text-lg">로딩 중...</p>
-                                </div>
+                            {loading || error ? (
+                                <ListState loading={loading} error={error} onRetry={refetch} color={mode === 'review' ? 'green' : 'blue'} loadingText="로딩 중..." />
                             ) : paginatedPosts.length > 0 ? (
                                 <>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -202,7 +212,7 @@ const TravelQnA = () => {
                                                 {/* 후기 이미지 */}
                                                 {mode === 'review' && post.image_url && (
                                                     <div className="h-40 rounded-xl overflow-hidden mb-4 -mx-2 -mt-2">
-                                                        <img src={post.image_url} alt={post.title} className="w-full h-full object-cover" />
+                                                        <img src={post.image_url} alt={post.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                     </div>
                                                 )}
 
@@ -284,7 +294,7 @@ const TravelQnA = () => {
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</label>
                                         <ImageUpload onUpload={(url) => setFormData({ ...formData, image_url: url })} />
-                                        {formData.image_url && <img src={formData.image_url} alt="미리보기" className="mt-2 h-32 rounded-xl object-cover" />}
+                                        {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
                                     </div>
                                 )}
                                 <div className="flex gap-3 pt-4">

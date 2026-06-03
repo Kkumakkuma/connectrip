@@ -6,6 +6,7 @@ import KeywordSettings from './KeywordSettings';
 import CommendationMatching from './CommendationMatching';
 import FlightCompanions from './FlightCompanions';
 import NotificationSettings from './NotificationSettings';
+import SEOHead from './SEOHead';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { flightApi } from '../lib/db';
@@ -68,14 +69,13 @@ const MyPage = () => {
 
         setRegistering(true);
         try {
-            const result = await flightApi.register({
+            await flightApi.register({
                 user_id: user.id,
                 flight_number: flightNumber.toUpperCase(),
                 flight_date: flightDate,
                 user_type: isCrew ? 'crew' : 'passenger',
                 is_public: isPublic,
             });
-            console.log('등록 성공:', result);
             setFlightDate('');
             setFlightNumber('');
             setIsPublic(false);
@@ -171,7 +171,7 @@ const MyPage = () => {
     const [chargeAmount, setChargeAmount] = useState(10000);
     const [customAmount, setCustomAmount] = useState('');
 
-    const handleBuyVoucher = () => {
+    const handleBuyVoucher = async () => {
         const quantityStr = prompt('몇 개의 매칭신청권을 구매하시겠습니까?', '1');
         if (!quantityStr) return;
 
@@ -185,14 +185,15 @@ const MyPage = () => {
 
         if (totalPoints >= totalPrice) {
             if (window.confirm(`${quantity}개의 매칭신청권을 구매하시겠습니까? (총 ${totalPrice.toLocaleString()}P 소모)`)) {
-                const newPoints = Number(totalPoints) - totalPrice;
-                const newVouchers = Number(vouchers) + quantity;
-                setTotalPoints(newPoints);
-                setVouchers(newVouchers);
-                // DB 업데이트 + AuthContext 프로필 갱신
-                supabase.from('profiles').update({ points_balance: newPoints, voucher_count: newVouchers }).eq('id', profile.id)
-                  .then(() => fetchProfile(user.id).catch(() => {}));
-                alert(`매칭신청권 ${quantity}개를 구매했습니다!`);
+                try {
+                    const { error } = await supabase.rpc('purchase_voucher', { p_qty: quantity });
+                    if (error) throw error;
+                    await fetchProfile(user.id);
+                    alert(`매칭신청권 ${quantity}개를 구매했습니다!`);
+                } catch (err) {
+                    console.error('매칭신청권 구매 실패:', err);
+                    alert('구매에 실패했습니다. 포인트 잔액을 확인해주세요.');
+                }
             }
         } else {
             if (window.confirm(`포인트가 부족합니다. (필요: ${totalPrice.toLocaleString()}P / 보유: ${totalPoints.toLocaleString()}P)\n포인트를 충전하시겠습니까?`)) {
@@ -201,7 +202,7 @@ const MyPage = () => {
         }
     };
 
-    const handleConvertLikes = () => {
+    const handleConvertLikes = async () => {
         const quantityStr = prompt('몇 개의 좋아요를 포인트로 전환하시겠습니까? (100개 단위)', '100');
         if (!quantityStr) return;
 
@@ -213,12 +214,15 @@ const MyPage = () => {
 
         if (availableLikes >= quantity) {
             if (window.confirm(`${quantity.toLocaleString()}개의 좋아요를 ${quantity.toLocaleString()}P로 전환하시겠습니까?`)) {
-                const newLikes = Number(availableLikes) - quantity;
-                const newPoints = Number(totalPoints) + quantity;
-                setAvailableLikes(newLikes);
-                setTotalPoints(newPoints);
-                supabase.from('profiles').update({ available_likes: newLikes, points_balance: newPoints }).eq('id', profile.id);
-                alert(`${quantity.toLocaleString()} 좋아요가 ${quantity.toLocaleString()} 포인트로 전환되었습니다!`);
+                try {
+                    const { error } = await supabase.rpc('convert_likes_to_points', { p_qty: quantity });
+                    if (error) throw error;
+                    await fetchProfile(user.id);
+                    alert(`${quantity.toLocaleString()} 좋아요가 ${quantity.toLocaleString()} 포인트로 전환되었습니다!`);
+                } catch (err) {
+                    console.error('좋아요 전환 실패:', err);
+                    alert('전환에 실패했습니다.');
+                }
             }
         } else {
             alert('전환할 좋아요가 부족합니다.');
@@ -226,15 +230,9 @@ const MyPage = () => {
     };
 
     const handleChargePoints = () => {
-        const amount = customAmount ? parseInt(customAmount.replace(/,/g, '')) : chargeAmount;
-        if (isNaN(amount) || amount <= 0) {
-            alert('올바른 금액을 입력해주세요.');
-            return;
-        }
-        const newPoints = totalPoints + amount;
-        setTotalPoints(newPoints);
-        supabase.from('profiles').update({ points_balance: newPoints }).eq('id', profile.id);
-        alert(`${amount.toLocaleString()}원이 결제되어 ${amount.toLocaleString()}P가 충전되었습니다!\n(1P = 1원)`);
+        // 포인트 충전(현금 결제)은 PG 연동이 필요하다. 사업자 등록·결제 계약 완료 전까지 비활성화.
+        // (이전엔 실제 결제 없이 포인트를 가산해 누구나 무제한 충전이 가능했던 보안 구멍)
+        alert('포인트 충전(결제)은 사업자 등록 및 결제(PG) 연동 후 제공될 예정입니다.\n현재는 추천 보너스·좋아요 전환·판매 수익으로 포인트를 모을 수 있습니다.');
         setShowChargeModal(false);
         setCustomAmount('');
     };
@@ -247,6 +245,8 @@ const MyPage = () => {
     ];
 
     return (
+        <>
+        <SEOHead title="마이 페이지 - ConnectTrip" description="ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭송 매칭 현황을 한눈에 관리하세요." />
         <section id="mypage" className="section-padding" style={{ background: '#f8f9fa' }}>
             <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -830,6 +830,7 @@ const MyPage = () => {
                 </button>
             </div>
         </section>
+        </>
     );
 };
 

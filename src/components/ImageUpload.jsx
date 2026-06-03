@@ -78,7 +78,7 @@ const ImageUpload = ({ bucket = 'images', onUpload, className = '' }) => {
 
       {preview ? (
         <div className="relative rounded-xl overflow-hidden border border-gray-200">
-          <img src={preview} alt="미리보기" className="w-full h-48 object-cover" />
+          <img src={preview} alt="미리보기" loading="lazy" decoding="async" className="w-full h-48 object-cover" />
           {uploading && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
               <Loader2 size={32} className="text-white animate-spin" />

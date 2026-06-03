@@ -6,7 +6,7 @@ import {
   Ticket, UserCheck, Loader, Eye, EyeOff, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { flightApi, commendationApi, pointsApi } from '../lib/db';
+import { flightApi, commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import ImageUpload from './ImageUpload';
 
@@ -97,43 +97,24 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
 
     setApplyingFlight(flight.id);
     try {
-      // 신청권 1장 차감
-      await supabase.from('profiles').update({ voucher_count: currentVouchers - 1 }).eq('id', user.id);
-      fetchProfile(user.id).catch(() => {});
-
-      // flight_schedules에서 같은 편 승객 찾기
+      // 같은 편 승객을 찾고, 신청권 차감 + 매칭 생성을 단일 RPC 로 원자 처리(동시 신청 시 무료매칭/중복 방지)
       const passenger = await findPartnerFromSchedules(flight.flight_number, flight.flight_date, 'passenger');
-
-      if (passenger) {
-        // 즉시 매칭
-        await commendationApi.createMatch({
-          flight_number: flight.flight_number,
-          flight_date: flight.flight_date,
-          crew_user_id: user.id,
-          passenger_user_id: passenger.user_id,
-          status: 'matched',
-        });
-        await fetchData();
-        alert('같은 항공편 승객과 자동 매칭되었습니다!');
-      } else {
-        // 대기
-        await commendationApi.createMatch({
-          flight_number: flight.flight_number,
-          flight_date: flight.flight_date,
-          crew_user_id: user.id,
-          passenger_user_id: null,
-          status: 'pending_crew',
-        });
-        await fetchData();
-        alert('매칭 신청 완료! 같은 항공편 승객이 등록하면 자동 매칭됩니다.');
-      }
+      const { error } = await supabase.rpc('apply_commendation_match', {
+        p_flight_number: flight.flight_number,
+        p_flight_date: flight.flight_date,
+        p_partner_id: passenger ? passenger.user_id : null,
+        p_status: passenger ? 'matched' : 'pending_crew',
+        p_role: 'crew',
+      });
+      if (error) throw error;
+      fetchProfile(user.id).catch(() => {});
+      await fetchData();
+      alert(passenger
+        ? '같은 항공편 승객과 자동 매칭되었습니다!'
+        : '매칭 신청 완료! 같은 항공편 승객이 등록하면 자동 매칭됩니다.');
     } catch (err) {
       console.error('매칭 신청 실패:', err);
-      alert('매칭 신청에 실패했습니다.');
-      try {
-        await supabase.from('profiles').update({ voucher_count: currentVouchers }).eq('id', user.id);
-        fetchProfile(user.id).catch(() => {});
-      } catch (e) { /* ignore */ }
+      alert(err?.message === 'no voucher' ? '매칭신청권이 부족합니다.' : '매칭 신청에 실패했습니다.');
     } finally {
       setApplyingFlight(null);
     }
@@ -149,32 +130,20 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
 
     setApplyingFlight(flight.id);
     try {
-      // flight_schedules에서 같은 편 승무원 찾기
+      // 같은 편 승무원을 찾고, 매칭 생성을 단일 RPC 로 처리(승객 신청은 무료 — 신청권 차감 없음)
       const crew = await findPartnerFromSchedules(flight.flight_number, flight.flight_date, 'crew');
-
-      if (crew) {
-        // 즉시 매칭
-        await commendationApi.createMatch({
-          flight_number: flight.flight_number,
-          flight_date: flight.flight_date,
-          crew_user_id: crew.user_id,
-          passenger_user_id: user.id,
-          status: 'matched',
-        });
-        await fetchData();
-        alert('같은 항공편 승무원과 자동 매칭되었습니다!');
-      } else {
-        // 대기
-        await commendationApi.createMatch({
-          flight_number: flight.flight_number,
-          flight_date: flight.flight_date,
-          crew_user_id: null,
-          passenger_user_id: user.id,
-          status: 'pending_passenger',
-        });
-        await fetchData();
-        alert('매칭 신청 완료! 같은 항공편 승무원이 등록하면 자동 매칭됩니다.');
-      }
+      const { error } = await supabase.rpc('apply_commendation_match', {
+        p_flight_number: flight.flight_number,
+        p_flight_date: flight.flight_date,
+        p_partner_id: crew ? crew.user_id : null,
+        p_status: crew ? 'matched' : 'pending_passenger',
+        p_role: 'passenger',
+      });
+      if (error) throw error;
+      await fetchData();
+      alert(crew
+        ? '같은 항공편 승무원과 자동 매칭되었습니다!'
+        : '매칭 신청 완료! 같은 항공편 승무원이 등록하면 자동 매칭됩니다.');
     } catch (err) {
       console.error('매칭 신청 실패:', err);
       alert('매칭 신청에 실패했습니다.');
@@ -206,12 +175,11 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
     if (!showGiftModal || giftPoints <= 0) return;
     setSubmitting(true);
     try {
-      const match = matches.find((m) => m.id === showGiftModal);
-      if (match) {
-        await commendationApi.sendGift(showGiftModal, giftPoints, giftMessage);
-        await pointsApi.addTransaction(match.passenger_user_id, giftPoints, 'gift_received', `칭송 감사 선물 (${match.flight_number})`);
-        await pointsApi.addTransaction(match.crew_user_id, -giftPoints, 'gift_sent', `칭송 감사 선물 발송 (${match.flight_number})`);
-      }
+      // 서버 RPC: verified 매칭 검증 + 승무원 본인 포인트 차감 + 승객 가산 + 상태(gift_sent)·메시지를 원자적으로 처리
+      const { error: giftErr } = await supabase.rpc('send_commendation_gift', {
+        p_match_id: showGiftModal, p_amount: giftPoints, p_message: giftMessage,
+      });
+      if (giftErr) throw giftErr;
       setShowGiftModal(null);
       setGiftPoints(5000);
       setGiftMessage('');
@@ -501,7 +469,7 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
             {isPending ? <Clock size={18} /> : partner.hidden ? <Plane size={18} /> : partner.avatar ? (
-              <img src={partner.avatar} alt="" className="w-full h-full object-cover" />
+              <img src={partner.avatar} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
             ) : partner.name.charAt(0)}
           </div>
           <div>
@@ -581,7 +549,7 @@ const MatchDetail = ({ match, isCrew, partner, isAfterFlight }) => {
       <div className="text-center mb-5">
         <div className="w-20 h-20 rounded-full mx-auto mb-3 overflow-hidden bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-2xl font-bold">
           {partner.hidden ? <Plane size={32} /> : partner.avatar ? (
-            <img src={partner.avatar} alt="" className="w-full h-full object-cover" />
+            <img src={partner.avatar} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : partner.name.charAt(0)}
         </div>
         <h3 className="text-xl font-extrabold text-gray-800">{partner.name}</h3>
@@ -621,7 +589,7 @@ const MatchDetail = ({ match, isCrew, partner, isAfterFlight }) => {
         {match.commendation_screenshot_url && (
           <div className="pt-2 border-t border-gray-200">
             <p className="text-xs text-gray-500 mb-2">칭송 캡쳐</p>
-            <img src={match.commendation_screenshot_url} alt="칭송 캡쳐" className="w-full rounded-xl border border-gray-200" />
+            <img src={match.commendation_screenshot_url} alt="칭송 캡쳐" loading="lazy" decoding="async" className="w-full rounded-xl border border-gray-200" />
           </div>
         )}
       </div>

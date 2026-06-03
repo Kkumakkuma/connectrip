@@ -121,6 +121,8 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
                                 <img
                                     src={cat.image}
                                     alt={cat.name}
+                                    loading="lazy"
+                                    decoding="async"
                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                 />
                             </div>

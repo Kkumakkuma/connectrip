@@ -299,26 +299,18 @@ export default function SignupEmail() {
     try {
       // Supabase Auth 가입 + 메타데이터에 모든 필드 담기 (SQL 트리거가 profile 에 반영)
       // identity_verified=false / verification_method='sms_otp_pending' — 통신사 본인인증 도입 시 기존 유저 강제 업그레이드용 플래그
+      // 보호컬럼(user_type/phone_verified/crew_verified 등)은 metadata 로 넣어도 서버 트리거가 무시한다.
+      // 일반 필드만 전달하고, 가입 직후 complete_signup_profile RPC 가 서버검증(휴대폰 재인증·승무원 도메인) 후 보호컬럼을 설정.
       const metadata = {
         name: name.trim(),
         nickname: nickname.trim(),
         phone,
-        phone_verified: phoneVerified,
         address_zipcode: zipcode,
         address_road: addressRoad,
         address_detail: addressDetail,
-        user_type: userType,
-        profile_completed: true,
-        identity_verified: false,
-        verification_method: 'sms_otp_pending',
       };
       if (referrerId && referrerStatus === 'valid') {
         metadata.referred_by = referrerId;
-      }
-      if (userType === 'crew' && airlineInfo) {
-        metadata.airline_email = airlineEmail;
-        metadata.airline_name = airlineInfo.name;
-        metadata.crew_verified = true;
       }
 
       const { data, error: signErr } = await supabase.auth.signUp({
@@ -328,17 +320,21 @@ export default function SignupEmail() {
       });
       if (signErr) throw signErr;
 
-      // 세션이 바로 나오면 (이메일 확인 꺼진 프로젝트) 추천인 보너스 지급
-      if (data.session && referrerId) {
-        await supabase.rpc('grant_referral_bonus', { p_user_id: data.user.id }).catch(() => {});
-      }
-
-      if (!data.session) {
-        // Supabase 이메일 확인이 ON 인 경우
-        setSuccessMsg('가입 완료! 보낸 확인 메일을 눌러 로그인하면 서비스 이용 가능합니다.');
-      } else {
-        // 세션 즉시 발급 — 홈으로
+      if (data.session) {
+        // 세션 즉시 발급(이메일확인 OFF) → 서버가 휴대폰 재검증·승무원 도메인검증·추천보너스 처리 후 프로필 완성
+        const { error: compErr } = await supabase.rpc('complete_signup_profile', {
+          p_name: name.trim(), p_nickname: nickname.trim(), p_phone: phone,
+          p_zipcode: zipcode, p_road: addressRoad, p_detail: addressDetail,
+          p_user_type: userType,
+          p_airline_email: (userType === 'crew' && airlineInfo) ? airlineEmail : null,
+          p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
+          p_referred_by: (referrerId && referrerStatus === 'valid') ? referrerId : null,
+        });
+        if (compErr) throw compErr;
         navigate('/');
+      } else {
+        // 이메일 확인 ON: 로그인 후 /signup/complete 에서 프로필 완성
+        setSuccessMsg('가입 완료! 보낸 확인 메일을 눌러 로그인하면 서비스 이용 가능합니다.');
       }
     } catch (err) {
       if (err.message?.includes('already') || err.message?.includes('duplicate')) {

@@ -1,13 +1,14 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Users, Calendar, MessageCircle, Edit3, ArrowLeft, X, Search, Loader2 } from 'lucide-react';
+import { MapPin, Users, Calendar, MessageCircle, Edit3, ArrowLeft, X, Search } from 'lucide-react';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import { useAuth } from '../lib/AuthContext';
 import { companionApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
+import ListState from './ListState';
 
 const regions = [
     { id: 'europe', name: '유럽', icon: '🏰' },
@@ -37,6 +38,7 @@ const RegionalBoard = () => {
     const [posts, setPosts] = useState([]);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const itemsPerPage = 6;
 
     // URL 변경 시 스크롤 최상단으로
@@ -45,22 +47,25 @@ const RegionalBoard = () => {
     }, [location.key]);
 
     // Supabase에서 게시글 불러오기
-    useEffect(() => {
+    const fetchPosts = async () => {
         if (!regionId) return;
-        const fetchPosts = async () => {
+        try {
             setLoading(true);
-            try {
-                const data = await companionApi.getByRegion(regionId);
-                setPosts(data || []);
-            } catch (err) {
-                console.error('게시글 로딩 실패:', err);
-                setPosts([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+            setError(null);
+            const data = await companionApi.getByRegion(regionId);
+            setPosts(data || []);
+        } catch (err) {
+            console.error('게시글 로딩 실패:', err);
+            setPosts([]);
+            setError('게시글을 불러오지 못했습니다. 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchPosts();
-    }, [regionId]);
+    }, [regionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -132,10 +137,15 @@ const RegionalBoard = () => {
                                 exit={{ opacity: 0 }}
                                 className="grid grid-cols-1 md:grid-cols-3 gap-6"
                             >
-                                {loading ? (
-                                    <div className="col-span-full py-32 text-center">
-                                        <Loader2 size={48} className="mx-auto text-blue-500 animate-spin mb-4" />
-                                        <p className="text-gray-500 text-lg">게시글을 불러오는 중...</p>
+                                {loading || error ? (
+                                    <div className="col-span-full">
+                                        <ListState
+                                            loading={loading}
+                                            error={error}
+                                            onRetry={fetchPosts}
+                                            color="blue"
+                                            loadingText="게시글을 불러오는 중..."
+                                        />
                                     </div>
                                 ) : posts.length > 0 ? (
                                     <>
@@ -148,6 +158,8 @@ const RegionalBoard = () => {
                                                         <img
                                                             src={`https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=800&auto=format&fit=crop`}
                                                             alt={post.title}
+                                                            loading="lazy"
+                                                            decoding="async"
                                                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                                         />
                                                         <div className="absolute top-3 right-3 flex items-center gap-2">
