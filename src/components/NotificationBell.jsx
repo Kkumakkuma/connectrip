@@ -25,13 +25,16 @@ const NotificationBell = () => {
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
-  // Fetch notifications
+  // Fetch notifications + realtime 구독
+  // deps 를 user?.id 로 좁혀 동일 유저에 대한 불필요한 재구독을 막는다.
+  // (user 객체 참조가 바뀌어도 id 가 같으면 재구독하지 않음)
+  const userId = user?.id;
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const fetchNotifications = async () => {
       try {
-        const data = await notificationsApi.getMy(user.id);
+        const data = await notificationsApi.getMy(userId);
         setNotifications(data || []);
       } catch (err) {
         console.error('알림 로딩 실패:', err);
@@ -42,14 +45,14 @@ const NotificationBell = () => {
 
     // Subscribe to real-time notifications
     const channel = supabase
-      .channel(`notifications:${user.id}`)
+      .channel(`notifications:${userId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
+          filter: `user_id=eq.${userId}`,
         },
         (payload) => {
           setNotifications((prev) => [payload.new, ...prev]);
@@ -60,7 +63,7 @@ const NotificationBell = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [userId]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -92,8 +95,10 @@ const NotificationBell = () => {
         onClick={() => setIsOpen(!isOpen)}
         className="p-2.5 rounded-full transition-all relative text-gray-600 hover:bg-gray-100"
         title="알림"
+        aria-label={unreadCount > 0 ? `알림 ${unreadCount}개 읽지 않음` : '알림'}
+        aria-expanded={isOpen}
       >
-        <Bell size={22} />
+        <Bell size={22} aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center bg-red-500 text-white text-[11px] font-bold rounded-full px-1 animate-pulse">
             {unreadCount > 99 ? '99+' : unreadCount}

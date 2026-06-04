@@ -1,17 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 
 const SearchBar = ({ onNavigate, className = '' }) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [debounced, setDebounced] = useState('');
-
-  // Debounce 300ms
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query), 300);
-    return () => clearTimeout(timer);
-  }, [query]);
 
   const handleSubmit = useCallback(
     (e) => {

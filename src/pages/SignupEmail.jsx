@@ -5,6 +5,7 @@ import { Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Gift, CheckCircle, Loader
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { getAirlineInfo, isAirlineEmail, getAirlineList } from '../lib/airlines';
+import SEOHead from '../components/SEOHead';
 
 function loadDaumPostcode() {
   return new Promise((resolve, reject) => {
@@ -363,6 +364,12 @@ export default function SignupEmail() {
 
   return (
     <div style={{ maxWidth: 560, margin: '120px auto 40px', padding: '0 20px' }}>
+      <SEOHead
+        title="이메일로 회원가입 - ConnectTrip"
+        description="ConnectTrip 회원가입. 실명·본인인증 기반으로 안전하게 여행 동행을 시작하세요."
+        path="/signup/email"
+        robots="noindex, follow"
+      />
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         style={{ background: 'white', borderRadius: 16, padding: 32, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <h1 style={{ fontSize: 22, marginBottom: 6, color: '#1a365d', fontWeight: 700 }}>

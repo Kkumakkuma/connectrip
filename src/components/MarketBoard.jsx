@@ -748,8 +748,9 @@ const MarketBoard = () => {
                                 <button
                                     onClick={() => setShowModal(false)}
                                     className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                    aria-label="닫기"
                                 >
-                                    <X size={24} />
+                                    <X size={24} aria-hidden="true" />
                                 </button>
                             </div>
 
@@ -943,7 +944,7 @@ const MarketBoard = () => {
                             >
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-xl font-bold text-gray-800">포인트 결제</h3>
-                                    <button onClick={() => setPaymentModal(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+                                    <button onClick={() => setPaymentModal(null)} className="text-gray-400 hover:text-gray-600" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                                 </div>
 
                                 <div className="bg-gray-50 rounded-xl p-4 mb-4">

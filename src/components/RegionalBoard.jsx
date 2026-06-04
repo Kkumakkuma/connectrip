@@ -9,6 +9,7 @@ import { useAuth } from '../lib/AuthContext';
 import { companionApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
+import SEOHead from './SEOHead';
 
 const regions = [
     { id: 'europe', name: '유럽', icon: '🏰' },
@@ -67,6 +68,19 @@ const RegionalBoard = () => {
         fetchPosts();
     }, [regionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // 검색어로 게시글 필터링 (MarketBoard 패턴과 동일)
+    const filtered = posts.filter(p =>
+        !searchQuery ||
+        [p.title, p.country, p.author, p.content].some(v =>
+            (v || '').toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    );
+
+    // 검색어가 바뀌면 첫 페이지로 리셋
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!isLoggedIn) {
@@ -99,6 +113,11 @@ const RegionalBoard = () => {
 
     return (
         <div className="pt-32 pb-24">
+            <SEOHead
+                title={`${region.name} 동행자 모집 - ConnectTrip`}
+                description={`${region.name} 지역을 함께 여행할 동행자를 ConnectTrip에서 찾아보세요.`}
+                path={`/companion/${region.id}`}
+            />
             <div className="max-w-6xl mx-auto px-4">
                 {/* Back Button */}
                 <button
@@ -147,9 +166,9 @@ const RegionalBoard = () => {
                                             loadingText="게시글을 불러오는 중..."
                                         />
                                     </div>
-                                ) : posts.length > 0 ? (
+                                ) : filtered.length > 0 ? (
                                     <>
-                                        {posts
+                                        {filtered
                                             .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                             .map((post) => (
                                                 <div key={post.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 cursor-pointer group">
@@ -203,7 +222,7 @@ const RegionalBoard = () => {
                                         <div className="col-span-full">
                                             <Pagination
                                                 currentPage={currentPage}
-                                                totalPages={Math.ceil(posts.length / itemsPerPage)}
+                                                totalPages={Math.ceil(filtered.length / itemsPerPage)}
                                                 onPageChange={setCurrentPage}
                                                 color="blue"
                                             />
@@ -267,8 +286,9 @@ const RegionalBoard = () => {
                                 <button
                                     onClick={() => setShowModal(false)}
                                     className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                    aria-label="닫기"
                                 >
-                                    <X size={24} />
+                                    <X size={24} aria-hidden="true" />
                                 </button>
                             </div>
 

@@ -60,7 +60,9 @@ const ShareButtons = ({ title, description, url }) => {
     if (navigator.share) {
       try {
         await navigator.share({ title: shareTitle, text: shareDesc, url: shareUrl });
-      } catch {}
+      } catch {
+        // 사용자가 공유를 취소한 경우 — 무시
+      }
     } else {
       setShowMenu(true);
     }

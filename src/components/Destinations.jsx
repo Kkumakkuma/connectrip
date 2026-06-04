@@ -33,6 +33,8 @@ const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
                 alt={dest.name}
                 loading="lazy"
                 decoding="async"
+                width="800"
+                height="220"
                 className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
             />
         </div>
@@ -257,7 +259,7 @@ const Destinations = () => {
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={(e) => e.stopPropagation()} className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-2xl font-bold">숨은 명소 추천하기</h3>
-                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={24} /></button>
+                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>

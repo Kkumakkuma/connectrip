@@ -195,7 +195,7 @@ function App() {
                   }`}
               >
                 <div className={`p-2 rounded-xl ${toast.type === 'keyword' ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
-                  <Bell size={18} />
+                  <Bell size={18} aria-hidden="true" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-bold leading-tight">{toast.message}</p>
@@ -203,8 +203,9 @@ function App() {
                 <button
                   onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
                   className="opacity-60 hover:opacity-100 transition-opacity"
+                  aria-label="알림 닫기"
                 >
-                  <X size={16} />
+                  <X size={16} aria-hidden="true" />
                 </button>
               </motion.div>
             ))}

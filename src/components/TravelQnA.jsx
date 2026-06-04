@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MessageSquare, HelpCircle, Plus, X, Search, Star, BookOpen, Trash2, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
@@ -266,7 +266,7 @@ const TravelQnA = () => {
                             onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-3xl p-6 sm:p-8 max-w-2xl w-full h-full sm:h-auto max-h-screen sm:max-h-[90vh] overflow-y-auto shadow-2xl">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-xl sm:text-2xl font-bold">{mode === 'review' ? '여행 후기 작성' : '새 질문 작성'}</h3>
-                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={24} /></button>
+                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>

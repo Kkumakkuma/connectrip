@@ -48,7 +48,7 @@ const Admin = () => {
         const data = await adminApi.getStats();
         setStats(data);
       } else if (activeTab === 'commendations') {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('commendation_matches')
           .select('*, crew:profiles!commendation_matches_crew_user_id_fkey(id, name, user_type, avatar_url, airline), passenger:profiles!commendation_matches_passenger_user_id_fkey(id, name, user_type, avatar_url)')
           .in('status', ['commendation_submitted', 'verified', 'gift_sent'])

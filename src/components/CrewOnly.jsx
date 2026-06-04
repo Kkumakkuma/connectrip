@@ -284,8 +284,9 @@ const CrewOnly = () => {
                                 <button
                                     onClick={() => setShowModal(false)}
                                     className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                                    aria-label="닫기"
                                 >
-                                    <X size={24} />
+                                    <X size={24} aria-hidden="true" />
                                 </button>
                             </div>
 

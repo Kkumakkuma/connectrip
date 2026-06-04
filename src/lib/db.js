@@ -737,44 +737,46 @@ export const adminApi = {
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
 
-    // Total users
-    const { count: totalUsers } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
-
-    // New users today
-    const { count: newUsersToday } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', todayISO);
-
-    // Pending reports
-    const { count: pendingReports } = await supabase
-      .from('reports')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', '대기');
-
-    // Post counts per board
-    const { count: companionCount } = await supabase.from('companion_posts').select('*', { count: 'exact', head: true });
-    const { count: qnaCount } = await supabase.from('qna_posts').select('*', { count: 'exact', head: true });
-    const { count: marketCount } = await supabase.from('market_listings').select('*', { count: 'exact', head: true });
-    const { count: crewCount } = await supabase.from('crew_posts').select('*', { count: 'exact', head: true });
-
-    const totalPosts = (companionCount || 0) + (qnaCount || 0) + (marketCount || 0) + (crewCount || 0);
-
-    // Daily signups (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const { data: recentUsers } = await supabase
-      .from('profiles')
-      .select('created_at')
-      .gte('created_at', sevenDaysAgo.toISOString());
+    const sevenDaysAgoISO = sevenDaysAgo.toISOString();
 
-    // Daily posts (last 7 days) - combine all boards
-    const { data: recentCompanion } = await supabase.from('companion_posts').select('created_at').gte('created_at', sevenDaysAgo.toISOString());
-    const { data: recentQna } = await supabase.from('qna_posts').select('created_at').gte('created_at', sevenDaysAgo.toISOString());
-    const { data: recentMarket } = await supabase.from('market_listings').select('created_at').gte('created_at', sevenDaysAgo.toISOString());
-    const { data: recentCrew } = await supabase.from('crew_posts').select('created_at').gte('created_at', sevenDaysAgo.toISOString());
+    // 모든 집계/조회 쿼리를 병렬로 실행해 직렬 await 지연을 제거한다.
+    const [
+      { count: totalUsers },
+      { count: newUsersToday },
+      { count: pendingReports },
+      { count: companionCount },
+      { count: qnaCount },
+      { count: marketCount },
+      { count: crewCount },
+      { data: recentUsers },
+      { data: recentCompanion },
+      { data: recentQna },
+      { data: recentMarket },
+      { data: recentCrew },
+    ] = await Promise.all([
+      // Total users
+      supabase.from('profiles').select('*', { count: 'exact', head: true }),
+      // New users today
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
+      // Pending reports
+      supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', '대기'),
+      // Post counts per board
+      supabase.from('companion_posts').select('*', { count: 'exact', head: true }),
+      supabase.from('qna_posts').select('*', { count: 'exact', head: true }),
+      supabase.from('market_listings').select('*', { count: 'exact', head: true }),
+      supabase.from('crew_posts').select('*', { count: 'exact', head: true }),
+      // Daily signups (last 7 days)
+      supabase.from('profiles').select('created_at').gte('created_at', sevenDaysAgoISO),
+      // Daily posts (last 7 days) - combine all boards
+      supabase.from('companion_posts').select('created_at').gte('created_at', sevenDaysAgoISO),
+      supabase.from('qna_posts').select('created_at').gte('created_at', sevenDaysAgoISO),
+      supabase.from('market_listings').select('created_at').gte('created_at', sevenDaysAgoISO),
+      supabase.from('crew_posts').select('created_at').gte('created_at', sevenDaysAgoISO),
+    ]);
+
+    const totalPosts = (companionCount || 0) + (qnaCount || 0) + (marketCount || 0) + (crewCount || 0);
 
     return {
       totalUsers: totalUsers || 0,

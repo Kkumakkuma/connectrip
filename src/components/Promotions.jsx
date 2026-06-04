@@ -279,7 +279,7 @@ const Promotions = () => {
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={(e) => e.stopPropagation()} className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-2xl font-bold">{mode === 'promotion' ? '여행 상품 홍보하기' : '여행 후기 작성하기'}</h3>
-                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={24} /></button>
+                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>

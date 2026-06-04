@@ -1,7 +1,7 @@
 {
   "name": "ConnectTrip - 여행자부터 승무원까지 모두를 연결하는 플랫폼",
   "short_name": "ConnectTrip",
-  "description": "동행 찾기, 여행 정보, 승무원 추천까지. 여행자를 위한 모든 것.",
+  "description": "동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자를 위한 모든 것.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

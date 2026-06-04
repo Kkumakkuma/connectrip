@@ -13,5 +13,16 @@ export default defineConfig({
     host: true,
     allowedHosts: true
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          supabase: ['@supabase/supabase-js'],
+          ui: ['framer-motion', 'lucide-react'],
+        },
+      },
+    },
+  },
   appType: 'spa'
 })

@@ -13,10 +13,12 @@ const Navbar = () => {
   const { isLoggedIn, isCrew, isAdmin, signOut, profile } = useAuth();
 
   useEffect(() => {
+    // passive 리스너로 스크롤 성능 개선 + 값이 바뀔 때만 setState 호출
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      const next = window.scrollY > 50;
+      setIsScrolled((prev) => (prev === next ? prev : next));
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -199,8 +201,11 @@ const Navbar = () => {
         <button
           className="lg:hidden text-gray-700"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="mobile-menu"
         >
-          {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+          {isMobileMenuOpen ? <X size={28} aria-hidden="true" /> : <Menu size={28} aria-hidden="true" />}
         </button>
       </div>
 
@@ -208,6 +213,7 @@ const Navbar = () => {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
+            id="mobile-menu"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}

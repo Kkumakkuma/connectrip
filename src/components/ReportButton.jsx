@@ -70,8 +70,9 @@ const ReportButton = ({ postId, boardType, reportedUserId }) => {
         onClick={handleOpen}
         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
         title="신고하기"
+        aria-label="신고하기"
       >
-        <Flag size={14} />
+        <Flag size={14} aria-hidden="true" />
       </button>
 
       <AnimatePresence>
@@ -106,8 +107,9 @@ const ReportButton = ({ postId, boardType, reportedUserId }) => {
                     <button
                       onClick={() => setShowModal(false)}
                       className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                      aria-label="닫기"
                     >
-                      <X size={20} />
+                      <X size={20} aria-hidden="true" />
                     </button>
                   </div>
 

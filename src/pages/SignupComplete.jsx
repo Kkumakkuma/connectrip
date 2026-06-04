@@ -5,6 +5,7 @@ import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield } from '
 import { getAirlineInfo } from '../lib/airlines';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import SEOHead from '../components/SEOHead';
 
 // Daum 우편번호 스크립트 동적 로더
 function loadDaumPostcode() {
@@ -277,6 +278,12 @@ export default function SignupComplete() {
 
   return (
     <div style={{ maxWidth: 520, margin: '120px auto 40px', padding: '0 20px' }}>
+      <SEOHead
+        title="회원정보 입력 - ConnectTrip"
+        description="ConnectTrip 회원가입 마무리. 남은 회원정보를 입력하고 안전하게 시작하세요."
+        path="/signup/complete"
+        robots="noindex, follow"
+      />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
