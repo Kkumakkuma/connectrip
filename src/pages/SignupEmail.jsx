@@ -613,7 +613,7 @@ export default function SignupEmail() {
 
 const inputStyle = {
   width: '100%', padding: '11px 14px', borderRadius: 10,
-  border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none', background: 'white',
+  border: '1.5px solid #e2e8f0', fontSize: 14, background: 'white',
 };
 
 function Field({ label, icon, helper, helperColor, required = true, children }) {
