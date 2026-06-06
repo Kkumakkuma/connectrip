@@ -173,7 +173,7 @@ DECLARE v_cost INT; v_cur INT;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_qty IS NULL OR p_qty < 1 OR p_qty > 100 THEN RAISE EXCEPTION 'invalid qty'; END IF;
-  v_cost := 5000 * p_qty;  -- 좋아요 경제 도입에 맞춰 30,000 → 5,000 현실화(likes_economy.sql 과 동일)
+  v_cost := 30000 * p_qty;
   PERFORM set_config('app.allow_sensitive', 'on', true);
   SELECT points_balance INTO v_cur FROM public.profiles WHERE id = auth.uid() FOR UPDATE;
   IF COALESCE(v_cur, 0) < v_cost THEN RAISE EXCEPTION 'insufficient points'; END IF;

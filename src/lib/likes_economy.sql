@@ -29,7 +29,7 @@ create policy "Anyone can read post_likes" on public.post_likes for select using
 -- INSERT/DELETE 직접 정책 없음 = 차단. 생성/취소는 toggle_post_like RPC(SECURITY DEFINER)로만.
 
 -- 2) 좋아요 토글 + (자가 아닐 때) 작성자 포인트 적립
---    초기 보수값: 좋아요 1개 = 작성자 10P, 작성자 월 적립 상한 2000P
+--    좋아요 1개 = 작성자 1P(쿠마님 확정), 작성자 월 적립 상한 2000P(어뷰징 방어)
 create or replace function public.toggle_post_like(p_board_type text, p_post_id uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
@@ -38,7 +38,7 @@ declare
   v_count int;
   v_author uuid;
   v_month_earned int;
-  c_reward int := 10;        -- 좋아요 1개당 작성자 적립 포인트(초기 보수값, 재조정 전제)
+  c_reward int := 1;         -- 좋아요 1개당 작성자 적립 포인트(쿠마님 확정: 1)
   c_month_cap int := 2000;   -- 작성자 월 적립 상한(인플레/어뷰징 방어)
 begin
   if v_user is null then raise exception 'auth required'; end if;
@@ -70,8 +70,10 @@ begin
       when 'crew_posts'       then (select user_id from public.crew_posts       where id = p_post_id)
     end;
 
-    -- 자가 좋아요가 아니고, 작성자 이달 적립이 상한 미만일 때만 적립
-    if v_author is not null and v_author <> v_user then
+    -- 작성자가 인증 승무원이고, 자가 좋아요가 아니며, 이달 적립이 상한 미만일 때만 적립
+    -- (승무원만 포인트 필요 — 칭송권 구매·승객 선물용. 여행자 글은 적립하지 않음)
+    if v_author is not null and v_author <> v_user
+       and exists (select 1 from public.profiles where id = v_author and user_type = 'crew' and coalesce(crew_verified, false) = true) then
       select coalesce(sum(amount), 0) into v_month_earned
         from public.point_transactions
         where user_id = v_author and type = 'like_earn'
@@ -96,26 +98,5 @@ $$;
 revoke all on function public.toggle_post_like(text, uuid) from public, anon;
 grant execute on function public.toggle_post_like(text, uuid) to authenticated;
 
--- 3) 환율 현실화: 칭송신청권 30,000P → 5,000P (security_hardening.sql 의 purchase_voucher 도 동일 수정 필요)
---    아래는 단독 재정의(security_hardening.sql 미적용 환경에서도 동작하도록 포함).
-create or replace function public.purchase_voucher(p_qty int)
-returns void language plpgsql security definer set search_path = public as $$
-declare v_cost int; v_cur int;
-begin
-  if auth.uid() is null then raise exception 'auth required'; end if;
-  if p_qty is null or p_qty < 1 or p_qty > 100 then raise exception 'invalid qty'; end if;
-  v_cost := 5000 * p_qty;   -- 30,000 → 5,000 (가입지급 대비 현실적 환율)
-  perform set_config('app.allow_sensitive', 'on', true);
-  select points_balance into v_cur from public.profiles where id = auth.uid() for update;
-  if coalesce(v_cur, 0) < v_cost then raise exception 'insufficient points'; end if;
-  update public.profiles
-    set points_balance = points_balance - v_cost,
-        voucher_count  = coalesce(voucher_count, 0) + p_qty,
-        updated_at     = now()
-    where id = auth.uid();
-  insert into public.point_transactions(user_id, amount, type, description)
-    values (auth.uid(), -v_cost, 'voucher_purchase', '매칭신청권 ' || p_qty || '개 구매');
-end;
-$$;
-revoke all on function public.purchase_voucher(int) from public, anon;
-grant execute on function public.purchase_voucher(int) to authenticated;
+-- 3) 칭송신청권 환율은 security_hardening.sql 의 purchase_voucher 가 관리한다(30,000P/장, 쿠마님 확정 수치).
+--    여기서 재정의하지 않는다.
