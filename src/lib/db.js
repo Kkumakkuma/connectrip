@@ -543,6 +543,32 @@ export const pointsApi = {
 };
 
 // ============================================================
+// Post Likes (게시판 글 좋아요 → 작성자 포인트 적립)
+// 좋아요/적립 로직은 toggle_post_like RPC(SECURITY DEFINER)가 강제:
+// 자가 좋아요 적립 무효 · phone_verified 한정 · 1인1글1좋아요 · 작성자 월 적립 상한.
+// ============================================================
+export const postLikeApi = {
+  // 좋아요 토글. 반환 { liked, likes_count }
+  toggle: (boardType, postId) =>
+    supabase.rpc('toggle_post_like', { p_board_type: boardType, p_post_id: postId }),
+  // 해당 보드 글들의 좋아요 수 + 내가 누른 여부 일괄 조회 → { [postId]: { count, liked } }
+  async getForBoard(boardType, postIds, userId = null) {
+    if (!postIds || postIds.length === 0) return {};
+    const { data, error } = await supabase
+      .from('post_likes').select('post_id, user_id')
+      .eq('board_type', boardType).in('post_id', postIds);
+    if (error) throw error;
+    const map = {};
+    (data || []).forEach((r) => {
+      if (!map[r.post_id]) map[r.post_id] = { count: 0, liked: false };
+      map[r.post_id].count += 1;
+      if (userId && r.user_id === userId) map[r.post_id].liked = true;
+    });
+    return map;
+  },
+};
+
+// ============================================================
 // Messages (같은편 동행 쪽지)
 // ============================================================
 

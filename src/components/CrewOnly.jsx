@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Tag, TrendingUp } from 'lucide-react';
+import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Tag, TrendingUp, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import { useAuth } from '../lib/AuthContext';
-import { crewApi } from '../lib/db';
+import { crewApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 import ListState from './ListState';
@@ -25,6 +25,7 @@ const CrewOnly = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [likes, setLikes] = useState({});
     const itemsPerPage = 4;
     const location = useLocation();
 
@@ -44,6 +45,10 @@ const CrewOnly = () => {
             if (mode === 'free') setFreePosts(data);
             else if (mode === 'layover') setLayoverPosts(data);
             else if (mode === 'deals') setDealsPosts(data);
+            if (data.length) {
+                const m = await postLikeApi.getForBoard('crew_posts', data.map((p) => p.id), user?.id);
+                setLikes((prev) => ({ ...prev, ...m }));
+            }
         } catch (err) {
             console.error('크루 게시글 로딩 실패:', err);
             if (mode === 'free') setFreePosts([]);
@@ -58,6 +63,18 @@ const CrewOnly = () => {
     useEffect(() => {
         fetchPosts();
     }, [mode, isCrew]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleToggleLike = async (postId) => {
+        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+        try {
+            const { data, error: e } = await postLikeApi.toggle('crew_posts', postId);
+            if (e) throw e;
+            setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
+        } catch (err) {
+            console.error('좋아요 실패:', err);
+            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -249,6 +266,9 @@ const CrewOnly = () => {
                                                         <h3 className="text-lg font-bold mb-2 pr-8">{post.title}</h3>
                                                         <p className="text-gray-600 text-sm mb-3 line-clamp-2">{post.content}</p>
                                                         <div className="flex items-center gap-4 text-xs text-gray-400">
+                                                            <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 transition-colors ${likes[post.id]?.liked ? 'text-pink-500' : 'hover:text-pink-500'}`}>
+                                                                <Heart size={14} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
+                                                            </button>
                                                             <span>작성자: {post.author_name}</span>
                                                             <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                         </div>
