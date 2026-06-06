@@ -310,6 +310,11 @@ const TravelQnA = () => {
                                     {mode === 'review' ? <BookOpen size={48} className="mx-auto text-gray-300 mb-4" /> : <HelpCircle size={48} className="mx-auto text-gray-300 mb-4" />}
                                     <p className="text-gray-500 text-lg">{mode === 'review' ? '아직 등록된 후기가 없습니다.' : '아직 등록된 질문이 없습니다.'}</p>
                                     <p className="text-gray-400 mt-1">{mode === 'review' ? '첫 번째 후기를 작성해보세요!' : '첫 번째 질문을 작성해보세요!'}</p>
+                                    {isLoggedIn && (
+                                        <button onClick={handleWriteClick} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                                            <Plus size={18} /> {mode === 'review' ? '후기 작성하기' : '질문 작성하기'}
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </motion.div>

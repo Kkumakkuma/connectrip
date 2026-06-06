@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, Heart, ArrowLeft, Gift, MapPin, Plus, X, Search, Users } from 'lucide-react';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
+import ShareButtons from './ShareButtons';
 import { useAuth } from '../lib/AuthContext';
 import { marketApi, marketTransactionApi } from '../lib/db';
 import { Coins } from 'lucide-react';
@@ -389,6 +390,9 @@ const MarketBoard = () => {
                                                                     </button>
                                                                 )}
                                                             </div>
+                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                                                                <ShareButtons title={item.title} description={item.content} />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -486,6 +490,9 @@ const MarketBoard = () => {
                                                         <div className="p-5">
                                                             <h3 className="font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-green-600 transition-colors">{item.title}</h3>
                                                             <p className="text-lg font-black text-green-600">{item.budget != null ? Number(item.budget).toLocaleString() + '원' : '예산 미정'}</p>
+                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                                                                <ShareButtons title={item.title} description={item.content} />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -570,6 +577,9 @@ const MarketBoard = () => {
                                                         <span>{item.author}</span>
                                                         <span>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>
+                                                    <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                                                        <ShareButtons title={item.title} description={item.content} />
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -579,6 +589,11 @@ const MarketBoard = () => {
                                         <Users size={48} className="mx-auto text-gray-300 mb-4" />
                                         <p className="text-gray-500 text-lg">아직 등록된 공동구매가 없습니다.</p>
                                         <p className="text-gray-400 mt-1">첫 번째 공동구매를 모집해보세요!</p>
+                                        {isLoggedIn && (
+                                            <button onClick={() => setShowModal(true)} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors">
+                                                <Plus size={18} /> 공동구매 모집하기
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -704,6 +719,9 @@ const MarketBoard = () => {
                                                         <button className="w-full py-3 bg-gray-50 text-gray-600 rounded-xl font-bold hover:bg-pink-50 hover:text-pink-500 transition-colors">
                                                             채팅으로 문의하기
                                                         </button>
+                                                        <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                                                            <ShareButtons title={item.title} description={item.content} />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))
@@ -712,6 +730,11 @@ const MarketBoard = () => {
                                             <Gift size={48} className="mx-auto text-gray-300 mb-4" />
                                             <p className="text-gray-500 text-lg">아직 등록된 나눔이 없어요.</p>
                                             <p className="text-gray-400 mt-1">첫 번째 나눔의 주인공이 되어보세요!</p>
+                                            {isLoggedIn && (
+                                                <button onClick={() => setShowModal(true)} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-pink-500 text-white rounded-xl font-bold hover:bg-pink-600 transition-colors">
+                                                    <Plus size={18} /> 나눔 등록하기
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>
