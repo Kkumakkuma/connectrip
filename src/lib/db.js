@@ -557,7 +557,7 @@ export const postLikeApi = {
     const { data, error } = await supabase
       .from('post_likes').select('post_id, user_id')
       .eq('board_type', boardType).in('post_id', postIds);
-    if (error) throw error;
+    if (error) return {};  // post_likes 미적용/조회 실패 시 좋아요 없이 표시(목록은 정상)
     const map = {};
     (data || []).forEach((r) => {
       if (!map[r.post_id]) map[r.post_id] = { count: 0, liked: false };
