@@ -6,11 +6,11 @@ import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
 import ListState from '../components/ListState';
 
-// fields = 검색 대상 컬럼(테이블마다 다름: market 은 content 가 아니라 description),
+// fields = 검색 대상 컬럼(모든 게시판 본문은 content 로 통일됨),
 // bodyField = 결과 카드에 본문 미리보기로 보여줄 컬럼.
 const BOARDS = [
   { key: 'companion_posts', label: '동행 게시판', icon: Users, color: 'blue', link: '/companion', fields: ['title', 'content'], bodyField: 'content' },
-  { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'description'], bodyField: 'description' },
+  { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content' },
   { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', fields: ['title', 'content'], bodyField: 'content' },
   { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', fields: ['title', 'content'], bodyField: 'content' },
 ];

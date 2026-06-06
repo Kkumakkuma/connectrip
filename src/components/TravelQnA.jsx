@@ -22,6 +22,9 @@ const TravelQnA = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [expandedId, setExpandedId] = useState(null);
+    const [commentText, setCommentText] = useState('');
+    const [commentBusy, setCommentBusy] = useState(false);
     const itemsPerPage = 6;
 
     const fetchQnA = async () => {
@@ -59,6 +62,29 @@ const TravelQnA = () => {
         else if (mode === 'review') fetchReviews();
     };
 
+    const handleAddComment = async (postId) => {
+        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+        const text = commentText.trim();
+        if (!text) return;
+        try {
+            setCommentBusy(true);
+            const newComment = await qnaApi.addComment({
+                post_id: postId,
+                user_id: user.id,
+                author_name: profile?.name || '익명',
+                content: text,
+            });
+            setPosts((prev) => prev.map((p) => p.id === postId
+                ? { ...p, qna_comments: [...(p.qna_comments || []), newComment] }
+                : p));
+            setCommentText('');
+        } catch (err) {
+            console.error('댓글 등록 실패:', err);
+        } finally {
+            setCommentBusy(false);
+        }
+    };
+
     const handleModeSelect = (newMode) => {
         setMode(newMode);
         setCurrentPage(1);
@@ -76,7 +102,7 @@ const TravelQnA = () => {
                 const newPost = await qnaApi.create({
                     title: formData.title,
                     content: formData.content,
-                    author: profile?.name || '익명',
+                    author_name: profile?.name || '익명',
                     user_id: user.id,
                 });
                 setPosts(prev => [newPost, ...prev]);
@@ -232,14 +258,48 @@ const TravelQnA = () => {
                                                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{post.content || post.description}</p>
                                                         <div className="flex items-center gap-3 text-xs text-gray-400">
                                                             {mode === 'qna' && (
-                                                                <span className="flex items-center gap-1"><MessageSquare size={14} /> 댓글 {post.qna_comments?.length || 0}개</span>
+                                                                <button onClick={() => { setExpandedId(expandedId === post.id ? null : post.id); setCommentText(''); }} className="flex items-center gap-1 hover:text-blue-500 transition-colors">
+                                                                    <MessageSquare size={14} /> 댓글 {post.qna_comments?.length || 0}개
+                                                                </button>
                                                             )}
-                                                            <span className="flex items-center gap-1"><User size={12} /> {post.author || post.author_name || post.profiles?.name || '익명'}</span>
+                                                            <span className="flex items-center gap-1"><User size={12} /> {post.author_name || post.profiles?.name || '익명'}</span>
                                                             <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                             <ShareButtons title={post.title} description={post.content || post.description} />
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {mode === 'qna' && expandedId === post.id && (
+                                                    <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                                                        {(post.qna_comments || []).length > 0 ? (
+                                                            [...post.qna_comments].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((c) => (
+                                                                <div key={c.id} className="bg-gray-50 rounded-xl p-3">
+                                                                    <div className="flex items-center justify-between mb-1">
+                                                                        <span className="text-xs font-bold text-gray-700">{c.author_name || '익명'}</span>
+                                                                        <span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
+                                                                    </div>
+                                                                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{c.content}</p>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <p className="text-sm text-gray-400 text-center py-2">첫 댓글을 남겨보세요.</p>
+                                                        )}
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={expandedId === post.id ? commentText : ''}
+                                                                onChange={(e) => setCommentText(e.target.value)}
+                                                                onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(post.id); }}
+                                                                placeholder="댓글을 입력하세요"
+                                                                className="flex-1 px-3 py-2 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+                                                            />
+                                                            <button
+                                                                onClick={() => handleAddComment(post.id)}
+                                                                disabled={commentBusy}
+                                                                className="px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors flex-shrink-0"
+                                                            >등록</button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>

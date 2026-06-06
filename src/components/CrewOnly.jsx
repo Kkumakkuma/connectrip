@@ -72,13 +72,13 @@ const CrewOnly = () => {
                 content: formData.content,
                 post_type: postType,
                 category: formData.category,
-                author: profile?.name || '익명',
+                author_name: profile?.name || '익명',
                 user_id: user.id,
             });
             if (mode === 'free') setFreePosts(prev => [newPost, ...prev]);
             else if (mode === 'layover') setLayoverPosts(prev => [newPost, ...prev]);
             else if (mode === 'deals') setDealsPosts(prev => [newPost, ...prev]);
-            setFormData({ title: '', content: '', category: 'schedule' });
+            setFormData({ title: '', content: '', category: 'general' });
             setShowModal(false);
         } catch (err) {
             console.error('게시글 등록 실패:', err);
@@ -244,7 +244,7 @@ const CrewOnly = () => {
                                                         <h3 className="text-lg font-bold mb-2 pr-8">{post.title}</h3>
                                                         <p className="text-gray-600 text-sm mb-3 line-clamp-2">{post.content}</p>
                                                         <div className="flex items-center gap-4 text-xs text-gray-400">
-                                                            <span>작성자: {post.author}</span>
+                                                            <span>작성자: {post.author_name}</span>
                                                             <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                         </div>
                                                     </div>

@@ -128,13 +128,21 @@ const MarketBoard = () => {
             if (formData.image_url) {
                 listing.image_url = formData.image_url;
             }
+            const parseOptionalInt = (value) => {
+                const digits = String(value || '').replace(/[^0-9]/g, '');
+                return digits ? Number(digits) : null;
+            };
             if (mode === 'sell') {
-                listing.price = formData.price;
+                listing.price = parseOptionalInt(formData.price);
                 listing.location = formData.location;
                 listing.transaction_type = formData.transactionType;
             }
             if (mode === 'buy') {
-                listing.budget = formData.price;
+                listing.budget = parseOptionalInt(formData.price);
+                listing.location = formData.location;
+            }
+            if (mode === 'groupbuy') {
+                listing.price = parseOptionalInt(formData.price);
                 listing.location = formData.location;
             }
             const newItem = await marketApi.create(listing);
@@ -350,7 +358,7 @@ const MarketBoard = () => {
                                                 .map((item) => (
                                                     <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 group flex flex-col">
                                                         <div className="relative aspect-square overflow-hidden bg-gray-100">
-                                                            {item.img && <img src={item.img} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
+                                                            {item.image_url && <img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
                                                             <div className="absolute top-3 right-3">
                                                                 <ReportButton postId={item.id} boardType="market" reportedUserId={item.user_id} />
                                                             </div>
@@ -361,7 +369,7 @@ const MarketBoard = () => {
                                                         <div className="p-5 flex-1 flex flex-col">
                                                             <h3 className="font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-blue-600 transition-colors">{item.title}</h3>
                                                             <div className="flex items-center gap-2 mb-4">
-                                                                <p className="text-lg font-black text-blue-600">{item.price}</p>
+                                                                <p className="text-lg font-black text-blue-600">{item.price != null ? Number(item.price).toLocaleString() + '원' : '가격 미정'}</p>
                                                                 {item.price && parseInt(String(item.price).replace(/[^0-9]/g, '')) > 0 && (
                                                                     <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
                                                                         {parseInt(String(item.price).replace(/[^0-9]/g, '')).toLocaleString()}P
@@ -464,7 +472,7 @@ const MarketBoard = () => {
                                                 .map((item) => (
                                                     <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 cursor-pointer group">
                                                         <div className="relative aspect-square overflow-hidden bg-gray-100">
-                                                            {item.img && <img src={item.img} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
+                                                            {item.image_url && <img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
                                                             <div className="absolute top-3 right-3">
                                                                 <ReportButton postId={item.id} boardType="market" reportedUserId={item.user_id} />
                                                             </div>
@@ -477,7 +485,7 @@ const MarketBoard = () => {
                                                         </div>
                                                         <div className="p-5">
                                                             <h3 className="font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-green-600 transition-colors">{item.title}</h3>
-                                                            <p className="text-lg font-black text-green-600">{item.budget}</p>
+                                                            <p className="text-lg font-black text-green-600">{item.budget != null ? Number(item.budget).toLocaleString() + '원' : '예산 미정'}</p>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -553,10 +561,11 @@ const MarketBoard = () => {
                                                 <div className="p-5">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">공동구매</span>
-                                                        {item.price && <span className="font-bold text-purple-600">{item.price}</span>}
+                                                        {item.price != null && <span className="font-bold text-purple-600">1인 {Number(item.price).toLocaleString()}원</span>}
                                                     </div>
                                                     <h3 className="font-bold text-lg mb-2 line-clamp-1">{item.title}</h3>
                                                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.content}</p>
+                                                    {item.location && <p className="text-xs text-purple-500 font-semibold mb-3">모집 인원: {item.location}</p>}
                                                     <div className="flex items-center justify-between text-xs text-gray-400">
                                                         <span>{item.author}</span>
                                                         <span>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
@@ -676,8 +685,10 @@ const MarketBoard = () => {
                                             .filter(item => item.region_id === shareRegion.id)
                                             .map((item) => (
                                                 <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100">
-                                                    <div className="relative h-48 overflow-hidden">
-                                                        <img src={item.img} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                    <div className="relative h-48 overflow-hidden bg-pink-50">
+                                                        {item.image_url
+                                                            ? <img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                            : <div className="w-full h-full flex items-center justify-center text-pink-200"><Gift size={48} /></div>}
                                                         <div className="absolute top-3 left-3 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                                                             <Gift size={12} /> 무료나눔
                                                         </div>
@@ -689,7 +700,7 @@ const MarketBoard = () => {
                                                         <h3 className="font-bold text-xl mb-2">
                                                             <span className="text-pink-600">[{item.country}]</span> {item.title}
                                                         </h3>
-                                                        <p className="text-gray-500 text-sm mb-4">{item.desc}</p>
+                                                        <p className="text-gray-500 text-sm mb-4">{item.content}</p>
                                                         <button className="w-full py-3 bg-gray-50 text-gray-600 rounded-xl font-bold hover:bg-pink-50 hover:text-pink-500 transition-colors">
                                                             채팅으로 문의하기
                                                         </button>

@@ -68,7 +68,7 @@ export const qnaApi = {
   async getAll() {
     const { data, error } = await supabase
       .from('qna_posts')
-      .select('*')
+      .select('*, qna_comments(*)')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;

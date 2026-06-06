@@ -71,7 +71,7 @@ const RegionalBoard = () => {
     // 검색어로 게시글 필터링 (MarketBoard 패턴과 동일)
     const filtered = posts.filter(p =>
         !searchQuery ||
-        [p.title, p.country, p.author, p.content].some(v =>
+        [p.title, p.country, p.author_name, p.content].some(v =>
             (v || '').toLowerCase().includes(searchQuery.toLowerCase())
         )
     );
@@ -93,9 +93,9 @@ const RegionalBoard = () => {
                 title: formData.title,
                 country: formData.country,
                 travel_date: formData.date,
-                members: formData.members,
+                members_needed: formData.members,
                 content: formData.content,
-                author: profile?.name || '익명',
+                author_name: profile?.name || '익명',
                 user_id: user.id,
             });
             setPosts(prev => [newPost, ...prev]);
@@ -196,15 +196,15 @@ const RegionalBoard = () => {
                                                         <div className="space-y-2 mb-4 text-sm">
                                                             <div className="flex items-center gap-2 text-gray-600">
                                                                 <Users size={16} className="text-blue-500" />
-                                                                <span>모집 인원: <strong className="text-gray-900">{post.members}명</strong></span>
+                                                                <span>모집 인원: <strong className="text-gray-900">{post.members_needed}명</strong></span>
                                                             </div>
                                                             <div className="flex items-center gap-2 text-gray-600">
                                                                 <Calendar size={16} className="text-blue-500" />
-                                                                <span>여행 일정: <strong className="text-gray-900">{post.travel_date || post.date}</strong></span>
+                                                                <span>여행 일정: <strong className="text-gray-900">{post.travel_date || '미정'}</strong></span>
                                                             </div>
                                                             <div className="flex items-center gap-2 text-gray-600">
                                                                 <MapPin size={16} className="text-blue-500" />
-                                                                <span>작성자: <strong className="text-gray-900">{post.author}</strong></span>
+                                                                <span>작성자: <strong className="text-gray-900">{post.author_name}</strong></span>
                                                             </div>
                                                         </div>
 
