@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquare, HelpCircle, Plus, X, Search, Star, BookOpen, Trash2, User, Heart } from 'lucide-react';
+import { MessageSquare, HelpCircle, Plus, X, Search, BookOpen, Trash2, User, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
@@ -271,17 +271,12 @@ const TravelQnA = () => {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <h3 className="text-lg font-bold truncate">{post.title}</h3>
-                                                            {mode === 'review' && post.rating && (
-                                                                <span className="flex items-center gap-1 text-sm text-yellow-500 font-bold flex-shrink-0">
-                                                                    <Star size={14} className="fill-yellow-400" /> {post.rating}
-                                                                </span>
-                                                            )}
+                                                            <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 text-sm font-bold flex-shrink-0 transition-colors ${likes[post.id]?.liked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-500'}`}>
+                                                                <Heart size={15} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
+                                                            </button>
                                                         </div>
                                                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{post.content || post.description}</p>
                                                         <div className="flex items-center gap-2 text-xs text-gray-400 flex-nowrap overflow-hidden">
-                                                            <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 transition-colors ${likes[post.id]?.liked ? 'text-pink-500' : 'hover:text-pink-500'}`}>
-                                                                <Heart size={14} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
-                                                            </button>
                                                             {mode === 'qna' && (
                                                                 <button onClick={() => { setExpandedId(expandedId === post.id ? null : post.id); setCommentText(''); }} className="flex items-center gap-1 hover:text-blue-500 transition-colors">
                                                                     <MessageSquare size={14} /> 댓글 {post.qna_comments?.length || 0}개
