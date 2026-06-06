@@ -278,7 +278,7 @@ const TravelQnA = () => {
                                                             )}
                                                         </div>
                                                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{post.content || post.description}</p>
-                                                        <div className="flex items-center gap-3 text-xs text-gray-400">
+                                                        <div className="flex items-center gap-2 text-xs text-gray-400 flex-nowrap overflow-hidden">
                                                             <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 transition-colors ${likes[post.id]?.liked ? 'text-pink-500' : 'hover:text-pink-500'}`}>
                                                                 <Heart size={14} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
                                                             </button>
@@ -287,8 +287,8 @@ const TravelQnA = () => {
                                                                     <MessageSquare size={14} /> 댓글 {post.qna_comments?.length || 0}개
                                                                 </button>
                                                             )}
-                                                            <span className="flex items-center gap-1"><User size={12} /> {post.author_name || post.profiles?.name || '익명'}</span>
-                                                            <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+                                                            <span className="flex items-center gap-1 min-w-0 flex-1"><User size={12} className="flex-shrink-0" /><span className="truncate">{post.author_name || post.profiles?.name || '익명'}</span></span>
+                                                            <span className="whitespace-nowrap flex-shrink-0">{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                             <ShareButtons title={post.title} description={post.content || post.description} />
                                                         </div>
                                                     </div>

@@ -583,9 +583,9 @@ const MarketBoard = () => {
                                                     <h3 className="font-bold text-lg mb-2 line-clamp-1">{item.title}</h3>
                                                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.content}</p>
                                                     {item.location && <p className="text-xs text-purple-500 font-semibold mb-3">모집 인원: {item.location}</p>}
-                                                    <div className="flex items-center justify-between text-xs text-gray-400">
-                                                        <span>{item.author}</span>
-                                                        <span>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
+                                                    <div className="flex items-center justify-between text-xs text-gray-400 gap-2">
+                                                        <span className="truncate min-w-0">{item.author}</span>
+                                                        <span className="whitespace-nowrap flex-shrink-0">{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>
                                                     <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
                                                         <ShareButtons title={item.title} description={item.content} />

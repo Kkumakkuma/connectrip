@@ -261,11 +261,11 @@ const Promotions = () => {
                                                     <Heart size={14} fill={likes[item.id]?.liked ? 'currentColor' : 'none'} /> {likes[item.id]?.count || 0}
                                                 </button>
                                                 <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2 text-gray-400 text-xs">
-                                                        <User size={14} />
-                                                        <span>{item.author_name || item.profiles?.name || '익명'}</span>
-                                                        <span>·</span>
-                                                        <span>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
+                                                    <div className="flex items-center gap-1.5 text-gray-400 text-xs min-w-0">
+                                                        <User size={14} className="flex-shrink-0" />
+                                                        <span className="truncate">{item.author_name || item.profiles?.name || '익명'}</span>
+                                                        <span className="flex-shrink-0">·</span>
+                                                        <span className="whitespace-nowrap flex-shrink-0">{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1">
                                                         <ShareButtons title={item.title} description={item.description} />

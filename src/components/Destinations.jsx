@@ -59,9 +59,9 @@ const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
                 </div>
             )}
             <div className="flex items-center justify-between text-gray-400 text-xs mt-3">
-                <div className="flex items-center gap-2">
-                    <User size={12} />
-                    <span>{dest.profiles?.name || '익명 승무원'}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                    <User size={12} className="flex-shrink-0" />
+                    <span className="truncate">{dest.profiles?.name || '익명 승무원'}</span>
                 </div>
                 <ShareButtons title={`${dest.name} - ConnectTrip 추천 여행지`} description={dest.description} />
             </div>

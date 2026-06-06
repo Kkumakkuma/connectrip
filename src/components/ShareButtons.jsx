@@ -69,13 +69,13 @@ const ShareButtons = ({ title, description, url }) => {
   };
 
   return (
-    <div className="relative">
+    <div className="relative flex-shrink-0">
       <button
         onClick={navigator.share ? handleNativeShare : () => setShowMenu(!showMenu)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all whitespace-nowrap"
         title="공유하기"
       >
-        <Share2 size={16} />
+        <Share2 size={16} className="flex-shrink-0" />
         <span>공유</span>
       </button>
 
