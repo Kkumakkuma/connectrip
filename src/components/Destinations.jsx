@@ -245,6 +245,11 @@ const Destinations = () => {
                                     <MapPin size={48} className="mx-auto text-gray-300 mb-4" />
                                     <p className="text-gray-500 text-lg">아직 등록된 추천 명소가 없습니다.</p>
                                     <p className="text-gray-400 text-sm mt-2">첫 번째 명소를 추천해보세요!</p>
+                                    {isLoggedIn && (
+                                        <button onClick={handleWriteClick} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors">
+                                            <Plus size={18} /> 명소 추천하기
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </motion.div>

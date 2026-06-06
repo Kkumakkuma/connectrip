@@ -424,6 +424,11 @@ const MarketBoard = () => {
                                     <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
                                         <ShoppingBag size={48} className="mx-auto text-gray-300 mb-4" />
                                         <p className="text-gray-500 text-lg">등록된 판매 물품이 없습니다.</p>
+                                        {isLoggedIn && (
+                                            <button onClick={() => setShowModal(true)} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                                                <Plus size={18} /> 판매 물품 등록
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -524,6 +529,11 @@ const MarketBoard = () => {
                                     <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
                                         <Search size={48} className="mx-auto text-gray-300 mb-4" />
                                         <p className="text-gray-500 text-lg">등록된 구매 요청이 없습니다.</p>
+                                        {isLoggedIn && (
+                                            <button onClick={() => setShowModal(true)} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors">
+                                                <Plus size={18} /> 구매 요청 등록
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>

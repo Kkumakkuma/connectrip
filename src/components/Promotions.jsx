@@ -265,6 +265,11 @@ const Promotions = () => {
                                     <TicketPercent size={48} className="mx-auto text-gray-300 mb-4" />
                                     <p className="text-gray-500 text-lg">현재 등록된 {mode === 'promotion' ? '홍보' : '후기'}가 없습니다.</p>
                                     <p className="text-gray-400 text-sm mt-2">첫 번째 게시글을 작성해보세요!</p>
+                                    {isLoggedIn && (
+                                        <button onClick={handleWriteClick} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                                            <Plus size={18} /> {mode === 'promotion' ? '홍보 등록' : '후기 작성'}
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </motion.div>
