@@ -387,56 +387,81 @@ BEGIN
 END;
 $$;
 
--- 5-8. 칭송 매칭 신청 — 신청권 차감 + 매칭 생성을 단일 트랜잭션으로(동시 신청 시 무료매칭 방지)
+-- 5-8. 칭송 매칭 신청 — 같은 항공편 승객↔승무원 1:1 자동연결.
+--      대기중(pending)인 반대편 매칭이 있으면 그 row 를 matched 로 연결(중복 row 안 만듦),
+--      없으면 새 pending 생성. SKIP LOCKED 로 동시신청 경합 안전. crew 신청만 신청권 1장 차감.
+--      시그니처: (항공편, 날짜, 역할) — partner/status 는 서버가 결정(클라가 정하지 않음).
 CREATE OR REPLACE FUNCTION public.apply_commendation_match(
-  p_flight_number TEXT, p_flight_date DATE, p_partner_id UUID, p_status TEXT, p_role TEXT
+  p_flight_number TEXT, p_flight_date DATE, p_role TEXT
 )
-RETURNS VOID
+RETURNS TEXT
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public AS $$
-DECLARE v_crew UUID; v_pass UUID;
+DECLARE v_me UUID; v_existing UUID; v_result TEXT;
 BEGIN
-  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  v_me := auth.uid();
+  IF v_me IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_role NOT IN ('crew', 'passenger') THEN RAISE EXCEPTION 'invalid role'; END IF;
-  IF p_status NOT IN ('matched', 'pending_crew', 'pending_passenger') THEN RAISE EXCEPTION 'invalid status'; END IF;
   -- 호출자 본인이 해당 항공편에 등록돼 있어야(자기 스케줄 기반 신청만 허용)
   IF NOT EXISTS (
     SELECT 1 FROM public.flight_schedules
-    WHERE flight_number = p_flight_number AND flight_date = p_flight_date AND user_id = auth.uid()
+    WHERE flight_number = p_flight_number AND flight_date = p_flight_date AND user_id = v_me
   ) THEN RAISE EXCEPTION 'you are not on this flight'; END IF;
   -- crew 역할 신청은 인증된 승무원만
   IF p_role = 'crew' AND NOT EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) = TRUE
+    WHERE id = v_me AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) = TRUE
   ) THEN RAISE EXCEPTION 'crew only'; END IF;
-  -- matched 면 상대가 실제 같은 항공편에 공개 등록돼 있어야(임의 UUID 매칭 차단), pending 이면 상대 없음
-  IF p_status = 'matched' THEN
-    IF p_partner_id IS NULL THEN RAISE EXCEPTION 'partner required'; END IF;
-    IF NOT EXISTS (
-      SELECT 1 FROM public.flight_schedules
-      WHERE flight_number = p_flight_number AND flight_date = p_flight_date
-        AND user_id = p_partner_id AND is_public = TRUE
-    ) THEN RAISE EXCEPTION 'partner not on this flight'; END IF;
-  ELSE
-    IF p_partner_id IS NOT NULL THEN RAISE EXCEPTION 'no partner for pending status'; END IF;
-  END IF;
+  -- 같은 항공편에 본인의 활성 매칭이 이미 있으면 거부(중복 1:1 방지)
+  IF EXISTS (
+    SELECT 1 FROM public.commendation_matches
+    WHERE flight_number = p_flight_number AND flight_date = p_flight_date
+      AND status NOT IN ('rejected', 'deleted')
+      AND (crew_user_id = v_me OR passenger_user_id = v_me)
+  ) THEN RAISE EXCEPTION 'already applied'; END IF;
+
   PERFORM set_config('app.allow_sensitive', 'on', true);
+
   IF p_role = 'crew' THEN
-    v_crew := auth.uid(); v_pass := p_partner_id;
+    -- 같은 편에서 승객을 기다리던 매칭(pending_passenger, 승무원칸 비어있음)을 잠그고 연결
+    SELECT id INTO v_existing FROM public.commendation_matches
+      WHERE flight_number = p_flight_number AND flight_date = p_flight_date
+        AND status = 'pending_passenger' AND crew_user_id IS NULL
+      ORDER BY created_at
+      FOR UPDATE SKIP LOCKED LIMIT 1;
+    -- 신청권 1장 차감(승무원 신청만 유료)
     UPDATE public.profiles SET voucher_count = voucher_count - 1, updated_at = NOW()
-      WHERE id = auth.uid() AND voucher_count >= 1;
+      WHERE id = v_me AND voucher_count >= 1;
     IF NOT FOUND THEN RAISE EXCEPTION 'no voucher'; END IF;
+    IF v_existing IS NOT NULL THEN
+      UPDATE public.commendation_matches
+        SET crew_user_id = v_me, status = 'matched', updated_at = NOW()
+        WHERE id = v_existing;
+      v_result := 'matched';
+    ELSE
+      INSERT INTO public.commendation_matches(flight_number, flight_date, crew_user_id, passenger_user_id, status)
+        VALUES (p_flight_number, p_flight_date, v_me, NULL, 'pending_crew');
+      v_result := 'pending_crew';
+    END IF;
   ELSE
-    v_crew := p_partner_id; v_pass := auth.uid();
+    -- 승객: 같은 편에서 승객을 기다리던 승무원 매칭(pending_crew, 승객칸 비어있음)을 잠그고 연결
+    SELECT id INTO v_existing FROM public.commendation_matches
+      WHERE flight_number = p_flight_number AND flight_date = p_flight_date
+        AND status = 'pending_crew' AND passenger_user_id IS NULL
+      ORDER BY created_at
+      FOR UPDATE SKIP LOCKED LIMIT 1;
+    IF v_existing IS NOT NULL THEN
+      UPDATE public.commendation_matches
+        SET passenger_user_id = v_me, status = 'matched', updated_at = NOW()
+        WHERE id = v_existing;
+      v_result := 'matched';
+    ELSE
+      INSERT INTO public.commendation_matches(flight_number, flight_date, crew_user_id, passenger_user_id, status)
+        VALUES (p_flight_number, p_flight_date, NULL, v_me, 'pending_passenger');
+      v_result := 'pending_passenger';
+    END IF;
   END IF;
-  -- 결과 매칭의 crew 측은 반드시 인증 승무원이어야 한다
-  -- (승객이 같은 편 임의 공개 사용자 UUID 를 crew_user_id 로 위조하는 것을 차단)
-  IF v_crew IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = v_crew AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) = TRUE
-  ) THEN RAISE EXCEPTION 'verified crew required'; END IF;
-  INSERT INTO public.commendation_matches(flight_number, flight_date, crew_user_id, passenger_user_id, status)
-    VALUES (p_flight_number, p_flight_date, v_crew, v_pass, p_status);
+  RETURN v_result;
 END;
 $$;
 
@@ -457,8 +482,9 @@ GRANT EXECUTE ON FUNCTION public.convert_likes_to_points(INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.market_purchase(UUID, INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.complete_signup_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) TO authenticated;
-REVOKE ALL ON FUNCTION public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT) TO authenticated;
+DROP FUNCTION IF EXISTS public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT);
+REVOKE ALL ON FUNCTION public.apply_commendation_match(TEXT, DATE, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.apply_commendation_match(TEXT, DATE, TEXT) TO authenticated;
 -- grant_referral_bonus 는 클라에 직접 노출하지 않는다(REVOKE 만). complete_signup_profile(SECURITY DEFINER) 내부에서만
 -- 호출되어 휴대폰 재검증·프로필 완성을 거친 가입에만 보너스가 지급되도록 한다.
 REVOKE ALL ON FUNCTION public.grant_referral_bonus(UUID) FROM authenticated;
@@ -575,6 +601,15 @@ BEGIN
       IF NEW.status IN ('verified', 'gift_sent') AND NEW.status IS DISTINCT FROM OLD.status THEN
         RAISE EXCEPTION 'status transition not allowed';
       END IF;
+      -- pending -> matched 전이는 RPC(자동연결)만 — 사용자가 자기 행을 임의 matched 위조 차단
+      IF NEW.status = 'matched' AND OLD.status IS DISTINCT FROM 'matched' THEN
+        RAISE EXCEPTION 'matched only via RPC';
+      END IF;
+      -- 칭송 인증 제출(commendation_submitted)은 스크린샷 URL 이 있을 때만 허용
+      IF NEW.status = 'commendation_submitted' AND OLD.status IS DISTINCT FROM 'commendation_submitted'
+         AND COALESCE(NEW.commendation_screenshot_url, '') = '' THEN
+        RAISE EXCEPTION 'screenshot required';
+      END IF;
     END IF;
   END IF;
   RETURN NEW;
@@ -586,10 +621,18 @@ CREATE TRIGGER trg_commendation_guard
   BEFORE INSERT OR UPDATE ON public.commendation_matches
   FOR EACH ROW EXECUTE FUNCTION public.commendation_guard();
 
+-- 직접 INSERT 차단 — 매칭 생성/연결은 apply_commendation_match RPC(SECURITY DEFINER)로만.
+-- (사용자가 가짜 matched 또는 자기가 타지 않은 항공편 매칭을 직접 INSERT 하는 우회 차단)
 DROP POLICY IF EXISTS "Users can create matches" ON public.commendation_matches;
 DROP POLICY IF EXISTS "Users can create own matches" ON public.commendation_matches;
-CREATE POLICY "Users can create own matches" ON public.commendation_matches
-  FOR INSERT WITH CHECK (auth.uid() = crew_user_id OR auth.uid() = passenger_user_id);
+
+-- 같은 항공편당 본인 활성 매칭 1개씩만 — 동시 신청 race 도 DB 가 차단(1:1 강제)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_commendation_active_crew
+  ON public.commendation_matches(flight_number, flight_date, crew_user_id)
+  WHERE crew_user_id IS NOT NULL AND status NOT IN ('rejected', 'deleted');
+CREATE UNIQUE INDEX IF NOT EXISTS uq_commendation_active_passenger
+  ON public.commendation_matches(flight_number, flight_date, passenger_user_id)
+  WHERE passenger_user_id IS NOT NULL AND status NOT IN ('rejected', 'deleted');
 
 -- ============================================================
 -- 끝. 롤백:  DROP TRIGGER IF EXISTS trg_profiles_guard ON public.profiles;

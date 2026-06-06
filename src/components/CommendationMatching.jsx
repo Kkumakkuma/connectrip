@@ -59,19 +59,6 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
     if (isLoggedIn) fetchData();
   }, [isLoggedIn, fetchData]);
 
-  // flight_schedules에서 같은 편 상대방 찾기 (RLS 우회)
-  const findPartnerFromSchedules = async (flightNumber, flightDate, targetType) => {
-    const { data } = await supabase
-      .from('flight_schedules')
-      .select('user_id, user_type')
-      .eq('flight_number', flightNumber)
-      .eq('flight_date', flightDate)
-      .eq('user_type', targetType)
-      .neq('user_id', user.id)
-      .limit(1);
-    return data?.[0] || null;
-  };
-
   // 중복 매칭 방지: 이미 활성 매칭이 있는지 확인
   const hasActiveMatch = (flightNumber, flightDate) => {
     return matches.some(m =>
@@ -97,19 +84,16 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
 
     setApplyingFlight(flight.id);
     try {
-      // 같은 편 승객을 찾고, 신청권 차감 + 매칭 생성을 단일 RPC 로 원자 처리(동시 신청 시 무료매칭/중복 방지)
-      const passenger = await findPartnerFromSchedules(flight.flight_number, flight.flight_date, 'passenger');
-      const { error } = await supabase.rpc('apply_commendation_match', {
+      // 서버 RPC 가 같은 편 대기중 승객을 자동 연결(없으면 대기). 신청권 차감도 원자 처리.
+      const { data: result, error } = await supabase.rpc('apply_commendation_match', {
         p_flight_number: flight.flight_number,
         p_flight_date: flight.flight_date,
-        p_partner_id: passenger ? passenger.user_id : null,
-        p_status: passenger ? 'matched' : 'pending_crew',
         p_role: 'crew',
       });
       if (error) throw error;
       fetchProfile(user.id).catch(() => {});
       await fetchData();
-      alert(passenger
+      alert(result === 'matched'
         ? '같은 항공편 승객과 자동 매칭되었습니다!'
         : '매칭 신청 완료! 같은 항공편 승객이 등록하면 자동 매칭됩니다.');
     } catch (err) {
@@ -130,18 +114,15 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
 
     setApplyingFlight(flight.id);
     try {
-      // 같은 편 승무원을 찾고, 매칭 생성을 단일 RPC 로 처리(승객 신청은 무료 — 신청권 차감 없음)
-      const crew = await findPartnerFromSchedules(flight.flight_number, flight.flight_date, 'crew');
-      const { error } = await supabase.rpc('apply_commendation_match', {
+      // 서버 RPC 가 같은 편 대기중 승무원을 자동 연결(없으면 대기). 승객 신청은 무료.
+      const { data: result, error } = await supabase.rpc('apply_commendation_match', {
         p_flight_number: flight.flight_number,
         p_flight_date: flight.flight_date,
-        p_partner_id: crew ? crew.user_id : null,
-        p_status: crew ? 'matched' : 'pending_passenger',
         p_role: 'passenger',
       });
       if (error) throw error;
       await fetchData();
-      alert(crew
+      alert(result === 'matched'
         ? '같은 항공편 승무원과 자동 매칭되었습니다!'
         : '매칭 신청 완료! 같은 항공편 승무원이 등록하면 자동 매칭됩니다.');
     } catch (err) {
