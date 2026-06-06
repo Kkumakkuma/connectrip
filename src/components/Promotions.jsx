@@ -1,10 +1,10 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User } from 'lucide-react';
+import { Star, ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
 import ShareButtons from './ShareButtons';
 import { useAuth } from '../lib/AuthContext';
-import { reviewsApi, storageApi } from '../lib/db';
+import { reviewsApi, storageApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
@@ -31,6 +31,7 @@ const Promotions = () => {
     const [formData, setFormData] = useState({ title: '', rating: '', content: '', image_url: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [posts, setPosts] = useState([]);
+    const [likes, setLikes] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -46,6 +47,10 @@ const Promotions = () => {
             setError(null);
             const data = await reviewsApi.getAll(regionId, type);
             setPosts(data || []);
+            if (data?.length) {
+                const m = await postLikeApi.getForBoard('reviews', data.map((p) => p.id), user?.id);
+                setLikes((prev) => ({ ...prev, ...m }));
+            }
         } catch (err) {
             console.error('게시글 로드 실패:', err);
             setPosts([]);
@@ -110,6 +115,18 @@ const Promotions = () => {
     const handleBackToRegions = () => {
         setSelectedRegion(null);
         setPosts([]);
+    };
+
+    const handleToggleLike = async (postId) => {
+        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+        try {
+            const { data, error: e } = await postLikeApi.toggle('reviews', postId);
+            if (e) throw e;
+            setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
+        } catch (err) {
+            console.error('좋아요 실패:', err);
+            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
+        }
     };
 
     const handleWriteClick = () => {
@@ -240,6 +257,9 @@ const Promotions = () => {
                                             <div className="p-6">
                                                 <h3 className="text-xl font-bold mb-2">{item.title}</h3>
                                                 <p className="text-gray-500 text-sm mb-3 line-clamp-3">{item.description}</p>
+                                                <button onClick={() => handleToggleLike(item.id)} className={`flex items-center gap-1 text-xs mb-3 transition-colors ${likes[item.id]?.liked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-500'}`}>
+                                                    <Heart size={14} fill={likes[item.id]?.liked ? 'currentColor' : 'none'} /> {likes[item.id]?.count || 0}
+                                                </button>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2 text-gray-400 text-xs">
                                                         <User size={14} />

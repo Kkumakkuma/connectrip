@@ -1,12 +1,12 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Users, Calendar, MessageCircle, Edit3, ArrowLeft, X, Search } from 'lucide-react';
+import { MapPin, Users, Calendar, MessageCircle, Edit3, ArrowLeft, X, Search, Heart } from 'lucide-react';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import { useAuth } from '../lib/AuthContext';
-import { companionApi } from '../lib/db';
+import { companionApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
@@ -40,6 +40,7 @@ const RegionalBoard = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [likes, setLikes] = useState({});
     const itemsPerPage = 6;
 
     // URL 변경 시 스크롤 최상단으로
@@ -55,6 +56,10 @@ const RegionalBoard = () => {
             setError(null);
             const data = await companionApi.getByRegion(regionId);
             setPosts(data || []);
+            if (data?.length) {
+                const m = await postLikeApi.getForBoard('companion_posts', data.map((p) => p.id), user?.id);
+                setLikes((prev) => ({ ...prev, ...m }));
+            }
         } catch (err) {
             console.error('게시글 로딩 실패:', err);
             setPosts([]);
@@ -69,6 +74,18 @@ const RegionalBoard = () => {
     }, [regionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // 검색어로 게시글 필터링 (MarketBoard 패턴과 동일)
+    const handleToggleLike = async (postId) => {
+        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+        try {
+            const { data, error: e } = await postLikeApi.toggle('companion_posts', postId);
+            if (e) throw e;
+            setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
+        } catch (err) {
+            console.error('좋아요 실패:', err);
+            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
+        }
+    };
+
     const filtered = posts.filter(p =>
         !searchQuery ||
         [p.title, p.country, p.author_name, p.content].some(v =>
@@ -209,6 +226,9 @@ const RegionalBoard = () => {
                                                         </div>
 
                                                         <div className="flex items-center gap-2">
+                                                            <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 px-3 py-3 rounded-xl font-bold transition-colors ${likes[post.id]?.liked ? 'bg-pink-50 text-pink-500' : 'bg-gray-50 text-gray-400 hover:text-pink-500'}`}>
+                                                                <Heart size={18} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
+                                                            </button>
                                                             <button className="flex-1 py-3 bg-gray-50 text-gray-600 rounded-xl font-bold hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
                                                                 <MessageCircle size={18} /> 실시간 그룹 채팅하기
                                                             </button>

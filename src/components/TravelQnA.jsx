@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { MessageSquare, HelpCircle, Plus, X, Search, Star, BookOpen, Trash2, User } from 'lucide-react';
+import { MessageSquare, HelpCircle, Plus, X, Search, Star, BookOpen, Trash2, User, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import { useAuth } from '../lib/AuthContext';
-import { qnaApi, reviewsApi } from '../lib/db';
+import { qnaApi, reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
@@ -25,6 +25,7 @@ const TravelQnA = () => {
     const [expandedId, setExpandedId] = useState(null);
     const [commentText, setCommentText] = useState('');
     const [commentBusy, setCommentBusy] = useState(false);
+    const [likes, setLikes] = useState({});
     const itemsPerPage = 6;
 
     const fetchQnA = async () => {
@@ -33,6 +34,10 @@ const TravelQnA = () => {
             setError(null);
             const data = await qnaApi.getAll();
             setPosts(data || []);
+            if (data?.length) {
+                const m = await postLikeApi.getForBoard('qna_posts', data.map((p) => p.id), user?.id);
+                setLikes((prev) => ({ ...prev, ...m }));
+            }
         } catch (err) {
             console.error('Q&A 로딩 실패:', err);
             setPosts([]);
@@ -48,6 +53,10 @@ const TravelQnA = () => {
             setError(null);
             const data = await reviewsApi.getAll(null, 'review');
             setPosts(data || []);
+            if (data?.length) {
+                const m = await postLikeApi.getForBoard('reviews', data.map((p) => p.id), user?.id);
+                setLikes((prev) => ({ ...prev, ...m }));
+            }
         } catch (err) {
             console.error('후기 로딩 실패:', err);
             setPosts([]);
@@ -60,6 +69,19 @@ const TravelQnA = () => {
     const refetch = () => {
         if (mode === 'qna') fetchQnA();
         else if (mode === 'review') fetchReviews();
+    };
+
+    const handleToggleLike = async (postId) => {
+        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+        const board = mode === 'review' ? 'reviews' : 'qna_posts';
+        try {
+            const { data, error: e } = await postLikeApi.toggle(board, postId);
+            if (e) throw e;
+            setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
+        } catch (err) {
+            console.error('좋아요 실패:', err);
+            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
+        }
     };
 
     const handleAddComment = async (postId) => {
@@ -257,6 +279,9 @@ const TravelQnA = () => {
                                                         </div>
                                                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{post.content || post.description}</p>
                                                         <div className="flex items-center gap-3 text-xs text-gray-400">
+                                                            <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 transition-colors ${likes[post.id]?.liked ? 'text-pink-500' : 'hover:text-pink-500'}`}>
+                                                                <Heart size={14} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
+                                                            </button>
                                                             {mode === 'qna' && (
                                                                 <button onClick={() => { setExpandedId(expandedId === post.id ? null : post.id); setCommentText(''); }} className="flex items-center gap-1 hover:text-blue-500 transition-colors">
                                                                     <MessageSquare size={14} /> 댓글 {post.qna_comments?.length || 0}개

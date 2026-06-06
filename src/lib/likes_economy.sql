@@ -70,9 +70,10 @@ begin
       when 'crew_posts'       then (select user_id from public.crew_posts       where id = p_post_id)
     end;
 
-    -- 작성자가 인증 승무원이고, 자가 좋아요가 아니며, 이달 적립이 상한 미만일 때만 적립
-    -- (승무원만 포인트 필요 — 칭송권 구매·승객 선물용. 여행자 글은 적립하지 않음)
-    if v_author is not null and v_author <> v_user
+    -- 포인트 적립은 승무원 게시판(crew_posts) 글에만. 다른 게시판은 좋아요만(혜택 없음, 쿠마님 지시).
+    -- 자가 좋아요 무효 + 작성자 인증 승무원 + 이달 적립 상한 미만일 때만.
+    if p_board_type = 'crew_posts'
+       and v_author is not null and v_author <> v_user
        and exists (select 1 from public.profiles where id = v_author and user_type = 'crew' and coalesce(crew_verified, false) = true) then
       select coalesce(sum(amount), 0) into v_month_earned
         from public.point_transactions
