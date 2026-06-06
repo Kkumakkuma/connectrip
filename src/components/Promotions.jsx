@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
+import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
 import ShareButtons from './ShareButtons';
 import { useAuth } from '../lib/AuthContext';
 import { reviewsApi, storageApi, postLikeApi } from '../lib/db';
@@ -248,18 +248,15 @@ const Promotions = () => {
                                                         {mode === 'promotion' ? <Megaphone size={48} /> : <MessageCircle size={48} />}
                                                     </div>
                                                 )}
-                                                {item.rating && (
-                                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 text-sm font-bold">
-                                                        <Star size={14} className="text-yellow-400 fill-yellow-400" /> {item.rating}
-                                                    </div>
-                                                )}
                                             </div>
                                             <div className="p-6">
-                                                <h3 className="text-xl font-bold mb-2">{item.title}</h3>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <h3 className="text-xl font-bold truncate">{item.title}</h3>
+                                                    <button onClick={() => handleToggleLike(item.id)} className={`flex items-center gap-1 text-sm font-bold flex-shrink-0 transition-colors ${likes[item.id]?.liked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-500'}`}>
+                                                        <Heart size={15} fill={likes[item.id]?.liked ? 'currentColor' : 'none'} /> {likes[item.id]?.count || 0}
+                                                    </button>
+                                                </div>
                                                 <p className="text-gray-500 text-sm mb-3 line-clamp-3">{item.description}</p>
-                                                <button onClick={() => handleToggleLike(item.id)} className={`flex items-center gap-1 text-xs mb-3 transition-colors ${likes[item.id]?.liked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-500'}`}>
-                                                    <Heart size={14} fill={likes[item.id]?.liked ? 'currentColor' : 'none'} /> {likes[item.id]?.count || 0}
-                                                </button>
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-1.5 text-gray-400 text-xs min-w-0">
                                                         <User size={14} className="flex-shrink-0" />
@@ -312,11 +309,6 @@ const Promotions = () => {
                                     <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                                         placeholder={mode === 'promotion' ? '예: 다낭 3박 5일 풀빌라 투어' : '예: 다낭 여행 정말 최고였어요!'} required />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">평점 (선택)</label>
-                                    <input type="number" step="0.1" min="0" max="5" value={formData.rating} onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-                                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" placeholder="예: 4.9" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품 설명' : '후기 내용'}</label>

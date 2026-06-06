@@ -360,15 +360,6 @@ const TravelQnA = () => {
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                                         placeholder={mode === 'review' ? '예: 도쿄 3박 4일 완벽 후기' : '궁금한 내용을 간단히 요약해주세요'} required />
                                 </div>
-                                {mode === 'review' && (
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">평점 (선택)</label>
-                                        <input type="number" step="0.1" min="0" max="5" value={formData.rating}
-                                            onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-                                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                                            placeholder="예: 4.5" />
-                                    </div>
-                                )}
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2">{mode === 'review' ? '후기 내용' : '질문 내용'}</label>
                                     <textarea value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })}
