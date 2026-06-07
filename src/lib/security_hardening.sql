@@ -296,6 +296,52 @@ BEGIN
 END;
 $$;
 
+-- 5-5b. 관리자 직접 지급 — 포인트/매칭신청권(칭송사용권) 선물 (admin 전용)
+--   회원가입·구매 흐름 없이 관리자가 특정 회원에게 직접 지급한다. RPC 경유 지급은 point_transactions 에 감사 기록.
+--   (참고: admin 은 RLS상 profiles 를 직접 UPDATE 할 수도 있어 감사로그 강제는 RPC 경유분 한정 — 기존 admin 권한 특성.)
+--   일반 유저의 보호컬럼(points_balance/voucher_count) 직접변경은 profiles_guard 가 계속 차단(우회는 RPC 내부 allow_sensitive 뿐).
+CREATE OR REPLACE FUNCTION public.admin_grant_points(p_user_id UUID, p_amount INT, p_reason TEXT DEFAULT NULL)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF NOT public.is_admin() THEN RAISE EXCEPTION 'admin only'; END IF;
+  IF p_amount IS NULL OR p_amount < 1 OR p_amount > 10000000 THEN RAISE EXCEPTION 'invalid amount'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user_id) THEN RAISE EXCEPTION 'user not found'; END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  UPDATE public.profiles
+    SET points_balance = COALESCE(points_balance, 0) + p_amount, updated_at = NOW()
+    WHERE id = p_user_id;
+  INSERT INTO public.point_transactions(user_id, amount, type, description)
+    VALUES (p_user_id, p_amount, 'admin_grant', COALESCE(NULLIF(p_reason, ''), '관리자 포인트 지급'));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_grant_vouchers(p_user_id UUID, p_qty INT, p_reason TEXT DEFAULT NULL)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
+  IF NOT public.is_admin() THEN RAISE EXCEPTION 'admin only'; END IF;
+  IF p_qty IS NULL OR p_qty < 1 OR p_qty > 1000 THEN RAISE EXCEPTION 'invalid qty'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user_id) THEN RAISE EXCEPTION 'user not found'; END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  UPDATE public.profiles
+    SET voucher_count = COALESCE(voucher_count, 0) + p_qty, updated_at = NOW()
+    WHERE id = p_user_id;
+  -- 바우처 전용 원장이 없어 감사 추적은 point_transactions 에 amount=0 으로 남긴다
+  INSERT INTO public.point_transactions(user_id, amount, type, description)
+    VALUES (p_user_id, 0, 'admin_voucher_grant', COALESCE(NULLIF(p_reason, ''), '관리자 사용권 지급') || ' (' || p_qty || '장)');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_grant_points(UUID, INT, TEXT)   FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_grant_vouchers(UUID, INT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_grant_points(UUID, INT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_grant_vouchers(UUID, INT, TEXT) TO authenticated;
+
 -- 5-6. 회원가입 프로필 완성 (보호컬럼 user_type/crew_verified/phone_verified 를 서버 검증 후 설정)
 CREATE OR REPLACE FUNCTION public.complete_signup_profile(
   p_name TEXT, p_nickname TEXT, p_phone TEXT,

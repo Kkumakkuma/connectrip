@@ -117,6 +117,48 @@ const Admin = () => {
     }
   };
 
+  // 관리자 직접 지급 — 포인트 선물
+  const handleGrantPoints = async (userId) => {
+    const amountStr = prompt('선물할 포인트를 입력하세요 (숫자):', '10000');
+    if (amountStr === null) return;
+    if (!/^\d+$/.test(amountStr.trim())) { alert('숫자만 입력하세요.'); return; }
+    const amount = parseInt(amountStr, 10);
+    if (!Number.isInteger(amount) || amount < 1) { alert('1 이상의 숫자를 입력하세요.'); return; }
+    const reason = prompt('지급 사유 (선택 — 기록에 남습니다):', '관리자 선물') || '';
+    setActionLoading(userId);
+    try {
+      await adminApi.grantPoints(userId, amount, reason);
+      await fetchData();
+      alert(`${amount.toLocaleString()}P 지급 완료`);
+    } catch (err) {
+      console.error('Grant points failed:', err);
+      alert('포인트 지급에 실패했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 관리자 직접 지급 — 칭송사용권(매칭신청권) 선물
+  const handleGrantVouchers = async (userId) => {
+    const qtyStr = prompt('선물할 칭송사용권(매칭신청권) 수량을 입력하세요:', '1');
+    if (qtyStr === null) return;
+    if (!/^\d+$/.test(qtyStr.trim())) { alert('숫자만 입력하세요.'); return; }
+    const qty = parseInt(qtyStr, 10);
+    if (!Number.isInteger(qty) || qty < 1) { alert('1 이상의 숫자를 입력하세요.'); return; }
+    const reason = prompt('지급 사유 (선택):', '관리자 선물') || '';
+    setActionLoading(userId);
+    try {
+      await adminApi.grantVouchers(userId, qty, reason);
+      await fetchData();
+      alert(`칭송사용권 ${qty}장 지급 완료`);
+    } catch (err) {
+      console.error('Grant vouchers failed:', err);
+      alert('사용권 지급에 실패했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const filteredUsers = useMemo(() => {
     if (!userSearch) return users;
     const q = userSearch.toLowerCase();
@@ -425,6 +467,20 @@ const Admin = () => {
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <button
+                                  onClick={() => handleGrantPoints(u.id)}
+                                  disabled={actionLoading === u.id}
+                                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors disabled:opacity-50"
+                                >
+                                  포인트
+                                </button>
+                                <button
+                                  onClick={() => handleGrantVouchers(u.id)}
+                                  disabled={actionLoading === u.id}
+                                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors disabled:opacity-50"
+                                >
+                                  사용권
+                                </button>
+                                <button
                                   onClick={() => handleBanToggle(u.id, u.is_banned)}
                                   disabled={actionLoading === u.id}
                                   className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
@@ -499,6 +555,22 @@ const Admin = () => {
                             <option value="user">일반</option>
                             <option value="admin">관리자</option>
                           </select>
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleGrantPoints(u.id)}
+                            disabled={actionLoading === u.id}
+                            className="flex-1 text-xs font-bold px-3 py-2 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors disabled:opacity-50 text-center"
+                          >
+                            포인트 선물
+                          </button>
+                          <button
+                            onClick={() => handleGrantVouchers(u.id)}
+                            disabled={actionLoading === u.id}
+                            className="flex-1 text-xs font-bold px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors disabled:opacity-50 text-center"
+                          >
+                            사용권 선물
+                          </button>
                         </div>
                       </div>
                     ))}
