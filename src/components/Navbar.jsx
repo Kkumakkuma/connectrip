@@ -90,7 +90,7 @@ const Navbar = () => {
         padding: isScrolled ? '0.6rem 0' : '0.85rem 0',
       }}
     >
-      <div className="w-full mx-auto px-6 flex items-center justify-between gap-6">
+      <div className="w-full mx-auto px-6 flex items-center justify-between gap-3 2xl:gap-6">
         {/* Section 1: Logo - Left */}
         <a
           onClick={(e) => {
@@ -105,15 +105,15 @@ const Navbar = () => {
             src="/connectrip-logo.png"
             alt="ConnectTrip"
             decoding="async"
-            className="h-14 w-auto object-contain transition-transform group-hover:scale-105"
+            className="h-12 2xl:h-14 w-auto object-contain transition-transform group-hover:scale-105"
             style={{
               filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1))'
             }}
           />
         </a>
 
-        {/* Section 2: Navigation Menu - Center */}
-        <div className="hidden lg:flex items-center gap-8 flex-1 justify-center min-w-0">
+        {/* Section 2: Navigation Menu - Center (1280px 미만은 햄버거 — 겹침 방지) */}
+        <div className="hidden xl:flex items-center gap-4 2xl:gap-8 flex-1 justify-center min-w-0">
           {navLinks.map((link, idx) => (
             <div
               key={link.name}
@@ -127,7 +127,7 @@ const Navbar = () => {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                   setHoveredMenu(null);
                 }}
-                className="text-[16px] text-gray-700 hover:text-blue-600 font-semibold transition-colors cursor-pointer whitespace-nowrap bg-transparent border-none py-2"
+                className="text-[15px] 2xl:text-[16px] text-gray-700 hover:text-blue-600 font-semibold transition-colors cursor-pointer whitespace-nowrap bg-transparent border-none py-2"
               >
                 {link.name}
               </button>
@@ -152,11 +152,11 @@ const Navbar = () => {
               )}
             </div>
           ))}
-          <SearchBar className="w-36" />
+          <SearchBar className="w-28 2xl:w-36" />
         </div>
 
         {/* Section 3: Auth Buttons - Right */}
-        <div className="hidden lg:flex items-center flex-shrink-0">
+        <div className="hidden xl:flex items-center flex-shrink-0">
           {!isLoggedIn ? (
             <div className="flex items-center gap-4">
               <button
@@ -199,7 +199,7 @@ const Navbar = () => {
 
         {/* Mobile Toggle */}
         <button
-          className="lg:hidden text-gray-700"
+          className="xl:hidden text-gray-700"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label={isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'}
           aria-expanded={isMobileMenuOpen}
@@ -217,7 +217,7 @@ const Navbar = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="lg:hidden absolute top-full left-0 w-full bg-white shadow-lg"
+            className="xl:hidden absolute top-full left-0 w-full bg-white shadow-lg"
           >
             <div className="flex flex-col items-center gap-4 p-6">
               {navLinks.map((link) => (
