@@ -56,7 +56,7 @@ const Signup = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-20">
-            <SEOHead title={mode === 'signup' ? '회원가입 - ConnectTrip' : '로그인 - ConnectTrip'} description="ConnectTrip 이메일+SMS 2중 인증 가입. 안전을 위한 인증 절차를 갖춘 여행 동행 커뮤니티." />
+            <SEOHead title={mode === 'signup' ? '회원가입 - ConnectTrip' : '로그인 - ConnectTrip'} description="ConnectTrip 회원가입 — 여행자와 승무원을 잇는 여행 동행 커뮤니티." />
             <div className="max-w-7xl mx-auto px-4 pt-12">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -70,7 +70,7 @@ const Signup = () => {
                         </h1>
                         <p className="text-gray-600 text-lg">
                             {mode === 'signup'
-                                ? '가입 유형을 선택해주세요 (이메일 + 휴대폰 2중 인증)'
+                                ? '가입 유형을 선택해주세요'
                                 : '계정에 로그인하세요'}
                         </p>
                     </div>
@@ -132,14 +132,6 @@ const Signup = () => {
                                             </div>
                                         </div>
                                     </motion.button>
-                                </div>
-
-                                {/* 2중 인증 안내 */}
-                                <div className="max-w-2xl mx-auto mt-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                                    <p className="text-sm text-blue-800 leading-relaxed">
-                                        🔒 <strong>2중 인증 안내</strong> — 부정 가입 방지와 본인 확인을 위해 이메일 인증과 휴대폰 본인 인증을 모두 진행합니다.
-                                        추후 통신사 본인 인증이 도입되면 기존 회원도 의무 재인증이 필요합니다.
-                                    </p>
                                 </div>
                             </motion.div>
                         ) : (
