@@ -202,10 +202,12 @@ const MarketBoard = () => {
         setShareRegion(null);
     };
 
-    // Reset to main view whenever the location changes
-    // This ensures clicking the nav menu always shows the main selection screen
+    // Reset to main view whenever the location changes,
+    // then apply the nav dropdown ?tab= (sell/buy/share/groupbuy) if present
     useEffect(() => {
         resetView();
+        const tab = new URLSearchParams(location.search).get('tab');
+        if (tab && ['sell', 'buy', 'share', 'groupbuy'].includes(tab)) setMode(tab);
     }, [location]);
 
     // Scroll to top when shareRegion changes

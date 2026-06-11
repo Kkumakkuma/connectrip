@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MessageSquare, HelpCircle, Plus, X, Search, BookOpen, Trash2, User, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
@@ -14,6 +15,14 @@ import ListState from './ListState';
 const TravelQnA = () => {
     const { user, profile, isLoggedIn } = useAuth();
     const [mode, setMode] = useState('main'); // 'main' | 'review' | 'qna'
+    const location = useLocation();
+
+    // 네비 드롭다운 ?tab=(review/qna) 반영 + 상위 메뉴 클릭 시 메인 복귀
+    useEffect(() => {
+        const tab = new URLSearchParams(location.search).get('tab');
+        if (tab && ['review', 'qna'].includes(tab)) setMode(tab);
+        else setMode('main');
+    }, [location]);
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ title: '', content: '', rating: '', image_url: '' });
     const [searchQuery, setSearchQuery] = useState('');

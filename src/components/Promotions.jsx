@@ -39,7 +39,11 @@ const Promotions = () => {
         setMode('main');
         setSelectedRegion(null);
         window.scrollTo(0, 0);
-    }, [location.key]);
+        // 네비 드롭다운 ?tab=promo|review 반영 (내부 모드명은 'promotion')
+        const tab = new URLSearchParams(location.search).get('tab');
+        const mapped = tab === 'promo' ? 'promotion' : tab;
+        if (mapped && ['promotion', 'review'].includes(mapped)) setMode(mapped);
+    }, [location]);
 
     const fetchPosts = async (regionId, type) => {
         try {

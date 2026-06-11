@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Shield, Users, FileText, BarChart3, AlertTriangle, Search,
@@ -21,6 +21,13 @@ const Admin = () => {
   const navigate = useNavigate();
   const { isLoggedIn, isAdmin, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('reports');
+  const location = useLocation();
+
+  // 네비 드롭다운 ?tab=(reports/commendations/users/stats) 반영
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (tab && ['reports', 'commendations', 'users', 'stats'].includes(tab)) setActiveTab(tab);
+  }, [location]);
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState(null);

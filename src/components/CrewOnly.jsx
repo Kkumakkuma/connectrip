@@ -29,10 +29,12 @@ const CrewOnly = () => {
     const itemsPerPage = 4;
     const location = useLocation();
 
-    // URL 변경 시 메인 화면으로 리셋
+    // URL 변경 시 메인 화면으로 리셋 + 네비 드롭다운 ?tab=(free/layover/deals) 반영
     useEffect(() => {
         resetView();
-    }, [location.key]);
+        const tab = new URLSearchParams(location.search).get('tab');
+        if (tab && ['free', 'layover', 'deals'].includes(tab)) setMode(tab);
+    }, [location]);
 
     // Fetch crew posts when mode changes
     const fetchPosts = async () => {
