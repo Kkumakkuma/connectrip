@@ -10,12 +10,26 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId) => {
+  // 본인 프로필 조회: get_my_profile RPC 우선 (profiles SELECT 컬럼 잠금 대비),
+  // RPC 미존재/실패 시 기존 select('*') 폴백.
+  // 전환기 폴백: profiles 잠금 SQL 적용 후 select('*') 폴백은 제거 가능.
+  const loadMyProfile = async (userId) => {
+    try {
+      const { data: rpcRows, error: rpcError } = await supabase
+        .rpc('get_my_profile')
+        .maybeSingle();
+      if (!rpcError && rpcRows) return rpcRows;
+    } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
+    return data;
+  };
+
+  const fetchProfile = async (userId) => {
+    const data = await loadMyProfile(userId);
 
     // 프로필 row 가 아예 없으면 (트리거 불발/OAuth 경합) 즉시 최소 프로필 upsert
     if (!data) {
@@ -24,7 +38,9 @@ export const AuthProvider = ({ children }) => {
         const meta = authUser.user_metadata || {};
         const defaultName = meta.full_name || meta.name
           || (authUser.email ? authUser.email.split('@')[0] : '여행자');
-        const { data: inserted } = await supabase
+        // returning 제거: profiles SELECT 컬럼 잠금 후 .select() returning 이 깨지므로
+        // upsert 후 get_my_profile 로 재조회한다.
+        await supabase
           .from('profiles')
           .upsert({
             id: userId,
@@ -33,9 +49,8 @@ export const AuthProvider = ({ children }) => {
             avatar_url: meta.avatar_url || null,
             provider: authUser.app_metadata?.provider || 'email',
             profile_completed: false,
-          }, { onConflict: 'id' })
-          .select()
-          .single();
+          }, { onConflict: 'id' });
+        const inserted = await loadMyProfile(userId);
         setProfile(inserted);
         return inserted;
       }
@@ -158,13 +173,14 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (updates) => {
     if (!user) return;
-    const { data, error } = await supabase
+    // returning 제거: profiles SELECT 컬럼 잠금 후 .select() returning 이 깨지므로
+    // update 후 get_my_profile 로 재조회한다.
+    const { error } = await supabase
       .from('profiles')
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', user.id)
-      .select()
-      .single();
+      .eq('id', user.id);
     if (error) throw error;
+    const data = await loadMyProfile(user.id);
     setProfile(data);
     return data;
   };

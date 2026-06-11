@@ -50,7 +50,7 @@ const Admin = () => {
       } else if (activeTab === 'commendations') {
         const { data } = await supabase
           .from('commendation_matches')
-          .select('*, crew:profiles!commendation_matches_crew_user_id_fkey(id, name, user_type, avatar_url, airline), passenger:profiles!commendation_matches_passenger_user_id_fkey(id, name, user_type, avatar_url)')
+          .select('*, crew:profiles!commendation_matches_crew_user_id_fkey(id, name, user_type, avatar_url, airline_name), passenger:profiles!commendation_matches_passenger_user_id_fkey(id, name, user_type, avatar_url)')
           .in('status', ['commendation_submitted', 'verified', 'gift_sent'])
           .order('updated_at', { ascending: false });
         setCommendations(data || []);
@@ -599,7 +599,7 @@ const Admin = () => {
                                 <span className="text-sm text-gray-500">{match.flight_date}</span>
                               </div>
                               <div className="flex items-center gap-4 text-xs text-gray-500">
-                                <span>승무원: <strong className="text-gray-700">{match.crew?.name || '-'}</strong> {match.crew?.airline && `(${match.crew.airline})`}</span>
+                                <span>승무원: <strong className="text-gray-700">{match.crew?.name || '-'}</strong> {match.crew?.airline_name && `(${match.crew.airline_name})`}</span>
                                 <span>승객: <strong className="text-gray-700">{match.passenger?.name || '-'}</strong></span>
                               </div>
                             </div>

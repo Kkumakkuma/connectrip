@@ -7,9 +7,9 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
         {
             id: 'companion',
             name: '여행 동행자 모집',
-            desc: '함께 떠날 믿을 수 있는 동행자를 찾아보세요.',
+            desc: '함께 떠날 마음 맞는 동행자를 찾아보세요.',
             rating: 4.9,
-            crewComment: '검증된 승무원과 여행 전문가들이 활동하는 커뮤니티입니다.',
+            crewComment: '항공사 이메일로 인증한 현직 승무원들이 활동하는 커뮤니티입니다.',
             image: 'https://images.unsplash.com/photo-1527631746610-bca00a040d60?q=80&w=800&auto=format&fit=crop',
             path: '/companion'
         },
@@ -18,7 +18,7 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
             name: '여행후기 및 Q&A',
             desc: '생생한 여행 후기를 공유하고, 궁금한 건 바로 질문하세요.',
             rating: 4.8,
-            crewComment: '현지 사정에 밝은 승무원들이 직접 답변해 드려요.',
+            crewComment: '현지 사정에 밝은 승무원들의 답변을 들을 수 있어요.',
             image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800&auto=format&fit=crop',
             path: '/qna'
         },
@@ -34,9 +34,9 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
         {
             id: 'reviews',
             name: '여행상품 홍보 및 후기',
-            desc: '생생한 여행 후기와 엄선된 여행 상품을 만나보세요.',
+            desc: '생생한 여행 후기와 다양한 여행 상품을 만나보세요.',
             rating: 4.8,
-            crewComment: '직접 다녀온 사람들의 찐 후기로 실패 없는 여행을 계획하세요.',
+            crewComment: '직접 다녀온 사람들의 찐 후기로 알찬 여행을 계획하세요.',
             image: 'https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?q=80&w=800&auto=format&fit=crop',
             path: '/reviews'
         },

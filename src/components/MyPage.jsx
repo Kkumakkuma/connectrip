@@ -722,7 +722,7 @@ const MyPage = () => {
                                         <CreditCard size={30} />
                                     </div>
                                     <h3 style={{ fontSize: '1.4rem' }}>포인트 충전</h3>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>1P = 1원 (실제 화폐 가치)</p>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>1P = 1원 (서비스 내 사용 기준)</p>
                                 </div>
 
                                 {/* Current balance */}

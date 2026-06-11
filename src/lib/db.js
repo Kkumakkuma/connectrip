@@ -213,6 +213,12 @@ export const destinationsApi = {
   },
 
   async unlike(id) {
+    // Try RPC first, fallback to manual decrement
+    try {
+      const { data, error } = await supabase.rpc('decrement_likes', { dest_id: id });
+      if (!error) return data;
+    } catch { /* RPC 미존재(SQL 미적용)면 수동 감소 폴백 */ }
+    // Fallback: manual decrement
     const { data: dest } = await supabase.from('destinations').select('likes_count').eq('id', id).single();
     const { data, error } = await supabase
       .from('destinations')
@@ -295,7 +301,7 @@ export const commendationApi = {
   async getMyMatches(userId) {
     const { data, error } = await supabase
       .from('commendation_matches')
-      .select('*, crew:profiles!commendation_matches_crew_user_id_fkey(id, name, user_type, avatar_url, airline), passenger:profiles!commendation_matches_passenger_user_id_fkey(id, name, user_type, avatar_url)')
+      .select('*, crew:profiles!commendation_matches_crew_user_id_fkey(id, name, user_type, avatar_url, airline_name), passenger:profiles!commendation_matches_passenger_user_id_fkey(id, name, user_type, avatar_url)')
       .or(`crew_user_id.eq.${userId},passenger_user_id.eq.${userId}`)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -305,43 +311,10 @@ export const commendationApi = {
   async findMatch(flightNumber, flightDate) {
     const { data, error } = await supabase
       .from('flight_schedules')
-      .select('*, profiles(id, name, user_type, avatar_url, airline)')
+      .select('*, profiles(id, name, user_type, avatar_url, airline_name)')
       .eq('flight_number', flightNumber)
       .eq('flight_date', flightDate)
       .eq('is_public', true);
-    if (error) throw error;
-    return data;
-  },
-
-  // Find pending matches waiting for the opposite side
-  async findPendingMatch(flightNumber, flightDate, status) {
-    const { data, error } = await supabase
-      .from('commendation_matches')
-      .select('*')
-      .eq('flight_number', flightNumber)
-      .eq('flight_date', flightDate)
-      .eq('status', status);
-    if (error) throw error;
-    return data;
-  },
-
-  async createMatch(matchData) {
-    const { data: result, error } = await supabase
-      .from('commendation_matches')
-      .insert(matchData)
-      .select()
-      .single();
-    if (error) throw error;
-    return result;
-  },
-
-  async updateMatchStatus(matchId, updates) {
-    const { data, error } = await supabase
-      .from('commendation_matches')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', matchId)
-      .select()
-      .single();
     if (error) throw error;
     return data;
   },
@@ -685,7 +658,7 @@ export const reportApi = {
     // Update RLS policy: allow select on reports where auth.uid() is in profiles with role='admin'
     const { data, error } = await supabase
       .from('reports')
-      .select('*, reporter:profiles!reports_reporter_id_fkey(id, name, email, avatar_url), reported:profiles!reports_reported_user_id_fkey(id, name, email, avatar_url)')
+      .select('*, reporter:profiles!reports_reporter_id_fkey(id, name, avatar_url), reported:profiles!reports_reported_user_id_fkey(id, name, avatar_url)')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;
@@ -711,25 +684,20 @@ export const reportApi = {
 
 export const blockApi = {
   async banUser(userId) {
-    const { data, error } = await supabase
+    // returning(.select()) 없음 — profiles 컬럼 잠금(PART2) 후에도 동작 (호출부는 반환값 미사용)
+    const { error } = await supabase
       .from('profiles')
       .update({ is_banned: true })
-      .eq('id', userId)
-      .select()
-      .single();
+      .eq('id', userId);
     if (error) throw error;
-    return data;
   },
 
   async unbanUser(userId) {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('profiles')
       .update({ is_banned: false })
-      .eq('id', userId)
-      .select()
-      .single();
+      .eq('id', userId);
     if (error) throw error;
-    return data;
   },
 };
 
@@ -739,6 +707,12 @@ export const blockApi = {
 
 export const adminApi = {
   async getAllProfiles() {
+    // admin_list_profiles RPC 우선 (profiles SELECT 컬럼 잠금 대비).
+    // 전환기 폴백: profiles 잠금 SQL 적용 후 select('*') 폴백은 제거 가능.
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('admin_list_profiles');
+      if (!rpcError && rpcData) return rpcData;
+    } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -748,14 +722,12 @@ export const adminApi = {
   },
 
   async updateUserRole(userId, role) {
-    const { data, error } = await supabase
+    // returning(.select()) 없음 — profiles 컬럼 잠금(PART2) 후에도 동작 (호출부는 반환값 미사용)
+    const { error } = await supabase
       .from('profiles')
       .update({ role })
-      .eq('id', userId)
-      .select()
-      .single();
+      .eq('id', userId);
     if (error) throw error;
-    return data;
   },
 
   // 관리자 직접 지급 — 포인트 선물 (RPC admin_grant_points: 서버에서 is_admin 가드 + point_transactions 감사로그)
@@ -799,9 +771,9 @@ export const adminApi = {
       { data: recentCrew },
     ] = await Promise.all([
       // Total users
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
       // New users today
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', todayISO),
       // Pending reports
       supabase.from('reports').select('*', { count: 'exact', head: true }).eq('status', '대기'),
       // Post counts per board

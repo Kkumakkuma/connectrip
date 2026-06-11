@@ -58,8 +58,8 @@ const CompanionBoard = () => {
                     <span className="text-blue-600 font-black tracking-widest uppercase mb-4 block">Regional Companion Search</span>
                     <h1 className="text-5xl md:text-6xl font-black text-gray-900 mb-8 leading-tight">여행 동행자 모집</h1>
                     <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-                        함께 떠날 믿을 수 있는 동행자를 지역별로 선택 보세요.<br />
-                        전 세계 여행 전문가와 승무원들이 당신을 기다리고 있습니다.
+                        함께 떠날 마음 맞는 동행자를 지역별로 찾아보세요.<br />
+                        전 세계 여행자와 현직 승무원들이 당신을 기다리고 있습니다.
                     </p>
                 </div>
 

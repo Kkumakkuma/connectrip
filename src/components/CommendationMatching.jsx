@@ -142,7 +142,7 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
       setShowScreenshotModal(null);
       setScreenshotUrl('');
       await fetchData();
-      alert('칭송 인증이 제출되었습니다! 관리자 확인 후 선물이 지급됩니다.');
+      alert('칭송 인증이 제출되었습니다! 관리자 확인 후 선물을 받으실 수 있습니다.');
     } catch (err) {
       console.error('제출 실패:', err);
       alert('제출에 실패했습니다.');
@@ -199,7 +199,7 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
     }
     // 승객이 보는 승무원 정보 - 비행 다음날 이후에만 공개
     if (afterFlight && ['matched', 'commendation_submitted', 'verified', 'gift_sent'].includes(match.status)) {
-      return { name: match.crew?.name || '승무원', avatar: match.crew?.avatar_url, airline: match.crew?.airline, hidden: false };
+      return { name: match.crew?.name || '승무원', avatar: match.crew?.avatar_url, airline_name: match.crew?.airline_name, hidden: false };
     }
     return { name: '승무원 (비행 후 공개)', avatar: null, hidden: true };
   };
@@ -240,7 +240,7 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
             <li><strong>매칭 신청</strong>을 눌러 신청권 1장으로 매칭을 신청합니다</li>
             <li>같은 항공편 승객이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 후 승객이 칭송 스크린샷을 제출합니다</li>
-            <li><strong>관리자</strong>가 확인/승인하면 승객에게 감사 선물이 지급됩니다</li>
+            <li><strong>관리자</strong>가 확인/승인하면 승무원이 승객에게 감사 선물을 전달합니다</li>
           </ol>
         ) : (
           <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
@@ -248,7 +248,7 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
             <li><strong>매칭 신청 (무료)</strong>을 눌러 매칭을 신청합니다</li>
             <li>같은 항공편 승무원이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 다음날 승무원 이름이 공개됩니다</li>
-            <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 선물을 받습니다</li>
+            <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 선물을 받을 수 있습니다</li>
           </ol>
         )}
       </div>
@@ -463,8 +463,8 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
             {!isPending && !isCrew && !isAfterFlight && match.status === 'matched' && (
               <p className="text-xs text-blue-500">비행 다음날 승무원 이름이 공개됩니다</p>
             )}
-            {!isPending && !isCrew && partner.airline && !partner.hidden && (
-              <p className="text-xs text-gray-500">{partner.airline}</p>
+            {!isPending && !isCrew && partner.airline_name && !partner.hidden && (
+              <p className="text-xs text-gray-500">{partner.airline_name}</p>
             )}
           </div>
         </div>
@@ -534,8 +534,8 @@ const MatchDetail = ({ match, isCrew, partner, isAfterFlight }) => {
           ) : partner.name.charAt(0)}
         </div>
         <h3 className="text-xl font-extrabold text-gray-800">{partner.name}</h3>
-        {!isCrew && partner.airline && !partner.hidden && (
-          <p className="text-sm text-gray-500 mt-0.5">{partner.airline}</p>
+        {!isCrew && partner.airline_name && !partner.hidden && (
+          <p className="text-sm text-gray-500 mt-0.5">{partner.airline_name}</p>
         )}
         {!isCrew && partner.hidden && match.status === 'matched' && (
           <p className="text-sm text-blue-500 mt-0.5">비행 다음날 공개됩니다</p>

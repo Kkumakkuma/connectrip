@@ -302,7 +302,7 @@ const MarketBoard = () => {
                                     </div>
                                     <h3 className="text-xl font-bold mb-2">공동구매</h3>
                                     <p className="text-gray-500 text-sm mb-3">
-                                        면세품, 현지 특산물 등 함께 사면 더 저렴!
+                                        면세품, 현지 특산물 등 함께 사면 더 저렴해질 수 있어요!
                                         공동구매를 모집하거나 참여해보세요.
                                     </p>
                                     <span className="text-purple-600 font-bold flex items-center gap-2">
@@ -335,7 +335,7 @@ const MarketBoard = () => {
                                         </div>
                                         <div>
                                             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">물품팔아요</h2>
-                                            <p className="text-gray-500 text-sm sm:text-base">믿을 수 있는 동료들과 안전하게 거래하세요.</p>
+                                            <p className="text-gray-500 text-sm sm:text-base">여행자·승무원 회원들과 직접 거래해보세요.</p>
                                         </div>
                                     </div>
                                     <button
@@ -551,7 +551,7 @@ const MarketBoard = () => {
                                         <div className="p-3 bg-purple-100 rounded-xl text-purple-600 flex-shrink-0"><Users size={32} /></div>
                                         <div>
                                             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">공동구매</h2>
-                                            <p className="text-gray-500 text-sm sm:text-base">함께 사면 더 저렴! 공동구매를 모집하거나 참여하세요.</p>
+                                            <p className="text-gray-500 text-sm sm:text-base">함께 사면 더 저렴해질 수 있어요! 공동구매를 모집하거나 참여하세요.</p>
                                         </div>
                                     </div>
                                     {profile?.role === 'admin' && (

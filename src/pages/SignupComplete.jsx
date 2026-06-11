@@ -280,7 +280,7 @@ export default function SignupComplete() {
     <div style={{ maxWidth: 520, margin: '120px auto 40px', padding: '0 20px' }}>
       <SEOHead
         title="회원정보 입력 - ConnectTrip"
-        description="ConnectTrip 회원가입 마무리. 남은 회원정보를 입력하고 안전하게 시작하세요."
+        description="ConnectTrip 회원가입 마무리. 남은 회원정보를 입력하고 가입을 완료하세요."
         path="/signup/complete"
         robots="noindex, follow"
       />
@@ -474,7 +474,7 @@ export default function SignupComplete() {
 
           {/* 추천인 */}
           <Field
-            label="추천인 닉네임 (선택) — 입력 시 양쪽에 3,000포인트 지급"
+            label="추천인 닉네임 (선택) — 추천인 확인 후 양쪽에 3,000포인트 지급"
             icon={<Gift size={16} />}
             helper={
               !referrerNickname ? null :

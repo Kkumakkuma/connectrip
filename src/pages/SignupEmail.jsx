@@ -89,10 +89,21 @@ export default function SignupEmail() {
     if (!email || !email.includes('@')) { setEmailStatus(null); return; }
     setEmailStatus('checking');
     const t = setTimeout(async () => {
+      const cleaned = email.trim().toLowerCase();
+      // check_email_taken RPC 우선 (profiles SELECT 컬럼 잠금 대비).
+      // 전환기 폴백: profiles 잠금 SQL 적용 후 select 폴백은 제거 가능.
+      try {
+        const { data: taken, error: rpcError } = await supabase
+          .rpc('check_email_taken', { p_email: cleaned });
+        if (!rpcError && taken !== null && taken !== undefined) {
+          setEmailStatus(taken ? 'taken' : 'available');
+          return;
+        }
+      } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
       const { data } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', email.trim().toLowerCase())
+        .eq('email', cleaned)
         .limit(1);
       setEmailStatus(data && data.length > 0 ? 'taken' : 'available');
     }, 400);
@@ -104,10 +115,21 @@ export default function SignupEmail() {
     if (!nickname || nickname.length < 2) { setNicknameStatus(null); return; }
     setNicknameStatus('checking');
     const t = setTimeout(async () => {
+      const trimmed = nickname.trim();
+      // check_nickname_taken RPC 우선 (profiles SELECT 컬럼 잠금 대비).
+      // 전환기 폴백: profiles 잠금 SQL 적용 후 select 폴백은 제거 가능.
+      try {
+        const { data: taken, error: rpcError } = await supabase
+          .rpc('check_nickname_taken', { p_nickname: trimmed });
+        if (!rpcError && taken !== null && taken !== undefined) {
+          setNicknameStatus(taken ? 'taken' : 'available');
+          return;
+        }
+      } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
       const { data } = await supabase
         .from('profiles')
         .select('id')
-        .eq('nickname', nickname.trim())
+        .eq('nickname', trimmed)
         .limit(1);
       setNicknameStatus(data && data.length > 0 ? 'taken' : 'available');
     }, 300);
@@ -366,7 +388,7 @@ export default function SignupEmail() {
     <div style={{ maxWidth: 560, margin: '120px auto 40px', padding: '0 20px' }}>
       <SEOHead
         title="이메일로 회원가입 - ConnectTrip"
-        description="ConnectTrip 회원가입. 실명·본인인증 기반으로 안전하게 여행 동행을 시작하세요."
+        description="ConnectTrip 회원가입. 휴대폰 인증 기반 여행 동행 커뮤니티를 시작하세요."
         path="/signup/email"
         robots="noindex, follow"
       />
@@ -574,7 +596,7 @@ export default function SignupEmail() {
 
           <Field label="추천인 닉네임" icon={<Gift size={16} />} required={false}
             helper={
-              !referrerNickname ? '선택 사항. 입력 시 양쪽에 3,000포인트가 지급됩니다.' :
+              !referrerNickname ? '선택 사항. 추천인 확인 후 양쪽에 3,000포인트가 지급됩니다.' :
               referrerStatus === 'checking' ? '확인 중...' :
               referrerStatus === 'valid' ? '추천인 확인됨' :
               referrerStatus === 'invalid' ? '해당 닉네임 없음' : null

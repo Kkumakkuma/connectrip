@@ -14,7 +14,7 @@ const regions = [
     { id: 'europe', name: '유럽', icon: '🏰', desc: '유럽 감성 숙소와 투어 패키지', image: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=800&auto=format&fit=crop' },
     { id: 'americas', name: '미주', icon: '🗽', desc: '미주 지역 렌터카 및 액티비티 할인', image: 'https://images.unsplash.com/photo-1485738422979-f5c462d49f74?q=80&w=800&auto=format&fit=crop' },
     { id: 'africa', name: '아프리카', icon: '🦁', desc: '사파리 투어 및 사막 호텔 특가', image: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?q=80&w=800&auto=format&fit=crop' },
-    { id: 'southeast-asia', name: '동남아', icon: '🏝️', desc: '풀빌라 리조트 초특가 프로모션', image: 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800&auto=format&fit=crop' },
+    { id: 'southeast-asia', name: '동남아', icon: '🏝️', desc: '풀빌라 리조트 할인·프로모션 정보', image: 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800&auto=format&fit=crop' },
     { id: 'asia', name: '아시아', icon: '🐅', desc: '일본/중국 온천 여행 및 료칸 예약', image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop' },
     { id: 'oceania', name: '오세아니아', icon: '🦘', desc: '호주/뉴질랜드 캠핑카 투어 할인', image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?q=80&w=800&auto=format&fit=crop' },
 ];

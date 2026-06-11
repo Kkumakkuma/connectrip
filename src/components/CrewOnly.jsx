@@ -188,7 +188,7 @@ const CrewOnly = () => {
                                     </div>
                                     <h3 className="text-2xl font-bold mb-3">할인 혜택</h3>
                                     <p className="text-gray-500 mb-6">
-                                        승무원 전용 특별 할인, 프로모션, 이벤트 정보를 확인하세요. 독점 혜택들이 가득!
+                                        승무원 전용 할인, 프로모션, 이벤트 정보를 확인하세요. 승무원끼리 공유하는 알짜 혜택 정보!
                                     </p>
                                     <span className="text-purple-600 font-bold flex items-center gap-2">할인 혜택 →</span>
                                 </motion.div>

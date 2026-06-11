@@ -204,7 +204,7 @@ const TravelQnA = () => {
                                         <HelpCircle size={40} />
                                     </div>
                                     <h3 className="text-2xl font-bold mb-3">Q&A 게시판</h3>
-                                    <p className="text-gray-500 mb-6">여행에 대한 궁금증을 전문가와 선배 여행자들에게 물어보세요.</p>
+                                    <p className="text-gray-500 mb-6">여행에 대한 궁금증을 승무원과 선배 여행자들에게 물어보세요.</p>
                                     <span className="text-blue-600 font-bold flex items-center gap-2">Q&A 보러가기 →</span>
                                 </motion.div>
                             </div>
