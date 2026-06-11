@@ -19,12 +19,15 @@ const TravelQnA = () => {
 
     // 네비 드롭다운 ?tab=(review/qna) 반영 + 상위 메뉴 클릭 시 메인 복귀
     useEffect(() => {
-        const tab = new URLSearchParams(location.search).get('tab');
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
         if (tab && ['review', 'qna'].includes(tab)) setMode(tab);
         else setMode('main');
+        const q = params.get('q');
+        if (q) setSearchQuery(q);
     }, [location]);
     const [showModal, setShowModal] = useState(false);
-    const [formData, setFormData] = useState({ title: '', content: '', rating: '', image_url: '' });
+    const [formData, setFormData] = useState({ title: '', content: '', image_url: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [posts, setPosts] = useState([]);
@@ -143,13 +146,12 @@ const TravelQnA = () => {
                     type: 'review',
                     title: formData.title,
                     description: formData.content,
-                    rating: parseFloat(formData.rating) || null,
                     image_url: formData.image_url || null,
                     author_name: profile?.name || '익명',
                 });
                 setPosts(prev => [newReview, ...prev]);
             }
-            setFormData({ title: '', content: '', rating: '', image_url: '' });
+            setFormData({ title: '', content: '', image_url: '' });
             setShowModal(false);
         } catch (err) {
             console.error('등록 실패:', err);
@@ -165,12 +167,13 @@ const TravelQnA = () => {
             setPosts(prev => prev.filter(p => p.id !== id));
         } catch (err) {
             console.error('삭제 실패:', err);
+            alert('삭제에 실패했습니다. 다시 시도해주세요.');
         }
     };
 
     const handleWriteClick = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        setFormData({ title: '', content: '', rating: '', image_url: '' });
+        setFormData({ title: '', content: '', image_url: '' });
         setShowModal(true);
     };
 

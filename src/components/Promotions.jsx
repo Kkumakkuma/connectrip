@@ -1,10 +1,10 @@
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
 import ShareButtons from './ShareButtons';
 import { useAuth } from '../lib/AuthContext';
-import { reviewsApi, storageApi, postLikeApi } from '../lib/db';
+import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
@@ -20,15 +20,13 @@ const regions = [
 ];
 
 const Promotions = () => {
-    const { regionId } = useParams();
-    const navigate = useNavigate();
     const location = useLocation();
     const { user, profile, isLoggedIn } = useAuth();
     const [mode, setMode] = useState('main');
     const [selectedRegion, setSelectedRegion] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-    const [formData, setFormData] = useState({ title: '', rating: '', content: '', image_url: '' });
+    const [formData, setFormData] = useState({ title: '', content: '', image_url: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [posts, setPosts] = useState([]);
     const [likes, setLikes] = useState({});
@@ -40,9 +38,12 @@ const Promotions = () => {
         setSelectedRegion(null);
         window.scrollTo(0, 0);
         // 네비 드롭다운 ?tab=promo|review 반영 (내부 모드명은 'promotion')
-        const tab = new URLSearchParams(location.search).get('tab');
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
         const mapped = tab === 'promo' ? 'promotion' : tab;
         if (mapped && ['promotion', 'review'].includes(mapped)) setMode(mapped);
+        const q = params.get('q');
+        if (q) setSearchQuery(q);
     }, [location]);
 
     const fetchPosts = async (regionId, type) => {
@@ -78,11 +79,10 @@ const Promotions = () => {
                 type: mode,
                 title: formData.title,
                 description: formData.content,
-                rating: parseFloat(formData.rating) || null,
                 image_url: formData.image_url || null,
                 author_name: profile?.name || '익명',
             });
-            setFormData({ title: '', rating: '', content: '', image_url: '' });
+            setFormData({ title: '', content: '', image_url: '' });
             setShowModal(false);
             fetchPosts(selectedRegion.id, mode);
         } catch (err) {
@@ -98,6 +98,7 @@ const Promotions = () => {
             setPosts(prev => prev.filter(p => p.id !== id));
         } catch (err) {
             console.error('삭제 실패:', err);
+            alert('삭제에 실패했습니다. 다시 시도해주세요.');
         }
     };
 
@@ -195,7 +196,7 @@ const Promotions = () => {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
                                 {regions.map((region) => (
                                     <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }} onClick={() => handleRegionSelect(region)} className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all">
-                                        <img src={region.image} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
+                                        <img src={region.image} loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                         <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
                                             <div className="mb-2 text-3xl">{region.icon}</div>
@@ -233,7 +234,7 @@ const Promotions = () => {
                                 <div className="relative max-w-2xl mx-auto">
                                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                                     <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder={`${mode === 'promotion' ? '상품명' : '후기 제목'}, 지역 등으로 검색하세요...`}
+                                        placeholder={`${mode === 'promotion' ? '상품명, 내용' : '후기 제목, 내용'} 등으로 검색하세요...`}
                                         className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-700 font-medium" />
                                 </div>
                             </div>
@@ -335,7 +336,7 @@ const Promotions = () => {
                 )}
             </AnimatePresence>
 
-            {showLoginPrompt && <LoginPrompt onClose={() => setShowLoginPrompt(false)} />}
+            <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
         </section>
         </>
     );

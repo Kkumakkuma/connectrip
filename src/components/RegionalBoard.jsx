@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Users, Calendar, MessageCircle, Edit3, ArrowLeft, X, Search, Heart } from 'lucide-react';
+import { MapPin, Users, Calendar, Edit3, ArrowLeft, X, Search, Heart } from 'lucide-react';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
@@ -43,10 +43,12 @@ const RegionalBoard = () => {
     const [likes, setLikes] = useState({});
     const itemsPerPage = 6;
 
-    // URL 변경 시 스크롤 최상단으로
+    // URL 변경 시 스크롤 최상단으로 + 통합검색 ?q= 반영
     useEffect(() => {
         window.scrollTo(0, 0);
-    }, [location.key]);
+        const q = new URLSearchParams(location.search).get('q');
+        if (q) setSearchQuery(q);
+    }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Supabase에서 게시글 불러오기
     const fetchPosts = async () => {
@@ -196,6 +198,7 @@ const RegionalBoard = () => {
                                                             alt={post.title}
                                                             loading="lazy"
                                                             decoding="async"
+                                                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                                         />
                                                         <div className="absolute top-3 right-3 flex items-center gap-2">
@@ -225,12 +228,9 @@ const RegionalBoard = () => {
                                                             </div>
                                                         </div>
 
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center justify-between gap-2">
                                                             <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 px-3 py-3 rounded-xl font-bold transition-colors ${likes[post.id]?.liked ? 'bg-pink-50 text-pink-500' : 'bg-gray-50 text-gray-400 hover:text-pink-500'}`}>
                                                                 <Heart size={18} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
-                                                            </button>
-                                                            <button className="flex-1 py-3 bg-gray-50 text-gray-600 rounded-xl font-bold hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
-                                                                <MessageCircle size={18} /> 실시간 그룹 채팅하기
                                                             </button>
                                                             <ShareButtons title={`${post.title} - ConnectTrip 동행 모집`} description={post.content} />
                                                         </div>

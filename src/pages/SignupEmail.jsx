@@ -179,7 +179,6 @@ export default function SignupEmail() {
     setEmailVerified(false);
     setEmailSent(false);
     setEmailCode('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
 
   const sendEmailCode = async () => {

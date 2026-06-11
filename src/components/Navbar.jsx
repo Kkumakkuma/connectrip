@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, X, User, LogOut, Plane, Shield } from 'lucide-react';
+import { Menu, X, User, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell';
@@ -21,15 +21,6 @@ const Navbar = () => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const handleAuthClick = () => {
-    if (isLoggedIn) {
-      navigate('/mypage');
-    } else {
-      navigate('/signup');
-      window.scrollTo(0, 0);
-    }
-  };
 
   const handleLogout = async () => {
     await signOut();
@@ -238,27 +229,42 @@ const Navbar = () => {
                 onNavigate={() => setIsMobileMenuOpen(false)}
               />
               <div className="w-full flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    handleAuthClick('traveler');
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-md"
-                >
-                  <User size={18} />
-                  {isLoggedIn ? '마이페이지' : '일반 로그인'}
-                </button>
-                {!isLoggedIn && (
+                {isLoggedIn ? (
                   <button
                     onClick={() => {
-                      handleAuthClick('crew');
+                      navigate('/mypage');
                       setIsMobileMenuOpen(false);
+                      window.scrollTo(0, 0);
                     }}
-                    className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-md"
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-md"
                   >
-                    <Plane size={18} />
-                    승무원 로그인
+                    <User size={18} />
+                    마이페이지
                   </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        navigate('/signup?mode=login');
+                        setIsMobileMenuOpen(false);
+                        window.scrollTo(0, 0);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-md"
+                    >
+                      <User size={18} />
+                      로그인
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/signup');
+                        setIsMobileMenuOpen(false);
+                        window.scrollTo(0, 0);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 rounded-xl font-semibold transition-all"
+                    >
+                      회원가입
+                    </button>
+                  </>
                 )}
               </div>
               {isLoggedIn && (

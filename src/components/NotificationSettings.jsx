@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Bell, BellOff, MessageSquare, ShoppingBag, Users, Plane, Heart, Star } from 'lucide-react';
-import { useAuth } from '../lib/AuthContext';
 import { requestPermission, isNotificationGranted } from '../lib/pushNotifications';
 
 const NOTIFICATION_CATEGORIES = [
@@ -26,7 +25,6 @@ const COLOR_MAP = {
 const STORAGE_KEY = 'notification_preferences';
 
 const NotificationSettings = () => {
-  const { user } = useAuth();
   const [pushEnabled, setPushEnabled] = useState(isNotificationGranted());
   const [preferences, setPreferences] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);

@@ -6,7 +6,7 @@ import {
   Ticket, UserCheck, Loader, Eye, EyeOff, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { flightApi, commendationApi } from '../lib/db';
+import { commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import ImageUpload from './ImageUpload';
 
@@ -20,7 +20,7 @@ const STATUS_CONFIG = {
   rejected: { label: '반려', color: 'bg-red-100 text-red-700', icon: XCircle },
 };
 
-const CommendationMatching = ({ flights = [], onFlightsChange }) => {
+const CommendationMatching = ({ flights = [] }) => {
   const { user, profile, isLoggedIn, isCrew, fetchProfile } = useAuth();
 
   const myFlights = flights;
@@ -39,7 +39,6 @@ const CommendationMatching = ({ flights = [], onFlightsChange }) => {
   const [applyingFlight, setApplyingFlight] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  const getLocalPoints = () => profile?.points_balance || 0;
   const getLocalVouchers = () => profile?.voucher_count || 0;
 
   const fetchData = useCallback(async () => {
@@ -440,7 +439,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubmitScreenshot, onSendGift, isHistory, onDelete }) => {
+const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubmitScreenshot, isHistory, onDelete }) => {
   const isPending = match.status === 'pending_crew' || match.status === 'pending_passenger';
 
   return (
@@ -524,7 +523,7 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
   );
 };
 
-const MatchDetail = ({ match, isCrew, partner, isAfterFlight }) => {
+const MatchDetail = ({ match, isCrew, partner }) => {
   return (
     <div>
       <div className="text-center mb-5">

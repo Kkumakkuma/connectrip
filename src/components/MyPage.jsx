@@ -67,6 +67,12 @@ const MyPage = () => {
         e.preventDefault();
         if (!flightDate || !flightNumber || !user) return;
 
+        // 칭송매칭이 편명+날짜 정확 일치라 오타 방지: 항공편명 형식 검증(예: KE081)
+        if (!/^[A-Z]{2}[0-9]{1,4}$/i.test(flightNumber.trim())) {
+            alert('편명 형식을 확인해주세요 (예: KE081)');
+            return;
+        }
+
         setRegistering(true);
         try {
             await flightApi.register({
@@ -132,6 +138,11 @@ const MyPage = () => {
 
     // Edit flight
     const handleEditFlight = async (flightId, newNumber, newDate) => {
+        // 등록 폼과 동일하게 편명 형식 검증(오타 방지)
+        if (!/^[A-Z]{2}[0-9]{1,4}$/i.test((newNumber || '').trim())) {
+            alert('편명 형식을 확인해주세요 (예: KE081)');
+            return;
+        }
         try {
             const flight = myFlights.find(f => f.id === flightId);
             const oldNumber = flight?.flight_number;
@@ -417,6 +428,7 @@ const MyPage = () => {
                                     <input
                                         type="date"
                                         required
+                                        min={new Date().toISOString().slice(0, 10)}
                                         value={flightDate}
                                         onChange={(e) => setFlightDate(e.target.value)}
                                         style={{
@@ -678,12 +690,14 @@ const MyPage = () => {
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-600 mb-1">항공 편명</label>
                                         <input type="text" value={editingFlight.flight_number}
-                                            onChange={(e) => setEditingFlight({ ...editingFlight, flight_number: e.target.value })}
+                                            placeholder="KE081"
+                                            onChange={(e) => setEditingFlight({ ...editingFlight, flight_number: e.target.value.toUpperCase() })}
                                             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-600 mb-1">탑승 날짜</label>
                                         <input type="date" value={editingFlight.flight_date}
+                                            min={new Date().toISOString().slice(0, 10)}
                                             onChange={(e) => setEditingFlight({ ...editingFlight, flight_date: e.target.value })}
                                             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" />
                                     </div>
@@ -807,7 +821,7 @@ const MyPage = () => {
                                     </button>
                                 </div>
                                 <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#999', marginTop: '1rem' }}>
-                                    * 실결제 연동 준비 중입니다. 현재는 테스트 충전입니다.
+                                    * 포인트 충전(결제)은 PG 연동 후 제공됩니다.
                                 </p>
                             </div>
                         </motion.div>

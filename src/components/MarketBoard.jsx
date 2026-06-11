@@ -70,7 +70,6 @@ const MarketBoard = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPageSell, setCurrentPageSell] = useState(1);
     const [currentPageBuy, setCurrentPageBuy] = useState(1);
-    const [currentPageShare, setCurrentPageShare] = useState(1);
     const [sellingItems, setSellingItems] = useState([]);
     const [sharingItems, setSharingItems] = useState([]);
     const [buyingRequests, setBuyingRequests] = useState([]);
@@ -166,6 +165,8 @@ const MarketBoard = () => {
     const openPaymentModal = (item) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (item.user_id === user.id) { alert('자신의 물품은 구매할 수 없습니다.'); return; }
+        const totalPrice = parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0;
+        if (totalPrice <= 0) { alert('가격이 설정되지 않은 물품입니다. 판매자에게 직접 문의해주세요.'); return; }
         setPaymentModal(item);
     };
 
@@ -206,8 +207,11 @@ const MarketBoard = () => {
     // then apply the nav dropdown ?tab= (sell/buy/share/groupbuy) if present
     useEffect(() => {
         resetView();
-        const tab = new URLSearchParams(location.search).get('tab');
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
         if (tab && ['sell', 'buy', 'share', 'groupbuy'].includes(tab)) setMode(tab);
+        const q = params.get('q');
+        if (q) setSearchQuery(q);
     }, [location]);
 
     // Scroll to top when shareRegion changes
@@ -382,6 +386,8 @@ const MarketBoard = () => {
                                                             <div className="mt-auto">
                                                                 {item.status === 'sold' ? (
                                                                     <div className="py-2 bg-gray-200 text-gray-500 rounded-xl text-sm font-bold text-center">판매완료</div>
+                                                                ) : (item.price == null || item.price <= 0) ? (
+                                                                    <div className="py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-bold text-center cursor-not-allowed">가격 문의</div>
                                                                 ) : (
                                                                     <button
                                                                         onClick={(e) => { e.stopPropagation(); openPaymentModal(item); }}
@@ -647,6 +653,7 @@ const MarketBoard = () => {
                                                 src={region.image}
                                                 loading="lazy"
                                                 decoding="async"
+                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                                 alt={region.name}
                                             />
@@ -728,10 +735,7 @@ const MarketBoard = () => {
                                                             <span className="text-pink-600">[{item.country}]</span> {item.title}
                                                         </h3>
                                                         <p className="text-gray-500 text-sm mb-4">{item.content}</p>
-                                                        <button className="w-full py-3 bg-gray-50 text-gray-600 rounded-xl font-bold hover:bg-pink-50 hover:text-pink-500 transition-colors">
-                                                            채팅으로 문의하기
-                                                        </button>
-                                                        <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                                                        <div className="pt-3 border-t border-gray-100 flex justify-end">
                                                             <ShareButtons title={item.title} description={item.content} />
                                                         </div>
                                                     </div>
@@ -862,10 +866,11 @@ const MarketBoard = () => {
                                                 <label className="block text-sm font-bold text-gray-700 mb-2">가격</label>
                                                 <input
                                                     type="text"
+                                                    inputMode="numeric"
                                                     value={formData.price}
-                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value.replace(/[^0-9]/g, '') })}
                                                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                                                    placeholder="예: 50,000원"
+                                                    placeholder="예: 50000"
                                                     required
                                                 />
                                             </div>

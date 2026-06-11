@@ -147,7 +147,7 @@ const Search = () => {
                       </span>
                     </div>
                     <button
-                      onClick={() => navigate(board.link)}
+                      onClick={() => navigate(board.link + '?q=' + encodeURIComponent(query))}
                       className="text-sm text-blue-600 hover:text-blue-800 font-semibold transition-colors"
                     >
                       게시판 이동 →
@@ -160,7 +160,7 @@ const Search = () => {
                       return (
                         <button
                           key={item.id}
-                          onClick={() => navigate(board.link)}
+                          onClick={() => navigate(board.link + '?q=' + encodeURIComponent(query))}
                           className="w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors"
                         >
                           <h4 className="font-semibold text-gray-900 mb-1 line-clamp-1">

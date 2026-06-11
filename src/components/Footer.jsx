@@ -1,4 +1,4 @@
-import { Facebook, Instagram, Twitter, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
     return (
@@ -21,19 +21,13 @@ const Footer = () => {
                         우리는 여행을 통해 세상을 더 넓게 보고, 새로운 경험을 선물합니다.<br />
                         당신의 다음 여행을 커넥트립과 함께하세요.
                     </p>
-                    <div style={{ display: 'flex', gap: '1.5rem' }}>
-                        <a href="#" style={{ color: 'white', opacity: 0.8, transition: '0.3s' }} className="social-icon">
-                            <Instagram size={24} />
-                        </a>
-                        <a href="#" style={{ color: 'white', opacity: 0.8, transition: '0.3s' }} className="social-icon">
-                            <Facebook size={24} />
-                        </a>
-                        <a href="#" style={{ color: 'white', opacity: 0.8, transition: '0.3s' }} className="social-icon">
-                            <Twitter size={24} />
-                        </a>
-                        <a href="#" style={{ color: 'white', opacity: 0.8, transition: '0.3s' }} className="social-icon">
-                            <Mail size={24} />
-                        </a>
+                    <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <Link to="/terms" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
+                            이용약관
+                        </Link>
+                        <Link to="/privacy" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
+                            개인정보처리방침
+                        </Link>
                     </div>
                 </div>
 
@@ -42,9 +36,9 @@ const Footer = () => {
                 </div>
             </div>
             <style>{`
-        .social-icon:hover {
+        .footer-link:hover {
           opacity: 1 !important;
-          transform: translateY(-3px);
+          text-decoration: underline;
         }
       `}</style>
         </footer>

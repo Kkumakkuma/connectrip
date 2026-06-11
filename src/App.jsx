@@ -26,6 +26,9 @@ const RegionalBoard = lazy(() => import('./components/RegionalBoard'));
 const MyPage = lazy(() => import('./components/MyPage'));
 const Search = lazy(() => import('./pages/Search'));
 const Admin = lazy(() => import('./pages/Admin'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 // 라우트 전환 시 잠깐 보이는 로더 (기존 앱 스피너 톤 유지)
 const RouteFallback = () => (
@@ -172,6 +175,9 @@ function App() {
                   </div>
                 }
               />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </main>

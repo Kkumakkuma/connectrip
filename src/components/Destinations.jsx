@@ -35,6 +35,7 @@ const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
                 decoding="async"
                 width="800"
                 height="220"
+                onError={(e) => { if (!e.currentTarget.src.endsWith('/icon-512x512.png')) e.currentTarget.src = '/icon-512x512.png'; }}
                 className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
             />
         </div>
@@ -73,7 +74,7 @@ const Destinations = () => {
     const { regionId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, profile, isLoggedIn } = useAuth();
+    const { user, isLoggedIn } = useAuth();
     const selectedRegion = regionId ? regions.find(r => r.id === regionId) : null;
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -93,7 +94,9 @@ const Destinations = () => {
 
     useEffect(() => {
         window.scrollTo(0, 0);
-    }, [location.key]);
+        const q = new URLSearchParams(location.search).get('q');
+        if (q) setSearchQuery(q);
+    }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (selectedRegion) {
@@ -121,7 +124,9 @@ const Destinations = () => {
     };
 
     const handleToggleLike = async (id) => {
+        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         const currentlyLiked = !!userLikes[id];
+        // 낙관적 업데이트
         setUserLikes(prev => ({ ...prev, [id]: !currentlyLiked }));
         setAllDestinations(prev => prev.map(dest => {
             if (dest.id === id) {
@@ -137,6 +142,15 @@ const Destinations = () => {
             }
         } catch (err) {
             console.error('좋아요 실패:', err);
+            // 실패 시 낙관적 업데이트 원복
+            setUserLikes(prev => ({ ...prev, [id]: currentlyLiked }));
+            setAllDestinations(prev => prev.map(dest => {
+                if (dest.id === id) {
+                    return { ...dest, likes_count: currentlyLiked ? (dest.likes_count || 0) + 1 : Math.max(0, (dest.likes_count || 0) - 1) };
+                }
+                return dest;
+            }));
+            alert('좋아요 처리에 실패했습니다. 다시 시도해주세요.');
         }
     };
 
@@ -191,7 +205,7 @@ const Destinations = () => {
                                 {regions.map((region) => (
                                     <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }} onClick={() => navigate(`/recommend/${region.id}`)}
                                         className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all">
-                                        <img src={region.image} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
+                                        <img src={region.image} loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                         <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
                                             <div className="mb-2 text-3xl">{region.icon}</div>
@@ -300,7 +314,7 @@ const Destinations = () => {
                 )}
             </AnimatePresence>
 
-            {showLoginPrompt && <LoginPrompt onClose={() => setShowLoginPrompt(false)} />}
+            <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
         </section>
         </>
     );

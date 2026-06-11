@@ -32,8 +32,11 @@ const CrewOnly = () => {
     // URL 변경 시 메인 화면으로 리셋 + 네비 드롭다운 ?tab=(free/layover/deals) 반영
     useEffect(() => {
         resetView();
-        const tab = new URLSearchParams(location.search).get('tab');
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
         if (tab && ['free', 'layover', 'deals'].includes(tab)) setMode(tab);
+        const q = params.get('q');
+        if (q) setSearchQuery(q);
     }, [location]);
 
     // Fetch crew posts when mode changes

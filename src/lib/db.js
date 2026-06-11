@@ -199,7 +199,7 @@ export const destinationsApi = {
     try {
       const { data, error } = await supabase.rpc('increment_likes', { dest_id: id });
       if (!error) return data;
-    } catch {}
+    } catch { /* RPC 미존재(전환기) — 아래 수동 증가로 폴백 */ }
     // Fallback: manual increment
     const { data: dest } = await supabase.from('destinations').select('likes_count').eq('id', id).single();
     const { data, error } = await supabase

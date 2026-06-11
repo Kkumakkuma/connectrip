@@ -51,7 +51,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
           } else {
             companionData[`${flight.flight_number}_${flight.flight_date}`] = [];
           }
-        } catch (err) {
+        } catch {
           companionData[`${flight.flight_number}_${flight.flight_date}`] = [];
         }
       }
@@ -462,7 +462,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                             try {
                               await messagesApi.markAsRead(msg.id);
                               fetchMessages();
-                            } catch (e) { /* ignore */ }
+                            } catch { /* ignore */ }
                           }
                         }}
                       >

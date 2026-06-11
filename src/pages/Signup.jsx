@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Plane, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -194,9 +194,9 @@ const Signup = () => {
                                     <div className="mt-6 text-center text-xs text-gray-500">
                                         <p>
                                             가입하시면{' '}
-                                            <a href="#" className="text-blue-600 hover:underline">이용약관</a>
+                                            <Link to="/terms" className="text-blue-600 hover:underline">이용약관</Link>
                                             {' '}및{' '}
-                                            <a href="#" className="text-blue-600 hover:underline">개인정보처리방침</a>
+                                            <Link to="/privacy" className="text-blue-600 hover:underline">개인정보처리방침</Link>
                                             에 동의하게 됩니다.
                                         </p>
                                     </div>
