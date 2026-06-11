@@ -154,7 +154,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
         </div>
         <button
           onClick={handleOpenInbox}
-          className="relative flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-bold text-sm transition-colors"
+          className="relative flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-bold text-sm transition-colors whitespace-nowrap shrink-0"
         >
           <Inbox size={18} />
           받은 쪽지

@@ -47,6 +47,10 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  /* 한글이 단어 중간에서 세로로 쪼개지지 않게 (좁은 버튼/카드에서 "알림 설/정" 방지).
+     긴 영문·URL은 overflow-wrap으로 칸 넘침만 방어. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 /* Utilities */
