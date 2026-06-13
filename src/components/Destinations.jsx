@@ -9,6 +9,7 @@ import LoginPrompt from './LoginPrompt';
 import ShareButtons from './ShareButtons';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
+import TravelDeals from './TravelDeals';
 
 const regions = [
     { id: 'europe', name: '유럽', icon: '🏰', desc: '승무원들이 가장 사랑하는 유럽의 숨은 명소', image: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=800&auto=format&fit=crop' },
@@ -217,6 +218,9 @@ const Destinations = () => {
                                         </div>
                                     </motion.div>
                                 ))}
+                            </div>
+                            <div className="max-w-6xl mx-auto mt-10">
+                                <TravelDeals />
                             </div>
                         </motion.div>
                     ) : (
