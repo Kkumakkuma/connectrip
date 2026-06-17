@@ -1,8 +1,11 @@
 name: Supabase Keep-Alive
 
 # Free 플랜의 inactivity pause(7일 무활동 시 자동 정지) 방지용.
-# 2026-05-05: Supabase가 일시정지 경고 메일을 보내옴. 기존 daily ping은 200 OK였지만
-# 활동 카운트로 인식이 약했던 것으로 추정 → 6시간마다 + 여러 테이블 + Auth 쿼리로 강화.
+# 2026-05-05: ConnectTrip가 일시정지 경고 메일을 보내옴 → 6시간마다 다중 테이블 + Auth 쿼리로 강화.
+# 2026-06-17: ElecDeal(가전딜) 프로젝트도 동일 경고 메일 → 같은 워크플로에서 두 프로젝트 동시 핑하도록 확장.
+#   ConnectTrip : secrets.SUPABASE_URL / SUPABASE_ANON_KEY
+#   ElecDeal    : secrets.ELECDEAL_URL / ELECDEAL_ANON_KEY
+# URL secret이 비어 있으면 해당 프로젝트 핑은 스스로 skip한다.
 
 on:
   schedule:
@@ -13,46 +16,69 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping multiple Supabase tables (REST)
+      - name: Ping ConnectTrip (travelers-hub)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          set -e
-          # 다중 테이블 SELECT — 더 명확한 DB activity로 카운트되도록.
-          # 존재하지 않는 테이블 404는 무시 (스키마 변경 대비).
-          for tbl in regions profiles posts crew_posts dm_messages; do
-            STATUS=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
-              -H "apikey: $SUPABASE_ANON_KEY" \
-              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-              "$SUPABASE_URL/rest/v1/$tbl?select=*&limit=1")
-            echo "$tbl: HTTP $STATUS"
-            if [ "$STATUS" = "200" ] || [ "$STATUS" = "206" ]; then
-              echo "  → ok"
-            elif [ "$STATUS" = "404" ] || [ "$STATUS" = "406" ]; then
-              echo "  → 테이블 없음/스키마 차이 (skip)"
-            elif [ "$STATUS" = "401" ] || [ "$STATUS" = "403" ]; then
-              echo "  → RLS 차단 (활동은 카운트됨)"
-            else
-              echo "  → 예상 외 응답"
-              head -c 300 /tmp/body.txt; echo
+          ping_project() {
+            local LABEL="$1" URL="$2" KEY="$3" TABLES="$4"
+            if [ -z "$URL" ] || [ -z "$KEY" ]; then
+              echo "[$LABEL] URL/KEY 미설정 → skip"; return 0
             fi
-          done
+            echo "=== [$LABEL] keep-alive ping ==="
+            for tbl in $TABLES; do
+              STATUS=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
+                -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+                "$URL/rest/v1/$tbl?select=*&limit=1" || echo "000")
+              echo "[$LABEL] $tbl: HTTP $STATUS"
+              case "$STATUS" in
+                200|206) echo "  -> ok" ;;
+                404|406) echo "  -> 테이블 없음/스키마 차이 (skip)" ;;
+                401|403) echo "  -> RLS 차단 (활동은 카운트됨)" ;;
+                000)     echo "  -> 연결 실패" ;;
+                *)       echo "  -> 예상 외 응답"; head -c 300 /tmp/body.txt; echo ;;
+              esac
+            done
+            curl -sS -o /dev/null -w "[$LABEL] Auth health: HTTP %{http_code}\n" \
+              "$URL/auth/v1/health" || echo "[$LABEL] Auth health: 연결 실패"
+            curl -sS -o /dev/null -w "[$LABEL] Auth settings: HTTP %{http_code}\n" \
+              -H "apikey: $KEY" "$URL/auth/v1/settings" || echo "[$LABEL] Auth settings: 연결 실패"
+            echo "=== [$LABEL] done ==="
+          }
+          ping_project "ConnectTrip" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" \
+            "regions profiles posts crew_posts dm_messages"
 
-      - name: Ping Auth health
+      - name: Ping ElecDeal (가전딜)
         if: always()
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          ELECDEAL_URL: ${{ secrets.ELECDEAL_URL }}
+          ELECDEAL_ANON_KEY: ${{ secrets.ELECDEAL_ANON_KEY }}
         run: |
-          curl -sS -o /dev/null -w "Auth health: HTTP %{http_code}\n" \
-            "$SUPABASE_URL/auth/v1/health"
-
-      - name: Ping Auth settings (인증 시스템 활동 등록)
-        if: always()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        run: |
-          curl -sS -o /dev/null -w "Auth settings: HTTP %{http_code}\n" \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/auth/v1/settings"
+          ping_project() {
+            local LABEL="$1" URL="$2" KEY="$3" TABLES="$4"
+            if [ -z "$URL" ] || [ -z "$KEY" ]; then
+              echo "[$LABEL] URL/KEY 미설정 → skip"; return 0
+            fi
+            echo "=== [$LABEL] keep-alive ping ==="
+            for tbl in $TABLES; do
+              STATUS=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
+                -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+                "$URL/rest/v1/$tbl?select=*&limit=1" || echo "000")
+              echo "[$LABEL] $tbl: HTTP $STATUS"
+              case "$STATUS" in
+                200|206) echo "  -> ok" ;;
+                404|406) echo "  -> 테이블 없음/스키마 차이 (skip)" ;;
+                401|403) echo "  -> RLS 차단 (활동은 카운트됨)" ;;
+                000)     echo "  -> 연결 실패" ;;
+                *)       echo "  -> 예상 외 응답"; head -c 300 /tmp/body.txt; echo ;;
+              esac
+            done
+            curl -sS -o /dev/null -w "[$LABEL] Auth health: HTTP %{http_code}\n" \
+              "$URL/auth/v1/health" || echo "[$LABEL] Auth health: 연결 실패"
+            curl -sS -o /dev/null -w "[$LABEL] Auth settings: HTTP %{http_code}\n" \
+              -H "apikey: $KEY" "$URL/auth/v1/settings" || echo "[$LABEL] Auth settings: 연결 실패"
+            echo "=== [$LABEL] done ==="
+          }
+          ping_project "ElecDeal" "$ELECDEAL_URL" "$ELECDEAL_ANON_KEY" \
+            "quote_requests bids deals awarded_records profiles"
