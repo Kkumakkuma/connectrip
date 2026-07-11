@@ -218,6 +218,10 @@ grant  execute on function public.bump_email_otp_attempts(uuid) to service_role;
 --   현재: 로그인한 아무 유저나 타인의 email/phone/주소/추천인 조회 가능
 --   이후: 타인 행은 아래 안전 컬럼만 조회 가능. 본인 행 전체 = get_my_profile(),
 --        관리자 전체 목록 = admin_list_profiles().
+--   ★ 2026-07-11(3차): 이 잠금은 아직 적용하지 않는다(주석 유지). 프론트 10곳+ 이 profiles 를 직접
+--     SELECT 하므로, 지금 잠그면 42501 권한오류로 로그인/게시판/마이페이지가 깨진다.
+--     legal_20260711.sql 도 이 잠금을 켜지 않는다(생년월일은 profiles_private 로 별도 격리해 보호).
+--     이 PART 2 를 켜려면 먼저 프론트의 profiles 직접 SELECT 를 전부 RPC/화이트리스트 임베드로 이관할 것.
 -- ----------------------------------------------------------------------------
 
 -- revoke select on table public.profiles from anon, authenticated;

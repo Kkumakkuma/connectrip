@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Gift, CheckCircle, Loader2, Plane, Shield } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Gift, CheckCircle, Loader2, Plane, Shield, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { getAirlineInfo, isAirlineEmail, getAirlineList } from '../lib/airlines';
+import { isUnder14 } from '../lib/age';
 import SEOHead from '../components/SEOHead';
 
 function loadDaumPostcode() {
@@ -61,6 +62,7 @@ export default function SignupEmail() {
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [nicknameStatus, setNicknameStatus] = useState(null);
+  const [birthdate, setBirthdate] = useState('');
 
   const [phone, setPhone] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
@@ -307,6 +309,7 @@ export default function SignupEmail() {
     if (password !== passwordConfirm) return false;
     if (!name.trim()) return false;
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
+    if (!birthdate || isUnder14(birthdate)) return false;
     if (!phoneVerified) return false;
     if (!zipcode || !addressRoad) return false;
     if (userType === 'crew' && !airlineInfo) return false;
@@ -327,6 +330,7 @@ export default function SignupEmail() {
         name: name.trim(),
         nickname: nickname.trim(),
         phone,
+        birthdate,
         address_zipcode: zipcode,
         address_road: addressRoad,
         address_detail: addressDetail,
@@ -351,6 +355,7 @@ export default function SignupEmail() {
           p_airline_email: (userType === 'crew' && airlineInfo) ? airlineEmail : null,
           p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
           p_referred_by: (referrerId && referrerStatus === 'valid') ? referrerId : null,
+          p_birthdate: birthdate,
         });
         if (compErr) throw compErr;
         navigate('/');
@@ -547,6 +552,19 @@ export default function SignupEmail() {
             helperColor={nicknameStatus === 'taken' ? '#dc2626' : nicknameStatus === 'available' ? '#16a34a' : '#64748b'}>
             <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
               placeholder="2~20자" style={inputStyle} autoComplete="off" required maxLength={20} />
+          </Field>
+
+          <Field label="생년월일" icon={<Calendar size={16} />}
+            helper={
+              !birthdate ? '만 14세 이상만 가입할 수 있습니다.' :
+              isUnder14(birthdate) ? '만 14세 미만은 가입할 수 없습니다.' :
+              '확인되었습니다.'
+            }
+            helperColor={!birthdate ? '#64748b' : isUnder14(birthdate) ? '#dc2626' : '#16a34a'}>
+            <input type="date" value={birthdate}
+              onChange={(e) => setBirthdate(e.target.value)}
+              min="1900-01-01" max={new Date().toISOString().slice(0, 10)}
+              style={inputStyle} required />
           </Field>
 
           <Field label="휴대폰 번호 (인증 필요)" icon={<Phone size={16} />}>

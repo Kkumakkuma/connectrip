@@ -472,7 +472,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                               {isSent ? '보냄' : '받음'}
                             </span>
                             <span className="text-sm font-bold text-gray-800">
-                              {otherPerson?.name || '알 수 없음'}
+                              {otherPerson?.name || '(탈퇴한 사용자)'}
                             </span>
                             {msg.flight_number && (
                               <span className="text-xs text-gray-400">({msg.flight_number})</span>
@@ -483,11 +483,11 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                           </span>
                         </div>
                         <p className="text-sm text-gray-700">{msg.content}</p>
-                        {!isSent && (
+                        {!isSent && msg.sender && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setReplyTo({ senderId: msg.sender_id, senderName: msg.sender?.name || '알 수 없음' });
+                              setReplyTo({ senderId: msg.sender_id, senderName: msg.sender?.name || '(탈퇴한 사용자)' });
                             }}
                             className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-700"
                           >

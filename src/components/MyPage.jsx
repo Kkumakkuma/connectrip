@@ -183,6 +183,34 @@ const MyPage = () => {
     const [chargeAmount, setChargeAmount] = useState(10000);
     const [customAmount, setCustomAmount] = useState('');
 
+    // 회원탈퇴
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deleting, setDeleting] = useState(false);
+
+    const handleDeleteAccount = async () => {
+        if (deleteConfirmText.trim() !== '탈퇴') {
+            alert('확인란에 "탈퇴"를 정확히 입력해주세요.');
+            return;
+        }
+        setDeleting(true);
+        try {
+            const { error } = await supabase.rpc('request_account_deletion');
+            if (error) throw error;
+            // 성공: 개인정보 파기 완료 → 즉시 로그아웃 후 홈으로
+            alert('회원탈퇴가 완료되었습니다. 그동안 이용해주셔서 감사합니다.');
+            setShowDeleteModal(false);
+            await signOut();
+            navigate('/');
+            window.scrollTo(0, 0);
+        } catch (err) {
+            console.error('회원탈퇴 실패:', err);
+            alert('회원탈퇴 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     const handleBuyVoucher = async () => {
         const quantityStr = prompt('몇 개의 매칭신청권을 구매하시겠습니까?', '1');
         if (!quantityStr) return;
@@ -849,6 +877,80 @@ const MyPage = () => {
                     로그아웃
                 </button>
             </div>
+
+            {/* 회원탈퇴 */}
+            <div className="mt-4 text-center">
+                <button
+                    onClick={() => { setDeleteConfirmText(''); setShowDeleteModal(true); }}
+                    className="inline-flex items-center gap-1.5 text-sm text-gray-400 underline underline-offset-2 hover:text-red-500 transition-colors"
+                >
+                    <Trash2 size={14} />
+                    회원탈퇴
+                </button>
+            </div>
+
+            {/* 회원탈퇴 확인 모달 */}
+            <AnimatePresence>
+                {showDeleteModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/50 z-[130] flex items-center justify-center p-4"
+                        onClick={(e) => e.target === e.currentTarget && !deleting && setShowDeleteModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+                            className="bg-white rounded-2xl p-6 w-full max-w-md relative"
+                        >
+                            <h3 className="text-lg font-bold text-gray-900 mb-3">정말 탈퇴하시겠어요?</h3>
+                            <div className="text-sm text-gray-600 leading-relaxed space-y-2">
+                                <p>회원탈퇴 시 아래 정보가 <strong className="text-red-500">즉시 파기</strong>됩니다.</p>
+                                <ul className="ml-4 list-disc space-y-1 text-gray-500">
+                                    <li>계정 및 프로필(이메일·이름·닉네임·휴대폰·주소·생년월일)</li>
+                                    <li>작성한 게시글·댓글·후기·좋아요, 비행 스케줄</li>
+                                    <li>보유 포인트·매칭신청권(환급되지 않습니다)</li>
+                                </ul>
+                                <p className="text-gray-500">
+                                    다만 다른 이용자와 주고받은 <strong>쪽지·칭송매칭 기록</strong>은 상대방의 이용기록 보호를 위해
+                                    삭제하지 않고, 회원님을 식별할 수 없도록 익명 처리(‘탈퇴한 사용자’로 표시)합니다.
+                                </p>
+                                <p className="text-gray-500">
+                                    또한 전자상거래 등 관계 법령이 보존을 정한 결제·거래 기록은 해당 보존기간 동안
+                                    분리보관 후 파기됩니다. 탈퇴 후에는 되돌릴 수 없습니다.
+                                </p>
+                            </div>
+                            <div className="mt-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                    확인을 위해 <span className="text-red-500">탈퇴</span> 를 입력해주세요.
+                                </label>
+                                <input
+                                    type="text"
+                                    value={deleteConfirmText}
+                                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                    placeholder="탈퇴"
+                                    disabled={deleting}
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none"
+                                />
+                            </div>
+                            <div className="flex gap-3 mt-5">
+                                <button
+                                    onClick={() => setShowDeleteModal(false)}
+                                    disabled={deleting}
+                                    className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    onClick={handleDeleteAccount}
+                                    disabled={deleting || deleteConfirmText.trim() !== '탈퇴'}
+                                    className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {deleting ? '처리 중...' : '탈퇴하기'}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </section>
         </>
     );

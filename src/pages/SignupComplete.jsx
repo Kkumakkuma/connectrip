@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield } from 'lucide-react';
+import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield, Calendar } from 'lucide-react';
 import { getAirlineInfo } from '../lib/airlines';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import { isUnder14 } from '../lib/age';
 import SEOHead from '../components/SEOHead';
 
 // Daum 우편번호 스크립트 동적 로더
@@ -37,6 +38,7 @@ export default function SignupComplete() {
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [nicknameStatus, setNicknameStatus] = useState(null); // 'checking' | 'available' | 'taken' | null
+  const [birthdate, setBirthdate] = useState('');
   const [phone, setPhone] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
   const [phoneSent, setPhoneSent] = useState(false);
@@ -100,6 +102,22 @@ export default function SignupComplete() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
+
+  // 생년월일 프리필: birthdate 는 profiles 가 아니라 비공개 테이블(profiles_private)에 있으므로
+  // 본인 행만 별도 조회(RLS: auth.uid()=user_id). (profiles 직접 조회 대신 profiles_private 사용)
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles_private')
+        .select('birthdate')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!cancelled && data?.birthdate) setBirthdate(String(data.birthdate).slice(0, 10));
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   // 추천인 닉네임 검증 (400ms debounce)
   useEffect(() => {
@@ -229,6 +247,7 @@ export default function SignupComplete() {
   const canSubmit = () => {
     if (!name.trim()) return false;
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
+    if (!birthdate || isUnder14(birthdate)) return false;
     if (!phoneVerified) return false;
     if (!zipcode || !addressRoad) return false;
     if (userType === 'crew' && !airlineInfo) return false; // 승무원은 항공사 인증 필수
@@ -261,6 +280,7 @@ export default function SignupComplete() {
         p_airline_email: (userType === 'crew' && airlineInfo) ? airlineEmail : null,
         p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
         p_referred_by: (referrerId && referrerStatus === 'valid') ? referrerId : null,
+        p_birthdate: birthdate,
       });
       if (upErr) throw upErr;
       // 승무원 pending 정보는 이제 사용 완료 → 세션 스토리지에서 제거
@@ -374,6 +394,28 @@ export default function SignupComplete() {
               placeholder="2~20자"
               style={inputStyle}
               maxLength={20}
+              required
+            />
+          </Field>
+
+          {/* 생년월일 (만 14세 확인) */}
+          <Field
+            label="생년월일"
+            icon={<Calendar size={16} />}
+            helper={
+              !birthdate ? '만 14세 이상만 가입할 수 있습니다.' :
+              isUnder14(birthdate) ? '만 14세 미만은 가입할 수 없습니다.' :
+              '확인되었습니다.'
+            }
+            helperColor={!birthdate ? '#64748b' : isUnder14(birthdate) ? '#dc2626' : '#16a34a'}
+          >
+            <input
+              type="date"
+              value={birthdate}
+              onChange={(e) => setBirthdate(e.target.value)}
+              min="1900-01-01"
+              max={new Date().toISOString().slice(0, 10)}
+              style={inputStyle}
               required
             />
           </Field>
