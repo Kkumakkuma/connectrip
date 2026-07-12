@@ -4,9 +4,9 @@ import SEOHead from '../components/SEOHead';
 // 이용약관. ⚠️ "(기재 예정)" placeholder(운영자 정보)는 쿠마님이 실제 정보로 교체.
 const OPERATOR_INFO = [
   ['서비스명', 'ConnectTrip (커넥트립)'],
-  ['운영자', '(기재 예정)'],
+  ['운영자', '200kgBrothers Company'],
   ['사업자등록번호', '(기재 예정)'],
-  ['연락처(고객문의)', '(기재 예정)'],
+  ['연락처(고객문의)', '200kgBrothers@gmail.com'],
   ['호스팅 제공자', 'Vercel Inc.'],
 ];
 

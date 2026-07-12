@@ -3,6 +3,8 @@ import { supabase } from './supabase';
 
 const AuthContext = createContext({});
 
+// context 파일 관례상 hook과 Provider를 함께 export (fast refresh 예외)
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
