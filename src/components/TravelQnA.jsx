@@ -203,7 +203,7 @@ const TravelQnA = () => {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                                 <motion.div whileHover={{ y: -10 }} onClick={() => handleModeSelect('review')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-green-100 group">
+                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-green-400 hover:border-green-500 group">
                                     <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mb-6 text-green-600 group-hover:scale-110 transition-transform">
                                         <BookOpen size={40} />
                                     </div>
@@ -212,7 +212,7 @@ const TravelQnA = () => {
                                     <span className="text-green-600 font-bold flex items-center gap-2">후기 보러가기 →</span>
                                 </motion.div>
                                 <motion.div whileHover={{ y: -10 }} onClick={() => handleModeSelect('qna')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-blue-100 group">
+                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group">
                                     <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
                                         <HelpCircle size={40} />
                                     </div>

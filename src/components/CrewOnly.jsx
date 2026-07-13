@@ -161,7 +161,7 @@ const CrewOnly = () => {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
                                 {/* 자유게시판 */}
                                 <motion.div whileHover={{ y: -10 }} onClick={() => setMode('free')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-blue-100 group">
+                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group">
                                     <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
                                         <MessageSquare size={40} />
                                     </div>
@@ -174,7 +174,7 @@ const CrewOnly = () => {
 
                                 {/* 레이오버 정보 */}
                                 <motion.div whileHover={{ y: -10 }} onClick={() => setMode('layover')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-green-100 group">
+                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-green-400 hover:border-green-500 group">
                                     <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mb-6 text-green-600 group-hover:scale-110 transition-transform">
                                         <Plane size={40} />
                                     </div>
@@ -187,7 +187,7 @@ const CrewOnly = () => {
 
                                 {/* 할인 혜택 */}
                                 <motion.div whileHover={{ y: -10 }} onClick={() => setMode('deals')}
-                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-purple-100 group">
+                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-purple-400 hover:border-purple-500 group">
                                     <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 text-purple-600 group-hover:scale-110 transition-transform">
                                         <Tag size={40} />
                                     </div>

@@ -103,7 +103,7 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
                                 overflow: 'hidden',
                                 background: 'white',
                                 boxShadow: activeCategory === cat.id ? '0 10px 30px rgba(59, 130, 246, 0.2)' : '0 4px 20px rgba(0,0,0,0.08)',
-                                border: activeCategory === cat.id ? '2px solid var(--primary-color)' : '2px solid transparent',
+                                border: '2px solid var(--primary-color)',
                                 transition: 'all 0.3s ease',
                                 display: 'flex',
                                 flexDirection: 'column',

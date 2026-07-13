@@ -244,7 +244,7 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('sell')}
-                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-blue-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group"
                                 >
                                     <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600 group-hover:scale-110 transition-transform">
                                         <ShoppingBag size={28} />
@@ -263,7 +263,7 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('buy')}
-                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-green-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-green-400 hover:border-green-500 group"
                                 >
                                     <div className="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mb-4 text-green-600 group-hover:scale-110 transition-transform">
                                         <Search size={28} />
@@ -282,7 +282,7 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('share')}
-                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-pink-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-pink-400 hover:border-pink-500 group"
                                 >
                                     <div className="w-14 h-14 bg-pink-100 rounded-2xl flex items-center justify-center mb-4 text-pink-500 group-hover:scale-110 transition-transform">
                                         <Heart size={28} />
@@ -301,7 +301,7 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('groupbuy')}
-                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-purple-100 group"
+                                    className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-purple-400 hover:border-purple-500 group"
                                 >
                                     <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center mb-4 text-purple-600 group-hover:scale-110 transition-transform">
                                         <Users size={28} />

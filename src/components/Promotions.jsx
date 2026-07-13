@@ -161,7 +161,7 @@ const Promotions = () => {
                                 <p className="text-gray-500">원하는 게시판을 선택해주세요.</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('promotion')} className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-blue-100 group">
+                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('promotion')} className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group">
                                     <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
                                         <Megaphone size={40} />
                                     </div>
@@ -169,7 +169,7 @@ const Promotions = () => {
                                     <p className="text-gray-500 mb-6">여행 상품, 특가 패키지, 할인 정보 등을 홍보하고 확인하세요.</p>
                                     <span className="text-blue-600 font-bold flex items-center gap-2">홍보 보러가기 →</span>
                                 </motion.div>
-                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('review')} className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border border-transparent hover:border-purple-100 group">
+                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('review')} className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-purple-400 hover:border-purple-500 group">
                                     <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 text-purple-600 group-hover:scale-110 transition-transform">
                                         <MessageCircle size={40} />
                                     </div>
