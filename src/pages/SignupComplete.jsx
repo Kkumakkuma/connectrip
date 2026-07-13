@@ -6,6 +6,7 @@ import { getAirlineInfo } from '../lib/airlines';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { isUnder14 } from '../lib/age';
+import { apiUrl } from '../lib/api';
 import SEOHead from '../components/SEOHead';
 
 // Daum 우편번호 스크립트 동적 로더
@@ -198,7 +199,7 @@ export default function SignupComplete() {
     }
     setPhoneSending(true);
     try {
-      const resp = await fetch('/api/send-otp', {
+      const resp = await fetch(apiUrl('/api/send-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: cleaned }),
@@ -225,7 +226,7 @@ export default function SignupComplete() {
     setPhoneVerifying(true);
     try {
       const cleaned = phone.replace(/[^0-9]/g, '');
-      const resp = await fetch('/api/verify-otp', {
+      const resp = await fetch(apiUrl('/api/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: cleaned, code: phoneCode }),

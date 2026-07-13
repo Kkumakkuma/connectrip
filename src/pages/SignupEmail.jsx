@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { getAirlineInfo, isAirlineEmail, getAirlineList } from '../lib/airlines';
 import { isUnder14 } from '../lib/age';
+import { apiUrl } from '../lib/api';
 import SEOHead from '../components/SEOHead';
 
 function loadDaumPostcode() {
@@ -197,7 +198,7 @@ export default function SignupEmail() {
     }
     setEmailSending(true);
     try {
-      const resp = await fetch('/api/send-email-otp', {
+      const resp = await fetch(apiUrl('/api/send-email-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleaned }),
@@ -225,7 +226,7 @@ export default function SignupEmail() {
     setEmailVerifying(true);
     try {
       const cleaned = email.trim().toLowerCase();
-      const resp = await fetch('/api/verify-email-otp', {
+      const resp = await fetch(apiUrl('/api/verify-email-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleaned, code: emailCode }),
@@ -257,7 +258,7 @@ export default function SignupEmail() {
     }
     setPhoneSending(true);
     try {
-      const resp = await fetch('/api/send-otp', {
+      const resp = await fetch(apiUrl('/api/send-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: cleaned }),
@@ -283,7 +284,7 @@ export default function SignupEmail() {
     setPhoneVerifying(true);
     try {
       const cleaned = phone.replace(/[^0-9]/g, '');
-      const resp = await fetch('/api/verify-otp', {
+      const resp = await fetch(apiUrl('/api/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: cleaned, code: phoneCode }),

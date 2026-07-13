@@ -81,7 +81,8 @@
   <script type="module" src="/src/main.jsx"></script>
   <script>
     // Force unregister old service workers and clear caches on version change
-    if ('serviceWorker' in navigator) {
+    // (앱(Capacitor)에서는 스테일 번들 캐시 위험이 있어 서비스워커 코드를 실행하지 않는다)
+    if ('serviceWorker' in navigator && !window.Capacitor?.isNativePlatform?.()) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         registrations.forEach(function(reg) { reg.unregister(); });
       });

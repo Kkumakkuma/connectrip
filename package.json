@@ -7,10 +7,14 @@
     "dev": "vite --host",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "app:build": "vite build --mode app",
+    "app:sync": "npm run app:build && npx cap sync android",
+    "app:open": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
+    "@capacitor/app": "^8.1.0",
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",
     "@supabase/supabase-js": "^2.103.0",

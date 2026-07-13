@@ -8,6 +8,8 @@ import ProfileCompleteGate from './components/ProfileCompleteGate';
 import RouteResetGuard from './components/RouteResetGuard';
 import Footer from './components/Footer';
 import PushPermission from './components/PushPermission';
+import AppSplash from './components/AppSplash'; // 앱 오프닝 모션(웹 no-op)
+import { isNativeApp } from './lib/native';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, Loader2 } from 'lucide-react';
 
@@ -49,6 +51,33 @@ function App() {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
   };
+
+  // 안드로이드 하드웨어 뒤로가기 (앱 전용) — 히스토리가 있으면 back, 루트면 앱 종료.
+  // @capacitor/app 은 네이티브에서만 동적 import 해 웹 번들 비대화를 막는다.
+  useEffect(() => {
+    if (!isNativeApp()) return undefined;
+    let cancelled = false;
+    let handle = null;
+    (async () => {
+      const { App: CapApp } = await import('@capacitor/app');
+      const h = await CapApp.addListener('backButton', ({ canGoBack }) => {
+        if (window.location.pathname !== '/' && canGoBack) {
+          window.history.back();
+        } else {
+          CapApp.exitApp();
+        }
+      });
+      if (cancelled) {
+        h.remove(); // 등록 완료 전에 언마운트된 경우 즉시 정리
+        return;
+      }
+      handle = h;
+    })();
+    return () => {
+      cancelled = true;
+      if (handle) handle.remove();
+    };
+  }, []);
 
   // 키워드 알림 (폴링 방식)
   // 과거 supabase realtime 구독은 unsubscribe 시 "Maximum call stack exceeded" +
@@ -137,6 +166,7 @@ function App() {
 
   return (
     <Router>
+      <AppSplash />
       <ProfileCompleteGate />
       <RouteResetGuard />
       <div className="App">

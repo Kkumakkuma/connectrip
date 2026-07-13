@@ -118,6 +118,74 @@ a {
   color: inherit;
 }
 
+/* ── 앱(안드로이드) 오프닝 모션 (AppSplash.jsx) ─────────────────────
+   로고 드롭(바운스) → 착지 후 흔들림 → 워드마크 페이드인 → 전체 페이드아웃.
+   drop(translateY)과 wobble(rotate)은 둘 다 transform 이라 부모/자식으로 분리.
+   배경 = 로고 딥틸(#185069, PIL 실측), 액센트 = 사이트 Sunset Gold(--accent-color). */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #185069;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  pointer-events: none;
+  animation: splash-fade 0.45s ease 2.05s forwards;
+}
+
+.app-splash-drop {
+  animation: splash-drop 1s cubic-bezier(0.22, 0.9, 0.32, 1) both;
+}
+
+.app-splash-logo {
+  width: 116px;
+  height: auto;
+  animation: splash-wobble 0.8s ease-in-out 1s both;
+}
+
+.app-splash-word {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  opacity: 0;
+  animation: splash-word-in 0.5s ease 1.15s forwards;
+}
+
+.app-splash-word-accent {
+  color: #F4C150;
+  /* 사이트 액센트(Sunset Gold) — 로고 비행기 골드와 같은 계열 */
+}
+
+@keyframes splash-drop {
+  0% { transform: translateY(-62vh); }
+  58% { transform: translateY(0); }
+  74% { transform: translateY(-4vh); }
+  88% { transform: translateY(0); }
+  95% { transform: translateY(-1.2vh); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes splash-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(7deg); }
+  55% { transform: rotate(-5deg); }
+  80% { transform: rotate(2.5deg); }
+}
+
+@keyframes splash-word-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes splash-fade {
+  to { opacity: 0; }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
