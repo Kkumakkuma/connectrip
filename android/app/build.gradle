@@ -10,6 +10,16 @@ if (keystorePropertiesFile.exists()) {
     }
 }
 
+// Play 업로드용 release 는 반드시 서명돼야 한다. keystore.properties 없이 release 를 빌드하면
+// 무서명 산출물이 조용히 나와(Play 거부·서명불일치 사고) 위험하므로, release 태스크가 그래프에
+// 들어왔는데 keystore 가 없으면 명시적으로 실패시킨다(debug/sync 빌드는 영향 없음).
+gradle.taskGraph.whenReady { graph ->
+    if (!keystorePropertiesFile.exists() &&
+        graph.allTasks.any { it.name.toLowerCase().contains('release') }) {
+        throw new GradleException("release 빌드에는 android/keystore.properties 가 필요합니다 (무서명 산출물 방지).")
+    }
+}
+
 android {
     namespace = "com.connecttrip.app"
     compileSdk = rootProject.ext.compileSdkVersion
