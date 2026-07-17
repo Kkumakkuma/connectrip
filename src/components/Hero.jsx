@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import heroBg from '../assets/hero-bg.png';
+import heroBg from '../assets/hero-bg.webp';
 import { ChevronDown } from 'lucide-react';
 
 const Hero = () => {

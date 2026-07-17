@@ -34,7 +34,7 @@ const ShareButtons = ({ title, description, url }) => {
 
   const handleTwitterShare = () => {
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareTitle)}&url=${encodeURIComponent(shareUrl)}`;
-    window.open(twitterUrl, '_blank', 'width=600,height=400');
+    window.open(twitterUrl, '_blank', 'noopener,noreferrer,width=600,height=400');
     setShowMenu(false);
   };
 

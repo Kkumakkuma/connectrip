@@ -25,7 +25,17 @@ export async function subscribeToPush(userId) {
       return null;
     }
 
-    const registration = await navigator.serviceWorker.ready;
+    // 웹은 index.html 이 매 로드마다 서비스워커를 unregister 한다(스테일 번들 캐시 방지).
+    // 그래서 serviceWorker.ready 가 영원히 resolve 되지 않아 여기서 무한 대기 → 권한 팝업이
+    // '허용' 후 닫히지 않는 버그가 있었다. ready 를 타임아웃과 race 해 활성 SW 가 없으면 조용히 포기.
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+    ]);
+    if (!registration) {
+      console.warn('No active service worker — push subscription skipped');
+      return null;
+    }
 
     // Check for existing subscription
     let subscription = await registration.pushManager.getSubscription();

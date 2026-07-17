@@ -50,8 +50,10 @@ const NotificationSettings = () => {
 
   const handleEnablePush = async () => {
     if (!pushEnabled) {
-      const granted = await requestPermission();
-      setPushEnabled(granted);
+      // requestPermission()은 'granted'|'denied'|'default' 문자열을 반환한다.
+      // 그대로 넣으면 'denied'도 truthy라 거부해도 '활성화됨'으로 표시된다 → boolean 으로 변환.
+      const permission = await requestPermission();
+      setPushEnabled(permission === 'granted');
     }
   };
 
