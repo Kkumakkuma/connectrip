@@ -53,8 +53,10 @@ export default async function handler(req, res) {
     }
 
     const supabase = createClient(SUPA_URL, SUPA_KEY);
+    const ipAddr = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      || req.headers['x-real-ip'] || null;
 
-    // 레이트리밋: 같은 번호에 최근 60초 내 발송 이력 있으면 차단
+    // 레이트리밋 ①: 같은 번호에 최근 60초 내 발송 이력 있으면 차단
     const sixtySecAgo = new Date(Date.now() - 60_000).toISOString();
     const { data: recent } = await supabase
       .from('phone_otps')
@@ -69,6 +71,23 @@ export default async function handler(req, res) {
       });
     }
 
+    // 레이트리밋 ②: 같은 IP 에서 최근 10분 내 발송 8건 초과면 차단 (번호를 바꿔가며 SMS 비용을
+    //   유발하는 펌핑 공격 방어). 정상 사용자는 본인 번호 1개라 도달하지 않는다.
+    if (ipAddr) {
+      const tenMinAgo = new Date(Date.now() - 10 * 60_000).toISOString();
+      const { count: ipCount } = await supabase
+        .from('phone_otps')
+        .select('id', { count: 'exact', head: true })
+        .eq('ip_address', ipAddr)
+        .gte('created_at', tenMinAgo);
+      if ((ipCount || 0) >= 8) {
+        return res.status(429).json({
+          ok: false,
+          error: '인증 요청이 너무 많습니다. 잠시 후 다시 시도하세요.'
+        });
+      }
+    }
+
     // 6자리 OTP 생성 (crypto 안전)
     const code = String(crypto.randomInt(100000, 1000000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
@@ -77,18 +96,15 @@ export default async function handler(req, res) {
       phone: cleaned,
       code,
       expires_at: expiresAt,
-      ip_address: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || null,
+      ip_address: ipAddr,
     });
     if (insErr) {
       console.error('[send-otp] DB insert 오류', insErr);
       return res.status(500).json({ ok: false, error: 'DB 저장 실패' });
     }
 
-    // Solapi 발송
+    // Solapi 발송 (키 파생정보는 로그에 남기지 않는다 — 로그 경유 정보 노출 차단)
     console.log('[send-otp] Solapi 호출 준비', {
-      apiKeyLen: SOLAPI_KEY.length,
-      apiKeyPrefix: SOLAPI_KEY.slice(0, 4),
-      secretLen: SOLAPI_SECRET.length,
       fromNumber: String(SOLAPI_FROM).replace(/[^0-9]/g, ''),
       toNumber: cleaned.slice(0, 3) + '***',
     });

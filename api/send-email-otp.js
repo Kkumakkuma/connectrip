@@ -33,8 +33,10 @@ export default async function handler(req, res) {
     }
 
     const supabase = createClient(SUPA_URL, SUPA_KEY);
+    const ipAddr = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      || req.headers['x-real-ip'] || null;
 
-    // 60초 레이트리밋
+    // 60초 레이트리밋 (같은 이메일)
     const sixtySecAgo = new Date(Date.now() - 60_000).toISOString();
     const { data: recent } = await supabase
       .from('email_otps')
@@ -49,6 +51,22 @@ export default async function handler(req, res) {
       });
     }
 
+    // 같은 IP 10분 12건 초과 차단 (이메일 주소를 바꿔가며 발송 남용/비용 유발 방어).
+    if (ipAddr) {
+      const tenMinAgo = new Date(Date.now() - 10 * 60_000).toISOString();
+      const { count: ipCount } = await supabase
+        .from('email_otps')
+        .select('id', { count: 'exact', head: true })
+        .eq('ip_address', ipAddr)
+        .gte('created_at', tenMinAgo);
+      if ((ipCount || 0) >= 12) {
+        return res.status(429).json({
+          ok: false,
+          error: '인증 요청이 너무 많습니다. 잠시 후 다시 시도하세요.',
+        });
+      }
+    }
+
     const code = String(crypto.randomInt(100000, 1000000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
@@ -56,7 +74,7 @@ export default async function handler(req, res) {
       email,
       code,
       expires_at: expiresAt,
-      ip_address: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || null,
+      ip_address: ipAddr,
     });
     if (insErr) {
       console.error('[send-email-otp] DB insert 오류', insErr);
