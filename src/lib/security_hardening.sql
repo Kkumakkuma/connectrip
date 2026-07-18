@@ -369,6 +369,8 @@ DECLARE
   v_clean_phone TEXT;
   v_ref         UUID;
   v_domain      TEXT;
+  v_norm_email  TEXT;
+  v_otp_id      UUID;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_user_type NOT IN ('traveler', 'crew') THEN RAISE EXCEPTION 'invalid user_type'; END IF;
@@ -382,11 +384,24 @@ BEGIN
   ) INTO v_phone_ok;
   IF NOT v_phone_ok THEN RAISE EXCEPTION 'phone not verified'; END IF;
 
-  -- 승무원이면 항공사 이메일 도메인을 화이트리스트로 서버 검증
+  -- 승무원이면 (1) 항공사 이메일 도메인 화이트리스트 + (2) 그 회사 이메일 OTP 인증을 서버 검증.
+  -- 회사 이메일은 가입/로그인 이메일과 분리된 별도 인증(2026-07-18). 도메인만 맞으면 통과하던 구멍 차단.
   IF p_user_type = 'crew' THEN
-    v_domain := lower(split_part(COALESCE(p_airline_email, ''), '@', 2));
+    v_norm_email := lower(trim(COALESCE(p_airline_email, '')));
+    v_domain := split_part(v_norm_email, '@', 2);
     SELECT EXISTS (SELECT 1 FROM public.airline_domains WHERE domain = v_domain) INTO v_crew;
     IF NOT v_crew THEN RAISE EXCEPTION 'crew airline verification required'; END IF;
+
+    -- 최근 1시간 내 verified 이고 미소비 email_otps 1건을 소비(consume). 재사용/피기백 차단.
+    SELECT id INTO v_otp_id FROM public.email_otps
+      WHERE lower(email) = v_norm_email
+        AND verified_at IS NOT NULL
+        AND verified_at > NOW() - INTERVAL '1 hour'
+        AND consumed_at IS NULL
+      ORDER BY verified_at DESC
+      LIMIT 1;
+    IF v_otp_id IS NULL THEN RAISE EXCEPTION 'airline email not verified'; END IF;
+    UPDATE public.email_otps SET consumed_at = NOW() WHERE id = v_otp_id;
   END IF;
 
   v_ref := p_referred_by;
@@ -409,7 +424,7 @@ BEGIN
     address_road        = p_road,
     address_detail      = p_detail,
     user_type           = p_user_type,
-    airline_email       = CASE WHEN v_crew THEN p_airline_email ELSE airline_email END,
+    airline_email       = CASE WHEN v_crew THEN v_norm_email ELSE airline_email END,
     airline_name        = CASE WHEN v_crew THEN p_airline_name  ELSE airline_name  END,
     crew_verified       = CASE WHEN v_crew THEN TRUE ELSE crew_verified END,
     crew_verified_at    = CASE WHEN v_crew THEN NOW() ELSE crew_verified_at END,
@@ -663,13 +678,16 @@ DROP FUNCTION IF EXISTS public.adjust_points(INT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS public.refund_voucher(INT);
 
 -- ------------------------------------------------------------
--- 7. crew_verified 백필 (기존 승무원이 새 정책에 막히지 않게 — 서버컨텍스트라 트리거 통과)
--- ------------------------------------------------------------
-UPDATE public.profiles SET crew_verified = TRUE
-  WHERE user_type = 'crew'
-    AND COALESCE(crew_verified, FALSE) = FALSE
-    AND airline_email IS NOT NULL
-    AND lower(split_part(airline_email, '@', 2)) IN (SELECT domain FROM public.airline_domains);
+-- 7. crew_verified 백필 — [2026-07-18 비활성화]
+--    도메인만 보고 crew_verified 를 켜는 1회성 백필. 이미 prod 에 적용됐고, 이제 회사 이메일
+--    OTP 인증(complete_signup_profile) 정책이 도입돼 도메인-only 검증은 우회 경로가 된다.
+--    파일 재실행 시 새 미인증 crew 가 도메인만으로 인증되지 않도록 영구 비활성화한다.
+--    (기존 승무원은 이미 crew_verified=TRUE 라 영향 없음.)
+-- UPDATE public.profiles SET crew_verified = TRUE
+--   WHERE user_type = 'crew'
+--     AND COALESCE(crew_verified, FALSE) = FALSE
+--     AND airline_email IS NOT NULL
+--     AND lower(split_part(airline_email, '@', 2)) IN (SELECT domain FROM public.airline_domains);
 
 -- ------------------------------------------------------------
 -- 8. 정책 재작성

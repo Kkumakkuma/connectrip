@@ -143,6 +143,9 @@ $$;
 -- ------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.complete_signup_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID);
 
+-- 회사 이메일 OTP 1회성 소비용 컬럼 (재사용/피기백 차단, 2026-07-18)
+ALTER TABLE public.email_otps ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ;
+
 CREATE OR REPLACE FUNCTION public.complete_signup_profile(
   p_name TEXT, p_nickname TEXT, p_phone TEXT,
   p_zipcode TEXT, p_road TEXT, p_detail TEXT,
@@ -159,6 +162,8 @@ DECLARE
   v_clean_phone TEXT;
   v_ref         UUID;
   v_domain      TEXT;
+  v_norm_email  TEXT;
+  v_otp_id      UUID;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_user_type NOT IN ('traveler', 'crew') THEN RAISE EXCEPTION 'invalid user_type'; END IF;
@@ -179,11 +184,25 @@ BEGIN
   ) INTO v_phone_ok;
   IF NOT v_phone_ok THEN RAISE EXCEPTION 'phone not verified'; END IF;
 
-  -- 승무원이면 항공사 이메일 도메인을 화이트리스트로 서버 검증
+  -- 승무원: (1) 항공사 이메일 도메인 화이트리스트 + (2) 회사 이메일 OTP 인증(1회성 소비)을 서버 검증.
+  -- 회사 이메일은 가입/로그인 이메일과 분리된 별도 인증(2026-07-18). 도메인만 맞으면 통과하던
+  -- 구멍(특히 OAuth 가입은 항공사 이메일 OTP 자체가 없었음)을 email_otps 기록 필수+소비로 차단.
   IF p_user_type = 'crew' THEN
-    v_domain := lower(split_part(COALESCE(p_airline_email, ''), '@', 2));
+    v_norm_email := lower(trim(COALESCE(p_airline_email, '')));
+    v_domain := split_part(v_norm_email, '@', 2);
     SELECT EXISTS (SELECT 1 FROM public.airline_domains WHERE domain = v_domain) INTO v_crew;
     IF NOT v_crew THEN RAISE EXCEPTION 'crew airline verification required'; END IF;
+
+    -- 최근 1시간 내 verified 이고 아직 소비되지 않은 email_otps 1건을 소비(consume). 재사용/피기백 차단.
+    SELECT id INTO v_otp_id FROM public.email_otps
+      WHERE lower(email) = v_norm_email
+        AND verified_at IS NOT NULL
+        AND verified_at > NOW() - INTERVAL '1 hour'
+        AND consumed_at IS NULL
+      ORDER BY verified_at DESC
+      LIMIT 1;
+    IF v_otp_id IS NULL THEN RAISE EXCEPTION 'airline email not verified'; END IF;
+    UPDATE public.email_otps SET consumed_at = NOW() WHERE id = v_otp_id;
   END IF;
 
   v_ref := p_referred_by;
@@ -207,7 +226,7 @@ BEGIN
     address_road        = p_road,
     address_detail      = p_detail,
     user_type           = p_user_type,
-    airline_email       = CASE WHEN v_crew THEN p_airline_email ELSE airline_email END,
+    airline_email       = CASE WHEN v_crew THEN v_norm_email ELSE airline_email END,
     airline_name        = CASE WHEN v_crew THEN p_airline_name  ELSE airline_name  END,
     crew_verified       = CASE WHEN v_crew THEN TRUE ELSE crew_verified END,
     crew_verified_at    = CASE WHEN v_crew THEN NOW() ELSE crew_verified_at END,

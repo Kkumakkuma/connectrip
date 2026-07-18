@@ -56,6 +56,15 @@ export default function SignupComplete() {
   const [referrerAccountId, setReferrerAccountId] = useState('');
   const [referrerStatus, setReferrerStatus] = useState(null); // 'checking' | 'valid' | 'invalid' | null
   const [referrerId, setReferrerId] = useState(null);
+  // 회사(항공사) 이메일 별도 인증 상태 — 로그인 이메일(구글 계정)과 완전 분리
+  const [airlineEmailCode, setAirlineEmailCode] = useState('');
+  const [airlineEmailSent, setAirlineEmailSent] = useState(false);
+  const [airlineEmailVerified, setAirlineEmailVerified] = useState(false);
+  const [airlineEmailSending, setAirlineEmailSending] = useState(false);
+  const [airlineEmailVerifying, setAirlineEmailVerifying] = useState(false);
+  const [airlineEmailError, setAirlineEmailError] = useState('');
+  // 인증에 성공한 회사 이메일(정규화값) — 늦은 응답 레이스/입력변경으로 잘못 통과되지 않게 canSubmit 에서 대조
+  const [verifiedAirlineEmail, setVerifiedAirlineEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -144,6 +153,14 @@ export default function SignupComplete() {
     return () => clearTimeout(t);
   }, [referrerAccountId, user?.id]);
 
+  // 항공사 이메일 값 바뀌면 회사 인증 상태 리셋
+  useEffect(() => {
+    setAirlineEmailVerified(false);
+    setAirlineEmailSent(false);
+    setAirlineEmailCode('');
+    setVerifiedAirlineEmail('');
+  }, [airlineEmail]);
+
   // 닉네임 중복 체크 (300ms debounce)
   useEffect(() => {
     if (!nickname || nickname.length < 2) {
@@ -180,6 +197,65 @@ export default function SignupComplete() {
       }).open();
     } catch (err) {
       setError(err.message || '주소 검색을 열 수 없습니다.');
+    }
+  };
+
+  // 회사(항공사) 이메일 인증번호 발송 — 로그인 이메일(구글 계정)과 별개 주소로 발송
+  const sendAirlineEmailCode = async () => {
+    setError('');
+    setAirlineEmailError('');
+    if (!airlineInfo) {
+      setAirlineEmailError('지원되는 항공사 이메일을 먼저 입력해주세요.');
+      return;
+    }
+    const cleaned = airlineEmail.trim().toLowerCase();
+    setAirlineEmailSending(true);
+    try {
+      const resp = await fetch(apiUrl('/api/send-email-otp'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleaned }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setAirlineEmailError(data.error || '회사 이메일 발송 실패');
+        return;
+      }
+      setAirlineEmailSent(true);
+      setAirlineEmailCode('');
+    } catch (err) {
+      setAirlineEmailError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setAirlineEmailSending(false);
+    }
+  };
+
+  const verifyAirlineEmailCode = async () => {
+    setAirlineEmailError('');
+    if (!airlineEmailCode || airlineEmailCode.length !== 6 || !/^[0-9]+$/.test(airlineEmailCode)) {
+      setAirlineEmailError('회사 이메일 인증번호 6자리를 입력해주세요.');
+      return;
+    }
+    setAirlineEmailVerifying(true);
+    try {
+      const cleaned = airlineEmail.trim().toLowerCase();
+      const resp = await fetch(apiUrl('/api/verify-email-otp'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleaned, code: airlineEmailCode }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        setAirlineEmailError(data.error || '회사 이메일 인증 실패');
+        return;
+      }
+      setAirlineEmailVerified(true);
+      setVerifiedAirlineEmail(cleaned); // 인증 성공한 정규화 이메일 기록
+      setAirlineEmailError('');
+    } catch (err) {
+      setAirlineEmailError('네트워크 오류: ' + (err.message || '알 수 없음'));
+    } finally {
+      setAirlineEmailVerifying(false);
     }
   };
 
@@ -248,7 +324,9 @@ export default function SignupComplete() {
     if (!birthdate || isUnder14(birthdate)) return false;
     if (!phoneVerified) return false;
     if (!zipcode || !addressRoad) return false;
-    if (userType === 'crew' && !airlineInfo) return false; // 승무원은 항공사 인증 필수
+    // 승무원은 회사 이메일 인증 필수 + 인증한 이메일이 현재 입력값과 일치해야 함
+    if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified
+        || verifiedAirlineEmail !== airlineEmail.trim().toLowerCase())) return false;
     return true;
   };
 
@@ -281,7 +359,7 @@ export default function SignupComplete() {
         p_road: addressRoad,
         p_detail: addressDetail,
         p_user_type: userType,
-        p_airline_email: (userType === 'crew' && airlineInfo) ? airlineEmail : null,
+        p_airline_email: (userType === 'crew' && airlineInfo) ? (verifiedAirlineEmail || airlineEmail.trim().toLowerCase()) : null,
         p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
         p_referred_by: resolvedReferrer,
         p_birthdate: birthdate,
@@ -342,22 +420,55 @@ export default function SignupComplete() {
             </div>
           </Field>
 
-          {/* 승무원 항공사 인증 */}
+          {/* 승무원 회사(항공사) 이메일 별도 인증 — 로그인 계정과 분리 */}
           {userType === 'crew' && (
-            <Field label="항공사 이메일 (승무원 인증)" icon={<Plane size={16} />}
+            <Field label="회사(항공사) 이메일 인증 (승무원)" icon={<Plane size={16} />}
               helper={
-                !airlineEmail ? '항공사 사내 이메일을 입력해주세요.' :
-                airlineInfo ? `${airlineInfo.logo} ${airlineInfo.name} 인증됨` :
+                airlineEmailVerified ? `${airlineInfo ? airlineInfo.logo + ' ' + airlineInfo.name + ' ' : ''}회사 이메일 인증 완료` :
+                !airlineEmail ? '로그인 계정과 별개로, 회사(항공사) 이메일로 인증번호를 받아 인증합니다.' :
+                airlineInfo ? `${airlineInfo.logo} ${airlineInfo.name} 도메인 확인됨 — 인증번호를 받아 인증하세요.` :
                 airlineEmail.includes('@') ? '지원되지 않는 항공사 도메인' : '유효한 이메일 형식이 아닙니다'
               }
-              helperColor={airlineInfo ? '#16a34a' : airlineEmail ? '#dc2626' : '#64748b'}>
-              <input type="email" value={airlineEmail}
-                onChange={(e) => {
-                  setAirlineEmail(e.target.value);
-                  setAirlineInfo(getAirlineInfo(e.target.value));
-                }}
-                placeholder="예: name@koreanair.com" style={inputStyle}
-                autoComplete="off" maxLength={100} />
+              helperColor={airlineEmailVerified ? '#16a34a' : airlineInfo ? '#2563eb' : airlineEmail ? '#dc2626' : '#64748b'}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="email" value={airlineEmail}
+                  onChange={(e) => {
+                    setAirlineEmail(e.target.value);
+                    setAirlineInfo(getAirlineInfo(e.target.value));
+                  }}
+                  readOnly={airlineEmailVerified}
+                  placeholder="예: name@koreanair.com"
+                  style={{ ...inputStyle, flex: 1, background: airlineEmailVerified ? '#f8fafc' : 'white' }}
+                  autoComplete="off" maxLength={100} />
+                <button type="button" onClick={sendAirlineEmailCode}
+                  disabled={!airlineInfo || airlineEmailVerified || airlineEmailSending}
+                  style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
+                    background: airlineEmailVerified ? '#d1fae5' : airlineEmailSending ? '#94a3b8' : !airlineInfo ? '#cbd5e1' : '#7c3aed',
+                    color: airlineEmailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
+                    cursor: airlineEmailVerified || airlineEmailSending || !airlineInfo ? 'default' : 'pointer' }}>
+                  {airlineEmailVerified ? '인증 완료' : airlineEmailSending ? '전송 중...' : airlineEmailSent ? '재전송' : '인증번호 받기'}
+                </button>
+              </div>
+              {airlineEmailError && (
+                <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>
+                  ⚠️ {airlineEmailError}
+                </div>
+              )}
+              {airlineEmailSent && !airlineEmailVerified && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <input type="text" value={airlineEmailCode}
+                    onChange={(e) => setAirlineEmailCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="회사 이메일 인증번호 6자리"
+                    style={{ ...inputStyle, flex: 1 }}
+                    autoComplete="off" maxLength={6} inputMode="numeric" />
+                  <button type="button" onClick={verifyAirlineEmailCode} disabled={airlineEmailVerifying}
+                    style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
+                      background: airlineEmailVerifying ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', fontWeight: 600,
+                      cursor: airlineEmailVerifying ? 'wait' : 'pointer' }}>
+                    {airlineEmailVerifying ? '확인 중...' : '인증'}
+                  </button>
+                </div>
+              )}
               <div style={{ marginTop: 8, padding: '10px 12px', background: '#faf5ff', borderRadius: 8, fontSize: 12, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Shield size={14} /> 승무원 인증은 본 계정 외부로 노출되지 않습니다. 승무원 전용 게시판 접근 권한 용도로만 사용.
               </div>
