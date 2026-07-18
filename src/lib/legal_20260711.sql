@@ -368,18 +368,20 @@ REVOKE ALL ON FUNCTION public.request_account_deletion() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.request_account_deletion() TO authenticated;
 
 -- ------------------------------------------------------------
--- 4. (3차 보정) profiles 조회 컬럼 잠금은 폐기 — profiles 직접 SELECT 를 그대로 유지.
---    2차에서는 여기서 profiles 테이블레벨 SELECT 를 회수하고 공개안전 컬럼만 화이트리스트 GRANT 했으나,
---    실측 결과 프론트 10곳+(AuthContext.jsx / db.js / pushNotifications.js / SignupEmail·SignupComplete 등)이
---    profiles 를 직접 SELECT 하므로 그 잠금은 42501 권한오류로 로그인·마이페이지·게시판을 깼다.
---    → 민감정보(생년월일)는 §0-1 profiles_private 격리로 보호하고, profiles SELECT 정책/그랜트는 손대지 않는다.
---    (get_my_profile()/admin_list_profiles() 는 security_optimize_20260611.sql PART 1 에서 이미 제공되며,
---     프론트가 RPC 우선 + select('*') 폴백 구조라 어느 쪽이든 정상 동작한다. 여기서 별도 잠금은 두지 않는다.)
---    ※ 향후 profiles 의 email/phone/주소까지 타인 비노출이 필요하면, 프론트 직접 SELECT 를 전부
---      RPC/화이트리스트 임베드로 먼저 이관한 "뒤" 별도 마이그레이션에서 잠글 것(이번 범위 아님).
--- (3차 codex 방어) 2차 시도의 "REVOKE SELECT ON profiles" 가 혹시 라이브에 이미 적용됐었다면 원상복구.
--- 이 legal SQL 을 아직 한 번도 실행 안 했으면 profiles 권한은 원래대로라 아래 GRANT 는 무해(멱등).
-GRANT SELECT ON public.profiles TO anon, authenticated;
+-- 4. (4차 보정 2026-07-18) profiles PII 컬럼 잠금 "유지" — 3차의 원복 GRANT 폐기.
+--    3차는 "프론트 10곳+ 이 직접 SELECT 라 잠그면 깨진다"며 여기서 전체 GRANT 로 원복했는데,
+--    그 한 줄이 2026-06-11 PART2 잠금을 회귀시켜 공개 anon 키로 전 회원 email/phone/주소가
+--    노출되던 원인이었다(2026-07-18 실측 확정). 전수 재실측 결과:
+--     · 프론트 17곳 전부 안전 컬럼 임베드/RPC(get_my_profile·admin_list_profiles·check_*_taken)만 사용
+--     · 유일한 42501 지점 = reports 구정책 2개(invoker 로 profiles.role 서브쿼리) → 함께 제거
+--       (is_admin() SECURITY DEFINER 기반 동일 기능 정책이 병존해 기능 손실 없음)
+--    운영 적용은 마이그레이션 lock_profiles_pii_columns(2026-07-18). 이 파일을 재실행해도
+--    잠금이 유지되도록 동일 잠금을 재확인한다(멱등). 절대 전체 GRANT 로 되돌리지 말 것.
+DROP POLICY IF EXISTS "Admin read all reports" ON public.reports;
+DROP POLICY IF EXISTS "Admin update reports" ON public.reports;
+REVOKE SELECT ON TABLE public.profiles FROM anon, authenticated;
+GRANT SELECT (id, name, nickname, avatar_url, user_type, crew_verified, airline_name, bio, created_at)
+  ON TABLE public.profiles TO anon, authenticated;
 
 -- ============================================================
 -- 끝. 롤백:

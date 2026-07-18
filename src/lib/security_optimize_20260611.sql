@@ -4,8 +4,8 @@
 --
 -- ★ 2단계로 나눠 실행한다 (순서 중요):
 --   PART 1: 지금 즉시 실행 — 전부 additive/무해. 배포된 기존 코드에 영향 없음.
---   PART 2: 새 코드가 Vercel에 배포·정상 확인된 "후"에 실행 — profiles 컬럼 잠금.
---           (PART 2를 먼저 실행하면 기존 배포 코드의 select('*')가 깨짐)
+--   PART 2: profiles 컬럼 잠금 — ★ 2026-07-18 운영 적용 완료(마이그레이션 lock_profiles_pii_columns).
+--           재실행해도 잠금 유지(멱등). 프론트는 RPC/안전 컬럼 임베드만 사용하므로 안전.
 -- 전체 멱등(재실행 안전).
 -- ============================================================================
 
@@ -214,31 +214,35 @@ grant  execute on function public.bump_email_otp_attempts(uuid) to service_role;
 -- ████████████████████████████████████████████████████████████████████████████
 
 -- ----------------------------------------------------------------------------
--- 2-1. profiles PII 컬럼 잠금 (핵심 P0)
---   현재: 로그인한 아무 유저나 타인의 email/phone/주소/추천인 조회 가능
---   이후: 타인 행은 아래 안전 컬럼만 조회 가능. 본인 행 전체 = get_my_profile(),
---        관리자 전체 목록 = admin_list_profiles().
---   ★ 2026-07-11(3차): 이 잠금은 아직 적용하지 않는다(주석 유지). 프론트 10곳+ 이 profiles 를 직접
---     SELECT 하므로, 지금 잠그면 42501 권한오류로 로그인/게시판/마이페이지가 깨진다.
---     legal_20260711.sql 도 이 잠금을 켜지 않는다(생년월일은 profiles_private 로 별도 격리해 보호).
---     이 PART 2 를 켜려면 먼저 프론트의 profiles 직접 SELECT 를 전부 RPC/화이트리스트 임베드로 이관할 것.
+-- 2-1. profiles PII 컬럼 잠금 (핵심 P0) — ★ 2026-07-18 운영 적용 완료(마이그레이션 lock_profiles_pii_columns)
+--   타인 행은 아래 안전 컬럼만 조회 가능. 본인 행 전체 = get_my_profile(),
+--   관리자 전체 목록 = admin_list_profiles().
+--   경과: 2026-06-11 적용 → 2026-07-11 legal_20260711.sql 의 원복 GRANT 로 회귀 →
+--        2026-07-18 재적용(+legal 파일의 원복 GRANT 도 잠금 유지로 교체).
+--   3차(07-11)의 "프론트 10곳+ 직접 SELECT 라 잠그면 깨진다"는 오판 — 전수 실측 결과 프론트는
+--   이미 안전 컬럼/RPC만 사용. 실제 42501 원인은 reports 구정책 2개(invoker 로 profiles.role
+--   서브쿼리)뿐이라 아래에서 함께 제거한다(is_admin() 기반 동일 기능 정책 병존, 기능 손실 없음).
 -- ----------------------------------------------------------------------------
 
--- revoke select on table public.profiles from anon, authenticated;
--- grant select (id, name, nickname, avatar_url, user_type, crew_verified, airline_name, bio, created_at)
---   on table public.profiles to anon, authenticated;
+drop policy if exists "Admin read all reports" on public.reports;
+drop policy if exists "Admin update reports" on public.reports;
+
+revoke select on table public.profiles from anon, authenticated;
+grant select (id, name, nickname, avatar_url, user_type, crew_verified, airline_name, bio, created_at)
+  on table public.profiles to anon, authenticated;
 
 -- ----------------------------------------------------------------------------
--- 2-2. destinations UPDATE 봉합 (현재 USING(true) — 아무나 타인 글 수정 가능)
+-- 2-2. destinations UPDATE 봉합 — ★ 2026-06-11 운영 적용 완료(own-row 정책 실측 재확인 2026-07-18)
 --   새 코드의 좋아요는 increment_likes/decrement_likes RPC를 쓰므로 안전.
 -- ----------------------------------------------------------------------------
 
--- drop policy if exists "Users can update destinations" on public.destinations;
--- create policy "Users update own destinations" on public.destinations
---   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can update destinations" on public.destinations;
+drop policy if exists "Users update own destinations" on public.destinations;
+create policy "Users update own destinations" on public.destinations
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- ============================================================================
--- ★ PART 2는 주석 처리돼 있음. 새 코드 배포 확인 후 위 주석(-- )을 풀고 실행.
+-- ★ PART 2 는 2026-07-18 운영 적용 완료 상태. 전체 멱등이라 재실행해도 잠금 유지.
 --
 -- 적용 후 점검 쿼리:
 --   select policyname, cmd from pg_policies where tablename='profiles';
