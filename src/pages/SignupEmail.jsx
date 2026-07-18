@@ -74,7 +74,7 @@ export default function SignupEmail() {
   const [addressRoad, setAddressRoad] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
 
-  const [referrerNickname, setReferrerNickname] = useState('');
+  const [referrerAccountId, setReferrerAccountId] = useState('');
   const [referrerStatus, setReferrerStatus] = useState(null);
   const [referrerId, setReferrerId] = useState(null);
 
@@ -139,28 +139,23 @@ export default function SignupEmail() {
     return () => clearTimeout(t);
   }, [nickname]);
 
-  // 추천인 검증
+  // 추천 승무원 ID(로그인 이메일) 검증 — email 컬럼은 PII 잠금이라 RPC 로 확인
   useEffect(() => {
-    if (!referrerNickname || referrerNickname.length < 2) {
+    if (!referrerAccountId || referrerAccountId.trim().length < 5) {
       setReferrerStatus(null); setReferrerId(null); return;
     }
     setReferrerStatus('checking');
     const t = setTimeout(async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('nickname', referrerNickname.trim())
-        .eq('user_type', 'crew')
-        .eq('crew_verified', true)
-        .limit(1);
-      if (data && data.length > 0) {
-        setReferrerStatus('valid'); setReferrerId(data[0].id);
+      const { data, error: refErr } = await supabase
+        .rpc('find_crew_referrer', { p_login_id: referrerAccountId.trim() });
+      if (!refErr && data) {
+        setReferrerStatus('valid'); setReferrerId(data);
       } else {
         setReferrerStatus('invalid'); setReferrerId(null);
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [referrerNickname]);
+  }, [referrerAccountId]);
 
   const openPostcode = async () => {
     try {
@@ -614,18 +609,18 @@ export default function SignupEmail() {
               autoComplete="off" maxLength={80} />
           </Field>
 
-          <Field label="추천 승무원 닉네임" icon={<Gift size={16} />} required={false}
+          <Field label="추천 승무원 ID" icon={<Gift size={16} />} required={false}
             helper={
-              !referrerNickname ? '선택 사항. 추천 보너스 3,000포인트는 인증 승무원 회원에게만 지급됩니다.' :
+              !referrerAccountId ? '선택 사항. 추천 보너스 3,000포인트는 인증 승무원 회원에게만 지급됩니다.' :
               referrerStatus === 'checking' ? '확인 중...' :
               referrerStatus === 'valid' ? '추천 승무원 확인됨' :
-              referrerStatus === 'invalid' ? '해당 닉네임의 승무원이 없습니다' : null
+              referrerStatus === 'invalid' ? '해당 ID의 승무원이 없습니다' : null
             }
             helperColor={referrerStatus === 'valid' ? '#16a34a' : referrerStatus === 'invalid' ? '#dc2626' : '#64748b'}>
-            <input type="text" value={referrerNickname}
-              onChange={(e) => setReferrerNickname(e.target.value)}
-              placeholder="추천해 준 승무원의 닉네임"
-              style={inputStyle} autoComplete="off" maxLength={20} />
+            <input type="text" value={referrerAccountId}
+              onChange={(e) => setReferrerAccountId(e.target.value)}
+              placeholder="추천해 준 승무원의 아이디(이메일)"
+              style={inputStyle} autoComplete="off" maxLength={80} />
           </Field>
 
           {error && (

@@ -53,7 +53,7 @@ export default function SignupComplete() {
   // OAuth 리턴 시 /signup 에서 승무원을 선택하고 항공사 이메일까지 검증했던 상태를 복원
   const [airlineEmail, setAirlineEmail] = useState('');
   const [airlineInfo, setAirlineInfo] = useState(null);
-  const [referrerNickname, setReferrerNickname] = useState('');
+  const [referrerAccountId, setReferrerAccountId] = useState('');
   const [referrerStatus, setReferrerStatus] = useState(null); // 'checking' | 'valid' | 'invalid' | null
   const [referrerId, setReferrerId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -120,34 +120,29 @@ export default function SignupComplete() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  // 추천인 닉네임 검증 (400ms debounce)
+  // 추천 승무원 ID(로그인 이메일) 검증 (400ms debounce) — email 컬럼은 PII 잠금이라 RPC 로 확인
   useEffect(() => {
-    if (!referrerNickname || referrerNickname.length < 2) {
+    if (!referrerAccountId || referrerAccountId.trim().length < 5) {
       setReferrerStatus(null);
       setReferrerId(null);
       return;
     }
-    const q = referrerNickname.trim();
+    const q = referrerAccountId.trim();
     setReferrerStatus('checking');
     const t = setTimeout(async () => {
       const { data, error: err } = await supabase
-        .from('profiles')
-        .select('id, nickname')
-        .eq('nickname', q)
-        .eq('user_type', 'crew')
-        .eq('crew_verified', true)
-        .neq('id', user?.id || '')
-        .limit(1);
-      if (err || !data || data.length === 0) {
+        .rpc('find_crew_referrer', { p_login_id: q });
+      // 본인 ID 를 추천인으로 넣는 것도 무효 처리 (서버 complete_signup_profile 도 self-referral 차단)
+      if (err || !data || data === (user?.id || '')) {
         setReferrerStatus('invalid');
         setReferrerId(null);
       } else {
         setReferrerStatus('valid');
-        setReferrerId(data[0].id);
+        setReferrerId(data);
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [referrerNickname, user?.id]);
+  }, [referrerAccountId, user?.id]);
 
   // 닉네임 중복 체크 (300ms debounce)
   useEffect(() => {
@@ -519,13 +514,13 @@ export default function SignupComplete() {
 
           {/* 추천 승무원 */}
           <Field
-            label="추천 승무원 닉네임 (선택) — 추천 보너스 3,000P는 인증 승무원 회원에게만 지급"
+            label="추천 승무원 ID (선택) — 추천 보너스 3,000P는 인증 승무원 회원에게만 지급"
             icon={<Gift size={16} />}
             helper={
-              !referrerNickname ? null :
+              !referrerAccountId ? null :
               referrerStatus === 'checking' ? '확인 중...' :
               referrerStatus === 'valid' ? '추천 승무원 확인 완료' :
-              referrerStatus === 'invalid' ? '해당 닉네임의 승무원이 없습니다' : null
+              referrerStatus === 'invalid' ? '해당 ID의 승무원이 없습니다' : null
             }
             helperColor={
               referrerStatus === 'valid' ? '#16a34a' :
@@ -534,11 +529,11 @@ export default function SignupComplete() {
           >
             <input
               type="text"
-              value={referrerNickname}
-              onChange={(e) => setReferrerNickname(e.target.value)}
-              placeholder="추천해 준 승무원의 닉네임을 입력하세요"
+              value={referrerAccountId}
+              onChange={(e) => setReferrerAccountId(e.target.value)}
+              placeholder="추천해 준 승무원의 아이디(이메일)를 입력하세요"
               style={inputStyle}
-              maxLength={20}
+              maxLength={80}
             />
           </Field>
 

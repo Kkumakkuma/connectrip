@@ -186,6 +186,13 @@ BEGIN
 
   v_ref := p_referred_by;
   IF v_ref = auth.uid() THEN v_ref := NULL; END IF; -- self-referral 차단
+  -- 추천인은 "인증 승무원"만 유효 (2026-07-18 정책, 마이그레이션 complete_signup_validate_crew_referrer).
+  -- UI(find_crew_referrer)를 우회한 임의 UUID 를 서버에서도 무시. 미해당/미존재면 NULL.
+  IF v_ref IS NOT NULL THEN
+    SELECT CASE WHEN (user_type = 'crew' AND COALESCE(crew_verified, FALSE)) THEN v_ref ELSE NULL END
+      INTO v_ref
+      FROM public.profiles WHERE id = v_ref;  -- 미존재 시 INTO 가 NULL 세팅
+  END IF;
 
   PERFORM set_config('app.allow_sensitive', 'on', true);
   UPDATE public.profiles SET

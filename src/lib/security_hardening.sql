@@ -380,6 +380,12 @@ BEGIN
 
   v_ref := p_referred_by;
   IF v_ref = auth.uid() THEN v_ref := NULL; END IF; -- self-referral 차단
+  -- 추천인은 "인증 승무원"만 유효 (2026-07-18 정책). UI(find_crew_referrer) 우회 임의 UUID 서버 차단.
+  IF v_ref IS NOT NULL THEN
+    SELECT CASE WHEN (user_type = 'crew' AND COALESCE(crew_verified, FALSE)) THEN v_ref ELSE NULL END
+      INTO v_ref
+      FROM public.profiles WHERE id = v_ref;  -- 미존재 시 INTO 가 NULL 세팅
+  END IF;
 
   PERFORM set_config('app.allow_sensitive', 'on', true);
   UPDATE public.profiles SET
@@ -466,6 +472,22 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- 5-7b. 추천 승무원 ID(로그인 이메일) 검증 — 가입 폼 전용 (2026-07-18, 마이그레이션 find_crew_referrer_rpc).
+--   PII 잠금으로 클라가 email 컬럼을 직접 조회할 수 없으므로, 입력한 ID가 "인증 승무원"의
+--   로그인 이메일(또는 항공사 이메일)인지 확인해 uuid 만 돌려준다.
+--   존재 여부 외 정보 비노출 — anon 공개 수준은 기존 check_email_taken 과 동일.
+CREATE OR REPLACE FUNCTION public.find_crew_referrer(p_login_id TEXT)
+RETURNS UUID
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public AS $$
+  SELECT id FROM public.profiles
+   WHERE (lower(email) = lower(trim(p_login_id)) OR lower(airline_email) = lower(trim(p_login_id)))
+     AND user_type = 'crew' AND COALESCE(crew_verified, FALSE)
+   LIMIT 1;
+$$;
+REVOKE ALL ON FUNCTION public.find_crew_referrer(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.find_crew_referrer(TEXT) TO anon, authenticated, service_role;
 
 -- 5-8. 칭송 매칭 신청 — 같은 항공편 승객↔승무원 1:1 자동연결.
 --      대기중(pending)인 반대편 매칭이 있으면 그 row 를 matched 로 연결(중복 row 안 만듦),
