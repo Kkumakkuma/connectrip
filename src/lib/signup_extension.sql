@@ -64,28 +64,54 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ★ 이 파일의 초기 버전은 무제한·전회원 지급이었음. 2026-07-18 최종 정책(승무원끼리만 / 양쪽 3,000P /
+--   가입자 1회 / 추천인 최대 5명 / 상시)으로 security_hardening.sql 5-7 과 동일본 유지.
+--   (이 파일을 나중에 재실행해도 운영 함수가 구버전으로 퇴행하지 않게 하기 위함)
 CREATE OR REPLACE FUNCTION public.grant_referral_bonus(p_user_id UUID)
-RETURNS VOID AS $$
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
 DECLARE
   v_referrer UUID;
-  v_given BOOLEAN;
+  v_paid_count INT;
+  v_new_is_crew BOOLEAN;
+  v_ref_is_crew BOOLEAN;
 BEGIN
-  SELECT referred_by, referral_bonus_given INTO v_referrer, v_given
-  FROM public.profiles WHERE id = p_user_id;
-
-  IF v_referrer IS NULL OR v_given THEN
-    RETURN;
+  IF auth.uid() IS NOT NULL AND p_user_id <> auth.uid() AND NOT public.is_admin() THEN
+    RAISE EXCEPTION 'forbidden';
   END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
 
+  -- 승무원끼리만: 가입자·추천인 둘 다 user_type='crew' + crew_verified 여야 지급
+  SELECT (user_type = 'crew' AND COALESCE(crew_verified, FALSE)), referred_by
+    INTO v_new_is_crew, v_referrer
+    FROM public.profiles WHERE id = p_user_id;
+  IF NOT COALESCE(v_new_is_crew, FALSE) OR v_referrer IS NULL THEN RETURN; END IF;
+  SELECT (user_type = 'crew' AND COALESCE(crew_verified, FALSE))
+    INTO v_ref_is_crew
+    FROM public.profiles WHERE id = v_referrer;
+  IF NOT COALESCE(v_ref_is_crew, FALSE) THEN RETURN; END IF;
+
+  -- 가입자 본인 3,000P + 지급 플래그를 한 번에 (이미 지급됐으면 0 rows → 종료)
   UPDATE public.profiles
     SET points_balance = COALESCE(points_balance, 0) + 3000,
-        referral_bonus_given = TRUE,
-        updated_at = NOW()
-    WHERE id = p_user_id;
+        referral_bonus_given = TRUE, updated_at = NOW()
+    WHERE id = p_user_id
+      AND COALESCE(referral_bonus_given, FALSE) = FALSE
+      AND referred_by IS NOT NULL
+    RETURNING referred_by INTO v_referrer;
+  IF v_referrer IS NULL THEN RETURN; END IF;
 
-  UPDATE public.profiles
-    SET points_balance = COALESCE(points_balance, 0) + 3000,
-        updated_at = NOW()
-    WHERE id = v_referrer;
+  -- 추천인 3,000P: 최대 5명까지 (동시 가입 경합 방지 위해 추천인 row 잠금 후 산정)
+  PERFORM 1 FROM public.profiles WHERE id = v_referrer FOR UPDATE;
+  SELECT count(*) INTO v_paid_count
+    FROM public.profiles
+   WHERE referred_by = v_referrer
+     AND COALESCE(referral_bonus_given, FALSE) = TRUE;
+  IF v_paid_count <= 5 THEN
+    UPDATE public.profiles
+      SET points_balance = COALESCE(points_balance, 0) + 3000, updated_at = NOW()
+      WHERE id = v_referrer;
+  END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
