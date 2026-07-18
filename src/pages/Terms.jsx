@@ -1,12 +1,17 @@
 import { Link } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
+import { BUSINESS_INFO } from '../lib/businessInfo';
 
-// 이용약관. ⚠️ "(기재 예정)" placeholder(운영자 정보)는 쿠마님이 실제 정보로 교체.
+// 이용약관. ⚠️ 사업자 정보(상호·대표자·사업자등록번호·통신판매업신고번호·소재지·연락처)는
+// src/lib/businessInfo.js 한 곳에서만 관리한다. 값이 바뀌면 여기와 푸터에 자동 반영된다.
 const OPERATOR_INFO = [
   ['서비스명', 'ConnectTrip (커넥트립)'],
-  ['운영자', '200kgBrothers Company'],
-  ['사업자등록번호', '(기재 예정)'],
-  ['연락처(고객문의)', '200kgBrothers@gmail.com'],
+  ['상호', BUSINESS_INFO.상호],
+  ['대표자', BUSINESS_INFO.대표자],
+  ['사업자등록번호', BUSINESS_INFO.사업자등록번호],
+  ['통신판매업신고번호', BUSINESS_INFO.통신판매업신고번호],
+  ['사업장소재지', BUSINESS_INFO.사업장소재지],
+  ['연락처(고객문의)', BUSINESS_INFO.이메일],
   ['호스팅 제공자', 'Vercel Inc.'],
 ];
 
