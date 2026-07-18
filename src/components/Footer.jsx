@@ -3,9 +3,9 @@ import { BUSINESS_INFO } from '../lib/businessInfo';
 
 // 패밀리 사이트(자기 자신 커넥트립 제외). 새 탭으로 이동한다.
 const FAMILY_SITES = [
-    { name: 'TravelDeal', desc: '항공·호텔 특가 알림', url: 'https://traveldeal-five.vercel.app' },
-    { name: '가전딜', desc: '가전 역경매 견적 비교', url: 'https://gajeondeal.vercel.app' },
-    { name: 'DiskRescue', desc: '데이터 복구 프로그램', url: 'https://diskrescue.vercel.app' },
+    { name: 'TravelDeal', desc: '항공·호텔 특가 알림', url: 'https://traveldeal-five.vercel.app', emoji: '🏷️', color: '#D97706' },
+    { name: '가전딜', desc: '가전 역경매 견적 비교', url: 'https://gajeondeal.vercel.app', emoji: '🔌', color: '#1A56DB' },
+    { name: 'DiskRescue', desc: '데이터 복구 프로그램', url: 'https://diskrescue.vercel.app', emoji: '💾', color: '#059669' },
 ];
 
 const Footer = () => {
@@ -40,21 +40,28 @@ const Footer = () => {
                 </div>
 
                 <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
-                    <h3 style={{ fontSize: '0.8rem', fontWeight: 600, opacity: 0.5, letterSpacing: '0.05em', marginBottom: '1.25rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, opacity: 0.95, marginBottom: '0.35rem' }}>
                         패밀리 사이트
                     </h3>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem 2rem', justifyContent: 'center' }}>
+                    <p style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '1.5rem' }}>
+                        함께 운영하는 다른 서비스도 둘러보세요
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '0.85rem', maxWidth: '760px', margin: '0 auto' }}>
                         {FAMILY_SITES.map((site) => (
                             <a
                                 key={site.name}
                                 href={site.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="footer-link"
-                                style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem', textDecoration: 'none', wordBreak: 'keep-all' }}
+                                className="family-card"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.9rem 1rem', borderRadius: '14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', color: 'white', transition: '0.2s' }}
                             >
-                                <span style={{ fontWeight: 600 }}>{site.name}</span>
-                                <span style={{ opacity: 0.65, marginLeft: '0.4rem' }}>{site.desc}</span>
+                                <span aria-hidden style={{ display: 'flex', width: '44px', height: '44px', flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: '11px', fontSize: '1.4rem', background: site.color + '33' }}>{site.emoji}</span>
+                                <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                                    <span style={{ display: 'block', fontWeight: 700, wordBreak: 'keep-all' }}>{site.name}</span>
+                                    <span style={{ display: 'block', fontSize: '0.8rem', opacity: 0.7, wordBreak: 'keep-all' }}>{site.desc}</span>
+                                </span>
+                                <span aria-hidden className="fc-arrow" style={{ flexShrink: 0, fontSize: '1.2rem', fontWeight: 700, color: site.color }}>→</span>
                             </a>
                         ))}
                     </div>
@@ -79,6 +86,13 @@ const Footer = () => {
           opacity: 1 !important;
           text-decoration: underline;
         }
+        .family-card:hover {
+          transform: translateY(-3px);
+          background: rgba(255,255,255,0.12) !important;
+          border-color: rgba(255,255,255,0.28) !important;
+        }
+        .fc-arrow { display: inline-block; transition: transform 0.2s; }
+        .family-card:hover .fc-arrow { transform: translateX(4px); }
       `}</style>
         </footer>
     );
