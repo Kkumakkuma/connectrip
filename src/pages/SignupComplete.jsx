@@ -134,6 +134,8 @@ export default function SignupComplete() {
         .from('profiles')
         .select('id, nickname')
         .eq('nickname', q)
+        .eq('user_type', 'crew')
+        .eq('crew_verified', true)
         .neq('id', user?.id || '')
         .limit(1);
       if (err || !data || data.length === 0) {
@@ -515,15 +517,15 @@ export default function SignupComplete() {
             />
           </Field>
 
-          {/* 추천인 */}
+          {/* 추천 승무원 */}
           <Field
-            label="추천인 닉네임 (선택) — 추천 보너스 3,000P는 인증 승무원 회원에게만 지급"
+            label="추천 승무원 닉네임 (선택) — 추천 보너스 3,000P는 인증 승무원 회원에게만 지급"
             icon={<Gift size={16} />}
             helper={
               !referrerNickname ? null :
               referrerStatus === 'checking' ? '확인 중...' :
-              referrerStatus === 'valid' ? '추천인 확인 완료' :
-              referrerStatus === 'invalid' ? '해당 닉네임의 추천인이 없습니다' : null
+              referrerStatus === 'valid' ? '추천 승무원 확인 완료' :
+              referrerStatus === 'invalid' ? '해당 닉네임의 승무원이 없습니다' : null
             }
             helperColor={
               referrerStatus === 'valid' ? '#16a34a' :
@@ -534,7 +536,7 @@ export default function SignupComplete() {
               type="text"
               value={referrerNickname}
               onChange={(e) => setReferrerNickname(e.target.value)}
-              placeholder="친구의 닉네임을 입력하세요 (비워둬도 됩니다)"
+              placeholder="추천해 준 승무원의 닉네임을 입력하세요"
               style={inputStyle}
               maxLength={20}
             />

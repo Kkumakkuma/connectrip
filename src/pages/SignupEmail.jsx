@@ -150,6 +150,8 @@ export default function SignupEmail() {
         .from('profiles')
         .select('id')
         .eq('nickname', referrerNickname.trim())
+        .eq('user_type', 'crew')
+        .eq('crew_verified', true)
         .limit(1);
       if (data && data.length > 0) {
         setReferrerStatus('valid'); setReferrerId(data[0].id);
@@ -612,17 +614,17 @@ export default function SignupEmail() {
               autoComplete="off" maxLength={80} />
           </Field>
 
-          <Field label="추천인 닉네임" icon={<Gift size={16} />} required={false}
+          <Field label="추천 승무원 닉네임" icon={<Gift size={16} />} required={false}
             helper={
               !referrerNickname ? '선택 사항. 추천 보너스 3,000포인트는 인증 승무원 회원에게만 지급됩니다.' :
               referrerStatus === 'checking' ? '확인 중...' :
-              referrerStatus === 'valid' ? '추천인 확인됨' :
-              referrerStatus === 'invalid' ? '해당 닉네임 없음' : null
+              referrerStatus === 'valid' ? '추천 승무원 확인됨' :
+              referrerStatus === 'invalid' ? '해당 닉네임의 승무원이 없습니다' : null
             }
             helperColor={referrerStatus === 'valid' ? '#16a34a' : referrerStatus === 'invalid' ? '#dc2626' : '#64748b'}>
             <input type="text" value={referrerNickname}
               onChange={(e) => setReferrerNickname(e.target.value)}
-              placeholder="친구의 닉네임"
+              placeholder="추천해 준 승무원의 닉네임"
               style={inputStyle} autoComplete="off" maxLength={20} />
           </Field>
 
