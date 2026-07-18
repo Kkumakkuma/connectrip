@@ -614,7 +614,7 @@ export default function SignupEmail() {
 
           <Field label="추천인 닉네임" icon={<Gift size={16} />} required={false}
             helper={
-              !referrerNickname ? '선택 사항. 승무원 회원끼리 추천 시 양쪽에 3,000포인트가 지급됩니다.' :
+              !referrerNickname ? '선택 사항. 추천 보너스 3,000포인트는 인증 승무원 회원에게만 지급됩니다.' :
               referrerStatus === 'checking' ? '확인 중...' :
               referrerStatus === 'valid' ? '추천인 확인됨' :
               referrerStatus === 'invalid' ? '해당 닉네임 없음' : null

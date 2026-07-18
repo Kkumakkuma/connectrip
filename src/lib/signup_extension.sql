@@ -64,9 +64,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- ★ 이 파일의 초기 버전은 무제한·전회원 지급이었음. 2026-07-18 최종 정책(승무원끼리만 / 양쪽 3,000P /
---   가입자 1회 / 추천인 최대 5명 / 상시)으로 security_hardening.sql 5-7 과 동일본 유지.
---   (이 파일을 나중에 재실행해도 운영 함수가 구버전으로 퇴행하지 않게 하기 위함)
+-- ★ 이 파일의 초기 버전은 무제한·전회원 지급이었음. 2026-07-18 최종 정책(보너스는 인증 승무원인
+--   당사자에게만 각 3,000P / 가입자 1회 / 추천인 최대 20회=총 60,000P / 상시)으로
+--   security_hardening.sql 5-7 과 동일본 유지. (재실행 시 운영 함수 퇴행 방지)
 CREATE OR REPLACE FUNCTION public.grant_referral_bonus(p_user_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER
@@ -82,19 +82,24 @@ BEGIN
   END IF;
   PERFORM set_config('app.allow_sensitive', 'on', true);
 
-  -- 승무원끼리만: 가입자·추천인 둘 다 user_type='crew' + crew_verified 여야 지급
+  -- 당사자별 승무원 판정: 인증 승무원인 쪽만 지급.
+  -- complete_signup_profile 이 crew_verified 세팅 "후" 본 함수를 호출하므로 같은 트랜잭션에서 판정 가능.
   SELECT (user_type = 'crew' AND COALESCE(crew_verified, FALSE)), referred_by
     INTO v_new_is_crew, v_referrer
     FROM public.profiles WHERE id = p_user_id;
-  IF NOT COALESCE(v_new_is_crew, FALSE) OR v_referrer IS NULL THEN RETURN; END IF;
+  IF v_referrer IS NULL THEN RETURN; END IF;
   SELECT (user_type = 'crew' AND COALESCE(crew_verified, FALSE))
     INTO v_ref_is_crew
     FROM public.profiles WHERE id = v_referrer;
-  IF NOT COALESCE(v_ref_is_crew, FALSE) THEN RETURN; END IF;
+  IF NOT COALESCE(v_new_is_crew, FALSE) AND NOT COALESCE(v_ref_is_crew, FALSE) THEN
+    RETURN;  -- 둘 다 일반 회원이면 지급 대상 없음
+  END IF;
 
-  -- 가입자 본인 3,000P + 지급 플래그를 한 번에 (이미 지급됐으면 0 rows → 종료)
+  -- 이 가입의 추천 처리 멱등 마킹 + 가입자가 승무원이면 본인 3,000P 동시 지급
+  -- (이미 처리된 가입이면 0 rows → 종료. 중복 지급 불가)
   UPDATE public.profiles
-    SET points_balance = COALESCE(points_balance, 0) + 3000,
+    SET points_balance = COALESCE(points_balance, 0)
+                         + CASE WHEN COALESCE(v_new_is_crew, FALSE) THEN 3000 ELSE 0 END,
         referral_bonus_given = TRUE, updated_at = NOW()
     WHERE id = p_user_id
       AND COALESCE(referral_bonus_given, FALSE) = FALSE
@@ -102,13 +107,15 @@ BEGIN
     RETURNING referred_by INTO v_referrer;
   IF v_referrer IS NULL THEN RETURN; END IF;
 
-  -- 추천인 3,000P: 최대 5명까지 (동시 가입 경합 방지 위해 추천인 row 잠금 후 산정)
+  -- 추천인이 승무원이면 3,000P: 최대 20회(총 60,000P). 동시 가입 경합으로 상한 초과 지급이 없도록
+  -- 추천인 row 를 잠근 뒤 처리 횟수를 센다 (처리 마커 count 에 방금 처리된 가입자 본인 포함).
+  IF NOT COALESCE(v_ref_is_crew, FALSE) THEN RETURN; END IF;
   PERFORM 1 FROM public.profiles WHERE id = v_referrer FOR UPDATE;
   SELECT count(*) INTO v_paid_count
     FROM public.profiles
    WHERE referred_by = v_referrer
      AND COALESCE(referral_bonus_given, FALSE) = TRUE;
-  IF v_paid_count <= 5 THEN
+  IF v_paid_count <= 20 THEN
     UPDATE public.profiles
       SET points_balance = COALESCE(points_balance, 0) + 3000, updated_at = NOW()
       WHERE id = v_referrer;
