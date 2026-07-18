@@ -3,9 +3,9 @@ import { BUSINESS_INFO } from '../lib/businessInfo';
 
 // 패밀리 사이트(자기 자신 커넥트립 제외). 새 탭으로 이동한다.
 const FAMILY_SITES = [
-    { name: 'TravelDeal', desc: '항공·호텔 특가 알림', url: 'https://traveldeal-five.vercel.app', emoji: '🏷️', color: '#D97706' },
-    { name: '가전딜', desc: '가전 역경매 견적 비교', url: 'https://gajeondeal.vercel.app', emoji: '🔌', color: '#1A56DB' },
-    { name: 'DiskRescue', desc: '데이터 복구 프로그램', url: 'https://diskrescue.vercel.app', emoji: '💾', color: '#059669' },
+    { name: 'TravelDeal', desc: '항공·호텔 특가 알림', url: 'https://traveldeal-five.vercel.app', logo: '/family/traveldeal.jpg', color: '#D97706' },
+    { name: '가전딜', desc: '가전 역경매 견적 비교', url: 'https://gajeondeal.vercel.app', logo: '/family/gajeondeal.png', color: '#1A56DB' },
+    { name: 'DiskRescue', desc: '데이터 복구 프로그램', url: 'https://diskrescue.vercel.app', logo: '/family/diskrescue.svg', color: '#059669' },
 ];
 
 const Footer = () => {
@@ -56,7 +56,7 @@ const Footer = () => {
                                 className="family-card"
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.9rem 1rem', borderRadius: '14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', textDecoration: 'none', color: 'white', transition: '0.2s' }}
                             >
-                                <span aria-hidden style={{ display: 'flex', width: '44px', height: '44px', flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: '11px', fontSize: '1.4rem', background: site.color + '33' }}>{site.emoji}</span>
+                                <span aria-hidden style={{ display: 'flex', width: '44px', height: '44px', flexShrink: 0, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: '11px', background: '#fff' }}><img src={site.logo} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '5px' }} /></span>
                                 <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                                     <span style={{ display: 'block', fontWeight: 700, wordBreak: 'keep-all' }}>{site.name}</span>
                                     <span style={{ display: 'block', fontSize: '0.8rem', opacity: 0.7, wordBreak: 'keep-all' }}>{site.desc}</span>
