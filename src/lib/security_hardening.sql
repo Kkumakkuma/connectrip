@@ -67,9 +67,19 @@ INSERT INTO public.test_account_floors (email, min_points) VALUES
   ('admin@connectrip.com', 1000000)
 ON CONFLICT (email) DO UPDATE SET min_points = EXCLUDED.min_points;
 
+-- 추천코드 컬럼 (2026-07-18) — 인증 승무원 고유 코드. 발급은 get_my_referral_code RPC 만,
+-- 클라 직접 변경은 profiles_guard 가 차단(referral_code 보호). 서버 발급 코드만 허용(CHECK).
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS referral_code TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_referral_code_key ON public.profiles (referral_code);
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_referral_code_format;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_referral_code_format
+  CHECK (referral_code IS NULL OR referral_code ~ '^[A-Z2-9]{8}$');
+
 -- ------------------------------------------------------------
 -- 3. BEFORE UPDATE 가드 트리거
 --    bypass = 서버컨텍스트(auth.uid() IS NULL) | admin | RPC 플래그(app.allow_sensitive='on')
+--    ⚠ COALESCE 필수: current_setting(...,true) 는 GUC 미설정 세션에서 NULL 반환 →
+--      FALSE OR NULL OR FALSE = NULL → IF NOT NULL 은 실행 안 됨 → 가드 전체 무력화(2026-07-18 실증 수정).
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.profiles_guard()
 RETURNS TRIGGER
@@ -80,8 +90,8 @@ DECLARE
   v_bypass BOOLEAN;
 BEGIN
   v_bypass := (auth.uid() IS NULL)
-              OR (current_setting('app.allow_sensitive', true) = 'on')
-              OR public.is_admin();
+              OR (COALESCE(current_setting('app.allow_sensitive', true), 'off') = 'on')
+              OR COALESCE(public.is_admin(), FALSE);
 
   IF NOT v_bypass THEN
     IF NEW.role                 IS DISTINCT FROM OLD.role
@@ -98,6 +108,7 @@ BEGIN
     OR NEW.verification_required IS DISTINCT FROM OLD.verification_required
     OR NEW.referral_bonus_given IS DISTINCT FROM OLD.referral_bonus_given
     OR NEW.referred_by          IS DISTINCT FROM OLD.referred_by
+    OR NEW.referral_code        IS DISTINCT FROM OLD.referral_code
     OR NEW.profile_completed    IS DISTINCT FROM OLD.profile_completed
     OR NEW.phone                IS DISTINCT FROM OLD.phone
     OR NEW.airline_email        IS DISTINCT FROM OLD.airline_email
@@ -473,21 +484,76 @@ BEGIN
 END;
 $$;
 
--- 5-7b. 추천 승무원 ID(로그인 이메일) 검증 — 가입 폼 전용 (2026-07-18, 마이그레이션 find_crew_referrer_rpc).
---   PII 잠금으로 클라가 email 컬럼을 직접 조회할 수 없으므로, 입력한 ID가 "인증 승무원"의
---   로그인 이메일(또는 항공사 이메일)인지 확인해 uuid 만 돌려준다.
---   존재 여부 외 정보 비노출 — anon 공개 수준은 기존 check_email_taken 과 동일.
+-- 5-7b. 추천 승무원 ID/추천코드 검증 — 가입 폼 전용 (2026-07-18).
+--   PII 잠금으로 클라가 email 컬럼을 직접 조회할 수 없으므로, 입력한 ID/코드가 "인증 승무원"의
+--   로그인 이메일·항공사 이메일·추천코드 중 하나인지 확인해 uuid 만 돌려준다.
+--   존재 여부 외 정보 비노출. v3: 입력 길이 가드 + '@' 유무로 이메일/코드 분기(코드는 유니크 인덱스 정확매칭).
 CREATE OR REPLACE FUNCTION public.find_crew_referrer(p_login_id TEXT)
 RETURNS UUID
-LANGUAGE sql SECURITY DEFINER STABLE
+LANGUAGE plpgsql SECURITY DEFINER STABLE
 SET search_path = public AS $$
-  SELECT id FROM public.profiles
-   WHERE (lower(email) = lower(trim(p_login_id)) OR lower(airline_email) = lower(trim(p_login_id)))
-     AND user_type = 'crew' AND COALESCE(crew_verified, FALSE)
-   LIMIT 1;
+DECLARE v_in TEXT := trim(COALESCE(p_login_id, '')); v_id UUID;
+BEGIN
+  IF length(v_in) < 3 OR length(v_in) > 254 THEN RETURN NULL; END IF;
+  IF position('@' IN v_in) > 0 THEN
+    SELECT id INTO v_id FROM public.profiles
+     WHERE (lower(email) = lower(v_in) OR lower(airline_email) = lower(v_in))
+       AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) LIMIT 1;
+  ELSE
+    SELECT id INTO v_id FROM public.profiles
+     WHERE referral_code = upper(v_in)
+       AND user_type = 'crew' AND COALESCE(crew_verified, FALSE) LIMIT 1;
+  END IF;
+  RETURN v_id;
+END;
 $$;
 REVOKE ALL ON FUNCTION public.find_crew_referrer(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.find_crew_referrer(TEXT) TO anon, authenticated, service_role;
+
+-- 5-7c. 암호학적 추천코드 생성기 (pgcrypto, extensions 스키마 한정) — random() 대신.
+CREATE OR REPLACE FUNCTION public._gen_referral_code()
+RETURNS TEXT LANGUAGE sql VOLATILE
+SET search_path = public AS $$
+  SELECT string_agg(
+    substr('ABCDEFGHJKMNPQRSTUVWXYZ23456789',
+           (get_byte(extensions.gen_random_bytes(1), 0) % 31) + 1, 1), '')
+  FROM generate_series(1, 8);
+$$;
+
+-- 5-7d. 내 추천코드 조회/발급 — 인증 승무원 전용, 없으면 lazy 생성. 마이페이지에서 코드/초대링크 표시용.
+CREATE OR REPLACE FUNCTION public.get_my_referral_code()
+RETURNS TEXT
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+DECLARE
+  v_uid   UUID := auth.uid();
+  v_code  TEXT;
+  v_ok    BOOLEAN;
+  v_try   TEXT;
+BEGIN
+  IF v_uid IS NULL THEN RETURN NULL; END IF;
+  SELECT referral_code, (user_type = 'crew' AND COALESCE(crew_verified, FALSE))
+    INTO v_code, v_ok FROM public.profiles WHERE id = v_uid;
+  IF NOT FOUND OR NOT COALESCE(v_ok, FALSE) THEN RETURN NULL; END IF;  -- 인증 승무원만
+  IF v_code IS NOT NULL THEN RETURN v_code; END IF;
+
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  FOR i IN 1..20 LOOP
+    v_try := public._gen_referral_code();
+    BEGIN
+      UPDATE public.profiles SET referral_code = v_try WHERE id = v_uid AND referral_code IS NULL;
+      IF FOUND THEN RETURN v_try; END IF;
+      SELECT referral_code INTO v_code FROM public.profiles WHERE id = v_uid;
+      RETURN v_code;  -- 동시 호출로 이미 발급됨
+    EXCEPTION WHEN unique_violation THEN
+      -- 코드 충돌 → 재시도
+    END;
+  END LOOP;
+  RAISE EXCEPTION 'referral code generation failed';
+END;
+$$;
+REVOKE ALL ON FUNCTION public.get_my_referral_code() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_my_referral_code() TO authenticated, service_role;
 
 -- 5-8. 칭송 매칭 신청 — 같은 항공편 승객↔승무원 1:1 자동연결.
 --      대기중(pending)인 반대편 매칭이 있으면 그 row 를 matched 로 연결(중복 row 안 만듦),
@@ -670,7 +736,11 @@ SET search_path = public AS $$
 DECLARE v_bypass BOOLEAN; v_me UUID;
 BEGIN
   v_me := auth.uid();
-  v_bypass := (v_me IS NULL) OR (current_setting('app.allow_sensitive', true) = 'on') OR public.is_admin();
+  -- ⚠ COALESCE 필수: current_setting(...,true) 는 미설정 세션에서 NULL → FALSE OR NULL OR FALSE = NULL →
+  --   IF NOT NULL 미실행으로 가드 전체 무력화(profiles_guard 와 동일 버그, 2026-07-18 수정).
+  v_bypass := (v_me IS NULL)
+              OR (COALESCE(current_setting('app.allow_sensitive', true), 'off') = 'on')
+              OR COALESCE(public.is_admin(), FALSE);
   IF NOT v_bypass THEN
     IF TG_OP = 'INSERT' THEN
       -- 본인이 당사자(crew 또는 passenger)인 매칭만 생성 가능, 초기 상태만 허용

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings } from 'lucide-react';
+import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings, Gift, Copy, Share2 } from 'lucide-react';
 import KeywordSettings from './KeywordSettings';
 import CommendationMatching from './CommendationMatching';
 import FlightCompanions from './FlightCompanions';
@@ -18,6 +18,10 @@ const MyPage = () => {
 
     // Active tab for bottom sections
     const [activeTab, setActiveTab] = useState('commendation');
+
+    // 승무원 추천코드 + 초대링크
+    const [referralCode, setReferralCode] = useState(null);
+    const [refCopied, setRefCopied] = useState('');
 
     // DB에서 포인트/바우처 읽기
     const [availableLikes, setAvailableLikes] = useState(profile?.available_likes || 0);
@@ -41,6 +45,54 @@ const MyPage = () => {
             setAvailableLikes(profile.available_likes || 0);
         }
     }, [profile]);
+
+    // 인증 승무원이면 내 추천코드 조회/발급 (없으면 서버가 lazy 생성)
+    useEffect(() => {
+        if (!isCrew) { setReferralCode(null); return; }
+        let alive = true;
+        (async () => {
+            try {
+                const { data, error } = await supabase.rpc('get_my_referral_code');
+                if (alive && !error && data) setReferralCode(data);
+            } catch (e) {
+                console.error('추천코드 조회 실패:', e);
+            }
+        })();
+        return () => { alive = false; };
+    }, [isCrew]);
+
+    const inviteLink = referralCode
+        ? `${window.location.origin}/signup?ref=${encodeURIComponent(referralCode)}`
+        : '';
+
+    const copyText = async (text, key) => {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            // clipboard API 미지원(구형 웹뷰) 폴백
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            try { document.execCommand('copy'); } catch { /* noop */ }
+            document.body.removeChild(ta);
+        }
+        setRefCopied(key);
+        setTimeout(() => setRefCopied(''), 1800);
+    };
+
+    const shareInvite = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'ConnectTrip 초대',
+                    text: 'ConnectTrip에 초대합니다. 아래 링크로 가입하면 추천 승무원이 자동 입력돼요.',
+                    url: inviteLink,
+                });
+                return;
+            } catch { /* 사용자가 취소 → 폴백 복사 */ }
+        }
+        copyText(inviteLink, 'link');
+    };
 
     // Fetch flights
     const fetchFlights = useCallback(async () => {
@@ -431,6 +483,68 @@ const MyPage = () => {
                             </div>
                             {/* Decorative background circle */}
                             <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '150px', height: '150px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }} />
+                        </motion.div>
+                    )}
+
+                    {/* Crew Referral (승무원 추천코드 + 초대링크) */}
+                    {isCrew && referralCode && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            style={{ order: 1 }}
+                        >
+                            <div style={{
+                                background: 'white',
+                                borderRadius: '1.5rem',
+                                padding: 'clamp(1.25rem, 4vw, 1.75rem)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                                border: '1px solid #e5e7eb'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+                                    <div style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Gift size={20} color="white" />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#1f2937' }}>내 추천코드</h3>
+                                        <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: 0 }}>초대한 회원이 가입하면 3,000P 적립 (최대 20회)</p>
+                                    </div>
+                                </div>
+
+                                {/* 추천코드 */}
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 10 }}>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f3ff', border: '1.5px dashed #a855f7', borderRadius: 12, padding: '0.75rem', fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.15em', color: '#6d28d9', wordBreak: 'keep-all' }}>
+                                        {referralCode}
+                                    </div>
+                                    <button
+                                        onClick={() => copyText(referralCode, 'code')}
+                                        style={{ padding: '0 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                                        {refCopied === 'code' ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                        {refCopied === 'code' ? '복사됨' : '코드 복사'}
+                                    </button>
+                                </div>
+
+                                {/* 초대링크 */}
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: '0 0.9rem', fontSize: '0.85rem', color: '#374151', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{inviteLink}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => copyText(inviteLink, 'link')}
+                                        style={{ padding: '0.6rem 14px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: 12, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                                        {refCopied === 'link' ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                        {refCopied === 'link' ? '복사됨' : '링크'}
+                                    </button>
+                                    <button
+                                        onClick={shareInvite}
+                                        style={{ padding: '0.6rem 14px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                                        <Share2 size={16} /> 공유
+                                    </button>
+                                </div>
+
+                                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 10, marginBottom: 0, wordBreak: 'keep-all' }}>
+                                    초대링크로 가입하면 추천 승무원이 자동으로 입력됩니다. 추천코드를 대신 알려주셔도 됩니다.
+                                </p>
+                            </div>
                         </motion.div>
                     )}
 

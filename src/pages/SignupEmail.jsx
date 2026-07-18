@@ -74,9 +74,11 @@ export default function SignupEmail() {
   const [addressRoad, setAddressRoad] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
 
-  const [referrerAccountId, setReferrerAccountId] = useState('');
+  // 초대링크(?ref=코드)로 들어오면 추천인 칸을 자동 채운다.
+  const [referrerAccountId, setReferrerAccountId] = useState(searchParams.get('ref') || '');
   const [referrerStatus, setReferrerStatus] = useState(null);
   const [referrerId, setReferrerId] = useState(null);
+  const referrerFromLink = !!searchParams.get('ref');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -324,6 +326,14 @@ export default function SignupEmail() {
       // identity_verified=false / verification_method='sms_otp_pending' — 통신사 본인인증 도입 시 기존 유저 강제 업그레이드용 플래그
       // 보호컬럼(user_type/phone_verified/crew_verified 등)은 metadata 로 넣어도 서버 트리거가 무시한다.
       // 일반 필드만 전달하고, 가입 직후 complete_signup_profile RPC 가 서버검증(휴대폰 재인증·승무원 도메인) 후 보호컬럼을 설정.
+      // 추천인 최종 확정 — 디바운스 검증이 아직 안 끝났거나 ?ref= 자동입력 직후 빠른 제출에도
+      // 보너스가 유실되지 않도록, 입력값이 있으면 제출 시점에 서버로 한 번 더 확정 해석한다.
+      let resolvedReferrer = (referrerId && referrerStatus === 'valid') ? referrerId : null;
+      if (!resolvedReferrer && referrerAccountId.trim().length >= 3) {
+        const { data: rid } = await supabase.rpc('find_crew_referrer', { p_login_id: referrerAccountId.trim() });
+        if (rid) resolvedReferrer = rid;
+      }
+
       const metadata = {
         name: name.trim(),
         nickname: nickname.trim(),
@@ -333,9 +343,6 @@ export default function SignupEmail() {
         address_road: addressRoad,
         address_detail: addressDetail,
       };
-      if (referrerId && referrerStatus === 'valid') {
-        metadata.referred_by = referrerId;
-      }
 
       const { data, error: signErr } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
@@ -352,7 +359,7 @@ export default function SignupEmail() {
           p_user_type: userType,
           p_airline_email: (userType === 'crew' && airlineInfo) ? airlineEmail : null,
           p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
-          p_referred_by: (referrerId && referrerStatus === 'valid') ? referrerId : null,
+          p_referred_by: resolvedReferrer,
           p_birthdate: birthdate,
         });
         if (compErr) throw compErr;
@@ -609,17 +616,17 @@ export default function SignupEmail() {
               autoComplete="off" maxLength={80} />
           </Field>
 
-          <Field label="추천 승무원 ID" icon={<Gift size={16} />} required={false}
+          <Field label="추천 승무원 ID / 추천코드" icon={<Gift size={16} />} required={false}
             helper={
               !referrerAccountId ? '선택 사항. 추천 보너스 3,000포인트는 인증 승무원 회원에게만 지급됩니다.' :
               referrerStatus === 'checking' ? '확인 중...' :
-              referrerStatus === 'valid' ? '추천 승무원 확인됨' :
-              referrerStatus === 'invalid' ? '해당 ID의 승무원이 없습니다' : null
+              referrerStatus === 'valid' ? ((referrerFromLink && referrerAccountId.trim() === (searchParams.get('ref') || '').trim()) ? '초대링크로 추천 승무원이 자동 입력되었습니다' : '추천 승무원 확인됨') :
+              referrerStatus === 'invalid' ? '해당 ID/추천코드의 승무원이 없습니다' : null
             }
             helperColor={referrerStatus === 'valid' ? '#16a34a' : referrerStatus === 'invalid' ? '#dc2626' : '#64748b'}>
             <input type="text" value={referrerAccountId}
               onChange={(e) => setReferrerAccountId(e.target.value)}
-              placeholder="추천해 준 승무원의 아이디(이메일)"
+              placeholder="추천 승무원의 아이디(이메일) 또는 추천코드"
               style={inputStyle} autoComplete="off" maxLength={80} />
           </Field>
 

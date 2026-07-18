@@ -265,6 +265,12 @@ export default function SignupComplete() {
     setSaving(true);
     setError('');
     try {
+      // 추천인 최종 확정 — 디바운스 검증 미완료 상태의 빠른 제출에도 보너스가 유실되지 않도록 재해석.
+      let resolvedReferrer = (referrerId && referrerStatus === 'valid') ? referrerId : null;
+      if (!resolvedReferrer && referrerAccountId.trim().length >= 3) {
+        const { data: rid } = await supabase.rpc('find_crew_referrer', { p_login_id: referrerAccountId.trim() });
+        if (rid && rid !== (user?.id || '')) resolvedReferrer = rid;  // self-referral 제외
+      }
       // 보호컬럼(user_type/crew_verified/phone_verified)은 서버 RPC 가 검증 후 설정.
       // 휴대폰은 phone_otps.verified_at 으로 재검증되고, 추천 보너스도 서버가 self-referral 차단 포함 처리.
       const { error: upErr } = await supabase.rpc('complete_signup_profile', {
@@ -277,7 +283,7 @@ export default function SignupComplete() {
         p_user_type: userType,
         p_airline_email: (userType === 'crew' && airlineInfo) ? airlineEmail : null,
         p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
-        p_referred_by: (referrerId && referrerStatus === 'valid') ? referrerId : null,
+        p_referred_by: resolvedReferrer,
         p_birthdate: birthdate,
       });
       if (upErr) throw upErr;
@@ -514,13 +520,13 @@ export default function SignupComplete() {
 
           {/* 추천 승무원 */}
           <Field
-            label="추천 승무원 ID (선택) — 추천 보너스 3,000P는 인증 승무원 회원에게만 지급"
+            label="추천 승무원 ID / 추천코드 (선택) — 추천 보너스 3,000P는 인증 승무원 회원에게만 지급"
             icon={<Gift size={16} />}
             helper={
               !referrerAccountId ? null :
               referrerStatus === 'checking' ? '확인 중...' :
               referrerStatus === 'valid' ? '추천 승무원 확인 완료' :
-              referrerStatus === 'invalid' ? '해당 ID의 승무원이 없습니다' : null
+              referrerStatus === 'invalid' ? '해당 ID/추천코드의 승무원이 없습니다' : null
             }
             helperColor={
               referrerStatus === 'valid' ? '#16a34a' :
@@ -531,7 +537,7 @@ export default function SignupComplete() {
               type="text"
               value={referrerAccountId}
               onChange={(e) => setReferrerAccountId(e.target.value)}
-              placeholder="추천해 준 승무원의 아이디(이메일)를 입력하세요"
+              placeholder="추천 승무원의 아이디(이메일) 또는 추천코드"
               style={inputStyle}
               maxLength={80}
             />

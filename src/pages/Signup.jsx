@@ -11,6 +11,9 @@ const Signup = () => {
     const location = useLocation();
     const { signIn, isLoggedIn } = useAuth();
     const [mode, setMode] = useState(searchParams.get('mode') === 'login' ? 'login' : 'signup');
+    // 초대링크(?ref=코드)로 진입 시 유형 선택 후에도 추천코드를 이어서 전달
+    const refParam = searchParams.get('ref');
+    const refQuery = refParam ? `&ref=${encodeURIComponent(refParam)}` : '';
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -87,7 +90,7 @@ const Signup = () => {
                                 <div className="grid md:grid-cols-2 gap-6">
                                     {/* 일반 여행자 카드 → 즉시 /signup/email?type=traveler */}
                                     <motion.button
-                                        onClick={() => navigate('/signup/email?type=traveler')}
+                                        onClick={() => navigate(`/signup/email?type=traveler${refQuery}`)}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-blue-500 transition-all group text-left"
@@ -111,7 +114,7 @@ const Signup = () => {
 
                                     {/* 승무원 카드 → 즉시 /signup/email?type=crew, 페이지 안에서 항공사 이메일 인증 */}
                                     <motion.button
-                                        onClick={() => navigate('/signup/email?type=crew')}
+                                        onClick={() => navigate(`/signup/email?type=crew${refQuery}`)}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-purple-500 transition-all group text-left"

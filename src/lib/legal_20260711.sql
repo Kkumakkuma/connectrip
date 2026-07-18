@@ -119,7 +119,9 @@ BEGIN
     NULLIF(meta->>'address_detail', ''),
     NULLIF(meta->>'avatar_url', ''),
     COALESCE(NULLIF(NEW.raw_app_meta_data->>'provider', ''), 'email'),
-    CASE WHEN (meta->>'referred_by') ~ '^[0-9a-fA-F-]{36}$' THEN (meta->>'referred_by')::uuid ELSE NULL END,
+    -- referred_by 는 metadata 로 선주입하지 않는다(NULL). 추천인은 complete_signup_profile 이
+    -- 서버검증(인증 승무원 여부)한 값만 기록 → 단일 신뢰 경로(2026-07-18).
+    NULL,
     'traveler', FALSE, FALSE, 'sms_otp_pending', FALSE, FALSE
   );
 
