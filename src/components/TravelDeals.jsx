@@ -3,7 +3,7 @@
 const AVIASALES_URL = 'https://www.aviasales.com/?marker=738928';
 const HOTELLOOK_URL = 'https://search.hotellook.com/?marker=738928';
 
-const TravelDeals = ({ title = '여행 준비 — 최저가부터 확인', className = '' }) => {
+const TravelDeals = ({ title = '여행 준비 — 항공권·호텔 특가 찾기', className = '' }) => {
     return (
         <div className={`bg-white rounded-2xl border border-gray-100 shadow-md p-6 ${className}`}>
             <h3 className="text-lg font-bold text-gray-900 mb-1">{title}</h3>
@@ -15,7 +15,7 @@ const TravelDeals = ({ title = '여행 준비 — 최저가부터 확인', class
                     rel="noopener sponsored nofollow"
                     className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors"
                 >
-                    <span aria-hidden="true">✈️</span> 항공권 최저가 검색
+                    <span aria-hidden="true">✈️</span> 항공권 가격 비교
                 </a>
                 <a
                     href={HOTELLOOK_URL}

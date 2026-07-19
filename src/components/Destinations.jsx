@@ -12,11 +12,11 @@ import SEOHead from './SEOHead';
 import TravelDeals from './TravelDeals';
 
 const regions = [
-    { id: 'europe', name: '유럽', icon: '🏰', desc: '승무원들이 가장 사랑하는 유럽의 숨은 명소', image: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=800&auto=format&fit=crop' },
+    { id: 'europe', name: '유럽', icon: '🏰', desc: '승무원들이 아끼는 유럽의 숨은 명소', image: 'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&w=800&auto=format&fit=crop' },
     { id: 'americas', name: '미주', icon: '🗽', desc: '쇼핑부터 힐링까지, 미주 비행 베스트 스팟', image: 'https://images.unsplash.com/photo-1485738422979-f5c462d49f74?q=80&w=800&auto=format&fit=crop' },
     { id: 'africa', name: '아프리카', icon: '🦁', desc: '대자연의 신비, 아프리카의 숨겨진 보석들', image: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?q=80&w=800&auto=format&fit=crop' },
     { id: 'southeast-asia', name: '동남아', icon: '🏝️', desc: '가성비와 럭셔리를 한번에, 동남아 휴양지', image: 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800&auto=format&fit=crop' },
-    { id: 'asia', name: '아시아', icon: '🐅', desc: '짧은 비행으로 즐기는 완벽한 미식 여행', image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop' },
+    { id: 'asia', name: '아시아', icon: '🐅', desc: '짧은 비행으로 즐기는 미식 여행', image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=800&auto=format&fit=crop' },
     { id: 'oceania', name: '오세아니아', icon: '🦘', desc: '청정 자연과 도시의 조화, 오세아니아 핫플', image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?q=80&w=800&auto=format&fit=crop' },
 ];
 
@@ -301,7 +301,7 @@ const Destinations = () => {
                                     <label className="block text-sm font-bold text-gray-700 mb-2">승무원 꽁팁</label>
                                     <textarea value={formData.crewComment} onChange={(e) => setFormData({ ...formData, crewComment: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none" rows="4"
-                                        placeholder="승무원만 아는 특별한 팁을 공유해주세요!" required />
+                                        placeholder="승무원만 아는 팁을 공유해주세요" required />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</label>
