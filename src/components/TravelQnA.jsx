@@ -222,7 +222,7 @@ const TravelQnA = () => {
                                 </motion.div>
                             </div>
                             <div className="max-w-4xl mx-auto mt-10">
-                                <TravelDeals />
+                                <TravelDeals placement="qna" />
                             </div>
                         </motion.div>
                     )}

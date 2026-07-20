@@ -26,8 +26,8 @@ const LoginPrompt = ({ isOpen, onClose }) => {
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <LogIn size={28} className="text-blue-600" />
           </div>
-          <h3 className="text-xl font-bold text-gray-800 mb-2">로그인이 필요합니다</h3>
-          <p className="text-gray-500 mb-6">로그인 후 글을 작성할 수 있습니다.</p>
+          <h3 className="text-xl font-bold text-gray-800 mb-2">회원만 글을 쓸 수 있어요</h3>
+          <p className="text-gray-500 mb-6">가입하고 바로 글을 작성해 보세요.</p>
           <div className="flex gap-3">
             <button
               onClick={onClose}
@@ -38,14 +38,24 @@ const LoginPrompt = ({ isOpen, onClose }) => {
             <button
               onClick={() => {
                 onClose();
-                navigate('/signup?mode=login');
+                navigate('/signup');
                 window.scrollTo(0, 0);
               }}
               className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
             >
-              로그인하기
+              회원가입
             </button>
           </div>
+          <button
+            onClick={() => {
+              onClose();
+              navigate('/signup?mode=login');
+              window.scrollTo(0, 0);
+            }}
+            className="mt-4 text-sm text-gray-500 hover:text-blue-600 transition-colors"
+          >
+            이미 계정이 있으신가요? <span className="font-semibold underline">로그인</span>
+          </button>
         </motion.div>
       </motion.div>
     </AnimatePresence>

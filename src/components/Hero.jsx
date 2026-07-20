@@ -1,10 +1,14 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import heroBg from '../assets/hero-bg.webp';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Plane } from 'lucide-react';
+import { useAuth } from '../lib/AuthContext';
 
 const Hero = () => {
+    const { isLoggedIn } = useAuth();
     return (
-        <section className="relative h-screen w-full overflow-hidden flex-center">
+        {/* min-h-screen: CTA·배지 추가로 짧은 화면(가로모드 등)에서 h-screen 고정 시 잘림 → 내용만큼 늘어나게 */}
+        <section className="relative min-h-screen w-full overflow-hidden flex-center py-24">
             {/* Background Image with Overlay */}
             <div
                 className="absolute inset-0 z-0"
@@ -23,6 +27,11 @@ const Hero = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, ease: "easeOut" }}
                 >
+                    {/* 신뢰 배지 — 첫 화면에서 차별점(승무원 인증 커뮤니티)을 시각화 */}
+                    {/* 어두운 반투명 배경 — 밝은 배경 사진 위에서도 흰 글자 대비 확보(WCAG) */}
+                    <span className="inline-flex items-center gap-2 px-4 py-2 mb-6 rounded-full bg-black/35 backdrop-blur-sm border border-white/30 text-sm font-semibold">
+                        <Plane size={15} aria-hidden="true" /> 현직 승무원 인증 커뮤니티
+                    </span>
                     <h1
                         style={{
                             fontSize: 'clamp(2.5rem, 5vw, 4.5rem)',
@@ -48,7 +57,27 @@ const Hero = () => {
                         현직 승무원들의 노하우와 함께 나만의 여행을 만들어보세요.
                     </p>
 
-                    <div style={{ height: '2rem' }}></div>
+                    {/* 주·보조 CTA — 첫 화면의 유일한 행동 유도 (2026-07-20: 빈 spacer → 버튼 교체) */}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                        {!isLoggedIn && (
+                            <Link
+                                to="/signup"
+                                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-blue-600 text-white text-lg font-bold hover:bg-blue-700 transition-colors shadow-lg"
+                            >
+                                무료로 시작하기
+                            </Link>
+                        )}
+                        <Link
+                            to="/companion"
+                            className={`w-full sm:w-auto px-8 py-4 rounded-xl text-lg font-bold transition-colors ${
+                                isLoggedIn
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
+                                    : 'bg-black/35 backdrop-blur-sm border border-white/40 text-white hover:bg-black/50'
+                            }`}
+                        >
+                            동행 찾아보기
+                        </Link>
+                    </div>
                 </motion.div>
             </div>
 

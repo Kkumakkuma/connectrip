@@ -220,7 +220,7 @@ const Destinations = () => {
                                 ))}
                             </div>
                             <div className="max-w-6xl mx-auto mt-10">
-                                <TravelDeals />
+                                <TravelDeals placement="recommend" />
                             </div>
                         </motion.div>
                     ) : (
