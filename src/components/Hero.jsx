@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import heroBg from '../assets/hero-bg.webp';
 import { ChevronDown, Plane } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 
@@ -13,7 +12,7 @@ const Hero = () => {
             <div
                 className="absolute inset-0 z-0"
                 style={{
-                    backgroundImage: `url(${heroBg})`,
+                    backgroundImage: 'url(/hero-bg.webp)',
                     backgroundPosition: 'center',
                     backgroundSize: 'cover',
                     filter: 'brightness(0.7)'
