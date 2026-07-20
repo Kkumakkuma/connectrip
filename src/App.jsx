@@ -16,6 +16,8 @@ import { Bell, X, Loader2 } from 'lucide-react';
 // 코드 스플리팅: 첫 화면(Home)·Navbar·Footer·가드는 정적 유지하고,
 // 나머지 라우트 컴포넌트는 React.lazy 로 분리해 초기 번들 크기를 줄인다.
 const Signup = lazy(() => import('./pages/Signup'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const SignupEmail = lazy(() => import('./pages/SignupEmail'));
 const SignupComplete = lazy(() => import('./pages/SignupComplete'));
 const Destinations = lazy(() => import('./components/Destinations'));
@@ -184,6 +186,8 @@ function App() {
                 }
               />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/signup/email" element={<SignupEmail />} />
               <Route path="/signup/complete" element={<SignupComplete />} />
               <Route path="/companion" element={<CompanionBoard />} />

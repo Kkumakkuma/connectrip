@@ -194,6 +194,12 @@ const Signup = () => {
                                         </button>
                                     </form>
 
+                                    <div className="mt-4 text-center">
+                                        <Link to="/forgot-password" className="text-sm text-gray-500 hover:text-blue-600 hover:underline">
+                                            비밀번호를 잊으셨나요?
+                                        </Link>
+                                    </div>
+
                                     <div className="mt-6 text-center text-xs text-gray-500">
                                         <p>
                                             가입하시면{' '}

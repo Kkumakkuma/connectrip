@@ -6,8 +6,8 @@ import { useAuth } from '../lib/AuthContext';
 
 const Hero = () => {
     const { isLoggedIn } = useAuth();
+    // min-h-screen: CTA·배지 추가로 짧은 화면(가로모드 등)에서 h-screen 고정 시 잘림 → 내용만큼 늘어나게
     return (
-        {/* min-h-screen: CTA·배지 추가로 짧은 화면(가로모드 등)에서 h-screen 고정 시 잘림 → 내용만큼 늘어나게 */}
         <section className="relative min-h-screen w-full overflow-hidden flex-center py-24">
             {/* Background Image with Overlay */}
             <div

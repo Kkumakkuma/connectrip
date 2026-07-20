@@ -19,7 +19,7 @@ const ShareButtons = ({ title, description, url }) => {
         content: {
           title: shareTitle,
           description: shareDesc,
-          imageUrl: 'https://connecttrip.co.kr/icon-512x512.png',
+          imageUrl: 'https://www.connecttrip.co.kr/icon-512x512.png',
           link: { mobileWebUrl: shareUrl, webUrl: shareUrl },
         },
         buttons: [
