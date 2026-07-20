@@ -24,12 +24,12 @@ const ForgotPassword = () => {
             const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/reset-password`,
             });
+            // Supabase 는 미가입 이메일에도 성공을 돌려줘(존재 탐지 방지) err 는
+            // rate limit·네트워크 등 '운영 실패'만 — 성공으로 위장하면 재시도가 막힘(codex 지적)
             if (err) throw err;
-            // 계정 존재 여부와 무관하게 같은 안내(이메일 존재 탐지 방지)
             setSent(true);
         } catch {
-            // rate limit 등 — 존재 탐지 방지를 위해 동일 안내 유지, 잦은 실패만 별도
-            setSent(true);
+            setError('메일 전송에 실패했습니다. 잠시 후 다시 시도해주세요.');
         } finally {
             setLoading(false);
         }
@@ -46,6 +46,12 @@ const ForgotPassword = () => {
                             입력하신 주소로 재설정 링크를 보냈습니다.<br />
                             메일함(스팸함 포함)을 확인해주세요.
                         </p>
+                        <button
+                            onClick={() => setSent(false)}
+                            className="mb-4 block text-sm text-gray-500 hover:text-blue-600 hover:underline"
+                        >
+                            메일이 안 왔나요? 다시 보내기
+                        </button>
                         <Link to="/signup?mode=login" className="text-blue-600 font-semibold hover:underline">
                             로그인으로 돌아가기
                         </Link>

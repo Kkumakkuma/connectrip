@@ -20,12 +20,23 @@ const ResetPassword = () => {
 
     useEffect(() => {
         let alive = true;
-        // 링크 착지 직후 URL 해시의 recovery 토큰이 세션으로 바뀌는 데 약간의 시간이 걸린다.
+        // 복구 링크로 온 세션만 허용(sessionStorage 플래그 = AuthContext PASSWORD_RECOVERY 가 세팅).
+        // 세션만 보고 허용하면 공유 기기의 일반 로그인 세션 비밀번호를 무검증 변경 가능(codex 지적).
+        const hasRecoveryFlag = () => {
+            try { return sessionStorage.getItem('ct_pw_recovery') === '1'; } catch { return false; }
+        };
+        // 이 탭에서 recovery 해시가 세션으로 바뀌기 전에 마운트될 수 있어 이벤트도 함께 구독
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY' && alive) {
+                setReady(true);
+                setChecked(true);
+            }
+        });
         const check = async () => {
             for (let i = 0; i < 10; i += 1) {
                 const { data } = await supabase.auth.getSession();
                 if (!alive) return;
-                if (data?.session) {
+                if (data?.session && hasRecoveryFlag()) {
                     setReady(true);
                     setChecked(true);
                     return;
@@ -35,7 +46,10 @@ const ResetPassword = () => {
             if (alive) setChecked(true);
         };
         check();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+            subscription?.unsubscribe();
+        };
     }, []);
 
     const handleSubmit = async (e) => {
@@ -53,6 +67,9 @@ const ResetPassword = () => {
         try {
             const { error: err } = await supabase.auth.updateUser({ password });
             if (err) throw err;
+            // 복구 세션을 남기지 않는다 — 공유 기기 잔존 세션 방지 + '새 비밀번호로 로그인' 안내와 일치
+            try { sessionStorage.removeItem('ct_pw_recovery'); } catch { /* 무시 */ }
+            await supabase.auth.signOut();
             setDone(true);
         } catch (err) {
             setError(err.message || '비밀번호 변경에 실패했습니다. 링크가 만료됐다면 다시 요청해주세요.');

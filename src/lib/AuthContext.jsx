@@ -117,10 +117,15 @@ export const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         // 재설정 메일 링크 착지 시(redirectTo 미허용 폴백으로 / 에 떨어져도) 새 비밀번호
-        // 설정 화면으로 보낸다 — 비밀번호 재설정 플로우(2026-07-20 신설)
-        if (_event === 'PASSWORD_RECOVERY' && window.location.pathname !== '/reset-password') {
-          window.location.replace('/reset-password');
-          return;
+        // 설정 화면으로 보낸다 — 비밀번호 재설정 플로우(2026-07-20 신설).
+        // sessionStorage 플래그 = ResetPassword 가 '복구 링크로 온 세션'만 허용하는 근거
+        // (일반 로그인 세션의 무검증 비번 변경 차단 — codex 지적)
+        if (_event === 'PASSWORD_RECOVERY') {
+          try { sessionStorage.setItem('ct_pw_recovery', '1'); } catch { /* 무시 */ }
+          if (window.location.pathname !== '/reset-password') {
+            window.location.replace('/reset-password');
+            return;
+          }
         }
         // Skip INITIAL_SESSION since getSession handles it
         if (!initialDone) {
