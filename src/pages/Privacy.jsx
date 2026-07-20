@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 
-// 개인정보처리방침. ⚠️ "(기재 예정)" placeholder(보호책임자 등)는 쿠마님이 실제 정보로 교체.
+// 개인정보처리방침. 보호책임자 = 회사명 대표 표기(쿠마님 2026-07-20 확정).
 function Section({ title, children }) {
   return (
     <section className="mt-8">
@@ -142,7 +142,7 @@ const Privacy = () => {
         </Section>
 
         <Section title="9. 개인정보 보호책임자">
-          <p>개인정보 보호책임자: (기재 예정) · 문의: 200kgBrothers@gmail.com</p>
+          <p>개인정보 보호책임자: 200kgBrothers Company 대표 · 문의: 200kgBrothers@gmail.com</p>
           <p className="text-xs text-gray-400">
             개인정보 침해에 대한 신고·상담은 개인정보침해신고센터(privacy.kisa.or.kr, 국번 없이 118)에서도 받을 수 있습니다.
           </p>
