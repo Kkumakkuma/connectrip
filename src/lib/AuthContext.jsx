@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
 
 const AuthContext = createContext({});
@@ -7,59 +7,160 @@ const AuthContext = createContext({});
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
 
+// 저장된 세션이 있는지 동기적으로 판별.
+// supabase-js v2 는 세션을 localStorage 의 `sb-<project-ref>-auth-token` 에 둔다.
+// 키가 하나도 없으면 "확실히 비로그인" 이므로 세션 확인 스피너로 첫 렌더를 막을 이유가 없다
+// (검색 유입·크롤러 등 공개 페이지 방문자 = 대부분 이 경우 → LCP 를 스피너가 잡아먹던 것).
+// 반대로 키가 있으면 기존대로 대기해 로그인 상태가 뒤늦게 바뀌는 깜빡임을 막는다.
+// localStorage 접근이 막힌 환경(사생활 모드 등)은 안전하게 기존 동작(대기)으로 둔다.
+const hasStoredSession = () => {
+  try {
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key && key.startsWith('sb-') && key.includes('-auth-token')) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+};
+
+// 아직 localStorage 에 세션이 없더라도, 주소에 인증 토큰이 실려 오는 착지 경로
+// (OAuth 리다이렉트 / 비밀번호 재설정 메일 링크)는 곧 로그인 상태가 된다.
+// 이 경우 비로그인 화면을 먼저 그리면 깜빡임·오판정이 생기므로 세션 확정까지 기다린다.
+const hasAuthCallbackInUrl = () => {
+  try {
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    return hash.includes('access_token=')
+      || hash.includes('error_description=')
+      || /[?&](code|token_hash)=/.test(search)
+      || /[?&]type=recovery/.test(search)
+      || /[?&]error(_description)?=/.test(search);
+  } catch {
+    return false;
+  }
+};
+
+const shouldWaitForSession = () => hasStoredSession() || hasAuthCallbackInUrl();
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(shouldWaitForSession);
+  // 프로필 조회(get_my_profile RPC)는 네트워크 왕복이라 세션 확인과 분리한다.
+  // 세션이 확정되면 화면을 먼저 그리고, 프로필은 뒤이어 채운다.
+  const [profileLoading, setProfileLoading] = useState(false);
+  // 프로필 조회가 실패한 상태. "프로필이 없다(= 일반 회원)" 와 "못 불러왔다" 를 구분해야
+  // 권한 화면이 네트워크 오류를 '권한 없음' 으로 단정하지 않는다.
+  const [profileError, setProfileError] = useState(false);
+  const profileReqRef = useRef(0);
 
   // 본인 프로필 조회: get_my_profile RPC 우선 (profiles SELECT 컬럼 잠금 대비),
   // RPC 미존재/실패 시 기존 select('*') 폴백.
   // 전환기 폴백: profiles 잠금 SQL 적용 후 select('*') 폴백은 제거 가능.
+  // 반환 { data, failed } — failed 는 "조회 자체가 실패"(권한/네트워크).
+  // data=null & failed=false 는 "프로필 row 가 아직 없음"(아래 upsert 경로가 처리).
+  // 둘을 섞으면 네트워크 오류가 '일반 회원'으로 확정돼 권한 화면이 오판한다.
   const loadMyProfile = async (userId) => {
     try {
       const { data: rpcRows, error: rpcError } = await supabase
         .rpc('get_my_profile')
         .maybeSingle();
-      if (!rpcError && rpcRows) return rpcRows;
+      if (!rpcError) return { data: rpcRows ?? null, failed: false };
     } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
-    return data;
+    // PGRST116 = 0건 → row 미생성이지 오류가 아니다.
+    if (error) return { data: null, failed: error.code !== 'PGRST116' };
+    return { data: data ?? null, failed: false };
   };
 
-  const fetchProfile = async (userId) => {
-    const data = await loadMyProfile(userId);
+  // 상태를 건드리지 않는 순수 조회. setProfile 은 호출자가 요청 id 를 확인한 뒤에만 한다.
+  // isCurrent() = 이 요청이 아직 최신인지. upsert 는 DB 쓰기라 반영 시점이 아니라
+  // "쓰기 직전"에 유효성을 봐야 한다(계정이 바뀐 뒤 도착한 요청이 남의 행을 건드리지 않게).
+  const resolveProfile = async (userId, isCurrent) => {
+    const first = await loadMyProfile(userId);
+    if (first.failed || first.data) return first;
+    if (!isCurrent()) return first;
 
     // 프로필 row 가 아예 없으면 (트리거 불발/OAuth 경합) 즉시 최소 프로필 upsert
-    if (!data) {
-      const authUser = (await supabase.auth.getUser()).data?.user;
-      if (authUser) {
-        const meta = authUser.user_metadata || {};
-        const defaultName = meta.full_name || meta.name
-          || (authUser.email ? authUser.email.split('@')[0] : '여행자');
-        // returning 제거: profiles SELECT 컬럼 잠금 후 .select() returning 이 깨지므로
-        // upsert 후 get_my_profile 로 재조회한다.
-        await supabase
-          .from('profiles')
-          .upsert({
-            id: userId,
-            email: authUser.email,
-            name: defaultName,
-            avatar_url: meta.avatar_url || null,
-            provider: authUser.app_metadata?.provider || 'email',
-            profile_completed: false,
-          }, { onConflict: 'id' });
-        const inserted = await loadMyProfile(userId);
-        setProfile(inserted);
-        return inserted;
-      }
-    }
+    const authUser = (await supabase.auth.getUser()).data?.user;
+    // 대상 불일치(=그 사이 계정 전환)면 쓰지 않는다 — 다른 계정 정보가 섞이는 것 차단
+    if (!authUser || authUser.id !== userId || !isCurrent()) return first;
+    const meta = authUser.user_metadata || {};
+    const defaultName = meta.full_name || meta.name
+      || (authUser.email ? authUser.email.split('@')[0] : '여행자');
+    // returning 제거: profiles SELECT 컬럼 잠금 후 .select() returning 이 깨지므로
+    // upsert 후 get_my_profile 로 재조회한다.
+    await supabase
+      .from('profiles')
+      .upsert({
+        id: userId,
+        email: authUser.email,
+        name: defaultName,
+        avatar_url: meta.avatar_url || null,
+        provider: authUser.app_metadata?.provider || 'email',
+        profile_completed: false,
+      }, { onConflict: 'id' });
+    return loadMyProfile(userId);
+  };
 
-    setProfile(data);
-    return data;
+  // 요청 id 를 올려 진행 중이던 응답을 무효화한다(로그아웃·계정 전환 시 필수).
+  const invalidateProfileRequests = () => {
+    profileReqRef.current += 1;
+    return profileReqRef.current;
+  };
+
+  // 늦게 도착한 응답이 다른 사용자의 프로필을 덮어쓰지 않도록 요청 id 가 최신일 때만 반영.
+  const applyProfileResult = (reqId, result) => {
+    if (profileReqRef.current !== reqId) return;
+    if (result.failed) {
+      setProfileError(true); // 이전 profile 은 유지 — 실패를 '프로필 없음'으로 확정하지 않는다
+      return;
+    }
+    setProfileError(false);
+    setProfile(result.data);
+  };
+
+  // 조회 시작 시 다른 계정의 프로필이 남아 있으면 즉시 비운다.
+  // (계정 전환 직후 이전 사용자의 isCrew/isAdmin·개인정보를 승계하지 않게)
+  // 같은 사용자의 새로고침이면 유지해 불필요한 깜빡임을 만들지 않는다.
+  const dropForeignProfile = (userId) => {
+    setProfile((prev) => (prev && prev.id === userId ? prev : null));
+  };
+
+  // 프로필 조회를 백그라운드로 돌린다(세션 확정 후 화면을 먼저 그리기 위해).
+  const runProfileFetch = (userId) => {
+    const reqId = invalidateProfileRequests();
+    dropForeignProfile(userId);
+    setProfileLoading(true);
+    setProfileError(false);
+    resolveProfile(userId, () => profileReqRef.current === reqId)
+      .then((result) => applyProfileResult(reqId, result))
+      .catch(() => { if (profileReqRef.current === reqId) setProfileError(true); })
+      .finally(() => { if (profileReqRef.current === reqId) setProfileLoading(false); });
+  };
+
+  // 외부(마이페이지·칭송매칭 등)에서 프로필을 새로고침할 때 쓰는 공개 API.
+  const fetchProfile = async (userId) => {
+    const reqId = invalidateProfileRequests();
+    dropForeignProfile(userId);
+    setProfileLoading(true);
+    setProfileError(false);
+    try {
+      const result = await resolveProfile(userId, () => profileReqRef.current === reqId);
+      applyProfileResult(reqId, result);
+      return result.data;
+    } catch {
+      if (profileReqRef.current === reqId) setProfileError(true);
+      return null;
+    } finally {
+      if (profileReqRef.current === reqId) setProfileLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -99,11 +200,9 @@ export const AuthProvider = ({ children }) => {
         initialDone = true;
         clearTimeout(timeout);
         setUser(session?.user ?? null);
-        if (session?.user) {
-          fetchProfile(session.user.id).catch(() => {}).finally(() => setLoading(false));
-        } else {
-          setLoading(false);
-        }
+        // 프로필 응답을 기다리지 않고 세션 확정 즉시 렌더한다(프로필은 뒤이어 채워짐).
+        if (session?.user) runProfileFetch(session.user.id);
+        setLoading(false);
       }
     }).catch(() => {
       if (!initialDone) {
@@ -134,9 +233,13 @@ export const AuthProvider = ({ children }) => {
         }
         setUser(session?.user ?? null);
         if (session?.user) {
-          fetchProfile(session.user.id).catch(() => {});
+          runProfileFetch(session.user.id);
         } else {
+          // 로그아웃: 진행 중이던 프로필 응답이 뒤늦게 도착해도 무시되도록 id 를 올린다.
+          invalidateProfileRequests();
           setProfile(null);
+          setProfileLoading(false);
+          setProfileError(false);
         }
         setLoading(false);
       }
@@ -173,9 +276,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signOut = async () => {
-    // 로컬 세션 먼저 강제 초기화
+    // 로컬 세션 먼저 강제 초기화.
+    // 진행 중이던 프로필 응답이 뒤늦게 도착해 로그아웃 후 프로필을 되살리지 않게 무효화한다.
+    invalidateProfileRequests();
     setUser(null);
     setProfile(null);
+    setProfileLoading(false);
+    setProfileError(false);
     try {
       const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) console.error('signOut error:', error.message);
@@ -193,15 +300,25 @@ export const AuthProvider = ({ children }) => {
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', user.id);
     if (error) throw error;
-    const data = await loadMyProfile(user.id);
-    setProfile(data);
-    return data;
+    const reqId = invalidateProfileRequests();
+    const result = await loadMyProfile(user.id);
+    applyProfileResult(reqId, result);
+    return result.data;
   };
+
+  // 프로필은 반드시 "현재 로그인한 사용자 본인의 것"일 때만 유효로 본다.
+  // 계정 전환 과도기에 이전 사용자의 프로필로 권한(isCrew/isAdmin)이 판정되는 것을 원천 차단.
+  const ownedProfile = user && profile && profile.id === user.id ? profile : null;
 
   const value = {
     user,
-    profile,
+    profile: ownedProfile,
     loading,
+    // 세션은 확정됐지만 프로필(role/user_type)이 아직인 구간.
+    // isCrew/isAdmin 로 화면을 가르는 곳은 이 값이 true 인 동안 판정을 미뤄야 한다.
+    profileLoading,
+    // 프로필 조회 실패(네트워크/권한). true 면 '권한 없음'이 아니라 '확인 실패'로 다뤄야 한다.
+    profileError,
     signUp,
     signIn,
     signInWithProvider,
@@ -209,8 +326,8 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     fetchProfile,
     isLoggedIn: !!user,
-    isCrew: profile?.user_type === 'crew',
-    isAdmin: profile?.role === 'admin',
+    isCrew: ownedProfile?.user_type === 'crew',
+    isAdmin: ownedProfile?.role === 'admin',
   };
 
   if (loading) {

@@ -20,6 +20,16 @@
   <link rel="preload" as="image" href="/hero-bg.webp" fetchpriority="high" />
   <link rel="canonical" href="https://www.connecttrip.co.kr/" />
 
+  <!-- 폰트: 과거엔 index.css 의 @import 로 불러와 (HTML→번들CSS→폰트CSS→woff2) 4단 요청 체인이
+       전부 렌더를 막았다. head 의 link 로 올려 폰트 CSS 를 번들 CSS 와 병렬로 받게 한다.
+       preconnect 2줄 = 폰트 CSS(비-CORS)와 woff2(CORS)가 서로 다른 커넥션 풀을 쓰기 때문.
+       static 판(가중치별 풀 woff2 약 770KB × 6종)이 아니라 variable dynamic-subset 판을 쓴다
+       — unicode-range 로 실제 쓰인 글자 조각만 받는다. font-display:swap 은 이 CSS에 포함돼 있다. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:title" content="ConnectTrip - 여행자부터 승무원까지 모두를 연결하는 여행 플랫폼" />

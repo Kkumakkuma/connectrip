@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import ProfileCompleteGate from './components/ProfileCompleteGate';
 import RouteResetGuard from './components/RouteResetGuard';
+import AnalyticsTracker from './components/AnalyticsTracker';
 import Footer from './components/Footer';
 import PushPermission from './components/PushPermission';
 import AppSplash from './components/AppSplash'; // 앱 오프닝 모션(웹 no-op)
@@ -171,6 +172,7 @@ function App() {
       <AppSplash />
       <ProfileCompleteGate />
       <RouteResetGuard />
+      <AnalyticsTracker />
       <div className="App">
         <Navbar />
         <main>

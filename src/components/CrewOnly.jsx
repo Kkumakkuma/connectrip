@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Tag, TrendingUp, Heart } from 'lucide-react';
+import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Tag, TrendingUp, Heart, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
@@ -11,7 +11,7 @@ import SEOHead from './SEOHead';
 import ListState from './ListState';
 
 const CrewOnly = () => {
-    const { user, profile, isLoggedIn, isCrew } = useAuth();
+    const { user, profile, isLoggedIn, isCrew, profileLoading, profileError } = useAuth();
     const [mode, setMode] = useState('main'); // 'main' | 'free' | 'layover' | 'deals'
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ title: '', content: '', category: 'general' });
@@ -112,6 +112,37 @@ const CrewOnly = () => {
         setMode('main');
         setSearchQuery('');
     };
+
+    // 프로필(user_type) 도착 전에는 승무원 여부를 알 수 없다 → 차단 화면을 먼저 띄우지 않는다.
+    if (isLoggedIn && profileLoading) {
+        return (
+            <section id="crew-only" className="py-20">
+                <div className="container flex items-center justify-center min-h-[40vh]">
+                    <Loader2 className="animate-spin text-blue-600" size={40} />
+                </div>
+            </section>
+        );
+    }
+
+    // 조회 실패는 '승무원 아님' 이 아니다 — 실제 승무원을 오차단하지 않도록 구분해서 안내.
+    if (isLoggedIn && profileError) {
+        return (
+            <section id="crew-only" className="py-20">
+                <div className="container text-center">
+                    <div className="max-w-xl mx-auto py-16 px-8 rounded-3xl bg-white shadow-xl border border-gray-100">
+                        <h2 className="text-2xl font-bold mb-3 text-gray-900">계정 정보를 불러오지 못했습니다</h2>
+                        <p className="text-gray-500 mb-8">네트워크 상태를 확인한 뒤 다시 시도해주세요.</p>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold transition-colors"
+                        >
+                            다시 시도
+                        </button>
+                    </div>
+                </div>
+            </section>
+        );
+    }
 
     // 일반 사용자 (승무원이 아닐 경우) 접근 차단
     if (!isCrew) {

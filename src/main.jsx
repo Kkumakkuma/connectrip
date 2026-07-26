@@ -3,6 +3,10 @@ import { Component } from 'react'
 import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './lib/AuthContext.jsx'
+import { initAnalytics } from './lib/analytics.js'
+
+// VITE_GA_ID 가 설정된 빌드에서만 gtag 스크립트를 주입한다(없으면 무동작).
+initAnalytics()
 
 class ErrorBoundary extends Component {
   constructor(props) {

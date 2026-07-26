@@ -20,7 +20,11 @@ const STATUS_COLORS = {
 
 const Admin = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, isAdmin, loading: authLoading } = useAuth();
+  const { isLoggedIn, isAdmin, loading: sessionLoading, profileLoading, profileError } = useAuth();
+  // isAdmin 은 프로필(role)에서 나오므로 프로필 도착 전까지는 '권한 없음' 을 띄우면 안 된다.
+  const authLoading = sessionLoading || (isLoggedIn && profileLoading);
+  // 프로필 조회가 실패했을 뿐인데 '권한 없음' 으로 단정하면 실제 관리자가 막힌다.
+  const profileUnknown = isLoggedIn && !profileLoading && profileError;
   const [activeTab, setActiveTab] = useState('reports');
   const location = useLocation();
 
@@ -199,6 +203,24 @@ const Admin = () => {
       <div className="min-h-screen flex items-center justify-center pt-32">
         <SEOHead title="관리자 - ConnectTrip" robots="noindex, nofollow" />
         <Loader2 size={48} className="text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (profileUnknown) {
+    return (
+      <div className="min-h-screen flex items-center justify-center pt-32">
+        <SEOHead title="관리자 - ConnectTrip" robots="noindex, nofollow" />
+        <div className="text-center max-w-md mx-auto px-4">
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">계정 정보를 불러오지 못했습니다</h2>
+          <p className="text-gray-500 mb-8">네트워크 상태를 확인한 뒤 다시 시도해주세요.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
+          >
+            다시 시도
+          </button>
+        </div>
       </div>
     );
   }

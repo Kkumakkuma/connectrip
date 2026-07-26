@@ -1,5 +1,4 @@
-/* Fonts */
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+/* Fonts: index.html 의 <link> 로 이동 (@import 는 번들 CSS 로딩 후에야 발견돼 렌더를 지연시킴) */
 
 @tailwind base;
 @tailwind components;
@@ -41,7 +40,9 @@
 }
 
 body {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+  /* 'Pretendard Variable' = variable dynamic-subset 판의 패밀리명.
+     뒤의 'Pretendard' 는 사용자 로컬 설치본, 그 뒤는 폰트 도착 전(swap 구간) 한글 대체용. */
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   background-color: var(--bg-light);
   color: var(--text-primary);
   line-height: 1.6;
