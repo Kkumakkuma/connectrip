@@ -1,14 +1,14 @@
-// GA4 로더 — 측정 ID 가 있는 빌드에서만 동작한다.
+// GA4 로더.
 //
-// 측정 ID 는 코드에 박지 않고 빌드 환경변수 VITE_GA_ID 로만 받는다.
-// (Vercel > Settings > Environment Variables 에 VITE_GA_ID = G-XXXXXXXXXX 추가 후 재배포)
-// ID 가 없으면 스크립트를 아예 주입하지 않으므로 지금 배포에는 아무 영향이 없다.
+// 기본값 = 실측정 ID G-9Y4692NWJP (GA 속성 ConnectTrip, 2026-07-26 발급).
+// 측정 ID 는 페이지 소스에 노출되는 공개 식별자라 커밋해도 된다(비밀키 아님).
+// 빌드 환경변수 VITE_GA_ID 를 넣으면 그 값이 우선한다(속성 교체용).
 //
 // 안드로이드 앱(Capacitor)에서는 로드하지 않는다 — 웹뷰의 origin 이 웹과 달라
 // 같은 속성에 섞이면 웹 지표가 오염된다.
 import { isNativeApp } from './native';
 
-const GA_ID = import.meta.env.VITE_GA_ID;
+const GA_ID = import.meta.env.VITE_GA_ID || 'G-9Y4692NWJP';
 
 let injected = false;
 
