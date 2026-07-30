@@ -324,6 +324,15 @@ const MyPage = () => {
     const handleChargePoints = () => {
         // 포인트 충전(현금 결제)은 PG 연동이 필요하다. 사업자 등록·결제 계약 완료 전까지 비활성화.
         // (이전엔 실제 결제 없이 포인트를 가산해 누구나 무제한 충전이 가능했던 보안 구멍)
+        //
+        // ★2026-07-30 토스 결제 백엔드는 이미 붙어 있다(사전 배치):
+        //   - 결제창/승인/충전: api/payment/create-order.js·confirm.js + RPC ct_charge_points_by_payment
+        //   - 클라이언트 모듈: src/lib/payments/{toss,api}.js, 테스트 하네스: /__paytest (VITE_PAYTEST=1)
+        //   라이브 전환 = ①Vercel env TOSS_CLIENT_KEY(live_gck)·TOSS_SECRET_KEY(live_gsk)·PG_ENV=live
+        //   ②businessInfo 유선전화 등 채움 ③여기 alert 를 아래로 교체:
+        //     const o = await createChargeOrder(chargeAmount(); const h = await tossAdapter.mount(el, o);
+        //     await h.requestPayment({ successUrl: origin+'/mypage?charged=1', failUrl: origin+'/mypage?fail=1' })
+        //   ④가입 기본 포인트(schema.sql points_balance DEFAULT 60000) 를 0 으로 내려야 무료 충전 인플레 차단.
         alert('포인트 충전(결제)은 사업자 등록 및 결제(PG) 연동 후 제공될 예정입니다.\n현재는 추천 보너스·좋아요 전환·판매 수익으로 포인트를 모을 수 있습니다.');
         setShowChargeModal(false);
         setCustomAmount('');
