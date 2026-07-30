@@ -23,10 +23,14 @@ export const tossAdapter = {
   async mount(root, order) {
     const clientKey = order.pgParams?.clientKey;
     if (!clientKey) throw new Error('clientKey 미수신');
+    // 주문별 고유 selector — 전역 고정 id(#toss-method) 를 쓰면 동시 인스턴스가 서로의 DOM 을 덮어씀(codex).
+    const uid = 'toss-' + String(order.orderId || Math.random().toString(36).slice(2)).replace(/[^a-zA-Z0-9]/g, '');
+    const methodSel = '#' + uid + '-method';
+    const agreementSel = '#' + uid + '-agreement';
     const methodEl = document.createElement('div');
     const agreementEl = document.createElement('div');
-    methodEl.id = 'toss-method';
-    agreementEl.id = 'toss-agreement';
+    methodEl.id = uid + '-method';
+    agreementEl.id = uid + '-agreement';
     root.replaceChildren(methodEl, agreementEl);
 
     const TossPayments = await loadSdk();
@@ -34,8 +38,8 @@ export const tossAdapter = {
     const widgets = toss.widgets({ customerKey: TossPayments.ANONYMOUS });
     await widgets.setAmount({ currency: order.currency || 'KRW', value: order.amount });
     await Promise.all([
-      widgets.renderPaymentMethods({ selector: '#toss-method', variantKey: 'DEFAULT' }),
-      widgets.renderAgreement({ selector: '#toss-agreement', variantKey: 'AGREEMENT' }),
+      widgets.renderPaymentMethods({ selector: methodSel, variantKey: 'DEFAULT' }),
+      widgets.renderAgreement({ selector: agreementSel, variantKey: 'AGREEMENT' }),
     ]);
     return {
       async requestPayment({ successUrl, failUrl }) {
