@@ -430,6 +430,10 @@ export default function SignupComplete() {
       const msg = err.message || '';
       if (msg.includes('OTP_PROOF')) {
         setError('인증 확인 시간이 지났습니다. 휴대폰·회사 이메일 인증을 다시 받아주세요.');
+      } else if (msg.includes('PHONE_ALREADY_CLAIMED')) {
+        setError('이미 가입에 사용된 휴대폰 번호입니다. 번호 하나로 계정 하나만 만들 수 있습니다.');
+      } else if (msg.includes('AIRLINE_EMAIL_PREVIOUSLY_USED')) {
+        setError('이미 가입에 사용된 회사 이메일입니다. 다시 사용할 수 없습니다.');
       } else if (msg.includes('AIRLINE_EMAIL_ALREADY_CLAIMED')) {
         setError('이미 다른 계정에 등록된 회사 이메일입니다.');
       } else {

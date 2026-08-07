@@ -382,6 +382,7 @@ DECLARE
   v_norm_email  TEXT;
   v_otp_id      UUID;
   v_owner       UUID;
+  v_prev        UUID;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_user_type NOT IN ('traveler', 'crew') THEN RAISE EXCEPTION 'invalid user_type'; END IF;
@@ -391,6 +392,11 @@ BEGIN
   IF p_birthdate > (CURRENT_DATE - INTERVAL '14 years') THEN RAISE EXCEPTION 'age_under_14'; END IF;
 
   v_clean_phone := regexp_replace(COALESCE(p_phone, ''), '[^0-9]', '', 'g');
+
+  -- 휴대폰 1개 = 계정 1개. 유니크 위반 원문 대신 명확한 메시지로 돌려준다.
+  SELECT id INTO v_owner FROM public.profiles
+   WHERE public.canon_phone(phone) = public.canon_phone(v_clean_phone) AND id <> auth.uid() LIMIT 1;
+  IF v_owner IS NOT NULL THEN RAISE EXCEPTION 'PHONE_ALREADY_CLAIMED'; END IF;
 
   -- 휴대폰: 토큰 해시 대조 + 1회성 소비(조건부 UPDATE ... RETURNING 이라 동시 요청도 하나만 통과)
   IF COALESCE(btrim(p_phone_otp_token), '') = '' THEN
@@ -420,6 +426,14 @@ BEGIN
        AND id <> auth.uid() LIMIT 1;
     IF v_owner IS NOT NULL THEN RAISE EXCEPTION 'AIRLINE_EMAIL_ALREADY_CLAIMED'; END IF;
 
+    -- 과거에 쓰인 적이 있는가(탈퇴 후 재가입 등). 관리자가 released 처리한 건만 통과.
+    SELECT claimed_by INTO v_prev FROM public.airline_email_claims
+     WHERE email_hash = encode(extensions.digest(public.canon_airline_email(v_norm_email), 'sha256'), 'hex')
+       AND released_at IS NULL LIMIT 1;
+    IF FOUND AND v_prev IS DISTINCT FROM auth.uid() THEN
+      RAISE EXCEPTION 'AIRLINE_EMAIL_PREVIOUSLY_USED';
+    END IF;
+
     IF COALESCE(btrim(p_airline_otp_token), '') = '' THEN
       RAISE EXCEPTION 'OTP_PROOF_REQUIRED_AIRLINE';
     END IF;
@@ -433,6 +447,12 @@ BEGIN
        AND consume_token_hash = encode(extensions.digest(p_airline_otp_token, 'sha256'), 'hex')
     RETURNING id INTO v_otp_id;
     IF v_otp_id IS NULL THEN RAISE EXCEPTION 'OTP_PROOF_INVALID_AIRLINE'; END IF;
+
+    -- 사용 이력 기록 (계정이 지워져도 남아 재사용을 막는다)
+    INSERT INTO public.airline_email_claims (email_hash, domain, claimed_by)
+    VALUES (encode(extensions.digest(public.canon_airline_email(v_norm_email), 'sha256'), 'hex'), v_domain, auth.uid())
+    ON CONFLICT (email_hash) DO UPDATE
+      SET claimed_by = EXCLUDED.claimed_by, claimed_at = NOW(), released_at = NULL, released_by = NULL;
   END IF;
 
   v_ref := p_referred_by;
@@ -554,6 +574,46 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
          || '@' || split_part(lower(btrim(p_email)), '@', 2)
   END;
 $$;
+-- 휴대폰 1개 = 계정 1개 (쿠마님 2026-08-07 확정: "어떤 사이트가 번호 하나로 계정 여러개를 만들게 해주냐")
+CREATE OR REPLACE FUNCTION public.canon_phone(p_phone TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT NULLIF(regexp_replace(COALESCE(p_phone, ''), '[^0-9]', '', 'g'), '');
+$$;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_profiles_phone_canon
+  ON public.profiles (public.canon_phone(phone)) WHERE public.canon_phone(phone) IS NOT NULL;
+
+-- 회사 이메일 사용 이력 (쿠마님 확정: 한 번 인증에 쓴 회사 메일은 재사용 불가)
+--   profiles 유니크는 "계정이 살아있는 동안"만 점유하므로 탈퇴 시 슬롯이 반납된다.
+--   이력을 따로 남겨 탈퇴·재가입 계정 세탁을 막는다. 개인정보 최소화를 위해 해시만 저장.
+CREATE TABLE IF NOT EXISTS public.airline_email_claims (
+  email_hash   TEXT PRIMARY KEY,
+  domain       TEXT NOT NULL,
+  claimed_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  claimed_by   UUID,
+  released_at  TIMESTAMPTZ,
+  released_by  UUID,
+  note         TEXT
+);
+ALTER TABLE public.airline_email_claims ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.airline_email_claims FROM PUBLIC, anon, authenticated;
+
+-- 관리자 해제 경로 (퇴사자 주소가 신입에게 재배정되는 등 정당한 사유)
+CREATE OR REPLACE FUNCTION public.admin_release_airline_email(p_email TEXT, p_note TEXT DEFAULT NULL)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_hash TEXT; v_n INT;
+BEGIN
+  IF NOT COALESCE(public.is_admin(), FALSE) THEN RAISE EXCEPTION 'forbidden'; END IF;
+  v_hash := encode(extensions.digest(public.canon_airline_email(p_email), 'sha256'), 'hex');
+  UPDATE public.airline_email_claims
+     SET released_at = NOW(), released_by = auth.uid(), note = COALESCE(p_note, note)
+   WHERE email_hash = v_hash AND released_at IS NULL;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN v_n > 0;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_release_airline_email(TEXT,TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_release_airline_email(TEXT,TEXT) TO authenticated;
+
 DROP INDEX IF EXISTS public.uq_profiles_airline_email;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_profiles_airline_email_canon
   ON public.profiles (public.canon_airline_email(airline_email))
