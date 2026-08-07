@@ -8,6 +8,7 @@ import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { qnaApi, reviewsApi, postLikeApi } from '../lib/db';
+import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
@@ -15,6 +16,7 @@ import ListState from './ListState';
 
 const TravelQnA = () => {
     const { user, profile, isLoggedIn } = useAuth();
+    const blockedIds = useBlockedIds();
     const [mode, setMode] = useState('main'); // 'main' | 'review' | 'qna'
     const location = useLocation();
 
@@ -203,8 +205,9 @@ const TravelQnA = () => {
         return title.toLowerCase().includes(q) || content.toLowerCase().includes(q);
     });
 
-    const totalPages = Math.ceil(filteredPosts.length / itemsPerPage);
-    const paginatedPosts = filteredPosts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const visiblePosts = filterBlocked(filteredPosts, blockedIds);
+    const totalPages = Math.ceil(visiblePosts.length / itemsPerPage);
+    const paginatedPosts = visiblePosts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
         <section id="qna" className="py-20 bg-gray-50">

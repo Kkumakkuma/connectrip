@@ -6,6 +6,7 @@ import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
+import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { useAuth } from '../lib/AuthContext';
 import { marketApi, marketTransactionApi } from '../lib/db';
 import { Coins } from 'lucide-react';
@@ -60,6 +61,7 @@ const regions = [
 ];
 
 const MarketBoard = () => {
+    const blockedIds = useBlockedIds();
     const { user, profile, isLoggedIn, fetchProfile } = useAuth();
     const location = useLocation();
     // mode: 'main' | 'sell' | 'share' | 'buy' | 'groupbuy'
@@ -87,7 +89,8 @@ const MarketBoard = () => {
             setLoading(true);
             setError(null);
             const typeMap = { sell: 'sell', buy: 'buy', share: 'share', groupbuy: 'groupbuy' };
-            const data = await marketApi.getAll(typeMap[mode]) || [];
+            const raw = await marketApi.getAll(typeMap[mode]) || [];
+            const data = filterBlocked(raw, blockedIds); // 차단한 회원 글은 내 화면에서 숨긴다
             if (mode === 'sell') setSellingItems(data);
             else if (mode === 'buy') setBuyingRequests(data);
             else if (mode === 'share') setSharingItems(data);

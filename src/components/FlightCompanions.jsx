@@ -4,7 +4,8 @@ import {
   Users, Plane, Calendar, Send, MessageCircle, X, ChevronDown, ChevronUp, Inbox, Eye, EyeOff
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { flightApi, flightCompanionsApi, messagesApi } from '../lib/db';
+import { flightApi, flightCompanionsApi, messagesApi, userBlockApi } from '../lib/db';
+import ReportButton from './ReportButton';
 
 const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
   const { user, isLoggedIn, isCrew } = useAuth();
@@ -72,11 +73,28 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
     setLoadingMessages(true);
     try {
       const msgs = await messagesApi.getMyMessages(user.id);
-      setMyMessages(msgs || []);
+      // 차단한 상대의 쪽지는 목록에서 감춘다(서버는 새 발송을 이미 막지만, 이전 쪽지는 남아 있다)
+      let blocked = [];
+      try { blocked = await userBlockApi.getMyBlockedIds(); } catch { /* 조회 실패 시 필터 없이 표시 */ }
+      const hidden = new Set(blocked);
+      setMyMessages((msgs || []).filter((m) => !hidden.has(m.sender_id) && !hidden.has(m.receiver_id)));
     } catch (err) {
       console.error('쪽지 로드 실패:', err);
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  const handleBlockUser = async (userId, displayName) => {
+    if (!userId) return;
+    if (!window.confirm(`${displayName || '이 사용자'}님을 차단할까요?\n서로 쪽지를 주고받을 수 없고, 이 사람의 글과 쪽지가 보이지 않습니다.\n(마이페이지에서 해제할 수 있습니다)`)) return;
+    try {
+      await userBlockApi.block(userId);
+      await fetchMessages();
+      alert('차단했습니다.');
+    } catch (err) {
+      console.error('차단 실패:', err);
+      alert('차단에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
@@ -100,7 +118,10 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
       alert('쪽지가 전송되었습니다!');
     } catch (err) {
       console.error('쪽지 전송 실패:', err);
-      alert('쪽지 전송에 실패했습니다.');
+      // 차단 관계면 서버 정책이 거부한다(42501). 누가 차단했는지는 알리지 않는다.
+      alert(err?.code === '42501'
+        ? '이 상대에게는 쪽지를 보낼 수 없습니다.'
+        : '쪽지 전송에 실패했습니다.');
     } finally {
       setSending(false);
     }
@@ -117,7 +138,9 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
       alert('답장이 전송되었습니다!');
     } catch (err) {
       console.error('답장 실패:', err);
-      alert('답장 전송에 실패했습니다.');
+      alert(err?.code === '42501'
+        ? '이 상대에게는 쪽지를 보낼 수 없습니다.'
+        : '답장 전송에 실패했습니다.');
     } finally {
       setSending(false);
     }
@@ -484,15 +507,22 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                         </div>
                         <p className="text-sm text-gray-700">{msg.content}</p>
                         {!isSent && msg.sender && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setReplyTo({ senderId: msg.sender_id, senderName: msg.sender?.name || '(탈퇴한 사용자)' });
-                            }}
-                            className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-700"
-                          >
-                            답장하기
-                          </button>
+                          <div className="mt-2 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setReplyTo({ senderId: msg.sender_id, senderName: msg.sender?.name || '(탈퇴한 사용자)' })}
+                              className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                            >
+                              답장하기
+                            </button>
+                            {/* 쪽지는 1:1 이라 문제가 생겨도 남이 못 본다 — 신고·차단 수단을 여기 둔다 */}
+                            <ReportButton postId={msg.id} boardType="message" reportedUserId={msg.sender_id} />
+                            <button
+                              onClick={() => handleBlockUser(msg.sender_id, msg.sender?.name)}
+                              className="text-xs font-bold text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              차단
+                            </button>
+                          </div>
                         )}
                       </div>
                     );

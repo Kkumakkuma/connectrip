@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { tossAdapter } from '../lib/payments/toss';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings, Gift, Copy, Share2 } from 'lucide-react';
+import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings, Gift, Copy, Share2, UserX } from 'lucide-react';
 import KeywordSettings from './KeywordSettings';
 import CommendationMatching from './CommendationMatching';
 import FlightCompanions from './FlightCompanions';
 import NotificationSettings from './NotificationSettings';
+import BlockedUsers from './BlockedUsers';
 import SEOHead from './SEOHead';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -433,6 +434,7 @@ const MyPage = () => {
         { id: 'companions', label: isCrew ? '듀티 동행' : '같은편 동행', icon: Users },
         { id: 'keywords', label: '키워드 알림', icon: Bell },
         { id: 'notifications', label: '알림 설정', icon: Settings },
+        { id: 'blocks', label: '차단 목록', icon: UserX },
     ];
 
     return (
@@ -913,6 +915,7 @@ const MyPage = () => {
                             {activeTab === 'companions' && <FlightCompanions flights={myFlights} onFlightsChange={fetchFlights} />}
                             {activeTab === 'keywords' && <KeywordSettings />}
                             {activeTab === 'notifications' && <NotificationSettings />}
+                            {activeTab === 'blocks' && <BlockedUsers />}
                         </div>
                     </div>
 

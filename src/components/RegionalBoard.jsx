@@ -6,6 +6,7 @@ import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
+import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { useAuth } from '../lib/AuthContext';
 import { companionApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
@@ -23,6 +24,7 @@ const regions = [
 
 const RegionalBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
+    const blockedIds = useBlockedIds();
     const { regionId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -89,7 +91,7 @@ const RegionalBoard = () => {
         }
     };
 
-    const filtered = posts.filter(p =>
+    const filtered = filterBlocked(posts, blockedIds).filter(p =>
         !searchQuery ||
         [p.title, p.country, p.author_name, p.content].some(v =>
             (v || '').toLowerCase().includes(searchQuery.toLowerCase())

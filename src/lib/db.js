@@ -703,6 +703,44 @@ export const blockApi = {
 };
 
 // ============================================================
+// User Blocks (회원 간 차단) — 관리자 제재(is_banned)와 별개.
+// 차단하면 서버 정책이 양쪽 쪽지 발송을 막고, 목록에서는 상대 글이 숨겨진다.
+// ============================================================
+
+export const userBlockApi = {
+  // 내가 차단한 사람 id 목록 (RLS 상 내가 건 차단만 조회된다)
+  async getMyBlockedIds() {
+    const { data, error } = await supabase.from('blocks').select('blocked_id');
+    if (error) throw error;
+    return (data || []).map((r) => r.blocked_id);
+  },
+
+  // 차단 목록 + 상대 표시 정보 (마이페이지용)
+  async getMyBlocks() {
+    const { data, error } = await supabase
+      .from('blocks')
+      .select('blocked_id, created_at, blocked:profiles!blocks_blocked_id_fkey(id, name, nickname, avatar_url)')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async block(userId) {
+    const { data: auth } = await supabase.auth.getUser();
+    const me = auth?.user?.id;
+    if (!me) throw new Error('로그인이 필요합니다.');
+    if (me === userId) throw new Error('자기 자신은 차단할 수 없습니다.');
+    const { error } = await supabase.from('blocks').insert({ blocker_id: me, blocked_id: userId });
+    if (error && error.code !== '23505') throw error; // 이미 차단됨은 성공으로 취급
+  },
+
+  async unblock(userId) {
+    const { error } = await supabase.from('blocks').delete().eq('blocked_id', userId);
+    if (error) throw error;
+  },
+};
+
+// ============================================================
 // Admin API (관리자)
 // ============================================================
 

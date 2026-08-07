@@ -8,6 +8,8 @@ import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
+import ReportButton from './ReportButton';
+import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
 
@@ -20,7 +22,7 @@ const regions = [
     { id: 'oceania', name: '오세아니아', icon: '🦘', desc: '청정 자연과 도시의 조화, 오세아니아 핫플', image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?q=80&w=800&auto=format&fit=crop' },
 ];
 
-const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
+const DestinationCard = ({ dest, onToggleLike, isLiked, currentUserId }) => (
     <motion.div
         className="rounded-[1rem] overflow-hidden bg-white shadow-md hover:shadow-xl transition-all"
         initial={{ opacity: 0, y: 20 }}
@@ -66,13 +68,19 @@ const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
                     <span className="truncate">{dest.profiles?.name || '익명 승무원'}</span>
                     <CrewBadge profile={dest.profiles} />
                 </div>
-                <ShareButtons title={`${dest.name} - ConnectTrip 추천 여행지`} description={dest.description} />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    <ShareButtons title={`${dest.name} - ConnectTrip 추천 여행지`} description={dest.description} />
+                    {currentUserId && currentUserId !== dest.user_id && (
+                        <ReportButton postId={dest.id} boardType="destination" reportedUserId={dest.user_id} />
+                    )}
+                </div>
             </div>
         </div>
     </motion.div>
 );
 
 const Destinations = () => {
+    const blockedIds = useBlockedIds();
     const { regionId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -185,7 +193,7 @@ const Destinations = () => {
         setShowModal(true);
     };
 
-    const filteredDestinations = allDestinations.filter(dest =>
+    const filteredDestinations = filterBlocked(allDestinations, blockedIds).filter(dest =>
         dest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         dest.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -253,7 +261,7 @@ const Destinations = () => {
                             ) : filteredDestinations.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                     {filteredDestinations.map(dest => (
-                                        <DestinationCard key={dest.id} dest={dest} onToggleLike={handleToggleLike} isLiked={!!userLikes[dest.id]} />
+                                        <DestinationCard key={dest.id} dest={dest} onToggleLike={handleToggleLike} isLiked={!!userLikes[dest.id]} currentUserId={user?.id} />
                                     ))}
                                 </div>
                             ) : (

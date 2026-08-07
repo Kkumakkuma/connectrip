@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import CrewBadge from './CrewBadge';
+import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { useAuth } from '../lib/AuthContext';
 import { crewApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
@@ -13,6 +14,7 @@ import ListState from './ListState';
 
 const CrewOnly = () => {
     const { user, profile, isLoggedIn, isCrew, profileLoading, profileError } = useAuth();
+    const blockedIds = useBlockedIds();
     const [mode, setMode] = useState('main'); // 'main' | 'free' | 'layover' | 'deals'
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ title: '', content: '', category: 'general' });
@@ -273,7 +275,7 @@ const CrewOnly = () => {
                                     const posts = mode === 'free' ? freePosts : mode === 'layover' ? layoverPosts : dealsPosts;
                                     const currentPage = mode === 'free' ? currentPageFree : mode === 'layover' ? currentPageLayover : currentPageDeals;
                                     const setPage = mode === 'free' ? setCurrentPageFree : mode === 'layover' ? setCurrentPageLayover : setCurrentPageDeals;
-                                    const filtered = posts.filter(p => !searchQuery || (p.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (p.content||'').toLowerCase().includes(searchQuery.toLowerCase()));
+                                    const filtered = filterBlocked(posts, blockedIds).filter(p => !searchQuery || (p.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (p.content||'').toLowerCase().includes(searchQuery.toLowerCase()));
                                     const paged = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
                                     const EmptyIcon = mode === 'free' ? MessageSquare : mode === 'layover' ? Plane : Tag;
 

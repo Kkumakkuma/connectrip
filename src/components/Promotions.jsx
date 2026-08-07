@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
+import ReportButton from './ReportButton';
+import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { useAuth } from '../lib/AuthContext';
 import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
@@ -21,6 +23,7 @@ const regions = [
 ];
 
 const Promotions = () => {
+    const blockedIds = useBlockedIds();
     const location = useLocation();
     const { user, profile, isLoggedIn } = useAuth();
     const [mode, setMode] = useState('main');
@@ -143,7 +146,7 @@ const Promotions = () => {
         setShowModal(true);
     };
 
-    const filteredPosts = posts.filter(p =>
+    const filteredPosts = filterBlocked(posts, blockedIds).filter(p =>
         p.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -273,6 +276,9 @@ const Promotions = () => {
                                                     </div>
                                                     <div className="flex items-center gap-1">
                                                         <ShareButtons title={item.title} description={item.description} />
+                                                        {user?.id !== item.user_id && (
+                                                            <ReportButton postId={item.id} boardType={mode === 'promotion' ? 'promotion' : 'review'} reportedUserId={item.user_id} />
+                                                        )}
                                                         {user?.id === item.user_id && (
                                                             <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-600 transition-colors">
                                                                 <Trash2 size={16} />
