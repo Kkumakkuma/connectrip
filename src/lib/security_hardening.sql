@@ -383,6 +383,7 @@ DECLARE
   v_otp_id      UUID;
   v_owner       UUID;
   v_prev        UUID;
+  v_blocked     BOOLEAN;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_user_type NOT IN ('traveler', 'crew') THEN RAISE EXCEPTION 'invalid user_type'; END IF;
@@ -392,6 +393,12 @@ BEGIN
   IF p_birthdate > (CURRENT_DATE - INTERVAL '14 years') THEN RAISE EXCEPTION 'age_under_14'; END IF;
 
   v_clean_phone := regexp_replace(COALESCE(p_phone, ''), '[^0-9]', '', 'g');
+
+  -- 차단된 상태로 탈퇴한 번호는 재가입 불가 (정상 탈퇴자는 해당 없음)
+  SELECT TRUE INTO v_blocked FROM public.blocked_phone_claims
+   WHERE phone_hash = encode(extensions.digest(public.canon_phone(v_clean_phone), 'sha256'), 'hex')
+     AND released_at IS NULL LIMIT 1;
+  IF v_blocked THEN RAISE EXCEPTION 'PHONE_BLOCKED'; END IF;
 
   -- 휴대폰 1개 = 계정 1개. 유니크 위반 원문 대신 명확한 메시지로 돌려준다.
   SELECT id INTO v_owner FROM public.profiles
@@ -581,6 +588,36 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
 $$;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_profiles_phone_canon
   ON public.profiles (public.canon_phone(phone)) WHERE public.canon_phone(phone) IS NOT NULL;
+
+-- 차단(is_banned) 상태로 탈퇴한 사람의 번호만 영구 기록해 재가입을 막는다 (쿠마님 2026-08-07 확정 = 3안)
+--   정상 탈퇴자는 기록하지 않으므로 같은 번호로 다시 가입할 수 있다.
+--   기록은 request_account_deletion() 안에서 is_banned 일 때만 수행한다.
+CREATE TABLE IF NOT EXISTS public.blocked_phone_claims (
+  phone_hash   TEXT PRIMARY KEY,
+  blocked_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  source       TEXT,
+  released_at  TIMESTAMPTZ,
+  released_by  UUID,
+  note         TEXT
+);
+ALTER TABLE public.blocked_phone_claims ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.blocked_phone_claims FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_release_phone(p_phone TEXT, p_note TEXT DEFAULT NULL)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_hash TEXT; v_n INT;
+BEGIN
+  IF NOT COALESCE(public.is_admin(), FALSE) THEN RAISE EXCEPTION 'forbidden'; END IF;
+  v_hash := encode(extensions.digest(public.canon_phone(p_phone), 'sha256'), 'hex');
+  UPDATE public.blocked_phone_claims
+     SET released_at = NOW(), released_by = auth.uid(), note = COALESCE(p_note, note)
+   WHERE phone_hash = v_hash AND released_at IS NULL;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN v_n > 0;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_release_phone(TEXT,TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_release_phone(TEXT,TEXT) TO authenticated;
 
 -- 회사 이메일 사용 이력 (쿠마님 확정: 한 번 인증에 쓴 회사 메일은 재사용 불가)
 --   profiles 유니크는 "계정이 살아있는 동안"만 점유하므로 탈퇴 시 슬롯이 반납된다.
