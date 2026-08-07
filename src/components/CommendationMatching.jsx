@@ -45,7 +45,7 @@ const CommendationMatching = ({ flights = [] }) => {
     if (!user) return;
     setLoading(true);
     try {
-      const matchData = await commendationApi.getMyMatches(user.id);
+      const matchData = await commendationApi.getMyMatches(); // 서버가 본인 매칭만 내려준다
       setMatches(matchData || []);
     } catch (err) {
       console.error('데이터 로드 실패:', err);
@@ -184,11 +184,16 @@ const CommendationMatching = ({ flights = [] }) => {
     );
   };
 
-  // 비행 다음날 이후에만 승무원 이름 공개
+  // 비행 다음날(한국시간 00:00) 이후에만 승무원 이름 공개.
+  // 'YYYY-MM-DD' 를 new Date() 로 파싱하면 UTC 자정으로 해석돼 한국은 9시간 늦게,
+  // 미주는 비행 당일에 공개되던 문제가 있었다. 서비스 기준시(KST)로 고정한다.
+  // ※ 화면 표시용이며, 실제 값 마스킹은 서버(get_my_commendation_matches)가 담당한다.
   const isAfterFlight = (flightDate) => {
-    const nextDay = new Date(flightDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-    return new Date() >= nextDay;
+    if (!flightDate) return false;
+    const [y, m, d] = String(flightDate).split('-').map(Number);
+    if (!y || !m || !d) return false;
+    const revealUtcMs = Date.UTC(y, m - 1, d + 1, 0, 0, 0) - 9 * 3600 * 1000; // KST 다음날 00:00
+    return Date.now() >= revealUtcMs;
   };
 
   const getPartnerInfo = (match) => {
@@ -439,7 +444,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubmitScreenshot, isHistory, onDelete }) => {
+const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubmitScreenshot, onSendGift, isHistory, onDelete }) => {
   const isPending = match.status === 'pending_crew' || match.status === 'pending_passenger';
 
   return (
@@ -501,8 +506,15 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
               {!isCrew && match.status === 'commendation_submitted' && (
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-yellow-50 text-yellow-600 border border-yellow-200">관리자 확인중</span>
               )}
-              {match.status === 'verified' && (
-                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">선물 발송 예정</span>
+              {/* 승인 후 선물은 승무원이 보낸다. 예전엔 양쪽 모두 안내문만 떠서
+                  승무원에게 보낼 버튼이 없었고, 칭송 루프의 마지막 칸이 막혀 있었다. */}
+              {match.status === 'verified' && isCrew && onSendGift && (
+                <button onClick={onSendGift} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors flex items-center gap-1">
+                  <Gift size={12} /> 감사 선물 보내기
+                </button>
+              )}
+              {match.status === 'verified' && !isCrew && (
+                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">승무원이 선물을 준비 중이에요</span>
               )}
               {isCrew && match.status === 'commendation_submitted' && (
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-yellow-50 text-yellow-600 border border-yellow-200">관리자 검토중</span>

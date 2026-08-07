@@ -1063,3 +1063,89 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_commendation_active_passenger
 -- 단 handle_new_user 는 본 파일이 재정의하므로, 롤백 시 signup_extension.sql/safety_verification.sql 의
 -- handle_new_user 정의를 다시 실행해 원복할 것.
 -- ============================================================
+
+-- ============================================================
+-- 9. 칭송매칭 보완 (2026-08-08 점검 반영, 운영 적용 완료)
+-- ============================================================
+-- 배경: 관리자용 RLS 정책이 없어 Admin 검토 탭이 항상 0건이었고 승인 UPDATE 가 0행으로
+--       조용히 실패했다. 승인이 불가능하니 선물 발송까지 파이프라인 전체가 죽어 있었다.
+
+-- 9-1. 관리자도 칭송 매칭을 조회할 수 있게
+DROP POLICY IF EXISTS "Users read own matches" ON public.commendation_matches;
+CREATE POLICY "Users read own matches" ON public.commendation_matches FOR SELECT
+  USING (auth.uid() = crew_user_id OR auth.uid() = passenger_user_id OR COALESCE(public.is_admin(), FALSE));
+
+-- 9-2. 포인트 원장 직접 INSERT 차단 (정상 적립은 SECURITY DEFINER RPC 가 RLS 우회해 기록)
+--      ※ 기존 하드닝이 정책명을 잘못 지목해 "Create transactions" 가 살아 있었다(실측).
+DROP POLICY IF EXISTS "Create transactions" ON public.point_transactions;
+REVOKE INSERT, UPDATE, DELETE ON public.point_transactions FROM authenticated, anon;
+
+-- 9-3. 매칭 가드: 항공편 변조 + 임의 승인 차단
+--      당사자가 flight_number/flight_date 를 바꿀 수 있어 상대 매칭이 사라지고
+--      재신청 시 신청권이 한 번 더 차감되는 문제가 있었다(실측 재현).
+CREATE OR REPLACE FUNCTION public.commendation_guard()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_bypass BOOLEAN;
+BEGIN
+  v_bypass := (auth.uid() IS NULL)
+              OR (COALESCE(current_setting('app.allow_sensitive', true), 'off') = 'on')
+              OR COALESCE(public.is_admin(), FALSE);
+  IF TG_OP = 'UPDATE' AND NOT v_bypass THEN
+    IF NEW.crew_user_id      IS DISTINCT FROM OLD.crew_user_id
+    OR NEW.passenger_user_id IS DISTINCT FROM OLD.passenger_user_id
+    OR NEW.gift_points       IS DISTINCT FROM OLD.gift_points
+    OR NEW.gift_message      IS DISTINCT FROM OLD.gift_message
+    OR NEW.flight_number     IS DISTINCT FROM OLD.flight_number
+    OR NEW.flight_date       IS DISTINCT FROM OLD.flight_date
+    THEN RAISE EXCEPTION 'protected match field'; END IF;
+    IF NEW.status IN ('verified','gift_sent') AND OLD.status IS DISTINCT FROM NEW.status THEN
+      RAISE EXCEPTION 'protected match status'; END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- 9-4. 관리자 승인/거절 RPC (클라이언트가 status 를 직접 UPDATE 하지 않게)
+CREATE OR REPLACE FUNCTION public.admin_review_commendation(p_match_id UUID, p_action TEXT, p_note TEXT DEFAULT NULL)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_status TEXT; v_new TEXT;
+BEGIN
+  IF NOT COALESCE(public.is_admin(), FALSE) THEN RAISE EXCEPTION 'admin only'; END IF;
+  IF p_action NOT IN ('approve','reject') THEN RAISE EXCEPTION 'invalid action'; END IF;
+  SELECT status INTO v_status FROM public.commendation_matches WHERE id = p_match_id FOR UPDATE;
+  IF v_status IS NULL THEN RAISE EXCEPTION 'match not found'; END IF;
+  IF v_status <> 'commendation_submitted' THEN RAISE EXCEPTION 'not reviewable: %', v_status; END IF;
+  v_new := CASE WHEN p_action = 'approve' THEN 'verified' ELSE 'rejected' END;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  UPDATE public.commendation_matches SET status = v_new, updated_at = NOW() WHERE id = p_match_id;
+  RETURN v_new;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_review_commendation(UUID,TEXT,TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_review_commendation(UUID,TEXT,TEXT) TO authenticated;
+
+-- 9-5. 매칭 조회를 서버 마스킹으로 (승무원 실명이 공개 시점 전에도 API 로 내려오던 문제)
+--      공개 조건 = 한국시간 비행 다음날 00:00 이후 + 매칭 성사 이후 상태.
+CREATE OR REPLACE FUNCTION public.get_my_commendation_matches()
+RETURNS SETOF jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'id', m.id, 'flight_number', m.flight_number, 'flight_date', m.flight_date,
+    'status', m.status, 'crew_user_id', m.crew_user_id, 'passenger_user_id', m.passenger_user_id,
+    'gift_points', m.gift_points, 'gift_message', m.gift_message,
+    'commendation_screenshot_url', m.commendation_screenshot_url,
+    'created_at', m.created_at, 'updated_at', m.updated_at,
+    'crew', CASE
+      WHEN auth.uid() = m.passenger_user_id
+           AND m.status IN ('matched','commendation_submitted','verified','gift_sent')
+           AND NOW() >= ((m.flight_date + 1)::timestamp AT TIME ZONE 'Asia/Seoul')
+      THEN jsonb_build_object('id', c.id, 'name', c.name, 'avatar_url', c.avatar_url, 'airline_name', c.airline_name)
+      ELSE NULL END,
+    'passenger', NULL
+  )
+  FROM public.commendation_matches m
+  LEFT JOIN public.profiles c ON c.id = m.crew_user_id
+  WHERE auth.uid() IS NOT NULL AND (auth.uid() = m.crew_user_id OR auth.uid() = m.passenger_user_id)
+  ORDER BY m.created_at DESC;
+$$;
+REVOKE ALL ON FUNCTION public.get_my_commendation_matches() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_commendation_matches() TO authenticated;

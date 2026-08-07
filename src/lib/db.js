@@ -299,14 +299,13 @@ export const flightApi = {
 // ============================================================
 
 export const commendationApi = {
-  async getMyMatches(userId) {
-    const { data, error } = await supabase
-      .from('commendation_matches')
-      .select('*, crew:profiles!commendation_matches_crew_user_id_fkey(id, name, user_type, avatar_url, airline_name), passenger:profiles!commendation_matches_passenger_user_id_fkey(id, name, user_type, avatar_url)')
-      .or(`crew_user_id.eq.${userId},passenger_user_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
+  // 서버 RPC 로 조회한다. 예전엔 profiles 를 그대로 임베드해 승무원 실명·소속이
+  // 공개 시점(비행 다음날) 전에도 응답에 담겨 내려왔고, 가림은 화면에서만 했다.
+  // 이제 공개 조건을 서버가 판정하고 조건 미충족이면 crew 자체를 null 로 내린다.
+  async getMyMatches() {
+    const { data, error } = await supabase.rpc('get_my_commendation_matches');
     if (error) throw error;
-    return data;
+    return data || [];
   },
 
   async findMatch(flightNumber, flightDate) {
@@ -335,16 +334,13 @@ export const commendationApi = {
     return data;
   },
 
+  // 승인·거절은 서버 RPC 로만 한다. 직접 UPDATE 는 commendation_guard 가 막고(정상),
+  // RLS 상 관리자 정책도 필요해 예전엔 0행 갱신으로 조용히 실패했다.
   async verifyCommendation(matchId) {
-    const { data, error } = await supabase
-      .from('commendation_matches')
-      .update({
-        status: 'verified',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', matchId)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('admin_review_commendation', {
+      p_match_id: matchId,
+      p_action: 'approve',
+    });
     if (error) throw error;
     return data;
   },
@@ -366,15 +362,10 @@ export const commendationApi = {
   },
 
   async rejectCommendation(matchId) {
-    const { data, error } = await supabase
-      .from('commendation_matches')
-      .update({
-        status: 'rejected',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', matchId)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('admin_review_commendation', {
+      p_match_id: matchId,
+      p_action: 'reject',
+    });
     if (error) throw error;
     return data;
   },
