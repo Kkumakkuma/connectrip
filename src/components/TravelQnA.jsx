@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquare, HelpCircle, Plus, X, Search, BookOpen, Trash2, User, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
+import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { qnaApi, reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
@@ -40,42 +41,53 @@ const TravelQnA = () => {
     const [commentBusy, setCommentBusy] = useState(false);
     const [likes, setLikes] = useState({});
     const itemsPerPage = 6;
+    // 모드를 빠르게 전환하면 두 조회가 겹친다. 늦게 도착한 이전 응답이 새 모드의
+    // 목록을 덮어쓰지 않도록 요청 id 로 stale 응답을 버린다(Search.jsx 와 동일 방식).
+    const requestIdRef = useRef(0);
 
     const fetchQnA = async () => {
+        const reqId = ++requestIdRef.current;
         try {
             setLoading(true);
             setError(null);
             const data = await qnaApi.getAll();
+            if (reqId !== requestIdRef.current) return;
             setPosts(data || []);
             if (data?.length) {
                 const m = await postLikeApi.getForBoard('qna_posts', data.map((p) => p.id), user?.id);
+                if (reqId !== requestIdRef.current) return;
                 setLikes((prev) => ({ ...prev, ...m }));
             }
         } catch (err) {
+            if (reqId !== requestIdRef.current) return;
             console.error('Q&A 로딩 실패:', err);
             setPosts([]);
             setError('목록을 불러오지 못했습니다. 다시 시도해주세요.');
         } finally {
-            setLoading(false);
+            if (reqId === requestIdRef.current) setLoading(false);
         }
     };
 
     const fetchReviews = async () => {
+        const reqId = ++requestIdRef.current;
         try {
             setLoading(true);
             setError(null);
             const data = await reviewsApi.getAll(null, 'review');
+            if (reqId !== requestIdRef.current) return;
             setPosts(data || []);
             if (data?.length) {
                 const m = await postLikeApi.getForBoard('reviews', data.map((p) => p.id), user?.id);
+                if (reqId !== requestIdRef.current) return;
                 setLikes((prev) => ({ ...prev, ...m }));
             }
         } catch (err) {
+            if (reqId !== requestIdRef.current) return;
             console.error('후기 로딩 실패:', err);
             setPosts([]);
             setError('목록을 불러오지 못했습니다. 다시 시도해주세요.');
         } finally {
-            setLoading(false);
+            if (reqId === requestIdRef.current) setLoading(false);
         }
     };
 
@@ -83,6 +95,14 @@ const TravelQnA = () => {
         if (mode === 'qna') fetchQnA();
         else if (mode === 'review') fetchReviews();
     };
+
+    // 모드 진입 시 데이터 로드 — 버튼 클릭 전환뿐 아니라 네비 드롭다운/직접 URL(?tab=) 진입도 커버
+    useEffect(() => {
+        if (mode === 'qna') fetchQnA();
+        else if (mode === 'review') fetchReviews();
+        else { requestIdRef.current += 1; setPosts([]); } // 메인 복귀: 진행 중 조회 무효화
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode]);
 
     const handleToggleLike = async (postId) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
@@ -124,8 +144,7 @@ const TravelQnA = () => {
         setMode(newMode);
         setCurrentPage(1);
         setSearchQuery('');
-        if (newMode === 'qna') fetchQnA();
-        if (newMode === 'review') fetchReviews();
+        // 데이터 로드는 [mode] useEffect가 담당 (중복 fetch 방지)
     };
 
     const handleSubmit = async (e) => {
@@ -292,13 +311,19 @@ const TravelQnA = () => {
                                                             </button>
                                                         </div>
                                                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{post.content || post.description}</p>
+                                                        {/* 작성자+배지는 별도 행 — 메타줄(댓글/날짜/공유)에 끼우면 3열 카드에서 이름이 0px 로 붕괴 */}
+                                                        <div className="flex items-center gap-1 text-xs text-gray-400 min-w-0 mb-1.5">
+                                                            <User size={12} className="flex-shrink-0" />
+                                                            <span className="truncate">{post.author_name || post.profiles?.name || '익명'}</span>
+                                                            <CrewBadge profile={post.profiles} />
+                                                        </div>
                                                         <div className="flex items-center gap-2 text-xs text-gray-400 flex-nowrap overflow-hidden">
                                                             {mode === 'qna' && (
                                                                 <button onClick={() => { setExpandedId(expandedId === post.id ? null : post.id); setCommentText(''); }} className="flex items-center gap-1 hover:text-blue-500 transition-colors">
                                                                     <MessageSquare size={14} /> 댓글 {post.qna_comments?.length || 0}개
                                                                 </button>
                                                             )}
-                                                            <span className="flex items-center gap-1 min-w-0 flex-1"><User size={12} className="flex-shrink-0" /><span className="truncate">{post.author_name || post.profiles?.name || '익명'}</span></span>
+                                                            <span className="flex-1" />
                                                             <span className="whitespace-nowrap flex-shrink-0">{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                             <ShareButtons title={post.title} description={post.content || post.description} />
                                                         </div>
@@ -309,9 +334,12 @@ const TravelQnA = () => {
                                                         {(post.qna_comments || []).length > 0 ? (
                                                             [...post.qna_comments].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((c) => (
                                                                 <div key={c.id} className="bg-gray-50 rounded-xl p-3">
-                                                                    <div className="flex items-center justify-between mb-1">
-                                                                        <span className="text-xs font-bold text-gray-700">{c.author_name || '익명'}</span>
-                                                                        <span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
+                                                                    <div className="flex items-center justify-between mb-1 gap-2">
+                                                                        <span className="flex items-center gap-1 min-w-0 text-xs font-bold text-gray-700">
+                                                                            <span className="truncate">{c.author_name || '익명'}</span>
+                                                                            <CrewBadge profile={c.profiles} />
+                                                                        </span>
+                                                                        <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
                                                                     </div>
                                                                     <p className="text-sm text-gray-600 whitespace-pre-wrap">{c.content}</p>
                                                                 </div>

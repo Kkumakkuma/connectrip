@@ -5,6 +5,7 @@ import { ShoppingBag, Heart, ArrowLeft, Gift, MapPin, Plus, X, Search, Users } f
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
+import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { marketApi, marketTransactionApi } from '../lib/db';
 import { Coins } from 'lucide-react';
@@ -398,7 +399,11 @@ const MarketBoard = () => {
                                                                     </button>
                                                                 )}
                                                             </div>
-                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                                                                <span className="flex items-center gap-1 min-w-0 text-xs text-gray-400">
+                                                                    <span className="truncate">{item.author}</span>
+                                                                    <CrewBadge profile={item.profiles} />
+                                                                </span>
                                                                 <ShareButtons title={item.title} description={item.content} />
                                                             </div>
                                                         </div>
@@ -503,7 +508,11 @@ const MarketBoard = () => {
                                                         <div className="p-5">
                                                             <h3 className="font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-green-600 transition-colors">{item.title}</h3>
                                                             <p className="text-lg font-black text-green-600">{item.budget != null ? Number(item.budget).toLocaleString() + '원' : '예산 미정'}</p>
-                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                                                                <span className="flex items-center gap-1 min-w-0 text-xs text-gray-400">
+                                                                    <span className="truncate">{item.author}</span>
+                                                                    <CrewBadge profile={item.profiles} />
+                                                                </span>
                                                                 <ShareButtons title={item.title} description={item.content} />
                                                             </div>
                                                         </div>
@@ -592,7 +601,10 @@ const MarketBoard = () => {
                                                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">{item.content}</p>
                                                     {item.location && <p className="text-xs text-purple-500 font-semibold mb-3">모집 인원: {item.location}</p>}
                                                     <div className="flex items-center justify-between text-xs text-gray-400 gap-2">
-                                                        <span className="truncate min-w-0">{item.author}</span>
+                                                        <span className="flex items-center gap-1 min-w-0">
+                                                            <span className="truncate min-w-0">{item.author}</span>
+                                                            <CrewBadge profile={item.profiles} />
+                                                        </span>
                                                         <span className="whitespace-nowrap flex-shrink-0">{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>
                                                     <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
@@ -735,7 +747,11 @@ const MarketBoard = () => {
                                                             <span className="text-pink-600">[{item.country}]</span> {item.title}
                                                         </h3>
                                                         <p className="text-gray-500 text-sm mb-4">{item.content}</p>
-                                                        <div className="pt-3 border-t border-gray-100 flex justify-end">
+                                                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                                                            <span className="flex items-center gap-1 min-w-0 text-xs text-gray-400">
+                                                                <span className="truncate">{item.author}</span>
+                                                                <CrewBadge profile={item.profiles} />
+                                                            </span>
                                                             <ShareButtons title={item.title} description={item.content} />
                                                         </div>
                                                     </div>

@@ -5,6 +5,7 @@ import { MapPin, Users, Calendar, Edit3, ArrowLeft, X, Search, Heart } from 'luc
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
+import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { companionApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
@@ -231,7 +232,7 @@ const RegionalBoard = () => {
                                                             </div>
                                                             <div className="flex items-center gap-2 text-gray-600">
                                                                 <MapPin size={16} className="text-blue-500" />
-                                                                <span>작성자: <strong className="text-gray-900">{post.author_name}</strong></span>
+                                                                <span className="flex items-center gap-1 min-w-0">작성자: <strong className="text-gray-900 truncate">{post.author_name}</strong><CrewBadge profile={post.profiles} /></span>
                                                             </div>
                                                         </div>
 

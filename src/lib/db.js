@@ -8,7 +8,7 @@ export const companionApi = {
   async getByRegion(regionId) {
     const { data, error } = await supabase
       .from('companion_posts')
-      .select('*')
+      .select('*, profiles(user_type, crew_verified)')
       .eq('region_id', regionId)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -19,7 +19,7 @@ export const companionApi = {
     const { data, error } = await supabase
       .from('companion_posts')
       .insert(post)
-      .select()
+      .select('*, profiles(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
@@ -37,7 +37,8 @@ export const companionApi = {
 
 export const marketApi = {
   async getAll(type = null) {
-    let query = supabase.from('market_listings').select('*').order('created_at', { ascending: false });
+    // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
+    let query = supabase.from('market_listings').select('*, profiles!market_listings_user_id_fkey(user_type, crew_verified)').order('created_at', { ascending: false });
     if (type) query = query.eq('type', type);
     const { data, error } = await query;
     if (error) throw error;
@@ -48,7 +49,7 @@ export const marketApi = {
     const { data, error } = await supabase
       .from('market_listings')
       .insert(listing)
-      .select()
+      .select('*, profiles!market_listings_user_id_fkey(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
@@ -68,7 +69,7 @@ export const qnaApi = {
   async getAll() {
     const { data, error } = await supabase
       .from('qna_posts')
-      .select('*, qna_comments(*)')
+      .select('*, qna_comments(*, profiles(user_type, crew_verified)), profiles(user_type, crew_verified)')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;
@@ -79,7 +80,7 @@ export const qnaApi = {
     await supabase.rpc('increment_view_count', { post_id: id }).catch(() => {});
     const { data, error } = await supabase
       .from('qna_posts')
-      .select('*, qna_comments(*)')
+      .select('*, qna_comments(*, profiles(user_type, crew_verified)), profiles(user_type, crew_verified)')
       .eq('id', id)
       .single();
     if (error) throw error;
@@ -90,7 +91,7 @@ export const qnaApi = {
     const { data, error } = await supabase
       .from('qna_posts')
       .insert(post)
-      .select()
+      .select('*, profiles(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
@@ -100,7 +101,7 @@ export const qnaApi = {
     const { data, error } = await supabase
       .from('qna_comments')
       .insert(comment)
-      .select()
+      .select('*, profiles(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
@@ -118,7 +119,7 @@ export const qnaApi = {
 
 export const crewApi = {
   async getAll(postType = null) {
-    let query = supabase.from('crew_posts').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('crew_posts').select('*, profiles(user_type, crew_verified)').order('created_at', { ascending: false });
     if (postType) query = query.eq('post_type', postType);
     const { data, error } = await query;
     if (error) throw error;
@@ -129,7 +130,7 @@ export const crewApi = {
     const { data, error } = await supabase
       .from('crew_posts')
       .insert(post)
-      .select()
+      .select('*, profiles(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
@@ -147,7 +148,7 @@ export const crewApi = {
 
 export const reviewsApi = {
   async getAll(regionId = null, type = null) {
-    let query = supabase.from('reviews').select('*, profiles(name, user_type, avatar_url)').order('created_at', { ascending: false });
+    let query = supabase.from('reviews').select('*, profiles(name, user_type, crew_verified, avatar_url)').order('created_at', { ascending: false });
     if (regionId) query = query.eq('region_id', regionId);
     if (type) query = query.eq('type', type);
     const { data, error } = await query;
@@ -159,7 +160,7 @@ export const reviewsApi = {
     const { data, error } = await supabase
       .from('reviews')
       .insert(review)
-      .select()
+      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
       .single();
     if (error) throw error;
     return data;
@@ -177,7 +178,7 @@ export const reviewsApi = {
 
 export const destinationsApi = {
   async getAll(regionId = null) {
-    let query = supabase.from('destinations').select('*, profiles(name, user_type, avatar_url)').order('likes_count', { ascending: false });
+    let query = supabase.from('destinations').select('*, profiles(name, user_type, crew_verified, avatar_url)').order('likes_count', { ascending: false });
     if (regionId) query = query.eq('region_id', regionId);
     const { data, error } = await query;
     if (error) throw error;
@@ -188,7 +189,7 @@ export const destinationsApi = {
     const { data, error } = await supabase
       .from('destinations')
       .insert(dest)
-      .select()
+      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
       .single();
     if (error) throw error;
     return data;

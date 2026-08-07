@@ -702,6 +702,10 @@ CREATE POLICY "Admins can update any profile" ON public.profiles
   FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 -- 8-2. crew_posts: 인증된 승무원만 작성
+-- ⚠ "Create crew" 는 콘솔에서 수동 생성된 레거시 정책(auth.uid()=user_id 만 검사)이다.
+--    PERMISSIVE 정책끼리는 OR 로 결합되므로 이게 남아 있으면 아래 승무원 게이트가 무력화된다
+--    (2026-08-07 운영 DB 실측: INSERT 정책 2개 공존 → 일반 회원도 CREW 전용 글 작성 가능).
+DROP POLICY IF EXISTS "Create crew" ON public.crew_posts;
 DROP POLICY IF EXISTS "Auth users can create crew posts" ON public.crew_posts;
 DROP POLICY IF EXISTS "Crew can create crew posts" ON public.crew_posts;
 CREATE POLICY "Crew can create crew posts" ON public.crew_posts

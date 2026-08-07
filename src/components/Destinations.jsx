@@ -7,6 +7,7 @@ import { destinationsApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import ShareButtons from './ShareButtons';
+import CrewBadge from './CrewBadge';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
 import TravelDeals from './TravelDeals';
@@ -64,6 +65,7 @@ const DestinationCard = ({ dest, onToggleLike, isLiked }) => (
                 <div className="flex items-center gap-2 min-w-0">
                     <User size={12} className="flex-shrink-0" />
                     <span className="truncate">{dest.profiles?.name || '익명 승무원'}</span>
+                    <CrewBadge profile={dest.profiles} />
                 </div>
                 <ShareButtons title={`${dest.name} - ConnectTrip 추천 여행지`} description={dest.description} />
             </div>

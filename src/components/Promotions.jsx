@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
 import ShareButtons from './ShareButtons';
+import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
@@ -266,6 +267,7 @@ const Promotions = () => {
                                                     <div className="flex items-center gap-1.5 text-gray-400 text-xs min-w-0">
                                                         <User size={14} className="flex-shrink-0" />
                                                         <span className="truncate">{item.author_name || item.profiles?.name || '익명'}</span>
+                                                        <CrewBadge profile={item.profiles} />
                                                         <span className="flex-shrink-0">·</span>
                                                         <span className="whitespace-nowrap flex-shrink-0">{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>

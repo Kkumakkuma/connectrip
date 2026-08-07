@@ -4,6 +4,7 @@ import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Ta
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
+import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { crewApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
@@ -305,7 +306,7 @@ const CrewOnly = () => {
                                                             <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 transition-colors ${likes[post.id]?.liked ? 'text-pink-500' : 'hover:text-pink-500'}`}>
                                                                 <Heart size={14} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
                                                             </button>
-                                                            <span>작성자: {post.author_name}</span>
+                                                            <span className="flex items-center gap-1 min-w-0"><span className="truncate">작성자: {post.author_name}</span><CrewBadge profile={post.profiles} /></span>
                                                             <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                         </div>
                                                     </div>

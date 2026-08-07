@@ -4,6 +4,7 @@ import { Search as SearchIcon, Loader2, Users, ShoppingBag, HelpCircle, Shield }
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
+import CrewBadge from '../components/CrewBadge';
 import ListState from '../components/ListState';
 
 // fields = 검색 대상 컬럼(모든 게시판 본문은 content 로 통일됨),
@@ -49,9 +50,13 @@ const Search = () => {
       BOARDS.map(async (board) => {
         try {
           const orFilter = board.fields.map((f) => `${f}.ilike.%${safe}%`).join(',');
+          // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
+          const authorEmbed = board.key === 'market_listings'
+            ? '*, profiles!market_listings_user_id_fkey(user_type, crew_verified)'
+            : '*, profiles(user_type, crew_verified)';
           const { data, error } = await supabase
             .from(board.key)
-            .select('*')
+            .select(authorEmbed)
             .or(orFilter)
             .order('created_at', { ascending: false })
             .limit(10);
@@ -170,7 +175,14 @@ const Search = () => {
                             <p className="text-sm text-gray-500 line-clamp-2">{body}</p>
                           )}
                           <p className="text-xs text-gray-400 mt-1.5">
-                            {item.author_name && `${item.author_name} · `}
+                            {/* 장터(market_listings)만 작성자 컬럼이 author, 나머지는 author_name */}
+                            {(item.author_name || item.author) && (
+                              <>
+                                {item.author_name || item.author}
+                                <CrewBadge profile={item.profiles} className="mx-1" />
+                                {' · '}
+                              </>
+                            )}
                             {new Date(item.created_at).toLocaleDateString('ko-KR')}
                           </p>
                         </button>
