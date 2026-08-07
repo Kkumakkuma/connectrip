@@ -1149,3 +1149,52 @@ RETURNS SETOF jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = publi
 $$;
 REVOKE ALL ON FUNCTION public.get_my_commendation_matches() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_commendation_matches() TO authenticated;
+
+-- 9-6. 칭송 사례 발송 방식 정정 (쿠마님 2026-08-08 확정)
+--   기존: 승무원이 자기 포인트를 승객에게 전송(send_commendation_gift) — 설계 자체가 잘못됐다.
+--   실제: 승무원은 추천(좋아요)/충전으로 모은 포인트로 칭송권을 사서 신청하는 쪽이고,
+--         승객에게 가는 사례는 운영자가 승객 휴대폰으로 기프티콘을 직접 보낸다(당분간 수동).
+DROP FUNCTION IF EXISTS public.send_commendation_gift(uuid, integer, text);
+
+-- 관리자 검토 목록 (기프티콘 발송에 승객 휴대폰이 필요한데 profiles PII 는 잠겨 있다)
+CREATE OR REPLACE FUNCTION public.admin_get_commendation_reviews()
+RETURNS SETOF jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'id', m.id, 'flight_number', m.flight_number, 'flight_date', m.flight_date,
+    'status', m.status, 'commendation_screenshot_url', m.commendation_screenshot_url,
+    'reward_amount', m.gift_points, 'reward_note', m.gift_message,
+    'created_at', m.created_at, 'updated_at', m.updated_at,
+    'crew', jsonb_build_object('name', c.name, 'airline_name', c.airline_name),
+    'passenger', jsonb_build_object('name', p.name, 'phone', p.phone)
+  )
+  FROM public.commendation_matches m
+  LEFT JOIN public.profiles c ON c.id = m.crew_user_id
+  LEFT JOIN public.profiles p ON p.id = m.passenger_user_id
+  WHERE COALESCE(public.is_admin(), FALSE)
+    AND m.status IN ('commendation_submitted','verified','gift_sent')
+  ORDER BY CASE m.status WHEN 'commendation_submitted' THEN 0 WHEN 'verified' THEN 1 ELSE 2 END,
+           m.updated_at DESC;
+$$;
+REVOKE ALL ON FUNCTION public.admin_get_commendation_reviews() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_get_commendation_reviews() TO authenticated;
+
+-- 기프티콘 발송 완료 기록 (실제 발송은 운영자가 외부에서 수행)
+CREATE OR REPLACE FUNCTION public.admin_mark_reward_sent(p_match_id UUID, p_amount INT, p_note TEXT DEFAULT NULL)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_status TEXT;
+BEGIN
+  IF NOT COALESCE(public.is_admin(), FALSE) THEN RAISE EXCEPTION 'admin only'; END IF;
+  IF p_amount IS NULL OR p_amount < 1 OR p_amount > 1000000 THEN RAISE EXCEPTION 'invalid amount'; END IF;
+  SELECT status INTO v_status FROM public.commendation_matches WHERE id = p_match_id FOR UPDATE;
+  IF v_status IS NULL THEN RAISE EXCEPTION 'match not found'; END IF;
+  IF v_status = 'gift_sent' THEN RAISE EXCEPTION 'already sent'; END IF;
+  IF v_status <> 'verified' THEN RAISE EXCEPTION 'not approved yet: %', v_status; END IF;
+  PERFORM set_config('app.allow_sensitive', 'on', true);
+  UPDATE public.commendation_matches
+     SET status = 'gift_sent', gift_points = p_amount, gift_message = p_note, updated_at = NOW()
+   WHERE id = p_match_id;
+  RETURN 'gift_sent';
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_mark_reward_sent(UUID,INT,TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_mark_reward_sent(UUID,INT,TEXT) TO authenticated;

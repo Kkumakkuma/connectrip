@@ -60,11 +60,9 @@ const Admin = () => {
         const data = await adminApi.getStats();
         setStats(data);
       } else if (activeTab === 'commendations') {
-        const { data } = await supabase
-          .from('commendation_matches')
-          .select('*, crew:profiles!commendation_matches_crew_user_id_fkey(id, name, user_type, avatar_url, airline_name), passenger:profiles!commendation_matches_passenger_user_id_fkey(id, name, user_type, avatar_url)')
-          .in('status', ['commendation_submitted', 'verified', 'gift_sent'])
-          .order('updated_at', { ascending: false });
+        // 기프티콘 발송에 승객 휴대폰이 필요한데 profiles 는 PII 컬럼이 잠겨 있어 RPC 로 받는다.
+        const { data, error: cErr } = await supabase.rpc('admin_get_commendation_reviews');
+        if (cErr) throw cErr;
         setCommendations(data || []);
       }
     } catch (err) {
@@ -245,6 +243,45 @@ const Admin = () => {
       </div>
     );
   }
+
+  const formatPhone = (phone) => {
+    const d = String(phone || '').replace(/[^0-9]/g, '');
+    if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+    if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+    return d || '(번호 없음)';
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(String(text || ''));
+      alert('복사했습니다.');
+    } catch {
+      alert('복사에 실패했습니다. 번호를 직접 입력해주세요.');
+    }
+  };
+
+  // 기프티콘 실제 발송은 운영자가 외부(카카오 선물하기 등)에서 하고, 여기엔 사실만 기록한다.
+  const handleMarkRewardSent = async (matchId) => {
+    const input = prompt('보내신 기프티콘 금액을 입력하세요 (원):', '10000');
+    if (input === null) return;
+    const amount = parseInt(String(input).replace(/[^0-9]/g, ''), 10);
+    if (!amount || amount <= 0) { alert('올바른 금액을 입력해주세요.'); return; }
+    const note = prompt('메모 (선택 · 예: 스타벅스 아메리카노 교환권)', '') || null;
+    setActionLoading(matchId);
+    try {
+      const { error: rErr } = await supabase.rpc('admin_mark_reward_sent', {
+        p_match_id: matchId, p_amount: amount, p_note: note,
+      });
+      if (rErr) throw rErr;
+      await fetchData();
+      alert('발송 완료로 기록했습니다.');
+    } catch (err) {
+      console.error('발송 기록 실패:', err);
+      alert(`발송 기록에 실패했습니다.\n${err.message || ''}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleCommendationAction = async (matchId, action) => {
     setActionLoading(matchId);
@@ -642,7 +679,7 @@ const Admin = () => {
                               'bg-purple-100 text-purple-700'
                             }`}>
                               {match.status === 'commendation_submitted' ? '검토 대기' :
-                               match.status === 'verified' ? '승인 완료' : '선물 발송'}
+                               match.status === 'verified' ? '승인 완료 · 발송 대기' : '발송 완료'}
                             </span>
                           </div>
 
@@ -680,39 +717,39 @@ const Admin = () => {
                             </div>
                           )}
 
+                          {/* 승인 후: 기프티콘은 운영자가 승객 휴대폰으로 직접 보내고, 여기엔 발송 사실만 기록한다 */}
                           {match.status === 'verified' && (
-                            <div className="flex items-center gap-3">
-                              <p className="text-sm text-green-600 font-semibold">✓ 승인 완료</p>
+                            <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+                              <p className="text-sm font-bold text-green-700 mb-3">✓ 승인 완료 — 기프티콘을 보내주세요</p>
+                              <div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
+                                <span className="text-gray-600">받는 분: <strong className="text-gray-900">{match.passenger?.name || '-'}</strong></span>
+                                <span className="text-gray-600">
+                                  휴대폰: <strong className="text-gray-900 tracking-wide">{formatPhone(match.passenger?.phone)}</strong>
+                                </span>
+                                {match.passenger?.phone && (
+                                  <button
+                                    onClick={() => copyToClipboard(match.passenger.phone)}
+                                    className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-600 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                                  >
+                                    번호 복사
+                                  </button>
+                                )}
+                              </div>
                               <button
-                                onClick={async () => {
-                                  const pts = prompt('승객에게 보낼 선물 포인트를 입력하세요:', '5000');
-                                  if (!pts) return;
-                                  const amount = parseInt(pts);
-                                  if (isNaN(amount) || amount <= 0) { alert('올바른 금액을 입력하세요.'); return; }
-                                  setActionLoading(match.id);
-                                  try {
-                                    const { supabase } = await import('../lib/supabase');
-                                    const { error: giftErr } = await supabase.rpc('send_commendation_gift', {
-                                      p_match_id: match.id, p_amount: amount, p_message: '관리자 발송: 칭송 감사 선물',
-                                    });
-                                    if (giftErr) throw giftErr;
-                                    await fetchData();
-                                    alert(`승객에게 ${amount.toLocaleString()}P 선물 발송 완료!`);
-                                  } catch (err) {
-                                    console.error('선물 발송 실패:', err);
-                                    alert('선물 발송에 실패했습니다.');
-                                  } finally { setActionLoading(null); }
-                                }}
+                                onClick={() => handleMarkRewardSent(match.id)}
                                 disabled={actionLoading === match.id}
                                 className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold text-sm transition-colors disabled:opacity-50"
                               >
                                 {actionLoading === match.id ? <Loader2 size={14} className="animate-spin" /> : <span>🎁</span>}
-                                선물 발송
+                                기프티콘 발송 완료 기록
                               </button>
                             </div>
                           )}
                           {match.status === 'gift_sent' && (
-                            <p className="text-sm text-purple-600 font-semibold">✓ 선물 발송 완료 ({match.gift_points?.toLocaleString()}P)</p>
+                            <p className="text-sm text-purple-600 font-semibold">
+                              ✓ 기프티콘 발송 완료 ({Number(match.reward_amount || 0).toLocaleString()}원)
+                              {match.reward_note && <span className="text-gray-500 font-normal"> · {match.reward_note}</span>}
+                            </p>
                           )}
                         </div>
                       ))}

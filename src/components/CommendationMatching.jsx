@@ -16,7 +16,7 @@ const STATUS_CONFIG = {
   matched: { label: '매칭 완료', color: 'bg-blue-100 text-blue-700', icon: Heart },
   commendation_submitted: { label: '인증 제출됨', color: 'bg-yellow-100 text-yellow-700', icon: ImageIcon },
   verified: { label: '관리자 승인', color: 'bg-green-100 text-green-700', icon: ShieldCheck },
-  gift_sent: { label: '선물 발송 완료', color: 'bg-purple-100 text-purple-700', icon: Gift },
+  gift_sent: { label: '기프티콘 발송 완료', color: 'bg-purple-100 text-purple-700', icon: Gift },
   rejected: { label: '반려', color: 'bg-red-100 text-red-700', icon: XCircle },
 };
 
@@ -29,11 +29,8 @@ const CommendationMatching = ({ flights = [] }) => {
 
   // Modals
   const [showScreenshotModal, setShowScreenshotModal] = useState(null);
-  const [showGiftModal, setShowGiftModal] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(null);
   const [screenshotUrl, setScreenshotUrl] = useState('');
-  const [giftPoints, setGiftPoints] = useState(5000);
-  const [giftMessage, setGiftMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const [applyingFlight, setApplyingFlight] = useState(null);
@@ -141,33 +138,10 @@ const CommendationMatching = ({ flights = [] }) => {
       setShowScreenshotModal(null);
       setScreenshotUrl('');
       await fetchData();
-      alert('칭송 인증이 제출되었습니다! 관리자 확인 후 선물을 받으실 수 있습니다.');
+      alert('칭송 인증이 제출되었습니다! 관리자 확인 후 기프티콘을 보내드립니다.');
     } catch (err) {
       console.error('제출 실패:', err);
       alert('제출에 실패했습니다.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // 승무원: 선물 보내기 (관리자 승인 후)
-  const handleSendGift = async () => {
-    if (!showGiftModal || giftPoints <= 0) return;
-    setSubmitting(true);
-    try {
-      // 서버 RPC: verified 매칭 검증 + 승무원 본인 포인트 차감 + 승객 가산 + 상태(gift_sent)·메시지를 원자적으로 처리
-      const { error: giftErr } = await supabase.rpc('send_commendation_gift', {
-        p_match_id: showGiftModal, p_amount: giftPoints, p_message: giftMessage,
-      });
-      if (giftErr) throw giftErr;
-      setShowGiftModal(null);
-      setGiftPoints(5000);
-      setGiftMessage('');
-      await fetchData();
-      alert('선물이 발송되었습니다!');
-    } catch (err) {
-      console.error('선물 발송 실패:', err);
-      alert('선물 발송에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -244,7 +218,7 @@ const CommendationMatching = ({ flights = [] }) => {
             <li><strong>매칭 신청</strong>을 눌러 신청권 1장으로 매칭을 신청합니다</li>
             <li>같은 항공편 승객이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 후 승객이 칭송 스크린샷을 제출합니다</li>
-            <li><strong>관리자</strong>가 확인/승인하면 승무원이 승객에게 감사 선물을 전달합니다</li>
+            <li><strong>관리자</strong>가 인증을 확인·승인하면 승객에게 기프티콘을 보내드립니다</li>
           </ol>
         ) : (
           <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
@@ -252,7 +226,7 @@ const CommendationMatching = ({ flights = [] }) => {
             <li><strong>매칭 신청 (무료)</strong>을 눌러 매칭을 신청합니다</li>
             <li>같은 항공편 승무원이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 다음날 승무원 이름이 공개됩니다</li>
-            <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 선물을 받을 수 있습니다</li>
+            <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 기프티콘을 받습니다</li>
           </ol>
         )}
       </div>
@@ -312,7 +286,7 @@ const CommendationMatching = ({ flights = [] }) => {
             {activeMatches.map((match) => (
               <MatchCard key={match.id} match={match} isCrew={isCrew} partner={getPartnerInfo(match)}
                 isAfterFlight={isAfterFlight(match.flight_date)} onViewDetail={() => setShowDetailModal(match)}
-                onSubmitScreenshot={() => setShowScreenshotModal(match.id)} onSendGift={() => setShowGiftModal(match.id)} />
+                onSubmitScreenshot={() => setShowScreenshotModal(match.id)} />
             ))}
           </div>
         );
@@ -374,40 +348,6 @@ const CommendationMatching = ({ flights = [] }) => {
 
       {/* 선물 보내기 모달 */}
       <AnimatePresence>
-        {showGiftModal && (
-          <Modal onClose={() => { setShowGiftModal(null); setGiftMessage(''); setGiftPoints(5000); }}>
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Gift size={28} className="text-purple-600" />
-              </div>
-              <h3 className="text-lg font-extrabold text-gray-800">감사 선물 보내기</h3>
-              <p className="text-sm text-gray-500 mt-1">칭송에 대한 감사의 마음을 전해보세요</p>
-            </div>
-            <div className="space-y-4 mb-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-600 mb-1.5">포인트</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[1000, 3000, 5000, 10000].map((amount) => (
-                    <button key={amount} type="button" onClick={() => setGiftPoints(amount)}
-                      className={`py-2 rounded-lg text-sm font-bold transition-all ${giftPoints === amount ? 'bg-purple-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                      {amount.toLocaleString()}P
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-600 mb-1.5">감사 메시지 (선택)</label>
-                <textarea value={giftMessage} onChange={(e) => setGiftMessage(e.target.value)} placeholder="따뜻한 칭송 감사합니다!" rows={3}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all text-sm resize-none" />
-              </div>
-            </div>
-            <button onClick={handleSendGift} disabled={submitting || giftPoints <= 0}
-              className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {submitting ? <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Gift size={16} />}
-              {giftPoints.toLocaleString()}P 선물 보내기
-            </button>
-          </Modal>
-        )}
       </AnimatePresence>
 
       {/* 상세보기 모달 */}
@@ -444,7 +384,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubmitScreenshot, onSendGift, isHistory, onDelete }) => {
+const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubmitScreenshot, isHistory, onDelete }) => {
   const isPending = match.status === 'pending_crew' || match.status === 'pending_passenger';
 
   return (
@@ -506,15 +446,13 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
               {!isCrew && match.status === 'commendation_submitted' && (
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-yellow-50 text-yellow-600 border border-yellow-200">관리자 확인중</span>
               )}
-              {/* 승인 후 선물은 승무원이 보낸다. 예전엔 양쪽 모두 안내문만 떠서
-                  승무원에게 보낼 버튼이 없었고, 칭송 루프의 마지막 칸이 막혀 있었다. */}
-              {match.status === 'verified' && isCrew && onSendGift && (
-                <button onClick={onSendGift} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors flex items-center gap-1">
-                  <Gift size={12} /> 감사 선물 보내기
-                </button>
-              )}
+              {/* 승인 후 사례는 운영자가 승객 휴대폰으로 직접 보낸다.
+                  승무원은 칭송권을 구매해 신청하는 쪽이고, 승객에게 포인트를 보내지 않는다. */}
               {match.status === 'verified' && !isCrew && (
-                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">승무원이 선물을 준비 중이에요</span>
+                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">승인 완료 · 사례 발송 예정</span>
+              )}
+              {match.status === 'verified' && isCrew && (
+                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">칭송 확인됨</span>
               )}
               {isCrew && match.status === 'commendation_submitted' && (
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-yellow-50 text-yellow-600 border border-yellow-200">관리자 검토중</span>
@@ -568,7 +506,7 @@ const MatchDetail = ({ match, isCrew, partner }) => {
         </div>
         {match.gift_points && (
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">선물 포인트</span>
+            <span className="text-gray-500">받은 기프티콘</span>
             <span className="font-bold text-purple-600">{match.gift_points.toLocaleString()}P</span>
           </div>
         )}
