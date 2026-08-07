@@ -9,15 +9,8 @@ import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { companionApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
-import TravelDeals from './TravelDeals';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
-
-// 지역 대표 도시 — 호텔 제휴 링크가 Booking 검색결과(KRW)로 착지하게 하는 프리필
-const REGION_DEST = {
-    europe: 'Paris', americas: 'New York', africa: 'Cairo',
-    'southeast-asia': 'Bangkok', asia: 'Tokyo', oceania: 'Sydney',
-};
 
 const regions = [
     { id: 'europe', name: '유럽', icon: '🏰' },
@@ -289,14 +282,6 @@ const RegionalBoard = () => {
                             </div>
                         </div>
 
-                        {/* 항공권·호텔 제휴 CTA — 지역·날짜가 정해진 최고 구매의도 지면 (2026-07-20) */}
-                        <div className="mt-10 max-w-2xl mx-auto">
-                            <TravelDeals
-                                placement="companion"
-                                title={`${region.name} 여행 준비 — 항공권·호텔 특가 찾기`}
-                                destination={REGION_DEST[region.id] || ''}
-                            />
-                        </div>
                     </div>
                 </div>
             </div>

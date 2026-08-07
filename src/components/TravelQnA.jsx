@@ -12,7 +12,6 @@ import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 import ListState from './ListState';
-import TravelDeals from './TravelDeals';
 
 const TravelQnA = () => {
     const { user, profile, isLoggedIn } = useAuth();
@@ -239,9 +238,6 @@ const TravelQnA = () => {
                                     <p className="text-gray-500 mb-6">여행에 대한 궁금증을 승무원과 선배 여행자들에게 물어보세요.</p>
                                     <span className="text-blue-600 font-bold flex items-center gap-2">Q&A 보러가기 →</span>
                                 </motion.div>
-                            </div>
-                            <div className="max-w-4xl mx-auto mt-10">
-                                <TravelDeals placement="qna" />
                             </div>
                         </motion.div>
                     )}

@@ -9,7 +9,6 @@ import CommendationMatching from './CommendationMatching';
 import FlightCompanions from './FlightCompanions';
 import NotificationSettings from './NotificationSettings';
 import SEOHead from './SEOHead';
-import TravelDeals from './TravelDeals';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { flightApi } from '../lib/db';
@@ -860,11 +859,6 @@ const MyPage = () => {
                             )}
                         </div>
                     </motion.div>
-
-                    {/* 여행 제휴 CTA (항공권/호텔) */}
-                    <div style={{ order: 3.5 }}>
-                        <TravelDeals placement="mypage" title="다음 비행 준비 — 항공권·호텔 특가 찾기" />
-                    </div>
 
                     {/* Tab Navigation */}
                     <div style={{ order: 4 }}>

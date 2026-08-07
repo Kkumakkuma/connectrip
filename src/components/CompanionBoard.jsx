@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import SEOHead from './SEOHead';
-import TravelDeals from './TravelDeals';
 
 const regions = [
     {
@@ -100,10 +99,6 @@ const CompanionBoard = () => {
                     ))}
                 </div>
 
-                {/* 항공권·호텔 제휴 CTA — 동행 게시판은 날짜·목적지가 정해진 최고 구매의도 지면 (2026-07-20) */}
-                <div className="max-w-6xl mx-auto mt-12">
-                    <TravelDeals placement="companion" />
-                </div>
             </div>
         </>
     );

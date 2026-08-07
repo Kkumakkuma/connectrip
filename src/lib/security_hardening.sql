@@ -701,17 +701,29 @@ DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
 CREATE POLICY "Admins can update any profile" ON public.profiles
   FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
 
--- 8-2. crew_posts: 인증된 승무원만 작성
--- ⚠ "Create crew" 는 콘솔에서 수동 생성된 레거시 정책(auth.uid()=user_id 만 검사)이다.
---    PERMISSIVE 정책끼리는 OR 로 결합되므로 이게 남아 있으면 아래 승무원 게이트가 무력화된다
---    (2026-08-07 운영 DB 실측: INSERT 정책 2개 공존 → 일반 회원도 CREW 전용 글 작성 가능).
+-- 8-2. crew_posts: 인증된 승무원만 읽고 쓴다 (쿠마님 지시 = 일반 회원에게 보이지도, 써지지도 않게)
+-- ⚠ "Create crew"/"Read crew" 는 콘솔에서 수동 생성된 레거시 정책이다.
+--    INSERT 는 PERMISSIVE 끼리 OR 결합이라 "Create crew"(auth.uid()=user_id 만 검사)가 남아 있으면
+--    아래 승무원 게이트가 무력화되고, SELECT 는 "Read crew" 가 USING(true) 라 비로그인도 API 로 전부 읽혔다.
+--    (2026-08-07 운영 실측 후 제거 — 프론트 CrewOnly.jsx 의 isCrew 차단은 화면 단일 방어였음)
 DROP POLICY IF EXISTS "Create crew" ON public.crew_posts;
+DROP POLICY IF EXISTS "Read crew" ON public.crew_posts;
 DROP POLICY IF EXISTS "Auth users can create crew posts" ON public.crew_posts;
 DROP POLICY IF EXISTS "Crew can create crew posts" ON public.crew_posts;
+DROP POLICY IF EXISTS "Crew can read crew posts" ON public.crew_posts;
 CREATE POLICY "Crew can create crew posts" ON public.crew_posts
   FOR INSERT WITH CHECK (
     auth.uid() = user_id
     AND EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.user_type = 'crew' AND COALESCE(p.crew_verified, FALSE) = TRUE
+    )
+  );
+-- 읽기: 인증 승무원 본인들 + 관리자(대시보드 통계용)만
+CREATE POLICY "Crew can read crew posts" ON public.crew_posts
+  FOR SELECT USING (
+    COALESCE(public.is_admin(), FALSE)
+    OR EXISTS (
       SELECT 1 FROM public.profiles p
       WHERE p.id = auth.uid() AND p.user_type = 'crew' AND COALESCE(p.crew_verified, FALSE) = TRUE
     )
