@@ -95,6 +95,9 @@ BEGIN
 
   IF NOT v_bypass THEN
     IF NEW.role                 IS DISTINCT FROM OLD.role
+    OR NEW.email                IS DISTINCT FROM OLD.email      -- floor(test_account_floors) 조인 키. 빠져 있어 자가 포인트 상향이 가능했다
+    OR NEW.deleted_at           IS DISTINCT FROM OLD.deleted_at
+    OR NEW.airline              IS DISTINCT FROM OLD.airline
     OR NEW.is_banned            IS DISTINCT FROM OLD.is_banned
     OR NEW.points_balance       IS DISTINCT FROM OLD.points_balance
     OR NEW.available_likes      IS DISTINCT FROM OLD.available_likes
@@ -399,6 +402,7 @@ BEGIN
      AND verified_at IS NOT NULL
      AND verified_at > NOW() - INTERVAL '1 hour'
      AND consumed_at IS NULL
+     AND purpose = 'signup_phone'
      AND consume_token_hash = encode(extensions.digest(p_phone_otp_token, 'sha256'), 'hex')
   RETURNING id INTO v_otp_id;
   IF v_otp_id IS NULL THEN RAISE EXCEPTION 'OTP_PROOF_INVALID_PHONE'; END IF;
@@ -412,7 +416,8 @@ BEGIN
 
     -- 유니크 인덱스 위반(23505)이 그대로 튀지 않도록 먼저 확인해 명확한 메시지로 돌려준다
     SELECT id INTO v_owner FROM public.profiles
-     WHERE lower(airline_email) = v_norm_email AND id <> auth.uid() LIMIT 1;
+     WHERE public.canon_airline_email(airline_email) = public.canon_airline_email(v_norm_email)
+       AND id <> auth.uid() LIMIT 1;
     IF v_owner IS NOT NULL THEN RAISE EXCEPTION 'AIRLINE_EMAIL_ALREADY_CLAIMED'; END IF;
 
     IF COALESCE(btrim(p_airline_otp_token), '') = '' THEN
@@ -424,6 +429,7 @@ BEGIN
        AND verified_at IS NOT NULL
        AND verified_at > NOW() - INTERVAL '1 hour'
        AND consumed_at IS NULL
+       AND purpose = 'airline_email'
        AND consume_token_hash = encode(extensions.digest(p_airline_otp_token, 'sha256'), 'hex')
     RETURNING id INTO v_otp_id;
     IF v_otp_id IS NULL THEN RAISE EXCEPTION 'OTP_PROOF_INVALID_AIRLINE'; END IF;
@@ -538,8 +544,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_email_otp_token_hash
   ON public.email_otps (consume_token_hash) WHERE consume_token_hash IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_phone_otp_token_hash
   ON public.phone_otps (consume_token_hash) WHERE consume_token_hash IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_profiles_airline_email
-  ON public.profiles (lower(airline_email)) WHERE NULLIF(btrim(airline_email), '') IS NOT NULL;
+-- plus-addressing(user+1@) 은 같은 사서함인데 문자열이 달라 lower() 유니크를 그대로 통과했다(재현 확인).
+-- 로컬파트의 '+' 뒤를 잘라낸 정규화 키로 유니크를 건다.
+CREATE OR REPLACE FUNCTION public.canon_airline_email(p_email TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN NULLIF(btrim(p_email), '') IS NULL THEN NULL
+    ELSE split_part(split_part(lower(btrim(p_email)), '@', 1), '+', 1)
+         || '@' || split_part(lower(btrim(p_email)), '@', 2)
+  END;
+$$;
+DROP INDEX IF EXISTS public.uq_profiles_airline_email;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_profiles_airline_email_canon
+  ON public.profiles (public.canon_airline_email(airline_email))
+  WHERE NULLIF(btrim(airline_email), '') IS NOT NULL;
 
 -- 5-7. 추천 보너스 (트리거 우회 + 동시 중복지급 방지: 조건부 UPDATE 원자화)
 --   ★ 2026-07-18 정책 최종(쿠마님): 보너스는 "인증 승무원인 당사자"에게만 각 3,000P.
