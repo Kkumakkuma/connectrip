@@ -1,8 +1,11 @@
 // Vercel Serverless Function: SMS OTP 검증
 // POST /api/verify-otp
-// body: { phone: "01012345678", code: "123456" }
+// body: { phone: "01012345678", code: "123456", purpose? }
+// 성공 시 일회성 소비 토큰(verifyToken)을 발급한다. 가입 완료 RPC 가 이 토큰을 요구하므로,
+// 같은 번호로 인증만 통과하면 아무 계정이나 쓰던 문제를 막는다.
 
 import { createClient } from '@supabase/supabase-js';
+import { randomBytes, createHash } from 'node:crypto';
 import { applyCors } from './_cors.js';
 
 export default async function handler(req, res) {
@@ -15,6 +18,7 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const cleanPhone = String(body.phone || '').replace(/[^0-9]/g, '');
     const cleanCode = String(body.code || '').replace(/[^0-9]/g, '');
+    const purpose = String(body.purpose || 'generic');
 
     if (!/^01[016789][0-9]{7,8}$/.test(cleanPhone)) {
       return res.status(400).json({ ok: false, error: '휴대폰 번호 형식이 올바르지 않습니다.' });
@@ -30,74 +34,34 @@ export default async function handler(req, res) {
     }
 
     const supabase = createClient(SUPA_URL, SUPA_KEY);
-    const now = new Date().toISOString();
 
-    // ① 해당 번호의 최신 유효 OTP 행을 코드와 무관하게 먼저 조회
-    //    (브루트포스 시도 횟수를 추적하기 위해 코드 일치 여부와 분리)
-    // attempts 컬럼 포함 조회를 우선 시도하고, 컬럼 미존재(SQL 미적용)면 attempts 없이 폴백.
-    // 전환기 폴백: phone_otps.attempts 컬럼 추가 SQL 적용 후 폴백 분기는 제거 가능.
-    const queryRow = (cols) => supabase
-      .from('phone_otps')
-      .select(cols)
-      .eq('phone', cleanPhone)
-      .is('verified_at', null)
-      .gte('expires_at', now)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // 토큰 원문은 클라이언트에만, DB 에는 해시만 저장한다.
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
 
-    let { data: row, error } = await queryRow('id, code, expires_at, verified_at, attempts');
-    if (error) {
-      // attempts 컬럼 미존재 등으로 실패하면 attempts 없이 재조회
-      ({ data: row, error } = await queryRow('id, code, expires_at, verified_at'));
-    }
+    // 조회·검증·토큰기록을 DB 함수 한 트랜잭션에서 처리(동시 검증 경쟁 제거).
+    const { data: result, error } = await supabase.rpc('verify_otp_and_issue_token', {
+      p_kind: 'phone',
+      p_subject: cleanPhone,
+      p_code: cleanCode,
+      p_token_hash: tokenHash,
+      p_purpose: purpose,
+    });
 
     if (error) {
-      console.error('[verify-otp] DB 조회 오류', error);
-      return res.status(500).json({ ok: false, error: 'DB 조회 실패' });
+      console.error('[verify-otp] RPC 오류', error);
+      return res.status(500).json({ ok: false, error: '인증 처리에 실패했습니다.' });
     }
 
-    // ② 유효한 발급 OTP 자체가 없으면 400
-    if (!row) {
-      return res.status(400).json({
-        ok: false,
-        error: '인증번호가 일치하지 않거나 만료되었습니다.',
-      });
+    if (result === 'too_many_attempts') {
+      return res.status(429).json({ ok: false, error: '시도 횟수 초과. 새 인증번호를 요청해주세요.' });
+    }
+    if (result !== 'ok') {
+      return res.status(400).json({ ok: false, error: '인증번호가 일치하지 않거나 만료되었습니다.' });
     }
 
-    // ③ 시도 횟수 초과 시 코드 일치 여부와 무관하게 429 (브루트포스 차단)
-    if ((row.attempts || 0) >= 5) {
-      return res.status(429).json({
-        ok: false,
-        error: '시도 횟수 초과. 새 인증번호를 요청해주세요.',
-      });
-    }
-
-    // ④ 코드 불일치: attempts +1 후 400
-    if (row.code !== cleanCode) {
-      // 원자 증가 RPC 우선(동시 오답 경쟁에도 카운트 보존), 미존재 시 read-modify-write 폴백.
-      // attempts 컬럼/RPC 미존재(SQL 미적용) 시 실패는 무시 (전환기 호환)
-      const { error: bumpErr } = await supabase.rpc('bump_phone_otp_attempts', { p_id: row.id });
-      if (bumpErr) {
-        const { error: updErr } = await supabase
-          .from('phone_otps')
-          .update({ attempts: (row.attempts || 0) + 1 })
-          .eq('id', row.id);
-        if (updErr) console.warn('[verify-otp] attempts bump skipped:', updErr.code, updErr.message);
-      }
-      return res.status(400).json({
-        ok: false,
-        error: '인증번호가 일치하지 않거나 만료되었습니다.',
-      });
-    }
-
-    // ⑤ 일치: verified_at 기록
-    await supabase
-      .from('phone_otps')
-      .update({ verified_at: now })
-      .eq('id', row.id);
-
-    return res.status(200).json({ ok: true });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ok: true, verifyToken: token });
   } catch (e) {
     console.error('[verify-otp] 예외', e);
     return res.status(500).json({ ok: false, error: String(e.message || e) });

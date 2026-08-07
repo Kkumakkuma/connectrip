@@ -354,54 +354,79 @@ GRANT EXECUTE ON FUNCTION public.admin_grant_points(UUID, INT, TEXT) TO authenti
 GRANT EXECUTE ON FUNCTION public.admin_grant_vouchers(UUID, INT, TEXT) TO authenticated;
 
 -- 5-6. 회원가입 프로필 완성 (보호컬럼 user_type/crew_verified/phone_verified 를 서버 검증 후 설정)
+--
+-- ★ 2026-08-07 OTP 계정 바인딩: 이전에는 "번호/이메일이 최근 인증됨"만 확인해서, 인증을 마친
+--   당사자가 아니어도 같은 값만 제출하면 통과했다(승무원 1명이 CREW 계정 다수 생성 / 타인 선점 가능).
+--   이제 verify API 가 인증 성공 시 발급한 일회성 토큰의 해시를 대조해 소비한다.
+--   토큰 원문은 클라이언트에만 있고 DB 에는 sha256 해시만 저장한다.
 CREATE OR REPLACE FUNCTION public.complete_signup_profile(
   p_name TEXT, p_nickname TEXT, p_phone TEXT,
   p_zipcode TEXT, p_road TEXT, p_detail TEXT,
   p_user_type TEXT, p_airline_email TEXT, p_airline_name TEXT,
-  p_referred_by UUID
+  p_referred_by UUID,
+  p_birthdate DATE DEFAULT NULL,
+  p_phone_otp_token TEXT DEFAULT NULL,
+  p_airline_otp_token TEXT DEFAULT NULL
 )
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public AS $$
 DECLARE
-  v_phone_ok    BOOLEAN;
   v_crew        BOOLEAN := FALSE;
   v_clean_phone TEXT;
   v_ref         UUID;
   v_domain      TEXT;
   v_norm_email  TEXT;
   v_otp_id      UUID;
+  v_owner       UUID;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_user_type NOT IN ('traveler', 'crew') THEN RAISE EXCEPTION 'invalid user_type'; END IF;
+
+  -- 만 14세 연령확인 (서버 권위 검증)
+  IF p_birthdate IS NULL THEN RAISE EXCEPTION 'birthdate required'; END IF;
+  IF p_birthdate > (CURRENT_DATE - INTERVAL '14 years') THEN RAISE EXCEPTION 'age_under_14'; END IF;
+
   v_clean_phone := regexp_replace(COALESCE(p_phone, ''), '[^0-9]', '', 'g');
 
-  -- 휴대폰 본인인증 서버 재검증 (최근 1시간 내 인증된 번호)
-  SELECT EXISTS (
-    SELECT 1 FROM public.phone_otps
-    WHERE phone = v_clean_phone AND verified_at IS NOT NULL
-      AND verified_at > NOW() - INTERVAL '1 hour'
-  ) INTO v_phone_ok;
-  IF NOT v_phone_ok THEN RAISE EXCEPTION 'phone not verified'; END IF;
+  -- 휴대폰: 토큰 해시 대조 + 1회성 소비(조건부 UPDATE ... RETURNING 이라 동시 요청도 하나만 통과)
+  IF COALESCE(btrim(p_phone_otp_token), '') = '' THEN
+    RAISE EXCEPTION 'OTP_PROOF_REQUIRED_PHONE';
+  END IF;
+  UPDATE public.phone_otps
+     SET consumed_at = NOW()
+   WHERE phone = v_clean_phone
+     AND verified_at IS NOT NULL
+     AND verified_at > NOW() - INTERVAL '1 hour'
+     AND consumed_at IS NULL
+     AND consume_token_hash = encode(extensions.digest(p_phone_otp_token, 'sha256'), 'hex')
+  RETURNING id INTO v_otp_id;
+  IF v_otp_id IS NULL THEN RAISE EXCEPTION 'OTP_PROOF_INVALID_PHONE'; END IF;
 
-  -- 승무원이면 (1) 항공사 이메일 도메인 화이트리스트 + (2) 그 회사 이메일 OTP 인증을 서버 검증.
-  -- 회사 이메일은 가입/로그인 이메일과 분리된 별도 인증(2026-07-18). 도메인만 맞으면 통과하던 구멍 차단.
+  -- 승무원: (1) 항공사 도메인 화이트리스트 (2) 회사 이메일 선점 확인 (3) 회사 이메일 OTP 토큰 소비
   IF p_user_type = 'crew' THEN
     v_norm_email := lower(trim(COALESCE(p_airline_email, '')));
     v_domain := split_part(v_norm_email, '@', 2);
     SELECT EXISTS (SELECT 1 FROM public.airline_domains WHERE domain = v_domain) INTO v_crew;
     IF NOT v_crew THEN RAISE EXCEPTION 'crew airline verification required'; END IF;
 
-    -- 최근 1시간 내 verified 이고 미소비 email_otps 1건을 소비(consume). 재사용/피기백 차단.
-    SELECT id INTO v_otp_id FROM public.email_otps
-      WHERE lower(email) = v_norm_email
-        AND verified_at IS NOT NULL
-        AND verified_at > NOW() - INTERVAL '1 hour'
-        AND consumed_at IS NULL
-      ORDER BY verified_at DESC
-      LIMIT 1;
-    IF v_otp_id IS NULL THEN RAISE EXCEPTION 'airline email not verified'; END IF;
-    UPDATE public.email_otps SET consumed_at = NOW() WHERE id = v_otp_id;
+    -- 유니크 인덱스 위반(23505)이 그대로 튀지 않도록 먼저 확인해 명확한 메시지로 돌려준다
+    SELECT id INTO v_owner FROM public.profiles
+     WHERE lower(airline_email) = v_norm_email AND id <> auth.uid() LIMIT 1;
+    IF v_owner IS NOT NULL THEN RAISE EXCEPTION 'AIRLINE_EMAIL_ALREADY_CLAIMED'; END IF;
+
+    IF COALESCE(btrim(p_airline_otp_token), '') = '' THEN
+      RAISE EXCEPTION 'OTP_PROOF_REQUIRED_AIRLINE';
+    END IF;
+    UPDATE public.email_otps
+       SET consumed_at = NOW()
+     WHERE lower(email) = v_norm_email
+       AND verified_at IS NOT NULL
+       AND verified_at > NOW() - INTERVAL '1 hour'
+       AND consumed_at IS NULL
+       AND consume_token_hash = encode(extensions.digest(p_airline_otp_token, 'sha256'), 'hex')
+    RETURNING id INTO v_otp_id;
+    IF v_otp_id IS NULL THEN RAISE EXCEPTION 'OTP_PROOF_INVALID_AIRLINE'; END IF;
   END IF;
 
   v_ref := p_referred_by;
@@ -433,11 +458,88 @@ BEGIN
     updated_at          = NOW()
   WHERE id = auth.uid();
 
+  INSERT INTO public.profiles_private (user_id, birthdate)
+  VALUES (auth.uid(), p_birthdate)
+  ON CONFLICT (user_id) DO UPDATE SET birthdate = EXCLUDED.birthdate;
+
   IF v_ref IS NOT NULL THEN
     PERFORM public.grant_referral_bonus(auth.uid());
   END IF;
 END;
 $$;
+
+-- ★ 구 시그니처는 반드시 제거한다. 남아 있으면 오버로딩 때문에 구버전 클라가
+--   토큰 검증이 없는 옛 함수를 계속 호출할 수 있다(우회 경로).
+DROP FUNCTION IF EXISTS public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID);
+DROP FUNCTION IF EXISTS public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE);
+
+-- 5-6b. OTP 검증 + 소비토큰 발급 (서버리스 verify API 전용, service_role 로만 호출)
+--   기존 API 는 "조회 후 별도 UPDATE" 라 동시 검증 시 마지막 토큰만 남아 정상 사용자가
+--   못 쓰는 토큰을 받을 수 있었다. 검증과 토큰 기록을 한 트랜잭션으로 묶는다.
+CREATE OR REPLACE FUNCTION public.verify_otp_and_issue_token(
+  p_kind TEXT, p_subject TEXT, p_code TEXT, p_token_hash TEXT, p_purpose TEXT DEFAULT 'generic'
+) RETURNS TEXT
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_id UUID; v_code TEXT; v_attempts INT; v_updated UUID;
+BEGIN
+  IF p_kind NOT IN ('email','phone') THEN RAISE EXCEPTION 'invalid kind'; END IF;
+  IF COALESCE(btrim(p_token_hash),'') = '' THEN RAISE EXCEPTION 'token hash required'; END IF;
+
+  IF p_kind = 'email' THEN
+    SELECT id, code, COALESCE(attempts,0) INTO v_id, v_code, v_attempts
+      FROM public.email_otps
+     WHERE lower(email) = lower(p_subject) AND verified_at IS NULL AND expires_at >= NOW()
+     ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
+  ELSE
+    SELECT id, code, COALESCE(attempts,0) INTO v_id, v_code, v_attempts
+      FROM public.phone_otps
+     WHERE phone = p_subject AND verified_at IS NULL AND expires_at >= NOW()
+     ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
+  END IF;
+
+  IF v_id IS NULL THEN RETURN 'not_found'; END IF;
+  IF v_attempts >= 5 THEN RETURN 'too_many_attempts'; END IF;
+
+  IF v_code IS DISTINCT FROM p_code THEN
+    IF p_kind = 'email' THEN
+      UPDATE public.email_otps SET attempts = COALESCE(attempts,0) + 1 WHERE id = v_id;
+    ELSE
+      UPDATE public.phone_otps SET attempts = COALESCE(attempts,0) + 1 WHERE id = v_id;
+    END IF;
+    RETURN 'mismatch';
+  END IF;
+
+  IF p_kind = 'email' THEN
+    UPDATE public.email_otps
+       SET verified_at = NOW(), consume_token_hash = p_token_hash, purpose = COALESCE(p_purpose,'generic')
+     WHERE id = v_id AND verified_at IS NULL AND expires_at >= NOW()
+     RETURNING id INTO v_updated;
+  ELSE
+    UPDATE public.phone_otps
+       SET verified_at = NOW(), consume_token_hash = p_token_hash, purpose = COALESCE(p_purpose,'generic')
+     WHERE id = v_id AND verified_at IS NULL AND expires_at >= NOW()
+     RETURNING id INTO v_updated;
+  END IF;
+
+  IF v_updated IS NULL THEN RETURN 'not_found'; END IF;  -- 경쟁에서 밀림 → 성공 응답 금지
+  RETURN 'ok';
+END;
+$$;
+REVOKE ALL ON FUNCTION public.verify_otp_and_issue_token(TEXT,TEXT,TEXT,TEXT,TEXT) FROM PUBLIC, anon, authenticated;
+
+-- 5-6c. OTP 소비 토큰 저장용 컬럼/인덱스 + 회사 이메일 1계정 점유 (멱등)
+ALTER TABLE public.email_otps ADD COLUMN IF NOT EXISTS consume_token_hash TEXT;
+ALTER TABLE public.email_otps ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'generic';
+ALTER TABLE public.phone_otps ADD COLUMN IF NOT EXISTS consume_token_hash TEXT;
+ALTER TABLE public.phone_otps ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ;
+ALTER TABLE public.phone_otps ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'generic';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_email_otp_token_hash
+  ON public.email_otps (consume_token_hash) WHERE consume_token_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_phone_otp_token_hash
+  ON public.phone_otps (consume_token_hash) WHERE consume_token_hash IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_profiles_airline_email
+  ON public.profiles (lower(airline_email)) WHERE NULLIF(btrim(airline_email), '') IS NOT NULL;
 
 -- 5-7. 추천 보너스 (트리거 우회 + 동시 중복지급 방지: 조건부 UPDATE 원자화)
 --   ★ 2026-07-18 정책 최종(쿠마님): 보너스는 "인증 승무원인 당사자"에게만 각 3,000P.
@@ -656,7 +758,7 @@ REVOKE ALL ON FUNCTION public.use_voucher(INT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.convert_likes_to_points(INT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.market_purchase(UUID, INT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.complete_signup_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.grant_referral_bonus(UUID) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.purchase_voucher(INT) TO authenticated;
@@ -664,7 +766,7 @@ GRANT EXECUTE ON FUNCTION public.use_voucher(INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.convert_likes_to_points(INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.market_purchase(UUID, INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.complete_signup_profile(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT) TO authenticated;
 DROP FUNCTION IF EXISTS public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT);
 REVOKE ALL ON FUNCTION public.apply_commendation_match(TEXT, DATE, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.apply_commendation_match(TEXT, DATE, TEXT) TO authenticated;

@@ -65,6 +65,10 @@ export default function SignupComplete() {
   const [airlineEmailError, setAirlineEmailError] = useState('');
   // 인증에 성공한 회사 이메일(정규화값) — 늦은 응답 레이스/입력변경으로 잘못 통과되지 않게 canSubmit 에서 대조
   const [verifiedAirlineEmail, setVerifiedAirlineEmail] = useState('');
+  // OTP 인증에 성공한 클라이언트만 가입을 완성할 수 있도록 서버가 준 일회성 소비 토큰
+  const [phoneOtpToken, setPhoneOtpToken] = useState('');
+  const [verifiedPhone, setVerifiedPhone] = useState('');
+  const [airlineOtpToken, setAirlineOtpToken] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -88,8 +92,8 @@ export default function SignupComplete() {
       const raw = sessionStorage.getItem('pendingCrew');
       if (raw) {
         const parsed = JSON.parse(raw);
-        // 2시간 이상 된 정보는 무시 (단순 TTL)
-        if (parsed && parsed.airlineEmail && Date.now() - (parsed.ts || 0) < 2 * 60 * 60 * 1000) {
+        // 서버의 OTP 인정 기간(1시간)보다 오래된 정보는 무시
+        if (parsed && parsed.airlineEmail && Date.now() - (parsed.ts || 0) < 60 * 60 * 1000) {
           setUserType('crew');
           setAirlineEmail(parsed.airlineEmail);
           setAirlineInfo(getAirlineInfo(parsed.airlineEmail));
@@ -98,13 +102,42 @@ export default function SignupComplete() {
     } catch { /* noop */ }
   }, []);
 
+  // 이메일 확인 ON 경로: SignupEmail 에서 인증까지 마치고 넘어온 소비 토큰을 이어받는다.
+  // (그 화면을 떠나면서 state 가 사라지므로 세션 스토리지를 경유한다)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('pendingOtpProof');
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (!p || Date.now() - (p.savedAt || 0) >= 60 * 60 * 1000) {
+        sessionStorage.removeItem('pendingOtpProof');
+        return;
+      }
+      if (p.phoneToken && p.phone) {
+        setPhone(p.phone);
+        setVerifiedPhone(p.phone);
+        setPhoneOtpToken(p.phoneToken);
+        setPhoneVerified(true);
+      }
+      if (p.airlineToken && p.airlineEmail) {
+        setUserType('crew');
+        setAirlineEmail(p.airlineEmail);
+        setAirlineInfo(getAirlineInfo(p.airlineEmail));
+        setVerifiedAirlineEmail(p.airlineEmail);
+        setAirlineOtpToken(p.airlineToken);
+        setAirlineEmailVerified(true);
+      }
+    } catch { /* 복원 실패 시 화면에서 다시 인증받으면 된다 */ }
+  }, []);
+
   // 기존 프로필 값 프리필
   useEffect(() => {
     if (profile) {
       if (profile.name && !name) setName(profile.name);
       if (profile.nickname && !nickname) setNickname(profile.nickname);
       if (profile.phone) setPhone(profile.phone);
-      if (profile.phone_verified) setPhoneVerified(true);
+      // phone_verified 로 인증 상태를 복원하지 않는다. 가입 완료 RPC 가 이번 인증에서 발급된
+      // 소비 토큰을 요구하므로, 토큰 없이 "인증됨"으로 보이면 제출이 막힌 채 원인을 알 수 없게 된다.
       if (profile.address_zipcode) setZipcode(profile.address_zipcode);
       if (profile.address_road) setAddressRoad(profile.address_road);
       if (profile.address_detail) setAddressDetail(profile.address_detail);
@@ -242,7 +275,7 @@ export default function SignupComplete() {
       const resp = await fetch(apiUrl('/api/verify-email-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleaned, code: airlineEmailCode }),
+        body: JSON.stringify({ email: cleaned, code: airlineEmailCode, purpose: 'airline_email' }),
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
@@ -251,6 +284,7 @@ export default function SignupComplete() {
       }
       setAirlineEmailVerified(true);
       setVerifiedAirlineEmail(cleaned); // 인증 성공한 정규화 이메일 기록
+      setAirlineOtpToken(data.verifyToken || '');
       setAirlineEmailError('');
     } catch (err) {
       setAirlineEmailError('네트워크 오류: ' + (err.message || '알 수 없음'));
@@ -302,7 +336,7 @@ export default function SignupComplete() {
       const resp = await fetch(apiUrl('/api/verify-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleaned, code: phoneCode }),
+        body: JSON.stringify({ phone: cleaned, code: phoneCode, purpose: 'signup_phone' }),
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
@@ -310,6 +344,8 @@ export default function SignupComplete() {
         return;
       }
       setPhoneVerified(true);
+      setVerifiedPhone(cleaned);
+      setPhoneOtpToken(data.verifyToken || '');
       setError('');
     } catch (err) {
       setError('네트워크 오류: ' + (err.message || '알 수 없음'));
@@ -322,10 +358,11 @@ export default function SignupComplete() {
     if (!name.trim()) return false;
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
     if (!birthdate || isUnder14(birthdate)) return false;
-    if (!phoneVerified) return false;
+    if (!phoneVerified || !phoneOtpToken) return false;
+    if (verifiedPhone !== phone.replace(/[^0-9]/g, '')) return false;
     if (!zipcode || !addressRoad) return false;
     // 승무원은 회사 이메일 인증 필수 + 인증한 이메일이 현재 입력값과 일치해야 함
-    if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified
+    if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified || !airlineOtpToken
         || verifiedAirlineEmail !== airlineEmail.trim().toLowerCase())) return false;
     return true;
   };
@@ -363,14 +400,41 @@ export default function SignupComplete() {
         p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
         p_referred_by: resolvedReferrer,
         p_birthdate: birthdate,
+        p_phone_otp_token: phoneOtpToken,
+        p_airline_otp_token: (userType === 'crew') ? airlineOtpToken : null,
       });
       if (upErr) throw upErr;
-      // 승무원 pending 정보는 이제 사용 완료 → 세션 스토리지에서 제거
-      try { sessionStorage.removeItem('pendingCrew'); } catch { /* noop */ }
+      // 승무원 pending 정보와 소비 토큰은 사용 완료 → 세션 스토리지에서 제거
+      try {
+        sessionStorage.removeItem('pendingCrew');
+        sessionStorage.removeItem('pendingOtpProof');
+      } catch { /* noop */ }
       await fetchProfile(user.id);
       navigate('/');
     } catch (err) {
-      setError(err.message || '저장 중 오류가 발생했습니다.');
+      // 저장은 됐는데 응답만 유실됐을 수 있다. 프로필을 다시 확인해 성공이면 그대로 진행한다.
+      try {
+        const { data: prof } = await supabase.rpc('get_my_profile');
+        const row = Array.isArray(prof) ? prof[0] : prof;
+        if (row?.profile_completed) {
+          try {
+            sessionStorage.removeItem('pendingCrew');
+            sessionStorage.removeItem('pendingOtpProof');
+          } catch { /* noop */ }
+          await fetchProfile(user.id);
+          navigate('/');
+          return;
+        }
+      } catch { /* 조회 실패 시 아래 안내로 진행 */ }
+
+      const msg = err.message || '';
+      if (msg.includes('OTP_PROOF')) {
+        setError('인증 확인 시간이 지났습니다. 휴대폰·회사 이메일 인증을 다시 받아주세요.');
+      } else if (msg.includes('AIRLINE_EMAIL_ALREADY_CLAIMED')) {
+        setError('이미 다른 계정에 등록된 회사 이메일입니다.');
+      } else {
+        setError(msg || '저장 중 오류가 발생했습니다.');
+      }
     } finally {
       setSaving(false);
     }
