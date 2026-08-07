@@ -1,11 +1,8 @@
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
 import { ChevronDown, Plane } from 'lucide-react';
-import { useAuth } from '../lib/AuthContext';
 
 const Hero = () => {
-    const { isLoggedIn } = useAuth();
-    // min-h-screen: CTA·배지 추가로 짧은 화면(가로모드 등)에서 h-screen 고정 시 잘림 → 내용만큼 늘어나게
+    // min-h-screen: 짧은 화면(가로모드 등)에서 h-screen 고정 시 잘림 → 내용만큼 늘어나게
     return (
         <section className="relative min-h-screen w-full overflow-hidden flex-center py-24">
             {/* Background Image with Overlay */}
@@ -56,27 +53,7 @@ const Hero = () => {
                         현직 승무원들의 노하우와 함께 나만의 여행을 만들어보세요.
                     </p>
 
-                    {/* 주·보조 CTA — 첫 화면의 유일한 행동 유도 (2026-07-20: 빈 spacer → 버튼 교체) */}
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                        {!isLoggedIn && (
-                            <Link
-                                to="/signup"
-                                className="w-full sm:w-auto px-8 py-4 rounded-xl bg-blue-600 text-white text-lg font-bold hover:bg-blue-700 transition-colors shadow-lg"
-                            >
-                                무료로 시작하기
-                            </Link>
-                        )}
-                        <Link
-                            to="/companion"
-                            className={`w-full sm:w-auto px-8 py-4 rounded-xl text-lg font-bold transition-colors ${
-                                isLoggedIn
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
-                                    : 'bg-black/35 backdrop-blur-sm border border-white/40 text-white hover:bg-black/50'
-                            }`}
-                        >
-                            동행 찾아보기
-                        </Link>
-                    </div>
+                    <div style={{ height: '2rem' }}></div>
                 </motion.div>
             </div>
 
