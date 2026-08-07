@@ -6,6 +6,7 @@ import {
 import { useAuth } from '../lib/AuthContext';
 import { flightApi, flightCompanionsApi, messagesApi, userBlockApi } from '../lib/db';
 import ReportButton from './ReportButton';
+import FlightBoard from './FlightBoard';
 
 const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
   const { user, isLoggedIn, isCrew } = useAuth();
@@ -332,6 +333,17 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                             ))}
                           </div>
                         )}
+
+                        {/* 같은 편 미니 게시판 — 일반/승무원은 서버에서 분리된다 */}
+                        <FlightBoard
+                          flight={flight}
+                          memberType={isCrew ? 'crew' : 'passenger'}
+                          onSendMessage={(receiverId, receiverName) => setShowMessageModal({
+                            receiverId,
+                            receiverName: receiverName || '익명',
+                            flightNumber: flight.flight_number,
+                          })}
+                        />
                       </div>
                     </motion.div>
                   )}

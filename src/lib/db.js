@@ -581,6 +581,43 @@ export const messagesApi = {
 // Flight Companions (같은편 동행)
 // ============================================================
 
+// ============================================================
+// Flight Board (같은 편 미니 게시판)
+//   입장 자격·작성 기간·연락처 차단은 서버(RLS/트리거)가 판정한다.
+//   자격이 없으면 조회 결과가 빈 배열로 나오고, 작성은 예외로 거부된다.
+// ============================================================
+
+export const flightBoardApi = {
+  async getPosts(flightNumber, flightDate, memberType) {
+    const { data, error } = await supabase
+      .from('flight_posts')
+      .select('*, flight_post_comments(*)')
+      .eq('flight_number', flightNumber)
+      .eq('flight_date', flightDate)
+      .eq('member_type', memberType)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createPost(post) {
+    const { data, error } = await supabase.from('flight_posts').insert(post).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async createComment(comment) {
+    const { data, error } = await supabase.from('flight_post_comments').insert(comment).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deletePost(id) {
+    const { error } = await supabase.from('flight_posts').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
 export const flightCompanionsApi = {
   async getCompanions(flightNumber, flightDate, userId) {
     const { data, error } = await supabase

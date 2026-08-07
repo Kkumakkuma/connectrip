@@ -1198,3 +1198,117 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_mark_reward_sent(UUID,INT,TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_mark_reward_sent(UUID,INT,TEXT) TO authenticated;
+
+-- ============================================================
+-- 10. 항공편 미니 게시판 (2026-08-08, 쿠마님 확정: 채팅방 대신 게시판)
+--   같은 편·같은 날 스케줄을 "공개"로 등록한 사람만, 일반/승무원 분리,
+--   비행 21일 전 ~ 비행 당일까지 작성 가능(다음날부터 읽기 전용, 글은 보존).
+--   입장 자격·기간·연락처 차단을 전부 서버에서 판정한다.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.flight_posts (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flight_number TEXT NOT NULL,
+  flight_date   DATE NOT NULL,
+  member_type   TEXT NOT NULL CHECK (member_type IN ('passenger','crew')),
+  user_id       UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  author_name   TEXT,
+  content       TEXT NOT NULL CHECK (length(btrim(content)) BETWEEN 1 AND 1000),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_flight_posts_room
+  ON public.flight_posts (flight_number, flight_date, member_type, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.flight_post_comments (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id     UUID NOT NULL REFERENCES public.flight_posts(id) ON DELETE CASCADE,
+  user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  author_name TEXT,
+  content     TEXT NOT NULL CHECK (length(btrim(content)) BETWEEN 1 AND 500),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_flight_post_comments_post ON public.flight_post_comments (post_id, created_at);
+
+-- 이용 자격: 그 편에 내 스케줄이 공개 등록 + 회원유형 일치 + 미차단 + 만 19세 이상
+CREATE OR REPLACE FUNCTION public.can_use_flight_board(p_flight TEXT, p_date DATE, p_member_type TEXT)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.flight_schedules fs
+    JOIN public.profiles pr ON pr.id = fs.user_id
+    JOIN public.profiles_private pp ON pp.user_id = fs.user_id
+    WHERE fs.user_id = auth.uid()
+      AND fs.flight_number = p_flight AND fs.flight_date = p_date
+      AND COALESCE(fs.is_public, FALSE) = TRUE
+      AND fs.user_type = p_member_type
+      AND COALESCE(pr.is_banned, FALSE) = FALSE
+      AND pp.birthdate IS NOT NULL
+      AND pp.birthdate <= (CURRENT_DATE - INTERVAL '19 years')
+  );
+$$;
+REVOKE ALL ON FUNCTION public.can_use_flight_board(TEXT,DATE,TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_use_flight_board(TEXT,DATE,TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.flight_board_writable(p_date DATE)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT CURRENT_DATE >= (p_date - 21) AND CURRENT_DATE <= p_date;
+$$;
+GRANT EXECUTE ON FUNCTION public.flight_board_writable(DATE) TO authenticated;
+
+ALTER TABLE public.flight_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.flight_post_comments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Read flight board" ON public.flight_posts;
+CREATE POLICY "Read flight board" ON public.flight_posts FOR SELECT
+  USING (public.can_use_flight_board(flight_number, flight_date, member_type));
+DROP POLICY IF EXISTS "Write flight board" ON public.flight_posts;
+CREATE POLICY "Write flight board" ON public.flight_posts FOR INSERT
+  WITH CHECK (auth.uid() = user_id
+    AND public.can_use_flight_board(flight_number, flight_date, member_type)
+    AND public.flight_board_writable(flight_date));
+DROP POLICY IF EXISTS "Delete own flight post" ON public.flight_posts;
+CREATE POLICY "Delete own flight post" ON public.flight_posts FOR DELETE
+  USING (auth.uid() = user_id OR COALESCE(public.is_admin(), FALSE));
+DROP POLICY IF EXISTS "Read flight comments" ON public.flight_post_comments;
+CREATE POLICY "Read flight comments" ON public.flight_post_comments FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.flight_posts p
+    WHERE p.id = post_id AND public.can_use_flight_board(p.flight_number, p.flight_date, p.member_type)));
+DROP POLICY IF EXISTS "Write flight comments" ON public.flight_post_comments;
+CREATE POLICY "Write flight comments" ON public.flight_post_comments FOR INSERT
+  WITH CHECK (auth.uid() = user_id AND EXISTS (SELECT 1 FROM public.flight_posts p
+    WHERE p.id = post_id AND public.can_use_flight_board(p.flight_number, p.flight_date, p.member_type)
+      AND public.flight_board_writable(p.flight_date)));
+DROP POLICY IF EXISTS "Delete own flight comment" ON public.flight_post_comments;
+CREATE POLICY "Delete own flight comment" ON public.flight_post_comments FOR DELETE
+  USING (auth.uid() = user_id OR COALESCE(public.is_admin(), FALSE));
+GRANT SELECT, INSERT, DELETE ON public.flight_posts TO authenticated;
+GRANT SELECT, INSERT, DELETE ON public.flight_post_comments TO authenticated;
+
+-- 공개 게시판이라 연락처가 올라가면 그 편 등록자 전원에게 노출된다.
+-- 1:1 쪽지는 서로 합의한 자리이므로 막지 않는다(쿠마님 확정).
+-- 한글에는 단어 경계(\b)가 없어 짧은 토큰이 오탐하므로, 숫자는 구분자를 제거해 검사하고
+-- 메신저·계좌는 문맥 단어가 함께 있을 때만 막는다(오탐 테스트 12케이스 통과).
+CREATE OR REPLACE FUNCTION public.flight_board_content_guard()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_raw    TEXT := COALESCE(NEW.content, '');
+  v_text   TEXT := lower(regexp_replace(COALESCE(NEW.content,''), '\s+', '', 'g'));
+  v_digits TEXT := regexp_replace(COALESCE(NEW.content,''), '[^0-9]', '', 'g');
+  v_member TEXT;
+BEGIN
+  IF v_digits ~ '01[016789][0-9]{7,8}' THEN RAISE EXCEPTION 'CONTACT_BLOCKED_PHONE'; END IF;
+  IF v_text ~ '(카톡|카카오톡|kakao|오픈챗|오픈카톡|인스타|instagram|텔레그램|telegram|라인아이디)'
+     AND v_text ~ '(아이디|id|:|@)' THEN RAISE EXCEPTION 'CONTACT_BLOCKED_MESSENGER'; END IF;
+  IF v_digits ~ '[0-9]{10,}' AND v_text ~ '(은행|계좌|입금|송금|농협|국민|신한|우리|하나|기업|카카오뱅크|토스)'
+     THEN RAISE EXCEPTION 'CONTACT_BLOCKED_ACCOUNT'; END IF;
+  IF lower(v_raw) ~ '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' THEN RAISE EXCEPTION 'CONTACT_BLOCKED_EMAIL'; END IF;
+  IF TG_TABLE_NAME = 'flight_posts' THEN v_member := NEW.member_type;
+  ELSE SELECT p.member_type INTO v_member FROM public.flight_posts p WHERE p.id = NEW.post_id; END IF;
+  IF v_member = 'crew' AND v_text ~ '([0-9]{3,4}호|룸넘버|roomnumber|객실번호)'
+     THEN RAISE EXCEPTION 'CONTACT_BLOCKED_HOTEL'; END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_flight_post_guard ON public.flight_posts;
+CREATE TRIGGER trg_flight_post_guard BEFORE INSERT ON public.flight_posts
+  FOR EACH ROW EXECUTE FUNCTION public.flight_board_content_guard();
+DROP TRIGGER IF EXISTS trg_flight_comment_guard ON public.flight_post_comments;
+CREATE TRIGGER trg_flight_comment_guard BEFORE INSERT ON public.flight_post_comments
+  FOR EACH ROW EXECUTE FUNCTION public.flight_board_content_guard();
