@@ -287,7 +287,10 @@ CREATE POLICY "Auth users can create destinations" ON public.destinations FOR IN
 
 -- Flight schedules: users can read all (needed for companions & matching), manage own
 ALTER TABLE public.flight_schedules ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Anyone can read flight schedules" ON public.flight_schedules FOR SELECT USING (true);
+-- ⚠ 비행 스케줄은 "누가 언제 어디 있는지"를 특정하는 정보다. USING(true) 로 두면
+--   비공개로 설정한 일정까지 비로그인 상태에서 이름과 함께 조회된다(2026-08-07 실측·수정).
+CREATE POLICY "Read own or public flights" ON public.flight_schedules FOR SELECT
+  USING (auth.uid() = user_id OR (COALESCE(is_public, FALSE) = TRUE AND auth.uid() IS NOT NULL));
 CREATE POLICY "Users can create own flights" ON public.flight_schedules FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own flights" ON public.flight_schedules FOR UPDATE USING (auth.uid() = user_id);
 
