@@ -835,13 +835,6 @@ const Admin = () => {
           )}
         </div>
 
-        {/* RLS Note */}
-        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-          <p className="text-xs text-yellow-700">
-            <strong>NOTE:</strong> 관리자가 모든 신고를 조회하려면 Supabase RLS 정책 업데이트가 필요합니다.
-            reports 테이블에 <code className="bg-yellow-100 px-1 rounded">auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')</code> 조건의 SELECT 정책을 추가해주세요.
-          </p>
-        </div>
       </div>
     </div>
   );
