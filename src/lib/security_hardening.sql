@@ -1321,9 +1321,14 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+-- ★ 2026-08-08 쿠마님 결정: 게시판 내용 제한을 전부 해제한다.
+--   "사람들이 알아서 할 것이다. 우리가 제한을 걸 필요는 없다.
+--    나중에 문제가 생기기 시작하면 그때 다시 거는 것을 검토하자."
+--   함수는 그대로 두고 트리거만 떼어, 필요할 때 아래 두 CREATE TRIGGER 만 실행하면 즉시 복구된다.
 DROP TRIGGER IF EXISTS trg_flight_post_guard ON public.flight_posts;
-CREATE TRIGGER trg_flight_post_guard BEFORE INSERT ON public.flight_posts
-  FOR EACH ROW EXECUTE FUNCTION public.flight_board_content_guard();
 DROP TRIGGER IF EXISTS trg_flight_comment_guard ON public.flight_post_comments;
-CREATE TRIGGER trg_flight_comment_guard BEFORE INSERT ON public.flight_post_comments
-  FOR EACH ROW EXECUTE FUNCTION public.flight_board_content_guard();
+-- 되살리려면 아래 주석을 해제한다.
+-- CREATE TRIGGER trg_flight_post_guard BEFORE INSERT ON public.flight_posts
+--   FOR EACH ROW EXECUTE FUNCTION public.flight_board_content_guard();
+-- CREATE TRIGGER trg_flight_comment_guard BEFORE INSERT ON public.flight_post_comments
+--   FOR EACH ROW EXECUTE FUNCTION public.flight_board_content_guard();

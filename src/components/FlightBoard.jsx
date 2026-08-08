@@ -19,6 +19,8 @@ const dayDiffFromToday = (dateStr) => {
     return Math.round((target - today) / DAY);
 };
 
+// 게시판 내용 제한은 현재 꺼져 있다(운영자 결정: 이용자 자율에 맡기고, 문제가 생기면 그때 검토).
+// 서버 트리거를 다시 켜면 아래 안내가 그대로 쓰이므로 매핑은 남겨둔다.
 const CONTACT_ERRORS = {
     CONTACT_BLOCKED_PHONE: '휴대폰 번호는 게시판에 쓸 수 없어요. 쪽지로 주고받아 주세요.',
     CONTACT_BLOCKED_MESSENGER: '개인 메신저 아이디는 쓸 수 없어요. 오픈채팅 링크는 올릴 수 있어요.',
@@ -154,7 +156,7 @@ const FlightBoard = ({ flight, memberType, onSendMessage }) => {
                         className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none transition-all"
                     />
                     <div className="flex items-center justify-between mt-1.5">
-                        <span className="text-[11px] text-gray-400">오픈채팅 링크는 OK · 전화번호·계좌는 쪽지로</span>
+                        <span className="text-[11px] text-gray-400">{content.length}/1000</span>
                         <button
                             onClick={handlePost}
                             disabled={posting || !content.trim()}
