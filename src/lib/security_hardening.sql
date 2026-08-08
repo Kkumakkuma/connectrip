@@ -1288,21 +1288,36 @@ GRANT SELECT, INSERT, DELETE ON public.flight_post_comments TO authenticated;
 CREATE OR REPLACE FUNCTION public.flight_board_content_guard()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_raw    TEXT := COALESCE(NEW.content, '');
-  v_text   TEXT := lower(regexp_replace(COALESCE(NEW.content,''), '\s+', '', 'g'));
-  v_digits TEXT := regexp_replace(COALESCE(NEW.content,''), '[^0-9]', '', 'g');
-  v_member TEXT;
+  v_raw       TEXT := COALESCE(NEW.content, '');
+  v_text      TEXT := lower(regexp_replace(COALESCE(NEW.content,''), '\s+', '', 'g'));
+  v_digits    TEXT := regexp_replace(COALESCE(NEW.content,''), '[^0-9]', '', 'g');
+  v_has_ochat BOOLEAN;
+  v_member    TEXT;
 BEGIN
+  -- 오픈채팅 링크는 허용한다(쿠마님 확정). 링크 자체로는 개인이 특정되지 않고
+  -- 익명 참여·방장 강퇴·링크 폐기가 가능해서, 모임을 만드는 정상 수단이다.
+  v_has_ochat := v_text ~ '(open\.kakao\.com|openchat\.kakao\.com)';
+
   IF v_digits ~ '01[016789][0-9]{7,8}' THEN RAISE EXCEPTION 'CONTACT_BLOCKED_PHONE'; END IF;
-  IF v_text ~ '(카톡|카카오톡|kakao|오픈챗|오픈카톡|인스타|instagram|텔레그램|telegram|라인아이디)'
-     AND v_text ~ '(아이디|id|:|@)' THEN RAISE EXCEPTION 'CONTACT_BLOCKED_MESSENGER'; END IF;
+
+  -- 개인 메신저 아이디는 계속 차단(그 사람 계정으로 바로 연결된다). 오픈채팅 링크 글은 예외.
+  IF NOT v_has_ochat
+     AND v_text ~ '(카톡|카카오톡|kakao|인스타|instagram|텔레그램|telegram|라인아이디)'
+     AND v_text ~ '(아이디|id|:|@)' THEN
+    RAISE EXCEPTION 'CONTACT_BLOCKED_MESSENGER';
+  END IF;
+
+  -- 계좌번호는 오픈채팅 링크가 있어도 막는다("먼저 입금" 사기 방지)
   IF v_digits ~ '[0-9]{10,}' AND v_text ~ '(은행|계좌|입금|송금|농협|국민|신한|우리|하나|기업|카카오뱅크|토스)'
      THEN RAISE EXCEPTION 'CONTACT_BLOCKED_ACCOUNT'; END IF;
+
   IF lower(v_raw) ~ '[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}' THEN RAISE EXCEPTION 'CONTACT_BLOCKED_EMAIL'; END IF;
+
   IF TG_TABLE_NAME = 'flight_posts' THEN v_member := NEW.member_type;
   ELSE SELECT p.member_type INTO v_member FROM public.flight_posts p WHERE p.id = NEW.post_id; END IF;
   IF v_member = 'crew' AND v_text ~ '([0-9]{3,4}호|룸넘버|roomnumber|객실번호)'
      THEN RAISE EXCEPTION 'CONTACT_BLOCKED_HOTEL'; END IF;
+
   RETURN NEW;
 END;
 $$;

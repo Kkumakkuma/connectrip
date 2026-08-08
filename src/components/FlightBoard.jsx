@@ -21,8 +21,8 @@ const dayDiffFromToday = (dateStr) => {
 
 const CONTACT_ERRORS = {
     CONTACT_BLOCKED_PHONE: '휴대폰 번호는 게시판에 쓸 수 없어요. 쪽지로 주고받아 주세요.',
-    CONTACT_BLOCKED_MESSENGER: '메신저 아이디는 게시판에 쓸 수 없어요. 쪽지로 주고받아 주세요.',
-    CONTACT_BLOCKED_ACCOUNT: '계좌번호는 게시판에 쓸 수 없어요.',
+    CONTACT_BLOCKED_MESSENGER: '개인 메신저 아이디는 쓸 수 없어요. 오픈채팅 링크는 올릴 수 있어요.',
+    CONTACT_BLOCKED_ACCOUNT: '계좌번호는 쓸 수 없어요. 미리 입금을 요구하는 사기를 막기 위한 것입니다.',
     CONTACT_BLOCKED_EMAIL: '이메일 주소는 게시판에 쓸 수 없어요. 쪽지로 주고받아 주세요.',
     CONTACT_BLOCKED_HOTEL: '체류 호텔·객실 정보는 안전을 위해 쓸 수 없어요.',
 };
@@ -154,7 +154,7 @@ const FlightBoard = ({ flight, memberType, onSendMessage }) => {
                         className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none transition-all"
                     />
                     <div className="flex items-center justify-between mt-1.5">
-                        <span className="text-[11px] text-gray-400">연락처·아이디는 쪽지로 주고받아 주세요</span>
+                        <span className="text-[11px] text-gray-400">오픈채팅 링크는 OK · 전화번호·계좌는 쪽지로</span>
                         <button
                             onClick={handlePost}
                             disabled={posting || !content.trim()}
