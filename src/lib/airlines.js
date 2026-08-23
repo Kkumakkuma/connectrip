@@ -1,16 +1,16 @@
 // 한국 항공사 이메일 도메인 목록
 export const AIRLINE_DOMAINS = {
-  'koreanair.com': { name: '대한항공', nameEn: 'Korean Air', logo: '🇰🇷' },
-  'flyasiana.com': { name: '아시아나항공', nameEn: 'Asiana Airlines', logo: '✈️' },
-  'jinair.com': { name: '진에어', nameEn: 'Jin Air', logo: '🟢' },
-  'airbusan.com': { name: '에어부산', nameEn: 'Air Busan', logo: '🔵' },
-  'flyairseoul.com': { name: '에어서울', nameEn: 'Air Seoul', logo: '🟡' },
-  'air-incheon.com': { name: '에어인천', nameEn: 'Air Incheon', logo: '✈️' },
-  'twayair.com': { name: '티웨이항공', nameEn: "T'way Air", logo: '🔴' },
-  'jejuair.net': { name: '제주항공', nameEn: 'Jeju Air', logo: '🍊' },
-  'airpremia.com': { name: '에어프레미아', nameEn: 'Air Premia', logo: '💜' },
-  'aerok.com': { name: '에어로케이', nameEn: 'Aero K', logo: '🅰️' },
-  'flyparata.com': { name: '파라타항공', nameEn: 'Parata Air', logo: '🛫' },
+  'koreanair.com': { name: '대한항공', nameEn: 'Korean Air', logo: '🇰🇷', logoSrc: '/airlines/koreanair.png' },
+  'flyasiana.com': { name: '아시아나항공', nameEn: 'Asiana Airlines', logo: '✈️', logoSrc: '/airlines/flyasiana.png' },
+  'jinair.com': { name: '진에어', nameEn: 'Jin Air', logo: '🟢', logoSrc: '/airlines/jinair.png' },
+  'airbusan.com': { name: '에어부산', nameEn: 'Air Busan', logo: '🔵', logoSrc: '/airlines/airbusan.png' },
+  'flyairseoul.com': { name: '에어서울', nameEn: 'Air Seoul', logo: '🟡', logoSrc: '/airlines/flyairseoul.png' },
+  'air-incheon.com': { name: '에어인천', nameEn: 'Air Incheon', logo: '✈️', logoSrc: '/airlines/air-incheon.png' },
+  'twayair.com': { name: '티웨이항공', nameEn: "T'way Air", logo: '🔴', logoSrc: '/airlines/twayair.png' },
+  'jejuair.net': { name: '제주항공', nameEn: 'Jeju Air', logo: '🍊', logoSrc: '/airlines/jejuair.png' },
+  'airpremia.com': { name: '에어프레미아', nameEn: 'Air Premia', logo: '💜', logoSrc: '/airlines/airpremia.png' },
+  'aerok.com': { name: '에어로케이', nameEn: 'Aero K', logo: '🅰️', logoSrc: '/airlines/aerok.png' },
+  'flyparata.com': { name: '파라타항공', nameEn: 'Parata Air', logo: '🛫', logoSrc: '/airlines/flyparata.png' },
 };
 
 // 허용된 도메인 목록

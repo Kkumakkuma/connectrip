@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, ArrowLeft, MapPin, Plus, X, Search, User } from 'lucide-react';
+import { Heart, ArrowLeft, MapPin, Plus, X, Search, User, Lock } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { destinationsApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
@@ -84,7 +84,10 @@ const Destinations = () => {
     const { regionId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, isLoggedIn } = useAuth();
+    const { user, profile, isLoggedIn, isCrew, profileLoading } = useAuth();
+    // 승무원 추천지 = 인증 승무원 전용 작성. 일반 회원은 읽기만 가능.
+    // DB RLS(destinations INSERT) 와 동일 조건: user_type='crew' AND crew_verified
+    const canWrite = isLoggedIn && isCrew && !!profile?.crew_verified;
     const selectedRegion = regionId ? regions.find(r => r.id === regionId) : null;
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -167,6 +170,11 @@ const Destinations = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!user) return;
+        if (!canWrite) {
+            alert('승무원 인증을 마친 회원만 명소를 추천할 수 있습니다.');
+            setShowModal(false);
+            return;
+        }
         try {
             const newDest = await destinationsApi.create({
                 user_id: user.id,
@@ -188,6 +196,10 @@ const Destinations = () => {
     const handleWriteClick = () => {
         if (!isLoggedIn) {
             setShowLoginPrompt(true);
+            return;
+        }
+        if (!canWrite) {
+            alert('승무원 인증을 마친 회원만 명소를 추천할 수 있습니다.');
             return;
         }
         setShowModal(true);
@@ -240,9 +252,15 @@ const Destinations = () => {
                                         <span className="text-4xl">{selectedRegion.icon}</span>
                                         <h2 className="text-3xl font-bold text-gray-900">{selectedRegion.name} 추천 명소</h2>
                                     </div>
-                                    <button onClick={handleWriteClick} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
-                                        <Plus size={20} /> 명소 추천하기
-                                    </button>
+                                    {canWrite ? (
+                                        <button onClick={handleWriteClick} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                                            <Plus size={20} /> 명소 추천하기
+                                        </button>
+                                    ) : isLoggedIn && profileLoading ? null : (
+                                        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-gray-100 text-gray-500 text-sm font-semibold whitespace-nowrap">
+                                            <Lock size={16} aria-hidden="true" /> 인증 승무원만 작성할 수 있습니다
+                                        </div>
+                                    )}
                                 </div>
                                 <p className="text-gray-500">{selectedRegion.desc}</p>
                             </div>
@@ -268,8 +286,8 @@ const Destinations = () => {
                                 <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-300">
                                     <MapPin size={48} className="mx-auto text-gray-300 mb-4" />
                                     <p className="text-gray-500 text-lg">아직 등록된 추천 명소가 없습니다.</p>
-                                    <p className="text-gray-400 text-sm mt-2">첫 번째 명소를 추천해보세요!</p>
-                                    {isLoggedIn && (
+                                    <p className="text-gray-400 text-sm mt-2">{canWrite ? '첫 번째 명소를 추천해보세요!' : '인증 승무원이 등록한 명소가 이곳에 표시됩니다.'}</p>
+                                    {canWrite && (
                                         <button onClick={handleWriteClick} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors">
                                             <Plus size={18} /> 명소 추천하기
                                         </button>

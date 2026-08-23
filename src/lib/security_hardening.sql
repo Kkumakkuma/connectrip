@@ -946,6 +946,23 @@ CREATE POLICY "Crew can read crew posts" ON public.crew_posts
     )
   );
 
+-- 8-2b. destinations(승무원 추천지): 읽기는 전체 공개, 쓰기는 인증 승무원만
+-- ⚠ 레거시 "Auth users can create destinations" 는 auth.uid()=user_id 만 검사해서
+--    일반(여행자) 회원도 명소를 등록할 수 있었다(2026-08-23 쿠마님 지적 → 아래로 교체).
+--    PERMISSIVE 정책은 OR 결합이므로 레거시 INSERT 정책은 반드시 DROP 해야 게이트가 산다.
+DROP POLICY IF EXISTS "Auth users can create destinations" ON public.destinations;
+DROP POLICY IF EXISTS "Create destinations" ON public.destinations;
+DROP POLICY IF EXISTS "Users can create destinations" ON public.destinations;
+DROP POLICY IF EXISTS "Verified crew can create destinations" ON public.destinations;
+CREATE POLICY "Verified crew can create destinations" ON public.destinations
+  FOR INSERT WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.user_type = 'crew' AND COALESCE(p.crew_verified, FALSE) = TRUE
+    )
+  );
+
 -- 8-3. reports: 작성=인증사용자(본인 reporter), 조회=본인 or admin, 수정=admin
 CREATE TABLE IF NOT EXISTS public.reports (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

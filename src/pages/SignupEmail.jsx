@@ -5,6 +5,7 @@ import { Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Gift, CheckCircle, Loader
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
 import { getAirlineInfo, isAirlineEmail, getAirlineList } from '../lib/airlines';
+import AirlineLogo from '../components/AirlineLogo';
 import { isUnder14 } from '../lib/age';
 import { apiUrl } from '../lib/api';
 import SEOHead from '../components/SEOHead';
@@ -519,8 +520,9 @@ export default function SignupEmail() {
           이메일로 회원가입 ({userType === 'crew' ? '승무원' : '일반 여행자'})
         </h1>
         {userType === 'crew' && airlineInfo && (
-          <p style={{ color: '#6d28d9', fontSize: 13, marginBottom: 16 }}>
-            {airlineInfo.logo} {airlineInfo.name} 승무원 가입 (항공사 이메일: {airlineEmail})
+          <p style={{ color: '#6d28d9', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <AirlineLogo airline={airlineInfo} height={16} />
+            <span>{airlineInfo.name} 승무원 가입 (항공사 이메일: {airlineEmail})</span>
           </p>
         )}
 
@@ -564,8 +566,9 @@ export default function SignupEmail() {
               {airlineInfo && !airlineEmailVerified && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8 }}>
                   <CheckCircle size={14} color="#16a34a" />
-                  <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600 }}>
-                    {airlineInfo.logo} {airlineInfo.name} 도메인 확인됨 — 인증번호를 받아 회사 이메일을 인증하세요.
+                  <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <AirlineLogo airline={airlineInfo} height={14} />
+                    <span>{airlineInfo.name} 도메인 확인됨 — 인증번호를 받아 회사 이메일을 인증하세요.</span>
                   </span>
                 </div>
               )}
@@ -597,8 +600,9 @@ export default function SignupEmail() {
               {airlineEmailVerified && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8 }}>
                   <CheckCircle size={14} color="#16a34a" />
-                  <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600 }}>
-                    {airlineInfo ? `${airlineInfo.logo} ${airlineInfo.name} ` : ''}회사 이메일 인증 완료
+                  <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {airlineInfo && <AirlineLogo airline={airlineInfo} height={14} />}
+                    <span>{airlineInfo ? `${airlineInfo.name} ` : ''}회사 이메일 인증 완료</span>
                   </span>
                 </div>
               )}
@@ -606,8 +610,11 @@ export default function SignupEmail() {
                 <summary style={{ fontSize: 11, color: '#6d28d9', cursor: 'pointer' }}>지원 항공사 목록</summary>
                 <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                   {getAirlineList().map(a => (
-                    <div key={a.domain} style={{ fontSize: 11, color: '#64748b', padding: '2px 0' }}>
-                      {a.logo} {a.name}
+                    <div key={a.domain} style={{ fontSize: 11, color: '#64748b', padding: '2px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 82, display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                        <AirlineLogo airline={a} height={13} maxWidth={82} />
+                      </span>
+                      <span>{a.name}</span>
                     </div>
                   ))}
                 </div>

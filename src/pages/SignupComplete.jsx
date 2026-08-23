@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield, Calendar } from 'lucide-react';
 import { getAirlineInfo } from '../lib/airlines';
+import AirlineLogo from '../components/AirlineLogo';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { isUnder14 } from '../lib/age';
@@ -494,9 +495,9 @@ export default function SignupComplete() {
           {userType === 'crew' && (
             <Field label="회사(항공사) 이메일 인증 (승무원)" icon={<Plane size={16} />}
               helper={
-                airlineEmailVerified ? `${airlineInfo ? airlineInfo.logo + ' ' + airlineInfo.name + ' ' : ''}회사 이메일 인증 완료` :
+                airlineEmailVerified ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{airlineInfo && <AirlineLogo airline={airlineInfo} height={14} />}{airlineInfo ? `${airlineInfo.name} ` : ''}회사 이메일 인증 완료</span>) :
                 !airlineEmail ? '로그인 계정과 별개로, 회사(항공사) 이메일로 인증번호를 받아 인증합니다.' :
-                airlineInfo ? `${airlineInfo.logo} ${airlineInfo.name} 도메인 확인됨 — 인증번호를 받아 인증하세요.` :
+                airlineInfo ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><AirlineLogo airline={airlineInfo} height={14} />{`${airlineInfo.name} 도메인 확인됨 — 인증번호를 받아 인증하세요.`}</span>) :
                 airlineEmail.includes('@') ? '지원되지 않는 항공사 도메인' : '유효한 이메일 형식이 아닙니다'
               }
               helperColor={airlineEmailVerified ? '#16a34a' : airlineInfo ? '#2563eb' : airlineEmail ? '#dc2626' : '#64748b'}>
