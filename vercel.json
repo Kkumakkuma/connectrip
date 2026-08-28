@@ -18,6 +18,18 @@
       ]
     },
     {
+      "source": "/:file(connectrip-logo.png|connectrip-logo-v2.webp|connectrip-logo-icon.png|footer-logo.png|footer-logo-white.webp|hero-bg.webp|og-image.jpg|favicon-16.png|favicon-32.png|favicon-new.jpg|icon-192x192.png|icon-512x512.png)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=2592000" }
+      ]
+    },
+    {
+      "source": "/:dir(airlines|brand|family)/:file(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=2592000" }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },

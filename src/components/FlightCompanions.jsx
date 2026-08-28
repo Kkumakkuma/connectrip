@@ -41,20 +41,22 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
       });
       setMyFlights(upcomingFlights);
 
-      // Fetch companions for each upcoming flight (only if user's flight is public)
+      // 예전에는 항공편 수만큼 조회를 직렬로 돌렸다(N+1). 등록 항공편이 10개면 왕복 10번.
+      // 편명·날짜를 묶어 한 번에 받고 클라이언트에서 나눈다.
       const companionData = {};
-      for (const flight of upcomingFlights) {
+      upcomingFlights.forEach((f) => {
+        companionData[`${f.flight_number}_${f.flight_date}`] = [];
+      });
+      // 비공개 항공편은 애초에 동행을 보여주지 않으므로 조회 대상에서 뺀다
+      const publicFlights = upcomingFlights.filter((f) => f.is_public);
+      if (publicFlights.length > 0) {
         try {
-          if (flight.is_public) {
-            const result = await flightCompanionsApi.getCompanions(
-              flight.flight_number, flight.flight_date, user.id
-            );
-            companionData[`${flight.flight_number}_${flight.flight_date}`] = result || [];
-          } else {
-            companionData[`${flight.flight_number}_${flight.flight_date}`] = [];
-          }
+          const grouped = await flightCompanionsApi.getCompanionsForFlights(publicFlights, user.id);
+          Object.keys(grouped).forEach((key) => {
+            companionData[key] = grouped[key] || [];
+          });
         } catch {
-          companionData[`${flight.flight_number}_${flight.flight_date}`] = [];
+          // 동행 목록은 보조 정보라 실패해도 내 항공편 목록은 그대로 보여준다
         }
       }
       setCompanions(companionData);

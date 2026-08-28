@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Menu, X, User, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
@@ -92,9 +92,13 @@ const Navbar = () => {
           className="cursor-pointer group flex-shrink-0"
           style={{ isolation: 'isolate' }}
         >
+          {/* 렌더 크기(h-12/2xl:h-14)의 2배인 438x112 무손실 webp — 원본 PNG 102kB → 34.5kB.
+              width/height 는 로드 전 종횡비 예약용(CLS 방지)이고, 실제 크기는 아래 className 이 정한다. */}
           <img
-            src="/connectrip-logo.png"
+            src="/connectrip-logo-v2.webp"
             alt="ConnectTrip"
+            width={438}
+            height={112}
             decoding="async"
             className="h-12 2xl:h-14 w-auto object-contain transition-transform group-hover:scale-105"
             style={{
@@ -111,32 +115,41 @@ const Navbar = () => {
               className="relative"
               onMouseEnter={() => setHoveredMenu(idx)}
               onMouseLeave={() => setHoveredMenu(null)}
+              // hover 만으로 열면 키보드 사용자는 하위 메뉴에 아예 닿지 못한다.
+              // 포커스가 이 묶음 안으로 들어오면 열고, 밖으로 나가면 닫는다.
+              onFocus={() => setHoveredMenu(idx)}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setHoveredMenu(null);
+              }}
+              onKeyDown={(e) => { if (e.key === 'Escape') setHoveredMenu(null); }}
             >
-              <button
+              <Link
+                to={link.to}
                 onClick={() => {
-                  navigate(link.to);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                   setHoveredMenu(null);
                 }}
-                className="text-[15px] 2xl:text-[16px] text-gray-700 hover:text-blue-600 font-semibold transition-colors cursor-pointer whitespace-nowrap bg-transparent border-none py-2"
+                aria-haspopup={link.sub ? 'true' : undefined}
+                aria-expanded={link.sub ? hoveredMenu === idx : undefined}
+                className="text-[15px] 2xl:text-[16px] text-gray-700 hover:text-blue-600 font-semibold transition-colors cursor-pointer whitespace-nowrap py-2"
               >
                 {link.name}
-              </button>
+              </Link>
               {link.sub && hoveredMenu === idx && (
                 <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
                   <div className="bg-white rounded-xl shadow-xl border border-gray-100 py-2 min-w-[180px]">
                     {link.sub.map((sub) => (
-                      <button
+                      <Link
                         key={sub.name}
+                        to={sub.to}
                         onClick={() => {
-                          navigate(sub.to);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                           setHoveredMenu(null);
                         }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap"
+                        className="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors whitespace-nowrap"
                       >
                         {sub.name}
-                      </button>
+                      </Link>
                     ))}
                   </div>
                 </div>

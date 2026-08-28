@@ -13,16 +13,21 @@ const Footer = () => {
         <footer style={{ background: 'var(--text-primary)', color: 'white', padding: '4rem 0 2rem' }}>
             <div className="container">
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', marginBottom: '3rem' }}>
+                    {/* 흰색을 미리 구워 넣은 440x240 webp(153kB → 8.7kB). 원본 캔버스 비율(1024:558)을 유지해
+                        축소했으므로 렌더 크기는 그대로다. 이제 실루엣을 만들 필요가 없어 filter 를 통째로 뺐다 —
+                        drop-shadow 도 배경이 #1B262C(거의 검정)라 검정 20% 그림자가 보이지 않아 함께 제거.
+                        width/height 는 lazy 로드 전 높이 예약용(CLS 방지)이고 실제 크기는 아래 style 이 정한다. */}
                     <img
-                        src="/footer-logo.png"
+                        src="/footer-logo-white.webp"
                         alt="ConnectTrip"
+                        width={220}
+                        height={120}
                         loading="lazy"
                         decoding="async"
                         style={{
                             height: '120px',
                             width: 'auto',
-                            objectFit: 'contain',
-                            filter: 'brightness(0) invert(1) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2))'
+                            objectFit: 'contain'
                         }}
                     />
                     <p style={{ opacity: 0.7, textAlign: 'center', maxWidth: '500px' }}>

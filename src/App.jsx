@@ -149,8 +149,10 @@ function App() {
     };
 
     // 키워드 갱신 + 폴링을 묶되, 이전 실행이 끝나기 전엔 새로 시작하지 않는다.
+    // 탭이 숨겨져 있으면 건너뛴다 — 안 보는 화면 때문에 1분마다 쿼리가 나가던 것을 막는다.
     const tick = async () => {
       if (cancelled || polling) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       polling = true;
       try {
         await loadKeywords();
@@ -160,6 +162,12 @@ function App() {
       }
     };
 
+    // 탭으로 돌아오면 다음 tick(최대 1분)을 기다리지 않고 즉시 한 번 갱신한다.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     (async () => {
       await loadKeywords();
       if (cancelled) return;
@@ -168,6 +176,7 @@ function App() {
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
       if (timerId) clearInterval(timerId);
     };
   }, [isLoggedIn, user?.id]);

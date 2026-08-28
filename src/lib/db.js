@@ -1,6 +1,20 @@
 import { supabase } from './supabase';
 
 // ============================================================
+// 게시판 목록 조회 상한
+// ------------------------------------------------------------
+// 목록 API 는 전건을 받아 화면에서 slice 하는 구조라, 글이 쌓이는 만큼 첫 화면
+// 페이로드가 선형으로 커진다. 서버 페이지네이션(.range)으로 완전히 넘기려면
+// 차단 회원 필터·정렬 타이브레이커·복합 인덱스를 함께 옮겨야 해서 별도 작업으로
+// 두고, 여기서는 무한 증가만 막는 상한을 건다.
+// 300 = 2026-08-28 실측 최대 테이블(destinations 34건, reviews 28건, 나머지 0건)의
+// 약 9배 여유이고 화면당 6~8건 기준 38~50페이지 분량이라, 지금 화면 동작은 그대로다.
+// 어느 게시판이든 300건을 넘기기 시작하면 이 상수를 올리지 말고 서버 페이지네이션
+// 전환을 진행해야 한다.
+// ============================================================
+const LIST_FETCH_LIMIT = 300;
+
+// ============================================================
 // Companion Posts (동행 게시판)
 // ============================================================
 
@@ -10,7 +24,10 @@ export const companionApi = {
       .from('companion_posts')
       .select('*, profiles(user_type, crew_verified)')
       .eq('region_id', regionId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      // id 2차 정렬 = 정렬값이 같을 때 상한 경계에서 뽑히는 행이 매번 달라지지 않게 고정
+      .order('id', { ascending: false })
+      .limit(LIST_FETCH_LIMIT);
     if (error) throw error;
     return data;
   },
@@ -38,7 +55,11 @@ export const companionApi = {
 export const marketApi = {
   async getAll(type = null) {
     // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
-    let query = supabase.from('market_listings').select('*, profiles!market_listings_user_id_fkey(user_type, crew_verified)').order('created_at', { ascending: false });
+    let query = supabase.from('market_listings')
+      .select('*, profiles!market_listings_user_id_fkey(user_type, crew_verified)')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(LIST_FETCH_LIMIT);
     if (type) query = query.eq('type', type);
     const { data, error } = await query;
     if (error) throw error;
@@ -66,13 +87,35 @@ export const marketApi = {
 // ============================================================
 
 export const qnaApi = {
+  // 목록 카드가 쓰는 건 댓글 '개수'뿐이고 본문은 펼친 한 건에서만 그린다.
+  // 예전엔 모든 글의 모든 댓글 + 댓글마다 profiles 조인까지 한 응답에 실려 내려왔다.
+  // 이제 집계 임베드(qna_comments(count))로 개수만 받고, 본문은 getComments 로 따로 받는다.
   async getAll() {
     const { data, error } = await supabase
       .from('qna_posts')
-      .select('*, qna_comments(*, profiles(user_type, crew_verified)), profiles(user_type, crew_verified)')
-      .order('created_at', { ascending: false });
+      .select('*, qna_comments(count), profiles(user_type, crew_verified)')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(LIST_FETCH_LIMIT);
     if (error) throw error;
-    return data;
+    // PostgREST 집계 임베드는 [{ count: n }] 형태로 온다. 호출부가 그 형태를 알 필요가
+    // 없도록 comment_count 로 펴서 내리고, 본문이 없는 qna_comments 키는 제거한다.
+    return (data || []).map(({ qna_comments: commentAgg, ...post }) => ({
+      ...post,
+      comment_count: commentAgg?.[0]?.count ?? 0,
+    }));
+  },
+
+  // 글 하나의 댓글 본문 조회 (목록에서 글을 펼칠 때 호출).
+  // getById 를 재사용하지 않는 이유 = 그쪽은 조회수 증가 RPC 가 함께 나간다.
+  async getComments(postId) {
+    const { data, error } = await supabase
+      .from('qna_comments')
+      .select('*, profiles(user_type, crew_verified)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
   },
 
   async getById(id) {
@@ -119,7 +162,11 @@ export const qnaApi = {
 
 export const crewApi = {
   async getAll(postType = null) {
-    let query = supabase.from('crew_posts').select('*, profiles(user_type, crew_verified)').order('created_at', { ascending: false });
+    let query = supabase.from('crew_posts')
+      .select('*, profiles(user_type, crew_verified)')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(LIST_FETCH_LIMIT);
     if (postType) query = query.eq('post_type', postType);
     const { data, error } = await query;
     if (error) throw error;
@@ -148,7 +195,11 @@ export const crewApi = {
 
 export const reviewsApi = {
   async getAll(regionId = null, type = null) {
-    let query = supabase.from('reviews').select('*, profiles(name, user_type, crew_verified, avatar_url)').order('created_at', { ascending: false });
+    let query = supabase.from('reviews')
+      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(LIST_FETCH_LIMIT);
     if (regionId) query = query.eq('region_id', regionId);
     if (type) query = query.eq('type', type);
     const { data, error } = await query;
@@ -178,7 +229,13 @@ export const reviewsApi = {
 
 export const destinationsApi = {
   async getAll(regionId = null) {
-    let query = supabase.from('destinations').select('*, profiles(name, user_type, crew_verified, avatar_url)').order('likes_count', { ascending: false });
+    // likes_count 는 같은 값이 흔하고 실시간으로 변한다. id 2차 정렬이 없으면
+    // 같은 좋아요 수끼리 순서가 조회할 때마다 뒤바뀐다.
+    let query = supabase.from('destinations')
+      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .order('likes_count', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(LIST_FETCH_LIMIT);
     if (regionId) query = query.eq('region_id', regionId);
     const { data, error } = await query;
     if (error) throw error;
@@ -195,41 +252,9 @@ export const destinationsApi = {
     return data;
   },
 
-  async like(id) {
-    // Try RPC first, fallback to manual increment
-    try {
-      const { data, error } = await supabase.rpc('increment_likes', { dest_id: id });
-      if (!error) return data;
-    } catch { /* RPC 미존재(전환기) — 아래 수동 증가로 폴백 */ }
-    // Fallback: manual increment
-    const { data: dest } = await supabase.from('destinations').select('likes_count').eq('id', id).single();
-    const { data, error } = await supabase
-      .from('destinations')
-      .update({ likes_count: (dest?.likes_count || 0) + 1 })
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  async unlike(id) {
-    // Try RPC first, fallback to manual decrement
-    try {
-      const { data, error } = await supabase.rpc('decrement_likes', { dest_id: id });
-      if (!error) return data;
-    } catch { /* RPC 미존재(SQL 미적용)면 수동 감소 폴백 */ }
-    // Fallback: manual decrement
-    const { data: dest } = await supabase.from('destinations').select('likes_count').eq('id', id).single();
-    const { data, error } = await supabase
-      .from('destinations')
-      .update({ likes_count: Math.max(0, (dest?.likes_count || 0) - 1) })
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
+  // like/unlike 는 제거했다(2026-08-28). destinations.likes_count 를 클라이언트가 직접
+  // UPDATE 하는 경로라 좋아요를 무한히 조작할 수 있었다. 좋아요는 post_likes 테이블 +
+  // toggle_post_like RPC 로 서버가 1인 1회를 강제한다(postLikeApi 참고).
 
   async delete(id) {
     const { error } = await supabase.from('destinations').delete().eq('id', id);
@@ -517,12 +542,21 @@ export const postLikeApi = {
   toggle: (boardType, postId) =>
     supabase.rpc('toggle_post_like', { p_board_type: boardType, p_post_id: postId }),
   // 해당 보드 글들의 좋아요 수 + 내가 누른 여부 일괄 조회 → { [postId]: { count, liked } }
+  // .in() 은 id 를 전부 URL 쿼리스트링에 싣는다. uuid 는 1건당 약 40자라 목록이 길어지면
+  // URL 길이 제한에 걸려 조회가 통째로 실패한다. 100건씩 잘라 병렬로 던진다.
   async getForBoard(boardType, postIds, userId = null) {
     if (!postIds || postIds.length === 0) return {};
-    const { data, error } = await supabase
-      .from('post_likes').select('post_id, user_id')
-      .eq('board_type', boardType).in('post_id', postIds);
-    if (error) return {};  // post_likes 미적용/조회 실패 시 좋아요 없이 표시(목록은 정상)
+    const CHUNK = 100;
+    const chunks = [];
+    for (let i = 0; i < postIds.length; i += CHUNK) chunks.push(postIds.slice(i, i + CHUNK));
+    const results = await Promise.all(chunks.map((ids) =>
+      supabase.from('post_likes').select('post_id, user_id')
+        .eq('board_type', boardType).in('post_id', ids)
+    ));
+    // 한 청크라도 실패하면 좋아요 수가 실제보다 적게 보이므로 전체를 포기한다
+    // (post_likes 미적용/조회 실패 시 좋아요 없이 표시 — 목록 자체는 정상 동작)
+    if (results.some((r) => r.error)) return {};
+    const data = results.flatMap((r) => r.data || []);
     const map = {};
     (data || []).forEach((r) => {
       if (!map[r.post_id]) map[r.post_id] = { count: 0, liked: false };
@@ -629,6 +663,36 @@ export const flightCompanionsApi = {
       .neq('user_id', userId);
     if (error) throw error;
     return data;
+  },
+
+  // 여러 항공편의 동행을 한 번에 조회 → { '편명_날짜': [동행...] }
+  // 호출부가 항공편마다 getCompanions 를 await 하면 왕복이 편수만큼 직렬로 쌓인다.
+  // 편명·날짜를 각각 .in() 으로 묶어 왕복 1회로 줄이고, 응답은 편명과 날짜가 '둘 다'
+  // 일치하는 것만 담는다(편명 A/날짜 1, 편명 B/날짜 2 를 함께 물으면 A-2 조합도
+  // 함께 내려오기 때문). 요청한 키는 결과가 없어도 빈 배열로 채워 준다.
+  async getCompanionsForFlights(flights, userId) {
+    const list = (flights || []).filter((f) => f && f.flight_number && f.flight_date);
+    const grouped = {};
+    list.forEach((f) => { grouped[`${f.flight_number}_${f.flight_date}`] = []; });
+    if (list.length === 0) return grouped;
+
+    const numbers = [...new Set(list.map((f) => f.flight_number))];
+    const dates = [...new Set(list.map((f) => f.flight_date))];
+    const { data, error } = await supabase
+      .from('flight_schedules')
+      .select('*, profiles(id, name, avatar_url, user_type)')
+      .in('flight_number', numbers)
+      .in('flight_date', dates)
+      .eq('is_public', true)
+      .neq('user_id', userId);
+    if (error) throw error;
+
+    (data || []).forEach((row) => {
+      const key = `${row.flight_number}_${row.flight_date}`;
+      // 요청하지 않은 편명×날짜 교차 조합은 버린다
+      if (grouped[key]) grouped[key].push(row);
+    });
+    return grouped;
   },
 };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, Heart, ArrowLeft, Gift, MapPin, Plus, X, Search, Users } from 'lucide-react';
@@ -60,6 +60,15 @@ const regions = [
     },
 ];
 
+// 클릭으로만 열리던 카드에 키보드 조작(Enter/Space)을 붙인다.
+// 이 카드들은 라우트 이동이 아니라 화면 안 모드 전환이라 Link 대신 button 역할로 처리한다.
+const keyActivate = (fn) => (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fn();
+    }
+};
+
 const MarketBoard = () => {
     const blockedIds = useBlockedIds();
     const { user, profile, isLoggedIn, fetchProfile } = useAuth();
@@ -80,7 +89,9 @@ const MarketBoard = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [submitting, setSubmitting] = useState(false); // 등록 버튼 중복 제출 방지
     const itemsPerPage = 8;
+    const formId = useId(); // label-input 연결용 접두사 (모달을 다시 열어도 id 충돌 없음)
 
     // Fetch listings when mode changes
     const fetchListings = async () => {
@@ -89,8 +100,9 @@ const MarketBoard = () => {
             setLoading(true);
             setError(null);
             const typeMap = { sell: 'sell', buy: 'buy', share: 'share', groupbuy: 'groupbuy' };
-            const raw = await marketApi.getAll(typeMap[mode]) || [];
-            const data = filterBlocked(raw, blockedIds); // 차단한 회원 글은 내 화면에서 숨긴다
+            // 차단 필터는 여기서 걸지 않는다 — blockedIds 는 마운트 후 비동기로 도착하므로
+            // fetch 시점에 한 번 거르면 늦게 온 차단 목록이 반영되지 않는다. 렌더 시점에 건다.
+            const data = await marketApi.getAll(typeMap[mode]) || [];
             if (mode === 'sell') setSellingItems(data);
             else if (mode === 'buy') setBuyingRequests(data);
             else if (mode === 'share') setSharingItems(data);
@@ -117,6 +129,10 @@ const MarketBoard = () => {
             setShowLoginPrompt(true);
             return;
         }
+        // 로그인 검사 같은 조기 return 을 모두 지난 뒤에 플래그를 세운다.
+        // 먼저 세우면 조기 return 경로가 finally 를 못 만나 버튼이 영구히 잠긴다.
+        if (submitting) return;
+        setSubmitting(true);
         try {
             const listing = {
                 title: formData.title,
@@ -159,6 +175,8 @@ const MarketBoard = () => {
         } catch (err) {
             console.error('게시글 등록 실패:', err);
             alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -223,6 +241,22 @@ const MarketBoard = () => {
         window.scrollTo(0, 0);
     }, [shareRegion]);
 
+    // 차단 필터는 렌더 시점에 건다 — blockedIds 가 늦게 도착해도 목록에 바로 반영된다.
+    // 빈 상태 가드와 목록·페이지 수가 모두 같은 배열을 봐야 "전부 차단된 경우"에도
+    // 빈 그리드가 아니라 안내 화면이 뜬다.
+    const visibleSell = filterBlocked(sellingItems, blockedIds);
+    const visibleBuy = filterBlocked(buyingRequests, blockedIds);
+    // 공동구매·나눔은 가드와 목록이 같은 필터 체인을 두 번 돌던 자리라 배열 하나로 합쳤다.
+    const groupbuyQuery = searchQuery.toLowerCase();
+    const visibleGroupbuy = filterBlocked(groupbuyItems, blockedIds).filter(i =>
+        !groupbuyQuery
+        || (i.title || '').toLowerCase().includes(groupbuyQuery)
+        || (i.content || '').toLowerCase().includes(groupbuyQuery)
+    );
+    const visibleShare = shareRegion
+        ? filterBlocked(sharingItems, blockedIds).filter(item => item.region_id === shareRegion.id)
+        : [];
+
     return (
         <section id="market" className="py-20 bg-gray-50 min-h-[80vh]">
             <SEOHead title="물품거래 및 나눔 - ConnectTrip" description="여행 물품 거래, 나눔, 중고 거래를 ConnectTrip에서 만나보세요." />
@@ -238,7 +272,8 @@ const MarketBoard = () => {
                         >
                             <div className="text-center mb-8">
                                 <span className="text-blue-600 font-bold tracking-widest uppercase mb-2 block animate-fade-in">Marketplace</span>
-                                <h2 className="text-4xl font-black mb-4">물품거래 및 나눔 게시판</h2>
+                                {/* 페이지 최상위 제목이라 h1 — 하위 모드 제목은 h2 로 유지한다 */}
+                                <h1 className="text-4xl font-black mb-4">물품거래 및 나눔 게시판</h1>
                                 <p className="text-gray-500">필요한 물건을 찾거나, 동료들을 위해 따뜻한 나눔을 실천해보세요.</p>
                             </div>
 
@@ -248,6 +283,9 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('sell')}
+                                    onKeyDown={keyActivate(() => setMode('sell'))}
+                                    role="button"
+                                    tabIndex={0}
                                     className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group"
                                 >
                                     <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600 group-hover:scale-110 transition-transform">
@@ -267,6 +305,9 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('buy')}
+                                    onKeyDown={keyActivate(() => setMode('buy'))}
+                                    role="button"
+                                    tabIndex={0}
                                     className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-green-400 hover:border-green-500 group"
                                 >
                                     <div className="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mb-4 text-green-600 group-hover:scale-110 transition-transform">
@@ -286,6 +327,9 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('share')}
+                                    onKeyDown={keyActivate(() => setMode('share'))}
+                                    role="button"
+                                    tabIndex={0}
                                     className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-pink-400 hover:border-pink-500 group"
                                 >
                                     <div className="w-14 h-14 bg-pink-100 rounded-2xl flex items-center justify-center mb-4 text-pink-500 group-hover:scale-110 transition-transform">
@@ -305,6 +349,9 @@ const MarketBoard = () => {
                                 <motion.div
                                     whileHover={{ y: -10 }}
                                     onClick={() => setMode('groupbuy')}
+                                    onKeyDown={keyActivate(() => setMode('groupbuy'))}
+                                    role="button"
+                                    tabIndex={0}
                                     className="bg-white rounded-2xl p-6 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-purple-400 hover:border-purple-500 group"
                                 >
                                     <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center mb-4 text-purple-600 group-hover:scale-110 transition-transform">
@@ -361,10 +408,10 @@ const MarketBoard = () => {
 
                                 {loading || error ? (
                                     <ListState loading={loading} error={error} onRetry={fetchListings} color="blue" />
-                                ) : sellingItems.length > 0 ? (
+                                ) : visibleSell.length > 0 ? (
                                     <>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                            {sellingItems
+                                            {visibleSell
                                                 .slice((currentPageSell - 1) * itemsPerPage, currentPageSell * itemsPerPage)
                                                 .map((item) => (
                                                     <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 group flex flex-col">
@@ -417,7 +464,7 @@ const MarketBoard = () => {
                                         {/* 페이지네이션 */}
                                         <Pagination
                                             currentPage={currentPageSell}
-                                            totalPages={Math.ceil(sellingItems.length / itemsPerPage)}
+                                            totalPages={Math.ceil(visibleSell.length / itemsPerPage)}
                                             onPageChange={setCurrentPageSell}
                                             color="blue"
                                         />
@@ -489,10 +536,10 @@ const MarketBoard = () => {
 
                                 {loading || error ? (
                                     <ListState loading={loading} error={error} onRetry={fetchListings} color="green" />
-                                ) : buyingRequests.length > 0 ? (
+                                ) : visibleBuy.length > 0 ? (
                                     <>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                            {buyingRequests
+                                            {visibleBuy
                                                 .slice((currentPageBuy - 1) * itemsPerPage, currentPageBuy * itemsPerPage)
                                                 .map((item) => (
                                                     <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 cursor-pointer group">
@@ -526,7 +573,7 @@ const MarketBoard = () => {
                                         {/* 페이지네이션 */}
                                         <Pagination
                                             currentPage={currentPageBuy}
-                                            totalPages={Math.ceil(buyingRequests.length / itemsPerPage)}
+                                            totalPages={Math.ceil(visibleBuy.length / itemsPerPage)}
                                             onPageChange={setCurrentPageBuy}
                                             color="green"
                                         />
@@ -590,9 +637,9 @@ const MarketBoard = () => {
                                 </div>
                                 {loading || error ? (
                                     <ListState loading={loading} error={error} onRetry={fetchListings} color="purple" loadingText="로딩 중..." />
-                                ) : groupbuyItems.filter(i => !searchQuery || (i.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (i.content||'').toLowerCase().includes(searchQuery.toLowerCase())).length > 0 ? (
+                                ) : visibleGroupbuy.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {groupbuyItems.filter(i => !searchQuery || (i.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (i.content||'').toLowerCase().includes(searchQuery.toLowerCase())).map(item => (
+                                        {visibleGroupbuy.map(item => (
                                             <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100">
                                                 {item.image_url && <div className="h-48 overflow-hidden"><img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" /></div>}
                                                 <div className="p-5">
@@ -662,6 +709,10 @@ const MarketBoard = () => {
                                             key={region.id}
                                             whileHover={{ y: -5, scale: 1.02 }}
                                             onClick={() => setShareRegion(region)}
+                                            onKeyDown={keyActivate(() => setShareRegion(region))}
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-label={`${region.name} 나눔 글 보기`}
                                             className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all"
                                         >
                                             <img
@@ -729,9 +780,8 @@ const MarketBoard = () => {
                                         <div className="col-span-full">
                                             <ListState loading={loading} error={error} onRetry={fetchListings} color="pink" />
                                         </div>
-                                    ) : sharingItems.filter(item => item.region_id === shareRegion.id).length > 0 ? (
-                                        sharingItems
-                                            .filter(item => item.region_id === shareRegion.id)
+                                    ) : visibleShare.length > 0 ? (
+                                        visibleShare
                                             .map((item) => (
                                                 <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100">
                                                     <div className="relative h-48 overflow-hidden bg-pink-50">
@@ -825,8 +875,9 @@ const MarketBoard = () => {
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">제목</label>
+                                    <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">제목</label>
                                     <input
+                                        id={`${formId}-title`}
                                         type="text"
                                         value={formData.title}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -838,8 +889,9 @@ const MarketBoard = () => {
 
                                 {mode === 'share' && (
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">국가/도시</label>
+                                        <label htmlFor={`${formId}-country`} className="block text-sm font-bold text-gray-700 mb-2">국가/도시</label>
                                         <input
+                                            id={`${formId}-country`}
                                             type="text"
                                             value={formData.country}
                                             onChange={(e) => setFormData({ ...formData, country: e.target.value })}
@@ -852,8 +904,9 @@ const MarketBoard = () => {
 
                                 {mode === 'sell' && (
                                     <>
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-3">거래 유형</label>
+                                        {/* 라디오 묶음은 개별 label 이 input 을 감싸고 있어, 그룹 이름은 group 으로 연결한다 */}
+                                        <div role="group" aria-labelledby={`${formId}-transaction-type`}>
+                                            <span id={`${formId}-transaction-type`} className="block text-sm font-bold text-gray-700 mb-3">거래 유형</span>
                                             <div className="flex gap-4">
                                                 <label className="flex items-center gap-2 cursor-pointer">
                                                     <input
@@ -882,8 +935,9 @@ const MarketBoard = () => {
 
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 mb-2">가격</label>
+                                                <label htmlFor={`${formId}-sell-price`} className="block text-sm font-bold text-gray-700 mb-2">가격</label>
                                                 <input
+                                                    id={`${formId}-sell-price`}
                                                     type="text"
                                                     inputMode="numeric"
                                                     value={formData.price}
@@ -894,8 +948,9 @@ const MarketBoard = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 mb-2">{formData.transactionType === 'direct' ? '거래 장소' : '배송비'}</label>
+                                                <label htmlFor={`${formId}-sell-location`} className="block text-sm font-bold text-gray-700 mb-2">{formData.transactionType === 'direct' ? '거래 장소' : '배송비'}</label>
                                                 <input
+                                                    id={`${formId}-sell-location`}
                                                     type="text"
                                                     value={formData.location}
                                                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -912,8 +967,9 @@ const MarketBoard = () => {
                                     <>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 mb-2">희망 예산</label>
+                                                <label htmlFor={`${formId}-buy-budget`} className="block text-sm font-bold text-gray-700 mb-2">희망 예산</label>
                                                 <input
+                                                    id={`${formId}-buy-budget`}
                                                     type="text"
                                                     value={formData.price}
                                                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
@@ -923,8 +979,9 @@ const MarketBoard = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-bold text-gray-700 mb-2">희망 거래 장소</label>
+                                                <label htmlFor={`${formId}-buy-location`} className="block text-sm font-bold text-gray-700 mb-2">희망 거래 장소</label>
                                                 <input
+                                                    id={`${formId}-buy-location`}
                                                     type="text"
                                                     value={formData.location}
                                                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -940,13 +997,13 @@ const MarketBoard = () => {
                                 {mode === 'groupbuy' && (
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-2">목표 가격 (1인당)</label>
-                                            <input type="text" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                            <label htmlFor={`${formId}-groupbuy-price`} className="block text-sm font-bold text-gray-700 mb-2">목표 가격 (1인당)</label>
+                                            <input id={`${formId}-groupbuy-price`} type="text" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none" placeholder="예: 15,000원" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-2">모집 인원</label>
-                                            <input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                            <label htmlFor={`${formId}-groupbuy-members`} className="block text-sm font-bold text-gray-700 mb-2">모집 인원</label>
+                                            <input id={`${formId}-groupbuy-members`} type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                                                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none" placeholder="예: 5명" />
                                         </div>
                                     </div>
@@ -960,8 +1017,9 @@ const MarketBoard = () => {
                                 )}
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">상세 설명</label>
+                                    <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-gray-700 mb-2">상세 설명</label>
                                     <textarea
+                                        id={`${formId}-content`}
                                         value={formData.content}
                                         onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none"
@@ -981,9 +1039,10 @@ const MarketBoard = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 btn-primary"
+                                        disabled={submitting}
+                                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        등록하기
+                                        {submitting ? '등록 중...' : '등록하기'}
                                     </button>
                                 </div>
                             </form>

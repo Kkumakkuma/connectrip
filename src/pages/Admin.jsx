@@ -178,18 +178,26 @@ const Admin = () => {
     );
   }, [users, userSearch]);
 
-  // Daily aggregation helper
+  // Daily aggregation helper — 서비스 기준시(KST) 고정.
+  // 예전에는 집계 키를 toISOString()(UTC)으로, 막대 라벨은 로컬 날짜로 만들어 두 기준이
+  // 9시간 어긋났다. 그래서 KST 00~09시의 가입·게시글이 전날 막대에 들어가고, 오전 9시 이전에
+  // 대시보드를 열면 라벨과 내용이 하루 어긋났다. 키와 라벨을 같은 KST 값에서 뽑아 맞춘다.
+  // CommendationMatching.jsx 의 KST 고정 방식과 동일하게, 접속 지역과 무관하게 KST 로 묶는다.
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const kstKey = (dt) => {
+    const t = dt.getTime();
+    if (Number.isNaN(t)) return null;   // created_at 이 비정상이면 어느 막대에도 넣지 않는다
+    return new Date(t + KST_OFFSET_MS).toISOString().split('T')[0];  // 'YYYY-MM-DD' (KST)
+  };
+
   const aggregateByDay = (items, days = 7) => {
     const result = [];
+    const nowMs = Date.now();
     for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const label = `${d.getMonth() + 1}/${d.getDate()}`;
-      const count = items.filter(item => {
-        const itemDate = new Date(item.created_at).toISOString().split('T')[0];
-        return itemDate === dateStr;
-      }).length;
+      const dateStr = kstKey(new Date(nowMs - i * 24 * 60 * 60 * 1000));
+      const [, mm, dd] = dateStr.split('-');
+      const label = `${Number(mm)}/${Number(dd)}`;
+      const count = items.filter(item => kstKey(new Date(item.created_at)) === dateStr).length;
       result.push({ label, count });
     }
     return result;

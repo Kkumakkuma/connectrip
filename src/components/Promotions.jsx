@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
 import ShareButtons from './ShareButtons';
@@ -22,6 +22,16 @@ const regions = [
     { id: 'oceania', name: '오세아니아', icon: '🦘', desc: '호주/뉴질랜드 캠핑카 투어 할인', image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?q=80&w=800&auto=format&fit=crop' },
 ];
 
+// 클릭으로만 열리던 카드에 키보드 조작(Enter/Space)을 붙인다.
+// 지역 선택은 URL 이 아니라 컴포넌트 내부 state 로 동작해서 Link 로 바꾸면 기능이 깨진다.
+// 그래서 앵커화 대신 button 역할만 부여해 키보드 접근을 연다.
+const keyActivate = (fn) => (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fn();
+    }
+};
+
 const Promotions = () => {
     const blockedIds = useBlockedIds();
     const location = useLocation();
@@ -36,6 +46,8 @@ const Promotions = () => {
     const [likes, setLikes] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [submitting, setSubmitting] = useState(false); // 등록 버튼 중복 제출 방지
+    const formId = useId(); // label-input 연결용 접두사
 
     useEffect(() => {
         setMode('main');
@@ -76,6 +88,9 @@ const Promotions = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!user) return;
+        // 조기 return 을 모두 지난 뒤에 플래그를 세운다(먼저 세우면 버튼이 영구히 잠긴다).
+        if (submitting) return;
+        setSubmitting(true);
         try {
             await reviewsApi.create({
                 user_id: user.id,
@@ -92,6 +107,8 @@ const Promotions = () => {
         } catch (err) {
             console.error('게시글 등록 실패:', err);
             alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -161,11 +178,14 @@ const Promotions = () => {
                         <motion.div key="category-selection" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
                             <div className="flex flex-col items-center mb-16 text-center">
                                 <span className="text-blue-600 font-bold tracking-widest uppercase mb-2">Promotions & Reviews</span>
-                                <h2 className="text-4xl font-black mb-4">여행상품 홍보 및 후기</h2>
+                                {/* 페이지 최상위 제목이라 h1 — 하위 모드 제목은 h2 로 유지한다 */}
+                                <h1 className="text-4xl font-black mb-4">여행상품 홍보 및 후기</h1>
                                 <p className="text-gray-500">원하는 게시판을 선택해주세요.</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('promotion')} className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group">
+                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('promotion')}
+                                    onKeyDown={keyActivate(() => handleCategorySelect('promotion'))} role="button" tabIndex={0}
+                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group">
                                     <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
                                         <Megaphone size={40} />
                                     </div>
@@ -173,7 +193,9 @@ const Promotions = () => {
                                     <p className="text-gray-500 mb-6">여행 상품, 특가 패키지, 할인 정보 등을 홍보하고 확인하세요.</p>
                                     <span className="text-blue-600 font-bold flex items-center gap-2">홍보 보러가기 →</span>
                                 </motion.div>
-                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('review')} className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-purple-400 hover:border-purple-500 group">
+                                <motion.div whileHover={{ y: -10 }} onClick={() => handleCategorySelect('review')}
+                                    onKeyDown={keyActivate(() => handleCategorySelect('review'))} role="button" tabIndex={0}
+                                    className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-purple-400 hover:border-purple-500 group">
                                     <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 text-purple-600 group-hover:scale-110 transition-transform">
                                         <MessageCircle size={40} />
                                     </div>
@@ -199,7 +221,10 @@ const Promotions = () => {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
                                 {regions.map((region) => (
-                                    <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }} onClick={() => handleRegionSelect(region)} className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all">
+                                    <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }} onClick={() => handleRegionSelect(region)}
+                                        onKeyDown={keyActivate(() => handleRegionSelect(region))} role="button" tabIndex={0}
+                                        aria-label={`${region.name} ${mode === 'promotion' ? '홍보' : '후기'} 보기`}
+                                        className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all">
                                         <img src={region.image} loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                         <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
@@ -318,25 +343,32 @@ const Promotions = () => {
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품명' : '후기 제목'}</label>
-                                    <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품명' : '후기 제목'}</label>
+                                    <input id={`${formId}-title`} type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                                         placeholder={mode === 'promotion' ? '예: 다낭 3박 5일 풀빌라 투어' : '예: 다낭 여행 정말 최고였어요!'} required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품 설명' : '후기 내용'}</label>
-                                    <textarea value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품 설명' : '후기 내용'}</label>
+                                    <textarea id={`${formId}-content`} value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none" rows="6"
                                         placeholder={mode === 'promotion' ? '상품의 특장점, 포함 내역, 가격 등을 자세히 작성해주세요' : '여행 경험을 자세히 공유해주세요'} required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</label>
+                                    {/* ImageUpload 가 자체 label 을 가지고 있어, 바깥 문구는 label 이 아닌 제목으로 둔다 */}
+                                    <span className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</span>
                                     <ImageUpload onUpload={(url) => setFormData({ ...formData, image_url: url })} />
                                     {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
                                 </div>
                                 <div className="flex gap-3 pt-4">
                                     <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
-                                    <button type="submit" className="flex-1 btn-primary">등록하기</button>
+                                    <button
+                                        type="submit"
+                                        disabled={submitting}
+                                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {submitting ? '등록 중...' : '등록하기'}
+                                    </button>
                                 </div>
                             </form>
                         </motion.div>

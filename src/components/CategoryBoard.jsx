@@ -1,9 +1,12 @@
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 
+// 카드 자체를 앵커(<a href>)로 만든다 — 크롤러가 따라갈 내부 링크가 생기고
+// 별도 tabIndex 없이도 키보드 포커스·Enter 이동이 된다.
+const MotionLink = motion.create(Link);
+
 const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
-    const navigate = useNavigate();
     const { isLoggedIn, isCrew } = useAuth();
     const categories = [
         {
@@ -63,11 +66,11 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
         return true;
     });
 
+    // 이동은 Link 가 맡는다. 여기서는 상위 상태 갱신과 스크롤 복귀만 남긴다.
     const handleClick = (cat) => {
         if (onCategoryChange) {
             onCategoryChange(cat.id);
         }
-        navigate(cat.path);
         // Scroll to top when navigating to a new page
         window.scrollTo(0, 0);
     };
@@ -91,8 +94,9 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
                     }}
                 >
                     {filteredCategories.map((cat) => (
-                        <motion.div
+                        <MotionLink
                             key={cat.id}
+                            to={cat.path}
                             whileHover={{ y: -10 }}
                             onClick={() => handleClick(cat)}
                             style={{
@@ -107,7 +111,9 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
                                 transition: 'all 0.3s ease',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                position: 'relative'
+                                position: 'relative',
+                                textDecoration: 'none',
+                                color: 'inherit'
                             }}
                         >
                             <div style={{ height: '200px', overflow: 'hidden' }}>
@@ -136,7 +142,7 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
                                     </div>
                                 </div>
                             </div>
-                        </motion.div>
+                        </MotionLink>
                     ))}
                 </div>
             </div>

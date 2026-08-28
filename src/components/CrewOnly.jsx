@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Lock, Users, Plus, X, MessageSquare, Plane, Search, ArrowLeft, Info, Tag, TrendingUp, Heart, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +11,15 @@ import { crewApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 import ListState from './ListState';
+
+// 클릭으로만 열리던 카드에 키보드 조작(Enter/Space)을 붙인다.
+// 라우트 이동이 아니라 화면 안 모드 전환이라 Link 대신 button 역할로 처리한다.
+const keyActivate = (fn) => (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fn();
+    }
+};
 
 const CrewOnly = () => {
     const { user, profile, isLoggedIn, isCrew, profileLoading, profileError } = useAuth();
@@ -29,7 +38,9 @@ const CrewOnly = () => {
   const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [likes, setLikes] = useState({});
+    const [submitting, setSubmitting] = useState(false); // 등록 버튼 중복 제출 방지
     const itemsPerPage = 4;
+    const formId = useId(); // label-input 연결용 접두사
     const location = useLocation();
 
     // URL 변경 시 메인 화면으로 리셋 + 네비 드롭다운 ?tab=(free/layover/deals) 반영
@@ -90,6 +101,9 @@ const CrewOnly = () => {
             setShowLoginPrompt(true);
             return;
         }
+        // 조기 return 을 모두 지난 뒤에 플래그를 세운다(먼저 세우면 버튼이 영구히 잠긴다).
+        if (submitting) return;
+        setSubmitting(true);
         try {
             const postType = mode;
             const newPost = await crewApi.create({
@@ -108,6 +122,8 @@ const CrewOnly = () => {
         } catch (err) {
             console.error('게시글 등록 실패:', err);
             alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -188,13 +204,15 @@ const CrewOnly = () => {
                         >
                             <div className="text-center mb-16">
                                 <span className="text-blue-600 font-bold tracking-widest uppercase mb-2 block animate-fade-in">CREW Exclusive</span>
-                                <h2 className="text-4xl font-black mb-4">CREW 전용 게시판</h2>
+                                {/* 페이지 최상위 제목이라 h1 — 하위 모드 제목은 h2 로 유지한다 */}
+                                <h1 className="text-4xl font-black mb-4">CREW 전용 게시판</h1>
                                 <p className="text-gray-500">승무원끼리 정보를 공유하고 특별한 혜택을 누려보세요.</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
                                 {/* 자유게시판 */}
                                 <motion.div whileHover={{ y: -10 }} onClick={() => setMode('free')}
+                                    onKeyDown={keyActivate(() => setMode('free'))} role="button" tabIndex={0}
                                     className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group">
                                     <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
                                         <MessageSquare size={40} />
@@ -208,6 +226,7 @@ const CrewOnly = () => {
 
                                 {/* 레이오버 정보 */}
                                 <motion.div whileHover={{ y: -10 }} onClick={() => setMode('layover')}
+                                    onKeyDown={keyActivate(() => setMode('layover'))} role="button" tabIndex={0}
                                     className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-green-400 hover:border-green-500 group">
                                     <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mb-6 text-green-600 group-hover:scale-110 transition-transform">
                                         <Plane size={40} />
@@ -221,6 +240,7 @@ const CrewOnly = () => {
 
                                 {/* 할인 혜택 */}
                                 <motion.div whileHover={{ y: -10 }} onClick={() => setMode('deals')}
+                                    onKeyDown={keyActivate(() => setMode('deals'))} role="button" tabIndex={0}
                                     className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-purple-400 hover:border-purple-500 group">
                                     <div className="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mb-6 text-purple-600 group-hover:scale-110 transition-transform">
                                         <Tag size={40} />
@@ -356,8 +376,9 @@ const CrewOnly = () => {
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">제목</label>
+                                    <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">제목</label>
                                     <input
+                                        id={`${formId}-title`}
                                         type="text"
                                         value={formData.title}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -369,8 +390,9 @@ const CrewOnly = () => {
 
                                 {mode === 'layover' && (
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">카테고리</label>
+                                        <label htmlFor={`${formId}-category`} className="block text-sm font-bold text-gray-700 mb-2">카테고리</label>
                                         <select
+                                            id={`${formId}-category`}
                                             value={formData.category}
                                             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
@@ -386,8 +408,9 @@ const CrewOnly = () => {
                                 )}
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">내용</label>
+                                    <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-gray-700 mb-2">내용</label>
                                     <textarea
+                                        id={`${formId}-content`}
                                         value={formData.content}
                                         onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none"
@@ -407,9 +430,10 @@ const CrewOnly = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 btn-primary"
+                                        disabled={submitting}
+                                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        등록하기
+                                        {submitting ? '등록 중...' : '등록하기'}
                                     </button>
                                 </div>
                             </form>

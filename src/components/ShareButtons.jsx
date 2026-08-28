@@ -1,6 +1,27 @@
 import { useState } from 'react';
 import { Share2, Link, MessageCircle, X as XIcon, Check } from 'lucide-react';
 
+// 카카오 SDK(85.5kB)를 index.html 에서 빼고 여기서 필요할 때만 받는다. 실사용처는 이 컴포넌트뿐이고
+// ShareButtons 는 lazy 라우트에만 들어가므로, 전 페이지 초기 로딩에서 이 요청이 통째로 빠진다.
+// 로더 패턴은 src/lib/payments/toss.js 의 loadSdk() 와 동일 — 모듈 스코프 프라미스 캐시로 중복 삽입 방지.
+const KAKAO_SRC = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js';
+let kakaoPromise = null;
+
+function loadKakaoSdk() {
+  if (kakaoPromise) return kakaoPromise;
+  kakaoPromise = new Promise((resolve, reject) => {
+    if (window.Kakao) { resolve(window.Kakao); return; }
+    const s = document.createElement('script');
+    s.src = KAKAO_SRC;
+    s.async = true;
+    s.crossOrigin = 'anonymous';
+    s.onload = () => { window.Kakao ? resolve(window.Kakao) : (kakaoPromise = null, reject(new Error('Kakao 없음'))); };
+    s.onerror = () => { kakaoPromise = null; reject(new Error('카카오 SDK 로드 실패')); };
+    document.head.appendChild(s);
+  });
+  return kakaoPromise;
+}
+
 const ShareButtons = ({ title, description, url }) => {
   const [copied, setCopied] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -9,6 +30,15 @@ const ShareButtons = ({ title, description, url }) => {
   const shareTitle = title || 'ConnectTrip';
   const shareDesc = description || '여행자부터 승무원까지 모두를 연결하는 여행 플랫폼';
 
+  // 메뉴를 열 때 SDK 를 미리 당긴다. 카카오 버튼은 메뉴가 열린 뒤에만 보이므로 사용자가 메뉴를 읽는 동안
+  // 로드가 끝난다. 클릭 핸들러 안에서 await 로 기다리면 네트워크 대기 뒤에 window.open 이 호출돼
+  // 사파리에서 user activation 이 풀리고 팝업이 차단된다 — 그래서 프리페치 + 동기 호출 조합을 쓴다.
+  const openMenu = () => {
+    setShowMenu(true);
+    loadKakaoSdk().catch(() => {});
+  };
+
+  // 동기 유지 필수. sendDefault 가 클릭과 같은 태스크에서 호출돼야 팝업이 뜬다.
   const handleKakaoShare = () => {
     if (window.Kakao) {
       if (!window.Kakao.isInitialized()) {
@@ -64,14 +94,14 @@ const ShareButtons = ({ title, description, url }) => {
         // 사용자가 공유를 취소한 경우 — 무시
       }
     } else {
-      setShowMenu(true);
+      openMenu();
     }
   };
 
   return (
     <div className="relative flex-shrink-0">
       <button
-        onClick={navigator.share ? handleNativeShare : () => setShowMenu(!showMenu)}
+        onClick={navigator.share ? handleNativeShare : () => (showMenu ? setShowMenu(false) : openMenu())}
         className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all whitespace-nowrap"
         title="공유하기"
       >

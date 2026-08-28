@@ -27,15 +27,25 @@ const STORAGE_KEY = 'notification_preferences';
 const NotificationSettings = () => {
   const [pushEnabled, setPushEnabled] = useState(isNotificationGranted());
   const [preferences, setPreferences] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
     const defaults = {};
     NOTIFICATION_CATEGORIES.forEach(c => { defaults[c.id] = true; });
+    // 렌더 중에 무방어로 파싱하면 저장값이 깨졌거나(사파리 프라이빗 등) 저장소 접근이 막힌 순간
+    // 예외가 렌더 단계에서 터져 앱 전체가 오류 화면으로 바뀐다. 알림 설정 하나 때문에 그럴 이유가 없다.
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return { ...defaults, ...JSON.parse(saved) };
+    } catch {
+      // 깨진 값·접근 차단 — 기본값으로 시작한다
+    }
     return defaults;
   });
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    } catch {
+      // 저장 실패는 이번 세션 설정만 못 남기는 것이라 화면을 막지 않는다
+    }
   }, [preferences]);
 
   const handleToggle = (id) => {

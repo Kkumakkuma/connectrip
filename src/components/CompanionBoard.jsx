@@ -1,6 +1,10 @@
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import SEOHead from './SEOHead';
+
+// 지역 카드 자체를 앵커(<a href>)로 만든다 — 크롤러가 지역 게시판까지 따라올 수 있고
+// 키보드 사용자도 탭·Enter 로 들어갈 수 있다.
+const MotionLink = motion.create(Link);
 
 const regions = [
     {
@@ -48,8 +52,6 @@ const regions = [
 ];
 
 const CompanionBoard = () => {
-    const navigate = useNavigate();
-
     return (
         <>
             <SEOHead title="여행 동행자 모집 - ConnectTrip" description="함께 여행할 동행자를 찾아보세요. 지역별 여행 동행 모집 게시판." />
@@ -65,11 +67,11 @@ const CompanionBoard = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {regions.map((region) => (
-                        <motion.div
+                        <MotionLink
                             key={region.id}
+                            to={`/companion/${region.id}`}
                             whileHover={{ y: -10, scale: 1.02 }}
-                            onClick={() => navigate(`/companion/${region.id}`)}
-                            className="group relative h-[280px] rounded-[2.5rem] overflow-hidden cursor-pointer shadow-xl shadow-gray-200 hover:shadow-2xl transition-shadow"
+                            className="group block relative h-[280px] rounded-[2.5rem] overflow-hidden cursor-pointer shadow-xl shadow-gray-200 hover:shadow-2xl transition-shadow"
                         >
                             {/* Background Image */}
                             <img
@@ -95,7 +97,7 @@ const CompanionBoard = () => {
                                     <span className="text-xs font-bold bg-white/20 backdrop-blur-md px-4 py-2 rounded-full ring-1 ring-white/30">게시판 보러가기 →</span>
                                 </div>
                             </div>
-                        </motion.div>
+                        </MotionLink>
                     ))}
                 </div>
 

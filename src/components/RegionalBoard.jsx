@@ -1,5 +1,5 @@
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useParams, useLocation, Link } from 'react-router-dom';
+import { useEffect, useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Users, Calendar, Edit3, ArrowLeft, X, Search, Heart } from 'lucide-react';
 import Pagination from './Pagination';
@@ -26,7 +26,6 @@ const RegionalBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
     const blockedIds = useBlockedIds();
     const { regionId } = useParams();
-    const navigate = useNavigate();
     const location = useLocation();
     const region = regions.find(r => r.id === regionId);
     const [showModal, setShowModal] = useState(false);
@@ -44,7 +43,9 @@ const RegionalBoard = () => {
   const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [likes, setLikes] = useState({});
+    const [submitting, setSubmitting] = useState(false); // 등록 버튼 중복 제출 방지
     const itemsPerPage = 6;
+    const formId = useId(); // label-input 연결용 접두사
 
     // URL 변경 시 스크롤 최상단으로 + 통합검색 ?q= 반영
     useEffect(() => {
@@ -109,6 +110,9 @@ const RegionalBoard = () => {
             setShowLoginPrompt(true);
             return;
         }
+        // 조기 return 을 모두 지난 뒤에 플래그를 세운다(먼저 세우면 버튼이 영구히 잠긴다).
+        if (submitting) return;
+        setSubmitting(true);
         try {
             const newPost = await companionApi.create({
                 region_id: regionId,
@@ -126,6 +130,8 @@ const RegionalBoard = () => {
         } catch (err) {
             console.error('게시글 등록 실패:', err);
             alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -141,13 +147,13 @@ const RegionalBoard = () => {
                 path={`/companion/${region.id}`}
             />
             <div className="max-w-6xl mx-auto px-4">
-                {/* Back Button */}
-                <button
-                    onClick={() => navigate('/companion')}
-                    className="flex items-center gap-2 text-blue-600 font-bold mb-10 hover:translate-x-[-5px] transition-transform"
+                {/* Back Button — 동행 게시판으로 가는 실제 앵커라 Link 로 둔다 */}
+                <Link
+                    to="/companion"
+                    className="inline-flex items-center gap-2 text-blue-600 font-bold mb-10 hover:translate-x-[-5px] transition-transform"
                 >
                     <ArrowLeft size={20} /> 지역 선택으로 돌아가기
-                </button>
+                </Link>
 
                 <div className="bg-white rounded-2xl sm:rounded-[4rem] shadow-2xl shadow-gray-200 border border-gray-50 overflow-hidden">
                     <div className="bg-gray-50/80 px-4 py-6 sm:px-12 sm:py-10 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-6">
@@ -318,10 +324,11 @@ const RegionalBoard = () => {
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">
                                         제목
                                     </label>
                                     <input
+                                        id={`${formId}-title`}
                                         type="text"
                                         value={formData.title}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -332,10 +339,11 @@ const RegionalBoard = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    <label htmlFor={`${formId}-country`} className="block text-sm font-bold text-gray-700 mb-2">
                                         국가/도시
                                     </label>
                                     <input
+                                        id={`${formId}-country`}
                                         type="text"
                                         value={formData.country}
                                         onChange={(e) => setFormData({ ...formData, country: e.target.value })}
@@ -347,10 +355,11 @@ const RegionalBoard = () => {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">
+                                        <label htmlFor={`${formId}-date`} className="block text-sm font-bold text-gray-700 mb-2">
                                             여행 일정
                                         </label>
                                         <input
+                                            id={`${formId}-date`}
                                             type="date"
                                             value={formData.date}
                                             onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -359,10 +368,11 @@ const RegionalBoard = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">
+                                        <label htmlFor={`${formId}-members`} className="block text-sm font-bold text-gray-700 mb-2">
                                             모집 인원
                                         </label>
                                         <input
+                                            id={`${formId}-members`}
                                             type="text"
                                             value={formData.members}
                                             onChange={(e) => setFormData({ ...formData, members: e.target.value })}
@@ -374,10 +384,11 @@ const RegionalBoard = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-gray-700 mb-2">
                                         상세 내용
                                     </label>
                                     <textarea
+                                        id={`${formId}-content`}
                                         value={formData.content}
                                         onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none"
@@ -397,9 +408,10 @@ const RegionalBoard = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 btn-primary"
+                                        disabled={submitting}
+                                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        등록하기
+                                        {submitting ? '등록 중...' : '등록하기'}
                                     </button>
                                 </div>
                             </form>

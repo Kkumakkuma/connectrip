@@ -73,6 +73,29 @@ export default function SignupComplete() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // 개인정보보호법 제15조·제22조 — 개인정보를 저장하기 전에 필수 동의를 명시적으로 받는다.
+  // SignupEmail 에서 넘어온 경우에도 이 화면에서 다시 받는다(사전 체크는 '명시적 동의'가 아니므로 하지 않는다).
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [agreeAge, setAgreeAge] = useState(false);
+  // 동의한 순간(저장 시각이 아니라)을 기록해 complete_signup_profile RPC 로 넘긴다 — 분쟁 시 입증자료.
+  const [termsAgreedAt, setTermsAgreedAt] = useState(null);
+  const [privacyAgreedAt, setPrivacyAgreedAt] = useState(null);
+
+  const toggleTerms = (checked) => {
+    setAgreeTerms(checked);
+    setTermsAgreedAt(checked ? new Date().toISOString() : null);
+  };
+  const togglePrivacy = (checked) => {
+    setAgreePrivacy(checked);
+    setPrivacyAgreedAt(checked ? new Date().toISOString() : null);
+  };
+  const toggleAllAgree = (checked) => {
+    toggleTerms(checked);
+    togglePrivacy(checked);
+    setAgreeAge(checked);
+  };
+
   // 로그인 안 된 경우 /signup 으로
   useEffect(() => {
     if (!isLoggedIn) {
@@ -365,6 +388,8 @@ export default function SignupComplete() {
     // 승무원은 회사 이메일 인증 필수 + 인증한 이메일이 현재 입력값과 일치해야 함
     if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified || !airlineOtpToken
         || verifiedAirlineEmail !== airlineEmail.trim().toLowerCase())) return false;
+    // 필수 동의 3종을 모두 체크해야 제출 가능 (RPC 호출 자체를 막는 게 목적)
+    if (!agreeTerms || !agreePrivacy || !agreeAge) return false;
     return true;
   };
 
@@ -403,6 +428,9 @@ export default function SignupComplete() {
         p_birthdate: birthdate,
         p_phone_otp_token: phoneOtpToken,
         p_airline_otp_token: (userType === 'crew') ? airlineOtpToken : null,
+        // 동의 시각 기록. 인자를 추가한 SQL 을 먼저 배포해야 한다(구버전 함수에는 이 인자가 없어 '함수 없음' 에러가 난다).
+        p_terms_agreed_at: termsAgreedAt,
+        p_privacy_agreed_at: privacyAgreedAt,
       });
       if (upErr) throw upErr;
       // 승무원 pending 정보와 소비 토큰은 사용 완료 → 세션 스토리지에서 제거
@@ -725,6 +753,17 @@ export default function SignupComplete() {
             />
           </Field>
 
+          <ConsentBox
+            idPrefix="signup-complete"
+            agreeTerms={agreeTerms}
+            agreePrivacy={agreePrivacy}
+            agreeAge={agreeAge}
+            onToggleTerms={toggleTerms}
+            onTogglePrivacy={togglePrivacy}
+            onToggleAge={setAgreeAge}
+            onToggleAll={toggleAllAgree}
+          />
+
           {error && (
             <div style={{ color: '#dc2626', fontSize: 13, marginBottom: 12 }}>
               {error}
@@ -757,6 +796,69 @@ const inputStyle = {
   border: '1.5px solid #e2e8f0', fontSize: 14,
   background: 'white',
 };
+
+const consentRowStyle = { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0' };
+const consentBoxInputStyle = { width: 16, height: 16, marginTop: 2, flexShrink: 0, accentColor: '#2563eb', cursor: 'pointer' };
+const consentLabelStyle = { flex: 1, fontSize: 13, color: '#334155', lineHeight: 1.5, cursor: 'pointer' };
+const consentLinkStyle = { fontSize: 12, color: '#2563eb', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 };
+const consentRequiredStyle = { color: '#dc2626', fontWeight: 700 };
+
+// 필수 동의 블록. 수집 항목·목적·보유기간 요약은 /privacy(개인정보처리방침) 본문을 그대로 줄인 것이며,
+// 방침을 고치면 이 요약도 같이 맞춰야 한다. 링크는 새 탭으로 열어 작성 중이던 폼 값을 잃지 않게 한다.
+// 이 화면은 소셜 로그인·이메일 확인 후 진입하므로 로그인 계정 이메일은 이미 확보된 상태다.
+function ConsentBox({ idPrefix, agreeTerms, agreePrivacy, agreeAge,
+  onToggleTerms, onTogglePrivacy, onToggleAge, onToggleAll }) {
+  const allAgreed = agreeTerms && agreePrivacy && agreeAge;
+  return (
+    <div style={{ marginBottom: 18, border: '1.5px solid #e2e8f0', borderRadius: 12, padding: '12px 14px' }}>
+      <div style={consentRowStyle}>
+        <input id={`${idPrefix}-agree-all`} type="checkbox" checked={allAgreed}
+          onChange={(e) => onToggleAll(e.target.checked)} style={consentBoxInputStyle} />
+        <label htmlFor={`${idPrefix}-agree-all`} style={{ ...consentLabelStyle, fontSize: 14, fontWeight: 700, color: '#1a365d' }}>
+          아래 필수 항목에 모두 동의합니다
+        </label>
+      </div>
+
+      <div style={{ height: 1, background: '#e2e8f0', margin: '8px 0' }} />
+
+      <div style={consentRowStyle}>
+        <input id={`${idPrefix}-agree-terms`} type="checkbox" checked={agreeTerms}
+          onChange={(e) => onToggleTerms(e.target.checked)} style={consentBoxInputStyle} />
+        <label htmlFor={`${idPrefix}-agree-terms`} style={consentLabelStyle}>
+          <span style={consentRequiredStyle}>[필수]</span> 이용약관에 동의합니다
+        </label>
+        <a href="/terms" target="_blank" rel="noopener noreferrer" style={consentLinkStyle}>약관 보기</a>
+      </div>
+
+      <div style={consentRowStyle}>
+        <input id={`${idPrefix}-agree-privacy`} type="checkbox" checked={agreePrivacy}
+          onChange={(e) => onTogglePrivacy(e.target.checked)} style={consentBoxInputStyle} />
+        <label htmlFor={`${idPrefix}-agree-privacy`} style={consentLabelStyle}>
+          <span style={consentRequiredStyle}>[필수]</span> 개인정보 수집·이용에 동의합니다
+        </label>
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={consentLinkStyle}>방침 보기</a>
+      </div>
+
+      <ul style={{ margin: '2px 0 6px 30px', padding: 0, listStyle: 'disc', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
+        <li>수집 항목: 이메일(로그인 계정), 이름, 닉네임, 생년월일, 휴대폰번호, 주소(우편번호·도로명·상세). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
+        <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, 승무원 칭송매칭 운영, 포인트 적립·이용, 부정 이용 방지와 분쟁 조정·문의 대응.</li>
+        <li>보유 기간: 회원 탈퇴 시 지체 없이 파기합니다. 관계 법령이 보존을 정한 결제·거래 기록은 법정 보존기간 동안 분리 보관한 뒤 파기합니다.</li>
+      </ul>
+
+      <div style={consentRowStyle}>
+        <input id={`${idPrefix}-agree-age`} type="checkbox" checked={agreeAge}
+          onChange={(e) => onToggleAge(e.target.checked)} style={consentBoxInputStyle} />
+        <label htmlFor={`${idPrefix}-agree-age`} style={consentLabelStyle}>
+          <span style={consentRequiredStyle}>[필수]</span> 만 14세 이상입니다
+        </label>
+      </div>
+
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+        동의를 거부할 수 있으나, 위 항목은 회원 관리와 본인 확인에 필요한 최소한의 정보이므로 거부하면 회원가입이 제한됩니다.
+      </p>
+    </div>
+  );
+}
 
 function Field({ label, icon, helper, helperColor, children }) {
   return (

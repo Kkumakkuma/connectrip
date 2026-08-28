@@ -1,9 +1,9 @@
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, ArrowLeft, MapPin, Plus, X, Search, User, Lock } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { destinationsApi } from '../lib/db';
+import { destinationsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import ShareButtons from './ShareButtons';
@@ -22,7 +22,7 @@ const regions = [
     { id: 'oceania', name: '오세아니아', icon: '🦘', desc: '청정 자연과 도시의 조화, 오세아니아 핫플', image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?q=80&w=800&auto=format&fit=crop' },
 ];
 
-const DestinationCard = ({ dest, onToggleLike, isLiked, currentUserId }) => (
+const DestinationCard = ({ dest, onToggleLike, isLiked, likeCount, currentUserId }) => (
     <motion.div
         className="rounded-[1rem] overflow-hidden bg-white shadow-md hover:shadow-xl transition-all"
         initial={{ opacity: 0, y: 20 }}
@@ -50,7 +50,7 @@ const DestinationCard = ({ dest, onToggleLike, isLiked, currentUserId }) => (
                     className="flex items-center gap-1 text-pink-500 font-semibold hover:bg-pink-50 px-2 py-1 rounded-full transition-colors"
                 >
                     <Heart size={18} fill={isLiked ? "#ff4b81" : "none"} strokeWidth={isLiked ? 0 : 2.5} />
-                    <span>{dest.likes_count || 0}</span>
+                    <span>{likeCount}</span>
                 </button>
             </div>
             <p className="text-gray-500 text-sm mb-4 leading-relaxed">{dest.description}</p>
@@ -79,6 +79,12 @@ const DestinationCard = ({ dest, onToggleLike, isLiked, currentUserId }) => (
     </motion.div>
 );
 
+// 화면에 보여줄 좋아요 수 = 레거시 카운터 + post_likes 서버 집계.
+// destinations.likes_count 에는 시드(scripts/seed-destinations.sql)와 구 increment_likes 로
+// 쌓인 값이 이미 있는데 post_likes 에는 대응 행이 없다. 서버 집계만 쓰면 기존 좋아요가
+// 전부 0으로 보이므로, 레거시 값을 기준선으로 두고 그 위에 post_likes 집계를 더한다.
+const likeCountOf = (dest, likeMap) => (dest.likes_count || 0) + (likeMap[dest.id]?.count || 0);
+
 const Destinations = () => {
     const blockedIds = useBlockedIds();
     const { regionId } = useParams();
@@ -90,20 +96,17 @@ const Destinations = () => {
     const canWrite = isLoggedIn && isCrew && !!profile?.crew_verified;
     const selectedRegion = regionId ? regions.find(r => r.id === regionId) : null;
     const [showModal, setShowModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [formData, setFormData] = useState({ name: '', desc: '', crewComment: '', image_url: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [allDestinations, setAllDestinations] = useState([]);
-    const [userLikes, setUserLikes] = useState(() => {
-        const saved = localStorage.getItem('userLikes');
-        return saved ? JSON.parse(saved) : {};
-    });
+    // 좋아요 상태는 서버(post_likes) 기준. 예전에는 localStorage['userLikes'] 하나로만
+    // 중복을 막아서 ①무한 좋아요 ②한 기기에서 계정을 바꾸면 이전 사용자의 상태를
+    // 물려받는 문제가 있었다. 다른 게시판 4곳과 같은 postLikeApi 경로로 통일한다.
+    const [likes, setLikes] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-
-    useEffect(() => {
-        localStorage.setItem('userLikes', JSON.stringify(userLikes));
-    }, [userLikes]);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -111,18 +114,27 @@ const Destinations = () => {
         if (q) setSearchQuery(q);
     }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // user?.id 를 의존성에 넣어, 같은 기기에서 계정이 바뀌면 좋아요 상태를 서버 기준으로 다시 읽는다.
     useEffect(() => {
         if (selectedRegion) {
             fetchDestinations(selectedRegion.id);
         }
-    }, [selectedRegion]);
+    }, [selectedRegion, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchDestinations = async (regionId) => {
         try {
             setLoading(true);
             setError(null);
-            const data = await destinationsApi.getAll(regionId);
-            setAllDestinations(data || []);
+            const data = await destinationsApi.getAll(regionId) || [];
+            let likeMap = {};
+            if (data.length) {
+                likeMap = await postLikeApi.getForBoard('destinations', data.map(d => d.id), user?.id);
+            }
+            setLikes(likeMap);
+            // db.js getAll 은 likes_count(레거시 컬럼)로만 정렬한다. 신규 좋아요는 post_likes 에
+            // 쌓이므로 합산값으로 한 번 더 정렬해야 좋아요순이 유지된다. 정렬은 목록을 받는
+            // 시점에만 하고 토글 때는 다시 하지 않는다(누르는 순간 카드가 튀지 않도록).
+            setAllDestinations([...data].sort((a, b) => likeCountOf(b, likeMap) - likeCountOf(a, likeMap)));
         } catch (err) {
             console.error('추천지 로드 실패:', err);
             setAllDestinations([]);
@@ -136,45 +148,31 @@ const Destinations = () => {
         if (selectedRegion) fetchDestinations(selectedRegion.id);
     };
 
+    // toggle_post_like RPC 가 1인 1글 1좋아요(UNIQUE)와 휴대폰 인증·차단 여부를 DB 에서 검사한다.
+    // 반환값이 정본이므로 낙관적 업데이트 없이 서버 응답으로 상태를 덮어쓴다(다른 게시판 4곳과 동일).
     const handleToggleLike = async (id) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        const currentlyLiked = !!userLikes[id];
-        // 낙관적 업데이트
-        setUserLikes(prev => ({ ...prev, [id]: !currentlyLiked }));
-        setAllDestinations(prev => prev.map(dest => {
-            if (dest.id === id) {
-                return { ...dest, likes_count: currentlyLiked ? Math.max(0, (dest.likes_count || 0) - 1) : (dest.likes_count || 0) + 1 };
-            }
-            return dest;
-        }));
         try {
-            if (currentlyLiked) {
-                await destinationsApi.unlike(id);
-            } else {
-                await destinationsApi.like(id);
-            }
+            const { data, error: e } = await postLikeApi.toggle('destinations', id);
+            if (e) throw e;
+            setLikes(prev => ({ ...prev, [id]: { count: data.likes_count, liked: data.liked } }));
         } catch (err) {
             console.error('좋아요 실패:', err);
-            // 실패 시 낙관적 업데이트 원복
-            setUserLikes(prev => ({ ...prev, [id]: currentlyLiked }));
-            setAllDestinations(prev => prev.map(dest => {
-                if (dest.id === id) {
-                    return { ...dest, likes_count: currentlyLiked ? (dest.likes_count || 0) + 1 : Math.max(0, (dest.likes_count || 0) - 1) };
-                }
-                return dest;
-            }));
-            alert('좋아요 처리에 실패했습니다. 다시 시도해주세요.');
+            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!user) return;
+        // 더블클릭하면 같은 글이 두 번 올라간다. 처리 중에는 재진입을 막는다.
+        if (submitting) return;
         if (!canWrite) {
             alert('승무원 인증을 마친 회원만 명소를 추천할 수 있습니다.');
             setShowModal(false);
             return;
         }
+        setSubmitting(true);
         try {
             const newDest = await destinationsApi.create({
                 user_id: user.id,
@@ -190,6 +188,8 @@ const Destinations = () => {
         } catch (err) {
             console.error('추천지 등록 실패:', err);
             alert('등록에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -220,13 +220,17 @@ const Destinations = () => {
                         <motion.div key="region-list" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                             <div className="text-center mb-12">
                                 <span className="text-blue-600 font-bold tracking-widest uppercase">Hidden Gems</span>
-                                <h2 className="text-4xl font-black mt-2">승무원이 추천하는 지역별 숨은 명소</h2>
+                                <h1 className="text-4xl font-black mt-2">승무원이 추천하는 지역별 숨은 명소</h1>
                                 <p className="text-gray-500 mt-4">어디로 떠나시나요? 지역을 선택하면 베테랑 승무원들의 시크릿 스팟이 펼쳐집니다.</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
                                 {regions.map((region) => (
-                                    <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }} onClick={() => navigate(`/recommend/${region.id}`)}
-                                        className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all">
+                                    <motion.div key={region.id} whileHover={{ y: -5, scale: 1.02 }}
+                                        className="group relative h-[240px] rounded-[2rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all">
+                                        {/* 카드 전체를 덮는 앵커. onClick 만 있으면 크롤러가 따라갈 링크가 없고
+                                            키보드·새 탭 열기도 안 된다. 시각적 배치는 그대로 두고 링크만 얹는다. */}
+                                        <Link to={`/recommend/${region.id}`} aria-label={`${region.name} 추천 명소 보기`}
+                                            className="absolute inset-0 z-10 rounded-[2rem] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600" />
                                         <img src={region.image} loading="lazy" decoding="async" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={region.name} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                                         <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
@@ -279,7 +283,7 @@ const Destinations = () => {
                             ) : filteredDestinations.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                     {filteredDestinations.map(dest => (
-                                        <DestinationCard key={dest.id} dest={dest} onToggleLike={handleToggleLike} isLiked={!!userLikes[dest.id]} currentUserId={user?.id} />
+                                        <DestinationCard key={dest.id} dest={dest} onToggleLike={handleToggleLike} isLiked={!!likes[dest.id]?.liked} likeCount={likeCountOf(dest, likes)} currentUserId={user?.id} />
                                     ))}
                                 </div>
                             ) : (
@@ -334,7 +338,7 @@ const Destinations = () => {
                                 </div>
                                 <div className="flex gap-3 pt-4">
                                     <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
-                                    <button type="submit" className="flex-1 btn-primary">등록하기</button>
+                                    <button type="submit" disabled={submitting} className="flex-1 btn-primary disabled:opacity-60">{submitting ? '등록 중…' : '등록하기'}</button>
                                 </div>
                             </form>
                         </motion.div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { useLocation } from 'react-router-dom';
 import { MessageSquare, HelpCircle, Plus, X, Search, BookOpen, Trash2, User, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +13,15 @@ import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 import ListState from './ListState';
+
+// 클릭으로만 열리던 카드에 키보드 조작(Enter/Space)을 붙인다.
+// 라우트 이동이 아니라 화면 안 모드 전환이라 Link 대신 button 역할로 처리한다.
+const keyActivate = (fn) => (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fn();
+    }
+};
 
 const TravelQnA = () => {
     const { user, profile, isLoggedIn } = useAuth();
@@ -40,8 +49,13 @@ const TravelQnA = () => {
     const [expandedId, setExpandedId] = useState(null);
     const [commentText, setCommentText] = useState('');
     const [commentBusy, setCommentBusy] = useState(false);
+    // 댓글은 목록 조회에 딸려오지 않고, 카드를 펼칠 때 그 글 것만 따로 받아온다.
+    const [comments, setComments] = useState({}); // { [postId]: 댓글 배열 }
+    const [commentsLoading, setCommentsLoading] = useState(false);
     const [likes, setLikes] = useState({});
+    const [submitting, setSubmitting] = useState(false); // 등록 버튼 중복 제출 방지
     const itemsPerPage = 6;
+    const formId = useId(); // label-input 연결용 접두사
     // 모드를 빠르게 전환하면 두 조회가 겹친다. 늦게 도착한 이전 응답이 새 모드의
     // 목록을 덮어쓰지 않도록 요청 id 로 stale 응답을 버린다(Search.jsx 와 동일 방식).
     const requestIdRef = useRef(0);
@@ -99,11 +113,32 @@ const TravelQnA = () => {
 
     // 모드 진입 시 데이터 로드 — 버튼 클릭 전환뿐 아니라 네비 드롭다운/직접 URL(?tab=) 진입도 커버
     useEffect(() => {
+        // 모드가 바뀌면 펼쳐둔 댓글과 그 캐시도 버린다(다른 목록의 잔상 방지).
+        setExpandedId(null);
+        setComments({});
         if (mode === 'qna') fetchQnA();
         else if (mode === 'review') fetchReviews();
         else { requestIdRef.current += 1; setPosts([]); } // 메인 복귀: 진행 중 조회 무효화
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mode]);
+
+    // 카드를 펼칠 때 그 글의 댓글만 조회한다. 한 번 받아온 글은 다시 부르지 않는다.
+    const handleToggleComments = async (postId) => {
+        setCommentText('');
+        if (expandedId === postId) { setExpandedId(null); return; }
+        setExpandedId(postId);
+        if (comments[postId]) return;
+        try {
+            setCommentsLoading(true);
+            const list = await qnaApi.getComments(postId);
+            setComments((prev) => ({ ...prev, [postId]: list || [] }));
+        } catch (err) {
+            console.error('댓글 조회 실패:', err);
+            setComments((prev) => ({ ...prev, [postId]: [] }));
+        } finally {
+            setCommentsLoading(false);
+        }
+    };
 
     const handleToggleLike = async (postId) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
@@ -130,8 +165,10 @@ const TravelQnA = () => {
                 author_name: profile?.name || '익명',
                 content: text,
             });
+            setComments((prev) => ({ ...prev, [postId]: [...(prev[postId] || []), newComment] }));
+            // 목록 카드에 보이는 댓글 수도 같이 올린다(목록은 comment_count 만 들고 있다).
             setPosts((prev) => prev.map((p) => p.id === postId
-                ? { ...p, qna_comments: [...(p.qna_comments || []), newComment] }
+                ? { ...p, comment_count: (p.comment_count || 0) + 1 }
                 : p));
             setCommentText('');
         } catch (err) {
@@ -151,7 +188,9 @@ const TravelQnA = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-
+        // 조기 return 을 모두 지난 뒤에 플래그를 세운다(먼저 세우면 버튼이 영구히 잠긴다).
+        if (submitting) return;
+        setSubmitting(true);
         try {
             if (mode === 'qna') {
                 const newPost = await qnaApi.create({
@@ -177,6 +216,8 @@ const TravelQnA = () => {
         } catch (err) {
             console.error('등록 실패:', err);
             alert('등록에 실패했습니다. 다시 시도해주세요.');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -219,11 +260,13 @@ const TravelQnA = () => {
                         <motion.div key="main" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
                             <div className="flex flex-col items-center mb-16 text-center">
                                 <span className="text-blue-600 font-bold tracking-widest uppercase mb-2">Reviews & Q&A</span>
-                                <h2 className="text-4xl font-black mb-4">여행후기 및 Q&A</h2>
+                                {/* 페이지 최상위 제목이라 h1 — 하위 모드 제목은 h2 로 유지한다 */}
+                                <h1 className="text-4xl font-black mb-4">여행후기 및 Q&A</h1>
                                 <p className="text-gray-500">후기를 공유하거나, 궁금한 것을 질문해보세요.</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                                 <motion.div whileHover={{ y: -10 }} onClick={() => handleModeSelect('review')}
+                                    onKeyDown={keyActivate(() => handleModeSelect('review'))} role="button" tabIndex={0}
                                     className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-green-400 hover:border-green-500 group">
                                     <div className="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mb-6 text-green-600 group-hover:scale-110 transition-transform">
                                         <BookOpen size={40} />
@@ -233,6 +276,7 @@ const TravelQnA = () => {
                                     <span className="text-green-600 font-bold flex items-center gap-2">후기 보러가기 →</span>
                                 </motion.div>
                                 <motion.div whileHover={{ y: -10 }} onClick={() => handleModeSelect('qna')}
+                                    onKeyDown={keyActivate(() => handleModeSelect('qna'))} role="button" tabIndex={0}
                                     className="bg-white rounded-[2rem] p-10 shadow-xl cursor-pointer hover:shadow-2xl transition-all border-2 border-blue-400 hover:border-blue-500 group">
                                     <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:scale-110 transition-transform">
                                         <HelpCircle size={40} />
@@ -318,8 +362,9 @@ const TravelQnA = () => {
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-gray-400 flex-nowrap overflow-hidden">
                                                             {mode === 'qna' && (
-                                                                <button onClick={() => { setExpandedId(expandedId === post.id ? null : post.id); setCommentText(''); }} className="flex items-center gap-1 hover:text-blue-500 transition-colors">
-                                                                    <MessageSquare size={14} /> 댓글 {post.qna_comments?.length || 0}개
+                                                                <button onClick={() => handleToggleComments(post.id)} className="flex items-center gap-1 hover:text-blue-500 transition-colors">
+                                                                    {/* 목록은 댓글 본문 없이 개수만 들고 온다 */}
+                                                                    <MessageSquare size={14} /> 댓글 {post.comment_count ?? post.qna_comments?.length ?? 0}개
                                                                 </button>
                                                             )}
                                                             <span className="flex-1" />
@@ -330,8 +375,10 @@ const TravelQnA = () => {
                                                 </div>
                                                 {mode === 'qna' && expandedId === post.id && (
                                                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
-                                                        {(post.qna_comments || []).length > 0 ? (
-                                                            [...post.qna_comments].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((c) => (
+                                                        {commentsLoading && !comments[post.id] ? (
+                                                            <p className="text-sm text-gray-400 text-center py-2">댓글을 불러오는 중...</p>
+                                                        ) : (comments[post.id] || []).length > 0 ? (
+                                                            [...comments[post.id]].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((c) => (
                                                                 <div key={c.id} className="bg-gray-50 rounded-xl p-3">
                                                                     <div className="flex items-center justify-between mb-1 gap-2">
                                                                         <span className="flex items-center gap-1 min-w-0 text-xs font-bold text-gray-700">
@@ -398,27 +445,34 @@ const TravelQnA = () => {
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">제목</label>
-                                    <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">제목</label>
+                                    <input id={`${formId}-title`} type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                                         placeholder={mode === 'review' ? '예: 도쿄 3박 4일 완벽 후기' : '궁금한 내용을 간단히 요약해주세요'} required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-2">{mode === 'review' ? '후기 내용' : '질문 내용'}</label>
-                                    <textarea value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-gray-700 mb-2">{mode === 'review' ? '후기 내용' : '질문 내용'}</label>
+                                    <textarea id={`${formId}-content`} value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none" rows="8"
                                         placeholder={mode === 'review' ? '여행 경험을 자세히 공유해주세요' : '자세한 질문 내용을 작성해주세요'} required />
                                 </div>
                                 {mode === 'review' && (
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</label>
+                                        {/* ImageUpload 가 자체 label 을 가지고 있어, 바깥 문구는 label 이 아닌 제목으로 둔다 */}
+                                        <span className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</span>
                                         <ImageUpload onUpload={(url) => setFormData({ ...formData, image_url: url })} />
                                         {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
                                     </div>
                                 )}
                                 <div className="flex gap-3 pt-4">
                                     <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
-                                    <button type="submit" className="flex-1 btn-primary">등록하기</button>
+                                    <button
+                                        type="submit"
+                                        disabled={submitting}
+                                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {submitting ? '등록 중...' : '등록하기'}
+                                    </button>
                                 </div>
                             </form>
                         </motion.div>
