@@ -362,6 +362,10 @@ GRANT EXECUTE ON FUNCTION public.admin_grant_vouchers(UUID, INT, TEXT) TO authen
 --   당사자가 아니어도 같은 값만 제출하면 통과했다(승무원 1명이 CREW 계정 다수 생성 / 타인 선점 가능).
 --   이제 verify API 가 인증 성공 시 발급한 일회성 토큰의 해시를 대조해 소비한다.
 --   토큰 원문은 클라이언트에만 있고 DB 에는 sha256 해시만 저장한다.
+-- ★ 2026-08-28 가입 동의 인자(p_terms/p_privacy_agreed_at) 추가 — 동의 이력은 append-only
+--   user_consents 에 서버 시각으로 기록한다(상세 legal_20260828.sql).
+-- ★ 2026-08-29 동의 필수화: 두 값이 NULL 이면 CONSENT_REQUIRED. 배포된 가입 폼(8/28 이후
+--   번들)이 항상 두 값을 보내는 것을 라이브 번들에서 실측 확인한 뒤 조였다.
 CREATE OR REPLACE FUNCTION public.complete_signup_profile(
   p_name TEXT, p_nickname TEXT, p_phone TEXT,
   p_zipcode TEXT, p_road TEXT, p_detail TEXT,
@@ -369,26 +373,26 @@ CREATE OR REPLACE FUNCTION public.complete_signup_profile(
   p_referred_by UUID,
   p_birthdate DATE DEFAULT NULL,
   p_phone_otp_token TEXT DEFAULT NULL,
-  p_airline_otp_token TEXT DEFAULT NULL
+  p_airline_otp_token TEXT DEFAULT NULL,
+  p_terms_agreed_at TIMESTAMPTZ DEFAULT NULL,
+  p_privacy_agreed_at TIMESTAMPTZ DEFAULT NULL
 )
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public AS $$
 DECLARE
-  v_crew        BOOLEAN := FALSE;
-  v_clean_phone TEXT;
-  v_ref         UUID;
-  v_domain      TEXT;
-  v_norm_email  TEXT;
-  v_otp_id      UUID;
-  v_owner       UUID;
-  v_prev        UUID;
-  v_blocked     BOOLEAN;
+  v_crew BOOLEAN := FALSE; v_clean_phone TEXT; v_ref UUID; v_domain TEXT;
+  v_norm_email TEXT; v_canon TEXT; v_hash TEXT; v_otp_id UUID; v_owner UUID;
+  v_airline TEXT; v_prev UUID; v_blocked BOOLEAN;
+  v_policy_version CONSTANT TEXT := '2026-08-28';
 BEGIN
+  -- 2026-08-29: 필수 동의 강제(개인정보보호법 제15조·제22조).
+  IF p_terms_agreed_at IS NULL OR p_privacy_agreed_at IS NULL THEN
+    RAISE EXCEPTION 'CONSENT_REQUIRED';
+  END IF;
+
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
   IF p_user_type NOT IN ('traveler', 'crew') THEN RAISE EXCEPTION 'invalid user_type'; END IF;
-
-  -- 만 14세 연령확인 (서버 권위 검증)
   IF p_birthdate IS NULL THEN RAISE EXCEPTION 'birthdate required'; END IF;
   IF p_birthdate > (CURRENT_DATE - INTERVAL '14 years') THEN RAISE EXCEPTION 'age_under_14'; END IF;
 
@@ -400,64 +404,51 @@ BEGIN
      AND released_at IS NULL LIMIT 1;
   IF v_blocked THEN RAISE EXCEPTION 'PHONE_BLOCKED'; END IF;
 
-  -- 휴대폰 1개 = 계정 1개. 유니크 위반 원문 대신 명확한 메시지로 돌려준다.
+  -- 휴대폰 1개 = 계정 1개
   SELECT id INTO v_owner FROM public.profiles
    WHERE public.canon_phone(phone) = public.canon_phone(v_clean_phone) AND id <> auth.uid() LIMIT 1;
   IF v_owner IS NOT NULL THEN RAISE EXCEPTION 'PHONE_ALREADY_CLAIMED'; END IF;
 
-  -- 휴대폰: 토큰 해시 대조 + 1회성 소비(조건부 UPDATE ... RETURNING 이라 동시 요청도 하나만 통과)
-  IF COALESCE(btrim(p_phone_otp_token), '') = '' THEN
-    RAISE EXCEPTION 'OTP_PROOF_REQUIRED_PHONE';
-  END IF;
-  UPDATE public.phone_otps
-     SET consumed_at = NOW()
-   WHERE phone = v_clean_phone
-     AND verified_at IS NOT NULL
-     AND verified_at > NOW() - INTERVAL '1 hour'
-     AND consumed_at IS NULL
+  IF COALESCE(btrim(p_phone_otp_token), '') = '' THEN RAISE EXCEPTION 'OTP_PROOF_REQUIRED_PHONE'; END IF;
+  UPDATE public.phone_otps SET consumed_at = NOW()
+   WHERE phone = v_clean_phone AND verified_at IS NOT NULL
+     AND verified_at > NOW() - INTERVAL '1 hour' AND consumed_at IS NULL
      AND purpose = 'signup_phone'
      AND consume_token_hash = encode(extensions.digest(p_phone_otp_token, 'sha256'), 'hex')
   RETURNING id INTO v_otp_id;
   IF v_otp_id IS NULL THEN RAISE EXCEPTION 'OTP_PROOF_INVALID_PHONE'; END IF;
 
-  -- 승무원: (1) 항공사 도메인 화이트리스트 (2) 회사 이메일 선점 확인 (3) 회사 이메일 OTP 토큰 소비
   IF p_user_type = 'crew' THEN
     v_norm_email := lower(trim(COALESCE(p_airline_email, '')));
     v_domain := split_part(v_norm_email, '@', 2);
-    SELECT EXISTS (SELECT 1 FROM public.airline_domains WHERE domain = v_domain) INTO v_crew;
+    SELECT domain INTO v_airline FROM public.airline_domains WHERE domain = v_domain;
+    v_crew := (v_airline IS NOT NULL);
     IF NOT v_crew THEN RAISE EXCEPTION 'crew airline verification required'; END IF;
 
-    -- 유니크 인덱스 위반(23505)이 그대로 튀지 않도록 먼저 확인해 명확한 메시지로 돌려준다
+    v_canon := public.canon_airline_email(v_norm_email);
+    v_hash  := encode(extensions.digest(v_canon, 'sha256'), 'hex');
+
     SELECT id INTO v_owner FROM public.profiles
-     WHERE public.canon_airline_email(airline_email) = public.canon_airline_email(v_norm_email)
-       AND id <> auth.uid() LIMIT 1;
+     WHERE public.canon_airline_email(airline_email) = v_canon AND id <> auth.uid() LIMIT 1;
     IF v_owner IS NOT NULL THEN RAISE EXCEPTION 'AIRLINE_EMAIL_ALREADY_CLAIMED'; END IF;
 
-    -- 과거에 쓰인 적이 있는가(탈퇴 후 재가입 등). 관리자가 released 처리한 건만 통과.
     SELECT claimed_by INTO v_prev FROM public.airline_email_claims
-     WHERE email_hash = encode(extensions.digest(public.canon_airline_email(v_norm_email), 'sha256'), 'hex')
-       AND released_at IS NULL LIMIT 1;
+     WHERE email_hash = v_hash AND released_at IS NULL LIMIT 1;
     IF FOUND AND v_prev IS DISTINCT FROM auth.uid() THEN
       RAISE EXCEPTION 'AIRLINE_EMAIL_PREVIOUSLY_USED';
     END IF;
 
-    IF COALESCE(btrim(p_airline_otp_token), '') = '' THEN
-      RAISE EXCEPTION 'OTP_PROOF_REQUIRED_AIRLINE';
-    END IF;
-    UPDATE public.email_otps
-       SET consumed_at = NOW()
-     WHERE lower(email) = v_norm_email
-       AND verified_at IS NOT NULL
-       AND verified_at > NOW() - INTERVAL '1 hour'
-       AND consumed_at IS NULL
+    IF COALESCE(btrim(p_airline_otp_token), '') = '' THEN RAISE EXCEPTION 'OTP_PROOF_REQUIRED_AIRLINE'; END IF;
+    UPDATE public.email_otps SET consumed_at = NOW()
+     WHERE lower(email) = v_norm_email AND verified_at IS NOT NULL
+       AND verified_at > NOW() - INTERVAL '1 hour' AND consumed_at IS NULL
        AND purpose = 'airline_email'
        AND consume_token_hash = encode(extensions.digest(p_airline_otp_token, 'sha256'), 'hex')
     RETURNING id INTO v_otp_id;
     IF v_otp_id IS NULL THEN RAISE EXCEPTION 'OTP_PROOF_INVALID_AIRLINE'; END IF;
 
-    -- 사용 이력 기록 (계정이 지워져도 남아 재사용을 막는다)
     INSERT INTO public.airline_email_claims (email_hash, domain, claimed_by)
-    VALUES (encode(extensions.digest(public.canon_airline_email(v_norm_email), 'sha256'), 'hex'), v_domain, auth.uid())
+    VALUES (v_hash, v_domain, auth.uid())
     ON CONFLICT (email_hash) DO UPDATE
       SET claimed_by = EXCLUDED.claimed_by, claimed_at = NOW(), released_at = NULL, released_by = NULL;
   END IF;
@@ -467,37 +458,41 @@ BEGIN
   -- 추천인은 "인증 승무원"만 유효 (2026-07-18 정책). UI(find_crew_referrer) 우회 임의 UUID 서버 차단.
   IF v_ref IS NOT NULL THEN
     SELECT CASE WHEN (user_type = 'crew' AND COALESCE(crew_verified, FALSE)) THEN v_ref ELSE NULL END
-      INTO v_ref
-      FROM public.profiles WHERE id = v_ref;  -- 미존재 시 INTO 가 NULL 세팅
+      INTO v_ref FROM public.profiles WHERE id = v_ref;  -- 미존재 시 INTO 가 NULL 세팅
   END IF;
 
   PERFORM set_config('app.allow_sensitive', 'on', true);
   UPDATE public.profiles SET
-    name                = p_name,
-    nickname            = p_nickname,
-    phone               = v_clean_phone,
-    phone_verified      = TRUE,
+    name = p_name, nickname = p_nickname, phone = v_clean_phone, phone_verified = TRUE,
     verification_method = COALESCE(verification_method, 'sms_otp'),
-    address_zipcode     = p_zipcode,
-    address_road        = p_road,
-    address_detail      = p_detail,
-    user_type           = p_user_type,
-    airline_email       = CASE WHEN v_crew THEN v_norm_email ELSE airline_email END,
-    airline_name        = CASE WHEN v_crew THEN p_airline_name  ELSE airline_name  END,
-    crew_verified       = CASE WHEN v_crew THEN TRUE ELSE crew_verified END,
-    crew_verified_at    = CASE WHEN v_crew THEN NOW() ELSE crew_verified_at END,
-    referred_by         = COALESCE(referred_by, v_ref),
-    profile_completed   = TRUE,
-    updated_at          = NOW()
+    address_zipcode = p_zipcode, address_road = p_road, address_detail = p_detail,
+    user_type = p_user_type,
+    airline_email = CASE WHEN v_crew THEN v_norm_email ELSE airline_email END,
+    airline_name  = CASE WHEN v_crew THEN COALESCE(p_airline_name, v_airline) ELSE airline_name END,
+    crew_verified = CASE WHEN v_crew THEN TRUE ELSE crew_verified END,
+    crew_verified_at = CASE WHEN v_crew THEN NOW() ELSE crew_verified_at END,
+    referred_by = COALESCE(referred_by, v_ref), profile_completed = TRUE, updated_at = NOW()
   WHERE id = auth.uid();
 
   INSERT INTO public.profiles_private (user_id, birthdate)
   VALUES (auth.uid(), p_birthdate)
   ON CONFLICT (user_id) DO UPDATE SET birthdate = EXCLUDED.birthdate;
 
-  IF v_ref IS NOT NULL THEN
-    PERFORM public.grant_referral_bonus(auth.uid());
+  -- 동의 이력. 시각은 클라이언트가 보낸 값을 믿지 않고 서버 시각(NOW())으로 남긴다.
+  -- 인자는 "동의했다"는 신호로만 쓴다.
+  IF p_terms_agreed_at IS NOT NULL THEN
+    INSERT INTO public.user_consents (user_id, policy_type, policy_version)
+    VALUES (auth.uid(), 'terms', v_policy_version);
   END IF;
+  IF p_privacy_agreed_at IS NOT NULL THEN
+    INSERT INTO public.user_consents (user_id, policy_type, policy_version)
+    VALUES (auth.uid(), 'privacy', v_policy_version);
+    -- 만 14세 이상은 생년월일 검증이 이미 위에서 통과했으므로 함께 기록한다.
+    INSERT INTO public.user_consents (user_id, policy_type, policy_version)
+    VALUES (auth.uid(), 'age14', v_policy_version);
+  END IF;
+
+  IF v_ref IS NOT NULL THEN PERFORM public.grant_referral_bonus(auth.uid()); END IF;
 END;
 $$;
 
@@ -505,6 +500,8 @@ $$;
 --   토큰 검증이 없는 옛 함수를 계속 호출할 수 있다(우회 경로).
 DROP FUNCTION IF EXISTS public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID);
 DROP FUNCTION IF EXISTS public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE);
+-- 2026-08-28 동의 인자 추가로 13인자 시그니처도 구버전이 됐다. 남으면 오버로딩 모호성.
+DROP FUNCTION IF EXISTS public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT);
 
 -- 5-6b. OTP 검증 + 소비토큰 발급 (서버리스 verify API 전용, service_role 로만 호출)
 --   기존 API 는 "조회 후 별도 UPDATE" 라 동시 검증 시 마지막 토큰만 남아 정상 사용자가
@@ -873,7 +870,7 @@ REVOKE ALL ON FUNCTION public.use_voucher(INT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.convert_likes_to_points(INT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.market_purchase(UUID, INT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.grant_referral_bonus(UUID) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.purchase_voucher(INT) TO authenticated;
@@ -881,7 +878,7 @@ GRANT EXECUTE ON FUNCTION public.use_voucher(INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.convert_likes_to_points(INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.market_purchase(UUID, INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ) TO authenticated;
 DROP FUNCTION IF EXISTS public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT);
 REVOKE ALL ON FUNCTION public.apply_commendation_match(TEXT, DATE, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.apply_commendation_match(TEXT, DATE, TEXT) TO authenticated;

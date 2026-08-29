@@ -87,12 +87,15 @@ GRANT SELECT ON TABLE public.user_consents TO authenticated;
 --   GRANT EXECUTE ... TO authenticated, service_role;
 
 
--- ── 4) 프런트 배포 뒤에 실행할 것 (아직 실행하지 않음) ────────────────────────
--- 새 가입 폼이 배포되고 실제 가입 1건으로 user_consents 에 terms/privacy/age14 세 행이
--- 남는 것을 확인한 다음, 아래를 함수 앞부분에 넣어 동의를 필수로 만든다.
+-- ── 4) 동의 필수화 — 2026-08-29 운영 적용 완료 ───────────────────────────────
+-- 함수 맨 앞(BEGIN 직후)에 아래를 넣어 동의를 필수로 만들었다.
 --
 --   IF p_terms_agreed_at IS NULL OR p_privacy_agreed_at IS NULL THEN
 --     RAISE EXCEPTION 'CONSENT_REQUIRED';
 --   END IF;
 --
--- 이 단계를 미리 하면 아직 갱신되지 않은 클라이언트의 가입이 통째로 막힌다.
+-- 게이트 판단 근거(실가입이 0건이라 "실제 가입 1건" 대신 라이브 번들 실측으로 대체):
+--   1) 배포된 SignupComplete/SignupEmail 청크 각각에 p_terms_agreed_at 포함 확인
+--   2) 프런트 제출 게이트(필수 3종 체크 전 RPC 호출 불가) 코드 확인
+--   3) NULL 호출 → CONSENT_REQUIRED, 값 채운 호출 → 다음 검증(auth) 진행 실측
+-- 현행 전문은 security_hardening.sql 의 complete_signup_profile(15인자)이 단일 소스다.

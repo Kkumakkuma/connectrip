@@ -73,7 +73,8 @@ begin
   return v;
 end; $$;
 revoke execute on function public.increment_likes(uuid) from public, anon;
-grant execute on function public.increment_likes(uuid) to authenticated;
+-- 2026-08-29: toggle_post_like(likes_economy.sql, 서버 검증)로 대체 — authenticated 회수.
+revoke execute on function public.increment_likes(uuid) from authenticated;
 
 create or replace function public.decrement_likes(dest_id uuid)
 returns integer
@@ -86,7 +87,8 @@ begin
   return v;
 end; $$;
 revoke execute on function public.decrement_likes(uuid) from public, anon;
-grant execute on function public.decrement_likes(uuid) to authenticated;
+-- 2026-08-29: toggle_post_like 로 대체 — authenticated 회수.
+revoke execute on function public.decrement_likes(uuid) from authenticated;
 
 -- ----------------------------------------------------------------------------
 -- 1-3. OTP 브루트포스 잠금용 attempts 컬럼 (api/verify-otp 코드가 5회 잠금에 사용)

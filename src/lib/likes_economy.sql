@@ -99,5 +99,11 @@ $$;
 revoke all on function public.toggle_post_like(text, uuid) from public, anon;
 grant execute on function public.toggle_post_like(text, uuid) to authenticated;
 
+-- 2026-08-29: 구 함수 increment_likes/decrement_likes(security_optimize_20260611.sql)의
+-- authenticated 실행 권한 회수(운영 적용 완료). db.js 의 like/unlike 폴백 제거가 끝나
+-- 클라이언트 호출 경로가 toggle_post_like 하나뿐임을 확인한 뒤 조였다. service_role 은 유지.
+revoke execute on function public.increment_likes(uuid) from authenticated;
+revoke execute on function public.decrement_likes(uuid) from authenticated;
+
 -- 3) 칭송신청권 환율은 security_hardening.sql 의 purchase_voucher 가 관리한다(30,000P/장, 쿠마님 확정 수치).
 --    여기서 재정의하지 않는다.
