@@ -86,6 +86,14 @@ export const ROUTE_META = {
     title: '회원가입 - ConnectTrip',
     description: 'ConnectTrip 회원가입 — 여행자와 승무원을 잇는 여행 동행 커뮤니티.',
   },
+  '/terms': {
+    title: '이용약관 - ConnectTrip',
+    description: 'ConnectTrip 서비스 이용약관. 회원의 권리와 의무, 서비스 이용 조건을 안내합니다.',
+  },
+  '/privacy': {
+    title: '개인정보처리방침 - ConnectTrip',
+    description: 'ConnectTrip 개인정보처리방침. 수집하는 개인정보 항목과 이용 목적, 보관 기간을 안내합니다.',
+  },
 };
 
 // 사이트맵에 있어도 정적 HTML 을 굽지 않는 경로.

@@ -439,7 +439,7 @@ const MyPage = () => {
 
     return (
         <>
-        <SEOHead title="마이 페이지 - ConnectTrip" description="ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭송 매칭 현황을 한눈에 관리하세요." />
+        <SEOHead title="마이 페이지 - ConnectTrip" description="ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭송 매칭 현황을 한눈에 관리하세요." robots="noindex, nofollow" />
         <section id="mypage" className="section-padding" style={{ background: '#f8f9fa' }}>
             <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: '3rem' }}>

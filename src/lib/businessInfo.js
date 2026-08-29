@@ -4,6 +4,13 @@
 // - 상호 / 이메일은 이미 실제 값이라 그대로 두면 된다.
 // - 나머지 4개(대표자·사업자등록번호·통신판매업신고번호·사업장소재지)만 채우면 끝.
 
+// 아직 값이 없는 항목을 화면에서 숨기기 위한 표식. 값이 채워지면 자동으로 다시 표시된다.
+export const BUSINESS_INFO_PLACEHOLDER = '(사업자 등록 후 기재)';
+
+export function isBusinessValueFilled(value) {
+  return Boolean(value) && value !== BUSINESS_INFO_PLACEHOLDER;
+}
+
 export const BUSINESS_INFO = {
   상호: '200kgBrothers Company',
   대표자: '(사업자 등록 후 기재)',

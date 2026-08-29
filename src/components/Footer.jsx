@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BUSINESS_INFO } from '../lib/businessInfo';
+import { BUSINESS_INFO, isBusinessValueFilled } from '../lib/businessInfo';
 
 // 패밀리 사이트(자기 자신 커넥트립 제외). 새 탭으로 이동한다.
 const FAMILY_SITES = [
@@ -76,12 +76,12 @@ const Footer = () => {
                     <p style={{ fontSize: '0.75rem', lineHeight: 1.7, marginBottom: '0.75rem', wordBreak: 'keep-all' }}>
                         {[
                             BUSINESS_INFO.상호,
-                            `대표자 ${BUSINESS_INFO.대표자}`,
-                            `사업자등록번호 ${BUSINESS_INFO.사업자등록번호}`,
-                            `통신판매업신고번호 ${BUSINESS_INFO.통신판매업신고번호}`,
-                            `소재지 ${BUSINESS_INFO.사업장소재지}`,
+                            isBusinessValueFilled(BUSINESS_INFO.대표자) && `대표자 ${BUSINESS_INFO.대표자}`,
+                            isBusinessValueFilled(BUSINESS_INFO.사업자등록번호) && `사업자등록번호 ${BUSINESS_INFO.사업자등록번호}`,
+                            isBusinessValueFilled(BUSINESS_INFO.통신판매업신고번호) && `통신판매업신고번호 ${BUSINESS_INFO.통신판매업신고번호}`,
+                            isBusinessValueFilled(BUSINESS_INFO.사업장소재지) && `소재지 ${BUSINESS_INFO.사업장소재지}`,
                             BUSINESS_INFO.이메일,
-                        ].join(' · ')}
+                        ].filter(Boolean).join(' · ')}
                     </p>
                     <p>&copy; {new Date().getFullYear()} ConnectTrip. All rights reserved.</p>
                 </div>
