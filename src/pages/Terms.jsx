@@ -12,6 +12,7 @@ const OPERATOR_INFO = [
   ['사업자등록번호', BUSINESS_INFO.사업자등록번호],
   ['통신판매업신고번호', BUSINESS_INFO.통신판매업신고번호],
   ['사업장소재지', BUSINESS_INFO.사업장소재지],
+  ['전화', BUSINESS_INFO.유선전화],
   ['연락처(고객문의)', BUSINESS_INFO.이메일],
   ['호스팅 제공자', 'Vercel Inc.'],
 ];

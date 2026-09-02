@@ -86,6 +86,7 @@ const Footer = () => {
                             isBusinessValueFilled(BUSINESS_INFO.사업자등록번호) && `사업자등록번호 ${BUSINESS_INFO.사업자등록번호}`,
                             isBusinessValueFilled(BUSINESS_INFO.통신판매업신고번호) && `통신판매업신고번호 ${BUSINESS_INFO.통신판매업신고번호}`,
                             isBusinessValueFilled(BUSINESS_INFO.사업장소재지) && `소재지 ${BUSINESS_INFO.사업장소재지}`,
+                            isBusinessValueFilled(BUSINESS_INFO.유선전화) && `전화 ${BUSINESS_INFO.유선전화}`,
                             BUSINESS_INFO.이메일,
                         ].filter(Boolean).join(' · ')}
                     </p>
