@@ -1,7 +1,7 @@
 // Vercel Serverless: 포인트 충전 주문 생성 (2026-07-30, 토스페이먼츠 사전 배치)
 // POST /api/payment/create-order   body: { amount }   header: Authorization: Bearer <supabase access_token>
 //
-// - 로그인 사용자만(서버가 JWT 로 본인 확인). 금액은 서버가 범위 검증.
+// - 로그인 사용자만(서버가 JWT 로 본인 확인). 금액은 서버가 고정 패키지 화이트리스트로 검증.
 // - env 는 서버 환경변수 PG_ENV 에서만(없으면 test = fail-closed). 테스트는 실제 결제·충전 안 됨.
 // - 결과로 토스 clientKey(공개값)만 내려준다. 시크릿 키는 절대 응답에 안 넣는다.
 //
@@ -14,8 +14,8 @@ import { applyCors } from '../_cors.js';
 // 토스 공식 문서 공개 테스트키(가입 불필요). 라이브는 env 로 덮어쓴다.
 const TEST_CLIENT_KEY = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm';
 
-const MIN_AMOUNT = 1000;       // 최소 충전 1,000원
-const MAX_AMOUNT = 1_000_000;  // 최대 충전 100만원(1회)
+// 허용 금액 = 고정 패키지만(src/lib/products.js POINT_PACKAGES 와 동기). 임의 금액은 PG 심사 요건(임의가격 불가)으로 2026-09-02 차단.
+const ALLOWED_AMOUNTS = [10000, 30000, 50000, 100000];
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -44,10 +44,10 @@ export default async function handler(req, res) {
     if (uErr || !userData?.user) return res.status(401).json({ ok: false, error: 'invalid_session' });
     const userId = userData.user.id;
 
-    // 금액 검증(서버 권위). 정수·범위.
+    // 금액 검증(서버 권위). 고정 패키지 금액만 허용.
     const amount = Number((req.body || {}).amount);
-    if (!Number.isInteger(amount) || amount < MIN_AMOUNT || amount > MAX_AMOUNT) {
-      return res.status(400).json({ ok: false, error: `충전 금액은 ${MIN_AMOUNT.toLocaleString()}~${MAX_AMOUNT.toLocaleString()}원입니다.` });
+    if (!Number.isInteger(amount) || !ALLOWED_AMOUNTS.includes(amount)) {
+      return res.status(400).json({ ok: false, error: `충전 금액은 ${ALLOWED_AMOUNTS.map((v) => v.toLocaleString()).join('·')}원 중 하나여야 합니다.` });
     }
 
     // 간단 rate limit: 최근 10분 미완료 주문 20건 초과면 거부

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api.js';
 import { tossAdapter } from '../lib/payments/toss.js';
 import { supabase } from '../lib/supabase.js';
+import { POINT_PACKAGES } from '../lib/products.js';
 
 export default function PayTest() {
   const rootRef = useRef(null);
@@ -71,12 +72,16 @@ export default function PayTest() {
 
       {state !== 'ready' && (
         <div className="mt-6">
-          <label className="block text-sm font-semibold mb-1">충전 금액(원)</label>
-          <input
-            type="number" value={amount} min={1000} step={1000}
-            onChange={(e) => setAmount(e.target.value)}
+          <label className="block text-sm font-semibold mb-1">충전 패키지(고정 금액만 — PG 심사 요건)</label>
+          <select
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
             className="w-full rounded-lg border px-3 py-2"
-          />
+          >
+            {POINT_PACKAGES.map((p) => (
+              <option key={p.id} value={p.price}>{p.price.toLocaleString()}원 → {p.points.toLocaleString()}P</option>
+            ))}
+          </select>
           <button
             onClick={start}
             disabled={state === 'loading' || loggedIn === false}

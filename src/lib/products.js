@@ -1,7 +1,7 @@
 // 유료 서비스(상품) 정의 — 결제대행사 심사 요건: 비실물 서비스는 "상품 1개 이상 + 상세정보 + 결제금액 + 환불정보".
 // 금액을 임의로 입력하는 형태는 카드사 입점이 어렵다고 포트원이 안내하므로(help.portone.io/content/requirements),
 // 고정 금액 패키지로 상품을 정의한다. 첫 화면(PaidServices)·/points·JSON-LD 가 전부 이 파일을 쓴다.
-// 금액은 결제 코드(api/payment/create-order.js 의 1,000~1,000,000원 범위, 마이페이지 프리셋)와 맞춘다.
+// 금액은 결제 코드(api/payment/create-order.js 의 ALLOWED_AMOUNTS, 마이페이지 프리셋)와 반드시 동기한다. 임의 금액 입력은 PG 심사 요건으로 없앰(2026-09-02).
 
 export const POINT_PACKAGES = [10000, 30000, 50000, 100000].map((price) => ({
   id: `points-${price}`,

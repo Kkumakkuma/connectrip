@@ -9,7 +9,7 @@ async function authHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** 충전 주문 생성. 금액(원)은 서버가 범위 검증한다. */
+/** 충전 주문 생성. 금액(원)은 서버가 고정 패키지 화이트리스트로 검증한다(src/lib/products.js POINT_PACKAGES). */
 export async function createChargeOrder(amount) {
   const r = await fetch(apiUrl('/api/payment/create-order'), {
     method: 'POST',

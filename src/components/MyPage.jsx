@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { tossAdapter } from '../lib/payments/toss';
+import { POINT_PACKAGES } from '../lib/products';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings, Gift, Copy, Share2, UserX } from 'lucide-react';
@@ -235,7 +236,6 @@ const MyPage = () => {
 
     const [showChargeModal, setShowChargeModal] = useState(false);
     const [chargeAmount, setChargeAmount] = useState(10000);
-    const [customAmount, setCustomAmount] = useState('');
     // 토스 결제창 연동 상태 (2026-07-30)
     const [payPhase, setPayPhase] = useState('select'); // 'select'(금액 선택) | 'pay'(결제창)
     const [payOrder, setPayOrder] = useState(null);
@@ -333,16 +333,15 @@ const MyPage = () => {
         }
     };
 
-    // 선택된 충전 금액(직접입력 우선)
+    // 선택된 충전 금액(고정 패키지만 — 임의 금액 입력은 PG 심사 요건으로 2026-09-02 제거)
     const resolveChargeAmount = () => {
-        const v = customAmount ? parseInt(customAmount, 10) : chargeAmount;
+        const v = chargeAmount;
         return Number.isInteger(v) ? v : 0;
     };
 
     // 충전 모달 닫기 — 결제 상태까지 초기화
     const closeChargeModal = () => {
         setShowChargeModal(false);
-        setCustomAmount('');
         setPayPhase('select');
         setPayOrder(null);
         setPayErr('');
@@ -354,7 +353,7 @@ const MyPage = () => {
     const handleChargePoints = async () => {
         if (chargeStartingRef.current || payLoading) return; // 더블클릭 가드(ref — 상태 반영 전 방어)
         const amt = resolveChargeAmount();
-        if (!amt || amt < 1000) { setPayErr('충전 금액은 1,000원 이상이어야 합니다.'); return; }
+        if (!amt) { setPayErr('충전할 패키지를 선택해 주세요.'); return; }
         chargeStartingRef.current = true;
         setPayLoading(true); setPayErr('');
         try {
@@ -1001,19 +1000,19 @@ const MyPage = () => {
                                 {payPhase === 'select' && (<>
                                 {/* Preset amounts */}
                                 <div style={{ display: 'grid', gap: '0.8rem', marginBottom: '1rem' }}>
-                                    {[10000, 30000, 50000, 100000].map(amount => (
+                                    {POINT_PACKAGES.map(({ price: amount }) => (
                                         <button
                                             key={amount}
-                                            onClick={() => { setChargeAmount(amount); setCustomAmount(''); }}
+                                            onClick={() => setChargeAmount(amount)}
                                             style={{
                                                 padding: '1rem',
                                                 borderRadius: '12px',
-                                                border: chargeAmount === amount && !customAmount ? '2px solid #a855f7' : '1px solid #ddd',
-                                                background: chargeAmount === amount && !customAmount ? '#f5f3ff' : 'white',
+                                                border: chargeAmount === amount ? '2px solid #a855f7' : '1px solid #ddd',
+                                                background: chargeAmount === amount ? '#f5f3ff' : 'white',
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
                                                 alignItems: 'center',
-                                                fontWeight: chargeAmount === amount && !customAmount ? 'bold' : 'normal',
+                                                fontWeight: chargeAmount === amount ? 'bold' : 'normal',
                                                 transition: 'all 0.2s',
                                                 cursor: 'pointer'
                                             }}
@@ -1022,39 +1021,6 @@ const MyPage = () => {
                                             <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>+ {amount.toLocaleString()}P</span>
                                         </button>
                                     ))}
-                                </div>
-
-                                {/* Custom amount input */}
-                                <div style={{ marginBottom: '1.5rem' }}>
-                                    <label style={{ fontSize: '0.85rem', fontWeight: '600', color: '#374151', display: 'block', marginBottom: '0.5rem' }}>
-                                        직접 금액 입력
-                                    </label>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="금액 입력"
-                                            value={customAmount}
-                                            onChange={(e) => {
-                                                const val = e.target.value.replace(/[^0-9]/g, '');
-                                                setCustomAmount(val);
-                                            }}
-                                            style={{
-                                                flex: 1,
-                                                padding: '0.75rem 1rem',
-                                                borderRadius: '12px',
-                                                border: customAmount ? '2px solid #a855f7' : '1px solid #ddd',
-                                                fontSize: '1rem',
-                                                outline: 'none',
-                                                transition: 'border 0.2s'
-                                            }}
-                                        />
-                                        <span style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: '600' }}>원</span>
-                                    </div>
-                                    {customAmount && (
-                                        <p style={{ fontSize: '0.75rem', color: '#a855f7', marginTop: '0.3rem' }}>
-                                            = {parseInt(customAmount).toLocaleString()}P 충전
-                                        </p>
-                                    )}
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '1rem' }}>
