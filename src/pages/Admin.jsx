@@ -60,7 +60,7 @@ const Admin = () => {
         const data = await adminApi.getStats();
         setStats(data);
       } else if (activeTab === 'commendations') {
-        // 기프티콘 발송에 승객 휴대폰이 필요한데 profiles 는 PII 컬럼이 잠겨 있어 RPC 로 받는다.
+        // 답례품 발송에 승객 휴대폰이 필요한데 profiles 는 PII 컬럼이 잠겨 있어 RPC 로 받는다.
         const { data, error: cErr } = await supabase.rpc('admin_get_commendation_reviews');
         if (cErr) throw cErr;
         setCommendations(data || []);
@@ -268,9 +268,9 @@ const Admin = () => {
     }
   };
 
-  // 기프티콘 실제 발송은 운영자가 외부(카카오 선물하기 등)에서 하고, 여기엔 사실만 기록한다.
+  // 답례품 실제 발송은 운영자가 외부(카카오 선물하기 등)에서 하고, 여기엔 사실만 기록한다.
   const handleMarkRewardSent = async (matchId) => {
-    const input = prompt('보내신 기프티콘 금액을 입력하세요 (원):', '10000');
+    const input = prompt('보내신 답례품 금액을 입력하세요 (원):', '10000');
     if (input === null) return;
     const amount = parseInt(String(input).replace(/[^0-9]/g, ''), 10);
     if (!amount || amount <= 0) { alert('올바른 금액을 입력해주세요.'); return; }
@@ -725,10 +725,10 @@ const Admin = () => {
                             </div>
                           )}
 
-                          {/* 승인 후: 기프티콘은 운영자가 승객 휴대폰으로 직접 보내고, 여기엔 발송 사실만 기록한다 */}
+                          {/* 승인 후: 답례품은 운영자가 승객 휴대폰으로 직접 보내고, 여기엔 발송 사실만 기록한다 */}
                           {match.status === 'verified' && (
                             <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-                              <p className="text-sm font-bold text-green-700 mb-3">✓ 승인 완료 — 기프티콘을 보내주세요</p>
+                              <p className="text-sm font-bold text-green-700 mb-3">✓ 승인 완료 — 답례품을 보내주세요</p>
                               <div className="flex flex-wrap items-center gap-4 mb-3 text-sm">
                                 <span className="text-gray-600">받는 분: <strong className="text-gray-900">{match.passenger?.name || '-'}</strong></span>
                                 <span className="text-gray-600">
@@ -749,13 +749,13 @@ const Admin = () => {
                                 className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold text-sm transition-colors disabled:opacity-50"
                               >
                                 {actionLoading === match.id ? <Loader2 size={14} className="animate-spin" /> : <span>🎁</span>}
-                                기프티콘 발송 완료 기록
+                                답례품 발송 완료 기록
                               </button>
                             </div>
                           )}
                           {match.status === 'gift_sent' && (
                             <p className="text-sm text-purple-600 font-semibold">
-                              ✓ 기프티콘 발송 완료 ({Number(match.reward_amount || 0).toLocaleString()}원)
+                              ✓ 답례품 발송 완료 ({Number(match.reward_amount || 0).toLocaleString()}원)
                               {match.reward_note && <span className="text-gray-500 font-normal"> · {match.reward_note}</span>}
                             </p>
                           )}
