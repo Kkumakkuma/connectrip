@@ -4,6 +4,20 @@ import { Bell, X } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { requestPermission, subscribeToPush, isNotificationDecided } from '../lib/pushNotifications';
 
+const ASK_KEY = 'push_permission_dismissed'; // 값: 마지막으로 물어본 시각(ms). 구 버전 'true' 도 닫음으로 인정.
+const SNOOZE_MS = 30 * 24 * 60 * 60_000;
+function shouldAskAgain() {
+  try {
+    const v = localStorage.getItem(ASK_KEY);
+    if (!v) return true;
+    if (v === 'true') return false; // 구 버전 기록: 다시 묻지 않음
+    return Date.now() - Number(v) > SNOOZE_MS;
+  } catch { return true; }
+}
+function markAsked() {
+  try { localStorage.setItem(ASK_KEY, String(Date.now())); } catch { /* noop */ }
+}
+
 const PushPermission = () => {
   const { user, isLoggedIn } = useAuth();
   const [visible, setVisible] = useState(false);
@@ -15,9 +29,11 @@ const PushPermission = () => {
     // Don't show if already decided (granted or denied)
     if (isNotificationDecided()) return;
 
-    // Don't show if user dismissed before
-    const dismissed = localStorage.getItem('push_permission_dismissed');
-    if (dismissed) return;
+    // 닫음/나중에/허용(브라우저 프롬프트를 닫아 미결정으로 남은 경우 포함) 뒤에는 30일간 다시 묻지 않는다.
+    // 2026-09-03: 허용을 눌렀다가 브라우저 프롬프트를 닫으면 기록이 없어 페이지마다 재등장하던 문제(쿠마님 지적) 수정.
+    if (!shouldAskAgain()) return;
+    // 같은 세션(탭)에서는 한 번만
+    try { if (sessionStorage.getItem('push_permission_seen')) return; sessionStorage.setItem('push_permission_seen', '1'); } catch { /* noop */ }
 
     // Show after a short delay
     const timer = setTimeout(() => setVisible(true), 3000);
@@ -25,15 +41,16 @@ const PushPermission = () => {
   }, [isLoggedIn, user]);
 
   const handleAllow = async () => {
+    markAsked();
+    setVisible(false);
     const permission = await requestPermission();
     if (permission === 'granted' && user) {
       await subscribeToPush(user.id);
     }
-    setVisible(false);
   };
 
   const handleDismiss = () => {
-    localStorage.setItem('push_permission_dismissed', 'true');
+    markAsked();
     setVisible(false);
   };
 
