@@ -41,6 +41,12 @@ const Footer = () => {
                         <Link to="/privacy" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
                             개인정보처리방침
                         </Link>
+                        <Link to="/terms#refund" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
+                            환불 정책
+                        </Link>
+                        <Link to="/points" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
+                            포인트·상품 안내
+                        </Link>
                     </div>
                 </div>
 

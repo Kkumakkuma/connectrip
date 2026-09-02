@@ -94,6 +94,10 @@ export const ROUTE_META = {
     title: '개인정보처리방침 - ConnectTrip',
     description: 'ConnectTrip 개인정보처리방침. 수집하는 개인정보 항목과 이용 목적, 보관 기간을 안내합니다.',
   },
+  '/points': {
+    title: '포인트·매칭신청권 안내 - ConnectTrip',
+    description: 'ConnectTrip 포인트 충전 금액과 매칭신청권 가격, 사용처, 환불 기준 안내.',
+  },
 };
 
 // 사이트맵에 있어도 정적 HTML 을 굽지 않는 경로.

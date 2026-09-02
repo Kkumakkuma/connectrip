@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import { BUSINESS_INFO } from '../lib/businessInfo';
 
@@ -15,9 +16,9 @@ const OPERATOR_INFO = [
   ['호스팅 제공자', 'Vercel Inc.'],
 ];
 
-function Section({ title, children }) {
+function Section({ title, children, id }) {
   return (
-    <section className="mt-8">
+    <section className="mt-8" id={id}>
       <h2 className="text-lg font-bold text-gray-900">{title}</h2>
       <div className="mt-2 space-y-2 text-sm leading-relaxed text-gray-600">{children}</div>
     </section>
@@ -25,6 +26,13 @@ function Section({ title, children }) {
 }
 
 const Terms = () => {
+  const { hash } = useLocation();
+  // 푸터 "환불 정책"(/terms#refund) — 페이지가 지연 로드라 브라우저 기본 해시 스크롤이 안 먹어 직접 이동
+  useEffect(() => {
+    if (!hash) return;
+    const el = document.getElementById(hash.slice(1));
+    if (el) el.scrollIntoView({ block: 'start' });
+  }, [hash]);
   return (
     <section className="min-h-screen bg-gray-50 py-24">
       <SEOHead
@@ -102,16 +110,47 @@ const Terms = () => {
             서비스 이용·활동에 따라 제공되는 포인트는 서비스 내에서만 사용할 수 있는 혜택이며,
             <strong className="text-gray-900"> 현금으로 환급되지 않습니다.</strong> 부정한 방법으로 적립된 포인트는 회수될 수 있습니다.
           </p>
+          <p>
+            유료로 충전한 포인트(1포인트 = 1원)와 포인트로 구매하는 매칭신청권(1개 30,000포인트)의 내용·가격은{' '}
+            <Link to="/points" className="text-blue-600 underline-offset-2 hover:underline">포인트·매칭신청권 안내</Link>
+            에서 확인할 수 있습니다.
+          </p>
         </Section>
 
-        <Section title="7. 게시물의 관리">
+        {/* 결제대행사 심사 요건(환불·취소·청약철회 조항) + 전자상거래법 제17조. 2026-09-02 추가 */}
+        <Section title="7. 결제·환불 및 청약철회" id="refund">
+          <p>
+            <strong className="text-gray-900">유료 서비스</strong>: 포인트 충전(1회 1,000원~1,000,000원, 1포인트 = 1원)과 포인트로 구매하는
+            매칭신청권(1개 30,000포인트)입니다. 결제는 결제대행사를 통해 신용카드 등 결제대행사가 제공하는 수단으로 이루어집니다.
+          </p>
+          <p>
+            <strong className="text-gray-900">청약철회(취소·환불)</strong>: 회원은 포인트 충전 결제일로부터 7일 이내에 충전한 포인트를 전혀
+            사용하지 않은 경우 전액 환불받을 수 있습니다. 일부를 사용한 경우에는 사용하지 않은 잔여 포인트만 환불하며, 무상으로
+            지급된 포인트는 환불 대상에서 제외합니다. 매칭신청권은 사용하지 않은 상태에서 구매일로부터 7일 이내에 취소할 수 있고,
+            취소 시 구매에 쓴 포인트로 되돌려 드립니다.
+          </p>
+          <p>
+            <strong className="text-gray-900">환불 방법·기간</strong>: 환불은 결제에 사용한 수단으로 처리하며, 환불 요청을 접수한 날부터
+            영업일 기준 3일 이내에 결제대행사에 환불을 요청합니다. 카드사 사정에 따라 실제 반영까지 3~7일이 더 걸릴 수 있습니다.
+          </p>
+          <p>
+            <strong className="text-gray-900">환불 제한</strong>: 이미 사용한 포인트와 매칭신청권, 이벤트·추천 등으로 무상 지급된 포인트,
+            부정 이용으로 회수된 포인트는 환불하지 않습니다. 법정대리인의 동의 없이 이루어진 미성년자의 결제는 본인 또는 법정대리인이
+            취소할 수 있습니다.
+          </p>
+          <p>
+            환불·취소 요청은 마이페이지 또는 아래 연락처로 접수합니다: {BUSINESS_INFO.이메일}
+          </p>
+        </Section>
+
+        <Section title="8. 게시물의 관리">
           <p>
             회원이 작성한 게시물의 권리와 책임은 작성자에게 있습니다. 운영자는 본 약관 또는 법령을 위반하거나 신고된
             게시물에 대해 사전 통지 없이 삭제·이동·노출 제한을 할 수 있습니다.
           </p>
         </Section>
 
-        <Section title="8. 면책">
+        <Section title="9. 면책">
           <p>
             서비스는 천재지변, 회원 또는 제3자의 귀책 사유로 인한 손해에 대해 책임을 지지 않습니다. 또한 회원 간
             거래·동행·만남의 과정과 결과에 대해 보증하지 않으며, 그로 인해 발생한 분쟁은 당사자 간에 해결하는 것을
@@ -119,7 +158,7 @@ const Terms = () => {
           </p>
         </Section>
 
-        <Section title="9. 약관의 변경">
+        <Section title="10. 약관의 변경">
           <p>
             운영자는 관련 법령을 위반하지 않는 범위에서 본 약관을 개정할 수 있으며, 개정 시 서비스 내 공지를 통해
             적용일자와 변경 내용을 안내합니다.
