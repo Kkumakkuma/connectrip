@@ -16,7 +16,7 @@ const STATUS_CONFIG = {
   matched: { label: '매칭 완료', color: 'bg-blue-100 text-blue-700', icon: Heart },
   commendation_submitted: { label: '인증 제출됨', color: 'bg-yellow-100 text-yellow-700', icon: ImageIcon },
   verified: { label: '관리자 승인', color: 'bg-green-100 text-green-700', icon: ShieldCheck },
-  gift_sent: { label: '기프티콘 발송 완료', color: 'bg-purple-100 text-purple-700', icon: Gift },
+  gift_sent: { label: '답례품 발송 완료', color: 'bg-purple-100 text-purple-700', icon: Gift },
   rejected: { label: '반려', color: 'bg-red-100 text-red-700', icon: XCircle },
 };
 
@@ -138,7 +138,7 @@ const CommendationMatching = ({ flights = [] }) => {
       setShowScreenshotModal(null);
       setScreenshotUrl('');
       await fetchData();
-      alert('칭송 인증이 제출되었습니다! 관리자 확인 후 기프티콘을 보내드립니다.');
+      alert('칭송 인증이 제출되었습니다! 관리자 확인 후 소정의 답례품을 보내드립니다.');
     } catch (err) {
       console.error('제출 실패:', err);
       alert('제출에 실패했습니다.');
@@ -218,7 +218,7 @@ const CommendationMatching = ({ flights = [] }) => {
             <li><strong>매칭 신청</strong>을 눌러 신청권 1장으로 매칭을 신청합니다</li>
             <li>같은 항공편 승객이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 후 승객이 칭송 스크린샷을 제출합니다</li>
-            <li><strong>관리자</strong>가 인증을 확인·승인하면 승객에게 기프티콘을 보내드립니다</li>
+            <li><strong>관리자</strong>가 인증을 확인·승인하면 승객에게 소정의 답례품을 보내드립니다</li>
           </ol>
         ) : (
           <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
@@ -226,7 +226,7 @@ const CommendationMatching = ({ flights = [] }) => {
             <li><strong>매칭 신청</strong>을 눌러 매칭을 신청합니다</li>
             <li>같은 항공편 승무원이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 다음날 승무원 이름이 공개됩니다</li>
-            <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 기프티콘을 받습니다</li>
+            <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 소정의 답례품을 받습니다</li>
           </ol>
         )}
       </div>
@@ -386,6 +386,8 @@ const StatusBadge = ({ status }) => {
 
 const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubmitScreenshot, isHistory, onDelete }) => {
   const isPending = match.status === 'pending_crew' || match.status === 'pending_passenger';
+  // 비행일이 지났는데 아직 상대방 신청이 없으면 매칭은 성사될 수 없다 — '대기중' 대신 '기한 만료'로 표시(2026-09-03 쿠마님 지적).
+  const isExpired = isPending && isAfterFlight;
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -399,9 +401,12 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
           </div>
           <div>
             <p className="font-bold text-gray-800 text-sm">
-              {isPending ? '매칭 대기중...' : partner.name}
+              {isExpired ? '매칭 미성사' : isPending ? '매칭 대기중...' : partner.name}
             </p>
-            {isPending && (
+            {isExpired && (
+              <p className="text-xs text-gray-500">비행일이 지나 매칭이 종료되었습니다</p>
+            )}
+            {isPending && !isExpired && (
               <p className="text-xs text-orange-500">같은 항공편 상대방 신청 대기중</p>
             )}
             {!isPending && !isCrew && !isAfterFlight && match.status === 'matched' && (
@@ -412,7 +417,13 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
             )}
           </div>
         </div>
-        <StatusBadge status={match.status} />
+        {isExpired ? (
+          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500">
+            <Clock size={12} /> 기한 만료
+          </span>
+        ) : (
+          <StatusBadge status={match.status} />
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-3 bg-gray-50 rounded-xl p-3">
@@ -506,7 +517,7 @@ const MatchDetail = ({ match, isCrew, partner }) => {
         </div>
         {match.gift_points && (
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">받은 기프티콘</span>
+            <span className="text-gray-500">받은 답례품</span>
             <span className="font-bold text-purple-600">{match.gift_points.toLocaleString()}P</span>
           </div>
         )}
