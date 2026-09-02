@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield, Calendar } from 'lucide-react';
 import { getAirlineInfo } from '../lib/airlines';
@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase';
 import { isUnder14 } from '../lib/age';
 import { apiUrl } from '../lib/api';
 import SEOHead from '../components/SEOHead';
+import IdentityVerifyStep from '../components/IdentityVerifyStep';
+import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
 
 // Daum 우편번호 스크립트 동적 로더
 function loadDaumPostcode() {
@@ -35,6 +37,7 @@ function loadDaumPostcode() {
 
 export default function SignupComplete() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, profile, isLoggedIn, fetchProfile } = useAuth();
 
   const [name, setName] = useState('');
@@ -51,6 +54,10 @@ export default function SignupComplete() {
   const [addressRoad, setAddressRoad] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
   const [userType, setUserType] = useState('traveler');
+  // 가입 유형은 /signup 에서 이미 골랐다(→ /signup/email?type=… → 여기). 앞 단계가 남긴 pendingSignupType /
+  // pendingCrew / pendingOtpProof(항공사) 로 이어받고, 이어받았으면 이 화면에서 다시 고르지 않는다(쿠마님 2026-09-02).
+  // 셋 다 없을 때(확인 메일을 다른 브라우저에서 열어 세션 스토리지가 없는 경우)만 선택 UI 를 보여준다.
+  const [typeLocked, setTypeLocked] = useState(false);
   // OAuth 리턴 시 /signup 에서 승무원을 선택하고 항공사 이메일까지 검증했던 상태를 복원
   const [airlineEmail, setAirlineEmail] = useState('');
   const [airlineInfo, setAirlineInfo] = useState(null);
@@ -70,6 +77,16 @@ export default function SignupComplete() {
   const [phoneOtpToken, setPhoneOtpToken] = useState('');
   const [verifiedPhone, setVerifiedPhone] = useState('');
   const [airlineOtpToken, setAirlineOtpToken] = useState('');
+  // 휴대폰 본인확인(PASS/SMS) 증빙 — OAuth·이메일확인 ON 경로도 본인확인을 마쳐야 폼이 열린다(IDENTITY_ENABLED 일 때).
+  // SignupEmail 에서 마친 증빙은 같은 세션 스토리지 키(1시간)로 이어받는다.
+  const [identityProof, setIdentityProof] = useState(() => (IDENTITY_ENABLED ? loadIdentityProof() : null));
+  const [identityReturn, setIdentityReturn] = useState(null);
+  // 비동기 프리필(profiles_private 생년월일 조회)이 본인확인 값보다 늦게 끝나 덮어쓰지 않도록 최신값을 ref 로 본다
+  const identityProofRef = useRef(identityProof);
+  useEffect(() => { identityProofRef.current = identityProof; }, [identityProof]);
+  // pendingOtpProof 로 복원된 회사 이메일 값 — 아래 [airlineEmail] 리셋 effect 가 복원 직후 인증 상태를
+  // 지워 이메일확인 ON·OAuth 복귀 승무원이 제출을 못 하던 문제 방지(codex 지적, 2026-09-02)
+  const restoredAirlineEmailRef = useRef('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -119,8 +136,18 @@ export default function SignupComplete() {
         // 서버의 OTP 인정 기간(1시간)보다 오래된 정보는 무시
         if (parsed && parsed.airlineEmail && Date.now() - (parsed.ts || 0) < 60 * 60 * 1000) {
           setUserType('crew');
+          setTypeLocked(true);
           setAirlineEmail(parsed.airlineEmail);
           setAirlineInfo(getAirlineInfo(parsed.airlineEmail));
+        }
+      }
+      // SignupEmail 이 남긴 가입 유형(24시간) — 확인 메일을 눌러 돌아온 경우
+      const rawType = sessionStorage.getItem('pendingSignupType');
+      if (rawType) {
+        const t = JSON.parse(rawType);
+        if (t && (t.userType === 'crew' || t.userType === 'traveler') && Date.now() - (t.savedAt || 0) < 24 * 60 * 60 * 1000) {
+          setUserType(t.userType);
+          setTypeLocked(true);
         }
       }
     } catch { /* noop */ }
@@ -145,6 +172,8 @@ export default function SignupComplete() {
       }
       if (p.airlineToken && p.airlineEmail) {
         setUserType('crew');
+        setTypeLocked(true);
+        restoredAirlineEmailRef.current = p.airlineEmail;
         setAirlineEmail(p.airlineEmail);
         setAirlineInfo(getAirlineInfo(p.airlineEmail));
         setVerifiedAirlineEmail(p.airlineEmail);
@@ -154,18 +183,46 @@ export default function SignupComplete() {
     } catch { /* 복원 실패 시 화면에서 다시 인증받으면 된다 */ }
   }, []);
 
-  // 기존 프로필 값 프리필
+  // 모바일 본인확인 복귀(?flow=identity&…): 결과를 state 로 옮기고 URL 에서 복귀 파라미터를 지운다.
+  useEffect(() => {
+    if (!IDENTITY_ENABLED) return;
+    const ret = parseIdentityReturn(location.search);
+    if (!ret) return;
+    setIdentityReturn(ret);
+    clearIdentityStart(); // 결과를 옮겼으니 시작 기록은 폐기(성공·실패·불일치 공통)
+    navigate({ pathname: location.pathname, search: stripIdentityParams(location.search) }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 본인확인 값으로 폼 채우기(잠금 필드) — 프로필 프리필보다 우선
+  useEffect(() => {
+    if (!identityProof) return;
+    setName(identityProof.name || '');
+    setBirthdate(identityProof.birthdate || '');
+    setPhone(identityProof.phone || '');
+  }, [identityProof]);
+
+  const restartIdentity = () => {
+    clearIdentityProof();
+    setIdentityProof(null);
+    setIdentityReturn(null);
+    setName(''); setBirthdate(''); setPhone('');
+    setError('');
+  };
+
+  // 기존 프로필 값 프리필 (본인확인 값이 있으면 이름·휴대폰은 덮어쓰지 않는다)
   useEffect(() => {
     if (profile) {
-      if (profile.name && !name) setName(profile.name);
+      if (profile.name && !name && !identityProof) setName(profile.name);
       if (profile.nickname && !nickname) setNickname(profile.nickname);
-      if (profile.phone) setPhone(profile.phone);
+      if (profile.phone && !identityProof) setPhone(profile.phone);
       // phone_verified 로 인증 상태를 복원하지 않는다. 가입 완료 RPC 가 이번 인증에서 발급된
       // 소비 토큰을 요구하므로, 토큰 없이 "인증됨"으로 보이면 제출이 막힌 채 원인을 알 수 없게 된다.
       if (profile.address_zipcode) setZipcode(profile.address_zipcode);
       if (profile.address_road) setAddressRoad(profile.address_road);
       if (profile.address_detail) setAddressDetail(profile.address_detail);
-      if (profile.user_type) setUserType(profile.user_type);
+      // user_type 은 프로필에서 가져오지 않는다 — 미완성 프로필의 값은 트리거 기본값('traveler')일 뿐이고,
+      // 앞 단계에서 이어받은 유형(typeLocked)을 덮어써 승무원이 여행자로 바뀌던 문제가 있었다.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
@@ -181,7 +238,8 @@ export default function SignupComplete() {
         .select('birthdate')
         .eq('user_id', user.id)
         .maybeSingle();
-      if (!cancelled && data?.birthdate) setBirthdate(String(data.birthdate).slice(0, 10));
+      // 본인확인 값이 있으면(응답이 늦게 와도) 그 생년월일이 최종이라 덮어쓰지 않는다
+      if (!cancelled && data?.birthdate && !identityProofRef.current) setBirthdate(String(data.birthdate).slice(0, 10));
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
@@ -211,11 +269,17 @@ export default function SignupComplete() {
   }, [referrerAccountId, user?.id]);
 
   // 항공사 이메일 값 바뀌면 회사 인증 상태 리셋
+  //  · 복원값 그대로면 리셋하지 않는다(복원 직후 렌더)
+  //  · 초기 마운트(빈 값·미인증)에는 지울 것이 없다 — 같은 배치의 복원 setState 를 덮지 않기 위함
   useEffect(() => {
+    if (airlineEmail && airlineEmail === restoredAirlineEmailRef.current) return;
+    if (!airlineEmail && !airlineEmailVerified) return;
     setAirlineEmailVerified(false);
     setAirlineEmailSent(false);
     setAirlineEmailCode('');
     setVerifiedAirlineEmail('');
+    setAirlineOtpToken('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [airlineEmail]);
 
   // 닉네임 중복 체크 (300ms debounce)
@@ -382,8 +446,13 @@ export default function SignupComplete() {
     if (!name.trim()) return false;
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
     if (!birthdate || isUnder14(birthdate)) return false;
-    if (!phoneVerified || !phoneOtpToken) return false;
-    if (verifiedPhone !== phone.replace(/[^0-9]/g, '')) return false;
+    if (IDENTITY_ENABLED) {
+      // 본인확인 증빙 토큰이 휴대폰 OTP 를 대신한다(서버가 토큰 소비 + 값 재검증)
+      if (!identityProof?.token) return false;
+    } else {
+      if (!phoneVerified || !phoneOtpToken) return false;
+      if (verifiedPhone !== phone.replace(/[^0-9]/g, '')) return false;
+    }
     if (!zipcode || !addressRoad) return false;
     // 승무원은 회사 이메일 인증 필수 + 인증한 이메일이 현재 입력값과 일치해야 함
     if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified || !airlineOtpToken
@@ -426,18 +495,22 @@ export default function SignupComplete() {
         p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
         p_referred_by: resolvedReferrer,
         p_birthdate: birthdate,
-        p_phone_otp_token: phoneOtpToken,
+        p_phone_otp_token: IDENTITY_ENABLED ? null : phoneOtpToken,
         p_airline_otp_token: (userType === 'crew') ? airlineOtpToken : null,
         // 동의 시각 기록. 인자를 추가한 SQL 을 먼저 배포해야 한다(구버전 함수에는 이 인자가 없어 '함수 없음' 에러가 난다).
         p_terms_agreed_at: termsAgreedAt,
         p_privacy_agreed_at: privacyAgreedAt,
+        // 휴대폰 본인확인 증빙(2026-09-02, identity_20260902.sql). 서버가 소비하며 이름·생년월일·휴대폰을 확정.
+        p_identity_token: IDENTITY_ENABLED ? (identityProof?.token || null) : null,
       });
       if (upErr) throw upErr;
-      // 승무원 pending 정보와 소비 토큰은 사용 완료 → 세션 스토리지에서 제거
+      // 승무원 pending 정보와 소비 토큰·본인확인 증빙은 사용 완료 → 세션 스토리지에서 제거
       try {
         sessionStorage.removeItem('pendingCrew');
         sessionStorage.removeItem('pendingOtpProof');
+        sessionStorage.removeItem('pendingSignupType');
       } catch { /* noop */ }
+      clearIdentityProof();
       await fetchProfile(user.id);
       navigate('/');
     } catch (err) {
@@ -449,7 +522,9 @@ export default function SignupComplete() {
           try {
             sessionStorage.removeItem('pendingCrew');
             sessionStorage.removeItem('pendingOtpProof');
+            sessionStorage.removeItem('pendingSignupType');
           } catch { /* noop */ }
+          clearIdentityProof();
           await fetchProfile(user.id);
           navigate('/');
           return;
@@ -457,7 +532,15 @@ export default function SignupComplete() {
       } catch { /* 조회 실패 시 아래 안내로 진행 */ }
 
       const msg = err.message || '';
-      if (msg.includes('OTP_PROOF')) {
+      if (msg.includes('IDENTITY_PROOF_INVALID') || msg.includes('IDENTITY_REQUIRED')) {
+        // 증빙이 만료(1시간)·이미 사용됨 → 본인확인 단계로 되돌린다
+        restartIdentity();
+        setError('본인확인 유효시간이 지났습니다. 본인확인을 다시 진행해주세요.');
+      } else if (msg.includes('IDENTITY_ALREADY_REGISTERED')) {
+        setError('이미 가입된 회원입니다. 기존 계정으로 로그인하거나 아이디·비밀번호 찾기를 이용해주세요.');
+      } else if (msg.includes('IDENTITY_BLOCKED')) {
+        setError('이용이 제한된 사용자입니다. 문의가 필요하면 고객센터로 연락해주세요.');
+      } else if (msg.includes('OTP_PROOF')) {
         setError('인증 확인 시간이 지났습니다. 휴대폰·회사 이메일 인증을 다시 받아주세요.');
       } else if (msg.includes('PHONE_BLOCKED')) {
         setError('이용이 제한된 번호입니다. 문의가 필요하면 고객센터로 연락해주세요.');
@@ -497,9 +580,38 @@ export default function SignupComplete() {
           ConnectTrip 사용을 위해 몇 가지 정보가 더 필요합니다.
         </p>
 
+        {IDENTITY_ENABLED && !identityProof ? (
+          // 1단계: 휴대폰 본인확인. OAuth(구글·카카오)·이메일확인 ON 경로도 예외 없이 본인확인 → 가입 순서.
+          <IdentityVerifyStep
+            returnPath={location.pathname + stripIdentityParams(location.search)}
+            returnResult={identityReturn}
+            onVerified={(proof) => { setIdentityReturn(null); setIdentityProof(proof); }}
+            accent={userType === 'crew' ? '#7c3aed' : '#2563eb'}
+          />
+        ) : (
         <form onSubmit={handleSubmit}>
-          {/* 회원 타입 */}
-          <Field label="가입 유형">
+          {identityProof && (
+            <div style={{ marginBottom: 16, padding: '10px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#065f46' }}>
+              <CheckCircle size={16} color="#16a34a" />
+              <span style={{ flex: 1, fontWeight: 600 }}>휴대폰 본인확인 완료 · {identityProof.name}</span>
+              <button type="button" onClick={restartIdentity}
+                style={{ background: 'none', border: 'none', color: '#047857', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
+                다시 인증
+              </button>
+            </div>
+          )}
+
+          {/* 가입 유형 — 앞 단계(/signup)에서 고른 값을 이어받아 표시만 한다. 이어받지 못한 경우에만 선택 UI. */}
+          {typeLocked ? (
+            <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#334155' }}>
+              <span style={{ fontWeight: 600 }}>가입 유형</span>
+              <span style={{ padding: '4px 10px', borderRadius: 999, fontWeight: 700, fontSize: 12,
+                background: userType === 'crew' ? '#f3e8ff' : '#eff6ff', color: userType === 'crew' ? '#6d28d9' : '#1d4ed8' }}>
+                {userType === 'crew' ? '승무원' : '여행자'}
+              </span>
+            </div>
+          ) : (
+          <Field label="가입 유형" helper="앞 단계에서 고른 유형을 불러오지 못했습니다. 다시 선택해주세요." helperColor="#64748b">
             <div style={{ display: 'flex', gap: 8 }}>
               {[
                 { v: 'traveler', label: '여행자' },
@@ -518,6 +630,7 @@ export default function SignupComplete() {
               ))}
             </div>
           </Field>
+          )}
 
           {/* 승무원 회사(항공사) 이메일 별도 인증 — 로그인 계정과 분리 */}
           {userType === 'crew' && (
@@ -574,14 +687,16 @@ export default function SignupComplete() {
             </Field>
           )}
 
-          {/* 이름 */}
-          <Field label="이름 (실명)" icon={<User size={16} />}>
+          {/* 이름 — 본인확인 값이면 잠금 */}
+          <Field label="이름 (실명)" icon={<User size={16} />}
+            helper={identityProof ? '본인확인으로 확인된 이름입니다.' : null} helperColor="#16a34a">
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              readOnly={!!identityProof}
               placeholder="홍길동"
-              style={inputStyle}
+              style={identityProof ? lockedInputStyle : inputStyle}
               maxLength={30}
               required
             />
@@ -612,29 +727,39 @@ export default function SignupComplete() {
             />
           </Field>
 
-          {/* 생년월일 (만 14세 확인) */}
+          {/* 생년월일 (만 14세 확인) — 본인확인 값이면 잠금 */}
           <Field
             label="생년월일"
             icon={<Calendar size={16} />}
             helper={
+              identityProof ? '본인확인으로 확인된 생년월일입니다.' :
               !birthdate ? '만 14세 이상만 가입할 수 있습니다.' :
               isUnder14(birthdate) ? '만 14세 미만은 가입할 수 없습니다.' :
               '확인되었습니다.'
             }
-            helperColor={!birthdate ? '#64748b' : isUnder14(birthdate) ? '#dc2626' : '#16a34a'}
+            helperColor={identityProof ? '#16a34a' : !birthdate ? '#64748b' : isUnder14(birthdate) ? '#dc2626' : '#16a34a'}
           >
-            <input
-              type="date"
-              value={birthdate}
-              onChange={(e) => setBirthdate(e.target.value)}
-              min="1900-01-01"
-              max={new Date().toISOString().slice(0, 10)}
-              style={inputStyle}
-              required
-            />
+            {identityProof ? (
+              <input type="text" value={birthdate} readOnly style={lockedInputStyle} />
+            ) : (
+              <input
+                type="date"
+                value={birthdate}
+                onChange={(e) => setBirthdate(e.target.value)}
+                min="1900-01-01"
+                max={new Date().toISOString().slice(0, 10)}
+                style={inputStyle}
+                required
+              />
+            )}
           </Field>
 
-          {/* 휴대폰 */}
+          {/* 휴대폰 — 본인확인 값이면 잠금(SMS OTP 블록 없음) */}
+          {identityProof ? (
+            <Field label="휴대폰 번호" icon={<Phone size={16} />} helper="본인확인으로 확인된 번호입니다." helperColor="#16a34a">
+              <input type="tel" value={phone} readOnly style={lockedInputStyle} />
+            </Field>
+          ) : (
           <Field label="휴대폰 번호 (인증 필요)" icon={<Phone size={16} />}>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
@@ -691,6 +816,7 @@ export default function SignupComplete() {
               </div>
             )}
           </Field>
+          )}
 
           {/* 주소 */}
           <Field label="주소" icon={<MapPin size={16} />}>
@@ -785,6 +911,7 @@ export default function SignupComplete() {
             {saving ? '저장 중...' : '회원가입 완료'}
           </button>
         </form>
+        )}
       </motion.div>
       <style>{`.spin { animation: spin 0.8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
@@ -796,6 +923,8 @@ const inputStyle = {
   border: '1.5px solid #e2e8f0', fontSize: 14,
   background: 'white',
 };
+// 본인확인으로 확정돼 수정할 수 없는 값(이름·생년월일·휴대폰)
+const lockedInputStyle = { ...inputStyle, background: '#f8fafc', color: '#334155', cursor: 'not-allowed' };
 
 const consentRowStyle = { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0' };
 const consentBoxInputStyle = { width: 16, height: 16, marginTop: 2, flexShrink: 0, accentColor: '#2563eb', cursor: 'pointer' };
@@ -840,7 +969,7 @@ function ConsentBox({ idPrefix, agreeTerms, agreePrivacy, agreeAge,
       </div>
 
       <ul style={{ margin: '2px 0 6px 30px', padding: 0, listStyle: 'disc', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
-        <li>수집 항목: 이메일(로그인 계정), 이름, 닉네임, 생년월일, 휴대폰번호, 주소(우편번호·도로명·상세). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
+        <li>수집 항목: 이메일(로그인 계정), 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
         <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, 승무원 칭송매칭 운영, 포인트 적립·이용, 부정 이용 방지와 분쟁 조정·문의 대응.</li>
         <li>보유 기간: 회원 탈퇴 시 지체 없이 파기합니다. 관계 법령이 보존을 정한 결제·거래 기록은 법정 보존기간 동안 분리 보관한 뒤 파기합니다.</li>
       </ul>

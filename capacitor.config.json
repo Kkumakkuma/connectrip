@@ -1,5 +1,21 @@
 {
   "appId": "com.connecttrip.app",
   "appName": "커넥트립",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "allowNavigation": [
+      "*.portone.io",
+      "portone.io",
+      "*.iamport.co",
+      "iamport.co",
+      "*.iamport.kr",
+      "iamport.kr",
+      "*.kcp.co.kr",
+      "kcp.co.kr",
+      "*.danal.co.kr",
+      "danal.co.kr",
+      "*.teledit.com",
+      "teledit.com"
+    ]
+  }
 }

@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
+import { IDENTITY_PG_NAME } from '../lib/identity';
 
 // 개인정보처리방침. 보호책임자 = 회사명 대표 표기(쿠마님 2026-07-20 확정).
+// 2026-09-02 개정: 휴대폰 본인확인(PASS/SMS) 수집항목·수탁자(포트원·{IDENTITY_PG_NAME})·차단 회원 해시 보관 추가.
+//   가입 화면 ConsentBox 의 요약 문구와 complete_signup_profile 의 policy_version('2026-09-02')을 같이 맞춘다.
 function Section({ title, children }) {
   return (
     <section className="mt-8">
@@ -21,7 +24,7 @@ const Privacy = () => {
       />
       <div className="container mx-auto px-4 max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-900">개인정보처리방침</h1>
-        <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-07-11</p>
+        <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-09-02</p>
 
         <p className="mt-6 text-sm leading-relaxed text-gray-600">
           ConnectTrip(이하 “서비스”)은 「개인정보 보호법」을 준수하며, 이용자의 개인정보를 서비스 제공 목적 범위
@@ -30,7 +33,8 @@ const Privacy = () => {
 
         <Section title="1. 수집하는 개인정보 항목">
           <ul className="ml-4 list-disc space-y-1">
-            <li><strong className="text-gray-900">회원가입·본인확인</strong>: 이메일, 비밀번호, 이름, 닉네임, 휴대폰번호(SMS 인증)</li>
+            <li><strong className="text-gray-900">회원가입</strong>: 이메일, 비밀번호, 닉네임</li>
+            <li><strong className="text-gray-900">휴대폰 본인확인</strong>: 이름, 생년월일, 성별, 휴대폰번호, 이동통신사, 내외국인 여부, 연계정보(CI). 본인확인기관(이동통신사)이 확인한 값을 {IDENTITY_PG_NAME}·포트원을 통해 제공받으며, 연계정보(CI)는 복원할 수 없는 해시값으로만 저장합니다.</li>
             <li><strong className="text-gray-900">주소</strong>: 우편번호, 도로명 주소, 상세 주소(포인트 선물 등 배송 목적)</li>
             <li><strong className="text-gray-900">승무원 회원</strong>: 항공사 이메일, 항공사명(승무원 인증용)</li>
             <li><strong className="text-gray-900">자동 수집</strong>: 접속 기록(서비스 이용·접속 로그)</li>
@@ -39,7 +43,7 @@ const Privacy = () => {
 
         <Section title="2. 개인정보의 이용 목적">
           <ul className="ml-4 list-disc space-y-1">
-            <li>회원 관리 및 본인 확인</li>
+            <li>회원 관리 및 본인 확인(실명 확인, 1인 1계정 확인, 만 14세 미만 가입 제한)</li>
             <li>커뮤니티(동행·정보공유·물품거래·후기 등) 운영</li>
             <li>승무원 칭송매칭 운영</li>
             <li>포인트 적립·이용 등 운영</li>
@@ -53,7 +57,9 @@ const Privacy = () => {
             <li><strong className="text-gray-900">Supabase Inc.</strong> — 데이터베이스·회원 인증(클라우드 인프라, 해외)</li>
             <li><strong className="text-gray-900">Vercel Inc.</strong> — 웹/앱 호스팅(해외)</li>
             <li><strong className="text-gray-900">Resend</strong> — 인증·알림 이메일 발송</li>
-            <li><strong className="text-gray-900">Solapi</strong> — 휴대폰 본인확인 문자(SMS) 발송</li>
+            <li><strong className="text-gray-900">포트원(주)</strong> — 휴대폰 본인확인 연동(본인확인 요청 중계·결과 전달)</li>
+            <li><strong className="text-gray-900">{IDENTITY_PG_NAME}</strong> — 휴대폰 본인확인 서비스(이동통신사 본인확인 대행, PASS 앱·문자 인증)</li>
+            <li><strong className="text-gray-900">Solapi</strong> — 인증 문자(SMS) 발송</li>
           </ul>
           <p className="text-xs text-gray-400">위탁 업무 내용이나 수탁자가 변경되는 경우 본 방침을 통해 고지합니다.</p>
         </Section>
@@ -124,6 +130,11 @@ const Privacy = () => {
           <p>
             다만 「전자상거래 등에서의 소비자보호에 관한 법률」 등 관계 법령이 보존을 정한 결제·거래 기록은 해당
             법정 보존기간 동안 다른 개인정보와 분리하여 별도로 보관한 뒤 파기합니다.
+          </p>
+          <p>
+            본인확인 과정에서 임시로 받은 정보는 가입이 완료되면 즉시, 가입을 마치지 않으면 24시간 안에 파기합니다.
+            이용약관 위반으로 이용이 제한된 상태에서 탈퇴한 회원의 경우, 재가입을 통한 제재 회피를 막기 위해
+            복원할 수 없는 해시값(휴대폰번호 해시, 연계정보(CI) 해시)만 탈퇴일로부터 5년간 보관한 뒤 파기합니다.
           </p>
         </Section>
 

@@ -34,7 +34,7 @@ const Terms = () => {
       />
       <div className="container mx-auto px-4 max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-900">이용약관</h1>
-        <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-06-12</p>
+        <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-09-02</p>
 
         <p className="mt-6 text-sm leading-relaxed text-gray-600">
           본 약관은 ConnectTrip(이하 “서비스”)이 제공하는 여행 커뮤니티 서비스의 이용 조건과
@@ -71,8 +71,10 @@ const Terms = () => {
 
         <Section title="3. 회원가입 및 본인확인">
           <p>
-            서비스는 오프라인 만남이 동반될 수 있는 특성상 안전을 위해 가입 시 이메일 및 휴대폰 본인확인(SMS 인증)을
-            요구합니다. 회원은 가입 시 정확한 정보를 제공해야 하며, 타인의 정보를 도용해서는 안 됩니다.
+            서비스는 오프라인 만남이 동반될 수 있는 특성상 안전을 위해 가입 시 이메일 인증과 이동통신사 휴대폰
+            본인확인(PASS 앱 또는 문자 인증)을 요구하며, 본인확인으로 확인된 이름·생년월일·휴대폰번호로 가입합니다.
+            한 사람은 하나의 계정만 만들 수 있습니다. 회원은 가입 시 정확한 정보를 제공해야 하며, 타인의 명의나
+            정보를 도용해서는 안 됩니다.
           </p>
         </Section>
 

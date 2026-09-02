@@ -23,6 +23,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // 본인확인(PASS) intent:// · 통신사 커스텀 스킴 가로채기 — Bridge 생성 전에 등록해야 인식된다
+        registerPlugin(IntentUrlPlugin.class);
         super.onCreate(savedInstanceState);
         if (Build.VERSION.SDK_INT >= 35) {
             View content = findViewById(android.R.id.content);

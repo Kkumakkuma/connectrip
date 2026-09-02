@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
+import { clearIdentityProof } from './identity';
 
 const AuthContext = createContext({});
 
@@ -32,6 +33,9 @@ const hasAuthCallbackInUrl = () => {
   try {
     const hash = window.location.hash || '';
     const search = window.location.search || '';
+    // 휴대폰 본인확인(포트원) 모바일 복귀는 우리가 붙인 ?flow=identity 와 함께 code=/message= 가 올 수 있다 —
+    // OAuth 콜백이 아니므로 세션 대기(3초)를 걸지 않는다. (경로 기준 예외는 두지 않는다 — 기존 콜백 판정 유지)
+    if (/[?&]flow=identity(&|$)/.test(search)) return false;
     return hash.includes('access_token=')
       || hash.includes('error_description=')
       || /[?&](code|token_hash)=/.test(search)
@@ -267,6 +271,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signInWithProvider = async (provider) => {
+    // 같은 탭에서 이메일 가입(본인확인 완료) 도중 OAuth 로 갈아타면, 남아 있던 본인확인 증빙이
+    // 다른 계정의 프로필 완성에 쓰이지 않도록 폐기한다(OAuth 복귀 후 /signup/complete 에서 다시 본인확인).
+    clearIdentityProof();
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider, // 'google', 'kakao'
       options: { redirectTo: window.location.origin }
