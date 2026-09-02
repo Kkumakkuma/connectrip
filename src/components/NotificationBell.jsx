@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
@@ -21,6 +22,7 @@ const NotificationBell = () => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
   const dropdownRef = useRef(null);
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
@@ -117,11 +119,21 @@ const NotificationBell = () => {
           >
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <h4 className="font-bold text-gray-900">알림</h4>
-              {unreadCount > 0 && (
-                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">
-                  {unreadCount}개 읽지 않음
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">
+                    {unreadCount}개 읽지 않음
+                  </span>
+                )}
+                {/* 2026-09-03: 브라우저 알림(푸시) 켜기/끄기는 마이페이지 알림 탭에서 — 쿠마님 요청(종 아이콘에서 설정 진입) */}
+                <button
+                  type="button"
+                  onClick={() => { setIsOpen(false); navigate('/mypage?tab=notifications'); }}
+                  className="text-xs text-gray-500 hover:text-blue-600 underline underline-offset-2"
+                >
+                  알림 설정
+                </button>
+              </div>
             </div>
 
             <div className="max-h-80 overflow-y-auto">

@@ -21,7 +21,9 @@ const MyPage = () => {
     const navigate = useNavigate();
 
     // Active tab for bottom sections
-    const [activeTab, setActiveTab] = useState('commendation');
+    const [activeTab, setActiveTab] = useState(() => {
+        try { const t = new URLSearchParams(window.location.search).get('tab'); return t === 'notifications' ? 'notifications' : 'commendation'; } catch { return 'commendation'; }
+    });
 
     // 승무원 추천코드 + 초대링크
     const [referralCode, setReferralCode] = useState(null);

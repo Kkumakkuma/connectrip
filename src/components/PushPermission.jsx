@@ -61,7 +61,7 @@ const PushPermission = () => {
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 50 }}
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[9998] w-[90%] max-w-sm"
+          className="fixed bottom-4 right-4 z-[9998] w-[calc(100%-2rem)] max-w-xs"
         >
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-5">
             <div className="flex items-start gap-3">
