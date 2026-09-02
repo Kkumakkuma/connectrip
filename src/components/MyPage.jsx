@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { requestPointPayment, parsePaymentReturn, stripPaymentParams, readPendingPayment, clearPendingPayment } from '../lib/payments/portone';
 import { isNativeApp } from '../lib/native';
 import { POINT_PACKAGES } from '../lib/products';
@@ -14,16 +14,24 @@ import BlockedUsers from './BlockedUsers';
 import SEOHead from './SEOHead';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
-import { flightApi } from '../lib/db';
+import { flightApi, pointsApi } from '../lib/db';
 
 const MyPage = () => {
     const { user, profile, isCrew, signOut, fetchProfile } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Active tab for bottom sections
-    const [activeTab, setActiveTab] = useState(() => {
-        try { const t = new URLSearchParams(window.location.search).get('tab'); return t === 'notifications' ? 'notifications' : 'commendation'; } catch { return 'commendation'; }
-    });
+    const [activeTab, setActiveTab] = useState('commendation');
+
+    // ?tab= 딥링크 반영. useState 초기값으로만 읽으면 이미 /mypage 에 있을 때(종 아이콘 → 알림 설정)
+    // 컴포넌트가 재마운트되지 않아 탭이 바뀌지 않는다.
+    useEffect(() => {
+        const tab = new URLSearchParams(location.search).get('tab');
+        if (tab && ['commendation', 'companions', 'keywords', 'notifications', 'blocks'].includes(tab)) {
+            setActiveTab(tab);
+        }
+    }, [location]);
 
     // 승무원 추천코드 + 초대링크
     const [referralCode, setReferralCode] = useState(null);
@@ -99,6 +107,31 @@ const MyPage = () => {
         }
         copyText(inviteLink, 'link');
     };
+
+    // 최근 포인트 내역
+    const [pointHistory, setPointHistory] = useState([]);
+    const [pointHistoryLoading, setPointHistoryLoading] = useState(true);
+
+    const fetchPointHistory = useCallback(async () => {
+        if (!user) {
+            setPointHistoryLoading(false);
+            return;
+        }
+        setPointHistoryLoading(true);
+        try {
+            const rows = await pointsApi.getTransactions(user.id);
+            setPointHistory((rows || []).slice(0, 20));
+        } catch (err) {
+            console.error('포인트 내역 로드 실패:', err);
+            setPointHistory([]);
+        } finally {
+            setPointHistoryLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        fetchPointHistory();
+    }, [fetchPointHistory]);
 
     // Fetch flights
     const fetchFlights = useCallback(async () => {
@@ -207,27 +240,27 @@ const MyPage = () => {
             const oldNumber = flight?.flight_number;
             const oldDate = flight?.flight_date;
 
-            // flight_schedules 업데이트
-            await supabase.from('flight_schedules').update({
-                flight_number: newNumber.toUpperCase(),
-                flight_date: newDate
-            }).eq('id', flightId);
-
-            // 연관 칭송매칭 업데이트 (활성 상태만)
+            // 진행 중인 칭송매칭이 걸린 항공편은 수정 불가(매칭의 편명·날짜는 서버 가드가 보호하며,
+            // 상대방의 항공편까지 같이 옮겨지면 안 되므로 신청을 먼저 취소하도록 안내)
             if (flight) {
-                const { data: matches } = await supabase.from('commendation_matches')
+                const { data: matches, error: matchErr } = await supabase.from('commendation_matches')
                     .select('id, status')
                     .eq('flight_number', oldNumber).eq('flight_date', oldDate)
                     .or(`crew_user_id.eq.${user.id},passenger_user_id.eq.${user.id}`);
-                for (const m of (matches || [])) {
-                    if (!['rejected', 'deleted', 'gift_sent'].includes(m.status)) {
-                        await supabase.from('commendation_matches').update({
-                            flight_number: newNumber.toUpperCase(),
-                            flight_date: newDate
-                        }).eq('id', m.id);
-                    }
+                if (matchErr) throw matchErr;
+                const active = (matches || []).filter(m => !['rejected', 'deleted'].includes(m.status));
+                if (active.length > 0) {
+                    alert('칭송매칭이 진행 중인 항공편은 수정할 수 없습니다. 칭송매칭에서 신청을 취소한 뒤 다시 수정해 주세요.');
+                    return;
                 }
             }
+
+            // flight_schedules 업데이트
+            const { error: updErr } = await supabase.from('flight_schedules').update({
+                flight_number: newNumber.toUpperCase(),
+                flight_date: newDate
+            }).eq('id', flightId);
+            if (updErr) throw updErr;
 
             setEditingFlight(null);
             await fetchFlights();
@@ -292,6 +325,7 @@ const MyPage = () => {
                     const { error } = await supabase.rpc('purchase_voucher', { p_qty: quantity });
                     if (error) throw error;
                     await fetchProfile(user.id);
+                    await fetchPointHistory();
                     alert(`매칭신청권 ${quantity}개를 구매했습니다!`);
                 } catch (err) {
                     console.error('매칭신청권 구매 실패:', err);
@@ -302,6 +336,31 @@ const MyPage = () => {
             if (window.confirm(`포인트가 부족합니다. (필요: ${totalPrice.toLocaleString()}P / 보유: ${totalPoints.toLocaleString()}P)\n포인트를 충전하시겠습니까?`)) {
                 setShowChargeModal(true);
             }
+        }
+    };
+
+    // 매칭신청권 취소(환불). 환불 가능 여부(7일·미사용·구매분 한정)는 서버 RPC 가 판정한다.
+    const [refundingVoucher, setRefundingVoucher] = useState(false);
+
+    const handleRefundVoucher = async () => {
+        if (vouchers < 1 || refundingVoucher) return;
+        if (!window.confirm('매칭신청권 1개를 취소하고 포인트로 되돌릴까요?')) return;
+        setRefundingVoucher(true);
+        try {
+            const { error } = await supabase.rpc('refund_my_voucher', { p_qty: 1 });
+            if (error) throw error;
+            await fetchProfile(user.id);
+            await fetchPointHistory();
+            alert('매칭신청권 1개를 취소했습니다. 포인트로 되돌려 드렸습니다.');
+        } catch (err) {
+            console.error('매칭신청권 취소 실패:', err);
+            const msg = String(err?.message || '');
+            if (msg.includes('refund window passed')) alert('구매 후 7일이 지나 취소할 수 없습니다.');
+            else if (msg.includes('no refundable voucher')) alert('취소할 수 있는 신청권이 없습니다.');
+            else if (msg.includes('insufficient voucher')) alert('보유한 신청권이 부족합니다.');
+            else alert('취소에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        } finally {
+            setRefundingVoucher(false);
         }
     };
 
@@ -321,6 +380,7 @@ const MyPage = () => {
                     const { error } = await supabase.rpc('convert_likes_to_points', { p_qty: quantity });
                     if (error) throw error;
                     await fetchProfile(user.id);
+                    await fetchPointHistory();
                     alert(`${quantity.toLocaleString()} 좋아요가 ${quantity.toLocaleString()} 포인트로 전환되었습니다!`);
                 } catch (err) {
                     console.error('좋아요 전환 실패:', err);
@@ -353,7 +413,7 @@ const MyPage = () => {
             if (r.ok) {
                 clearPendingPayment(); setPayRetryId(null);
                 if (r.test) alert('테스트 결제가 확인됐습니다.\n실제 포인트 충전은 정식 오픈(결제 계약 완료) 후 반영됩니다.');
-                else { alert(`${(r.credited || 0).toLocaleString()}P 충전이 완료되었습니다!`); if (user?.id) fetchProfile(user.id); }
+                else { alert(`${(r.credited || 0).toLocaleString()}P 충전이 완료되었습니다!`); if (user?.id) { fetchProfile(user.id); fetchPointHistory(); } }
                 closeChargeModal();
                 return;
             }
@@ -572,9 +632,38 @@ const MyPage = () => {
                                             신청권 구매
                                         </button>
                                     </div>
-                                    <div style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '1rem', backdropFilter: 'blur(10px)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <p style={{ fontSize: '0.9rem', fontWeight: '600' }}>나의 매칭신청권 보유량</p>
-                                        <p style={{ fontSize: '1.2rem', fontWeight: '800' }}>{vouchers} <span style={{ fontSize: '0.9rem', fontWeight: '400' }}>개</span></p>
+                                    <div style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '1rem', backdropFilter: 'blur(10px)', marginTop: '0.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <p style={{ fontSize: '0.9rem', fontWeight: '600' }}>나의 매칭신청권 보유량</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <p style={{ fontSize: '1.2rem', fontWeight: '800' }}>{vouchers} <span style={{ fontSize: '0.9rem', fontWeight: '400' }}>개</span></p>
+                                                {vouchers >= 1 && (
+                                                    <button
+                                                        onClick={handleRefundVoucher}
+                                                        disabled={refundingVoucher}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            background: 'rgba(255,255,255,0.2)',
+                                                            color: 'white',
+                                                            border: '1px solid rgba(255,255,255,0.5)',
+                                                            borderRadius: '20px',
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: refundingVoucher ? 'default' : 'pointer',
+                                                            opacity: refundingVoucher ? 0.6 : 1,
+                                                            whiteSpace: 'nowrap'
+                                                        }}
+                                                    >
+                                                        취소(환불)
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {vouchers >= 1 && (
+                                            <p style={{ fontSize: '0.7rem', opacity: 0.75, marginTop: '0.5rem', wordBreak: 'keep-all' }}>
+                                                구매 7일 안·미사용 신청권만 포인트로 되돌려 드립니다.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -582,6 +671,63 @@ const MyPage = () => {
                             <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '150px', height: '150px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }} />
                         </motion.div>
                     )}
+
+                    {/* 최근 포인트 내역 (잔액 카드 바로 아래) */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        style={{ order: 1 }}
+                    >
+                        <div style={{
+                            background: 'white',
+                            borderRadius: '1.5rem',
+                            padding: 'clamp(1.25rem, 4vw, 1.75rem)',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                            border: '1px solid #e5e7eb'
+                        }}>
+                            <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#374151', marginBottom: '0.9rem' }}>최근 포인트 내역</h4>
+                            {pointHistoryLoading ? (
+                                <div style={{ padding: '1rem 0' }}>
+                                    <div style={{ width: '24px', height: '24px', border: '3px solid #6366f1', borderTop: '3px solid transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
+                                </div>
+                            ) : pointHistory.length === 0 ? (
+                                <p style={{ fontSize: '0.85rem', color: '#9ca3af', textAlign: 'center', padding: '0.75rem 0' }}>아직 포인트 내역이 없습니다</p>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    {pointHistory.map((t) => (
+                                        <div
+                                            key={t.id}
+                                            style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                gap: '0.75rem',
+                                                padding: '0.6rem 0',
+                                                borderBottom: '1px solid #f3f4f6'
+                                            }}
+                                        >
+                                            <div style={{ minWidth: 0 }}>
+                                                <p style={{ fontSize: '0.85rem', color: '#374151', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {t.description || t.type}
+                                                </p>
+                                                <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '2px' }}>
+                                                    {t.created_at ? new Date(t.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                                                </p>
+                                            </div>
+                                            <p style={{
+                                                fontSize: '0.9rem',
+                                                fontWeight: '800',
+                                                whiteSpace: 'nowrap',
+                                                color: Number(t.amount) < 0 ? '#ef4444' : '#059669'
+                                            }}>
+                                                {Number(t.amount) > 0 ? '+' : ''}{Number(t.amount).toLocaleString()}P
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
 
                     {/* Crew Referral (승무원 추천코드 + 초대링크) */}
                     {isCrew && referralCode && (

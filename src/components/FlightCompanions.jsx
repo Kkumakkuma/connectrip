@@ -8,6 +8,14 @@ import { flightApi, flightCompanionsApi, messagesApi, userBlockApi } from '../li
 import ReportButton from './ReportButton';
 import FlightBoard from './FlightBoard';
 
+// flight_date 는 'YYYY-MM-DD' 문자열이다. new Date(문자열) 은 UTC 자정으로 파싱되므로
+// 현재 시각과 직접 비교하면 비행 당일 09:00 KST 를 넘긴 항공편이 과거로 취급돼 목록에서 사라진다.
+// KST 기준 날짜 문자열끼리 비교해 당일까지 포함시킨다.
+const kstDateString = (offsetDays = 0) =>
+  new Date(Date.now() + 9 * 60 * 60 * 1000 + offsetDays * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
 const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
   const { user, isLoggedIn, isCrew } = useAuth();
 
@@ -32,12 +40,12 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
     if (!user) return;
     setLoading(true);
     try {
-      // Use flights from props, filter within 21 days
-      const now = new Date();
-      const cutoff = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
+      // Use flights from props, filter within 21 days (KST 날짜 문자열 비교 — 당일 포함)
+      const today = kstDateString();
+      const cutoff = kstDateString(21);
       const upcomingFlights = (propFlights || []).filter((f) => {
-        const fDate = new Date(f.flight_date);
-        return fDate >= now && fDate <= cutoff;
+        const fDate = String(f.flight_date || '').slice(0, 10);
+        return fDate >= today && fDate <= cutoff;
       });
       setMyFlights(upcomingFlights);
 
@@ -151,6 +159,8 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
 
   const getCompanionKey = (flight) => `${flight.flight_number}_${flight.flight_date}`;
 
+  const todayKst = kstDateString();
+
   const unreadCount = myMessages.filter(
     (m) => m.receiver_id === user?.id && !m.read_at
   ).length;
@@ -220,8 +230,10 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
             const key = getCompanionKey(flight);
             const flightCompanions = companions[key] || [];
             const isExpanded = expandedFlight === flight.id;
-            const daysUntil = Math.ceil(
-              (new Date(flight.flight_date) - new Date()) / (1000 * 60 * 60 * 24)
+            // 두 날짜 모두 KST 기준 'YYYY-MM-DD' 라 같은 방식(UTC 자정)으로 파싱해야 오차가 없다
+            const daysUntil = Math.round(
+              (Date.parse(`${String(flight.flight_date).slice(0, 10)}T00:00:00Z`) - Date.parse(`${todayKst}T00:00:00Z`))
+              / (1000 * 60 * 60 * 24)
             );
 
             return (
@@ -336,16 +348,23 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                           </div>
                         )}
 
-                        {/* 같은 편 미니 게시판 — 일반/승무원은 서버에서 분리된다 */}
-                        <FlightBoard
-                          flight={flight}
-                          memberType={isCrew ? 'crew' : 'passenger'}
-                          onSendMessage={(receiverId, receiverName) => setShowMessageModal({
-                            receiverId,
-                            receiverName: receiverName || '익명',
-                            flightNumber: flight.flight_number,
-                          })}
-                        />
+                        {/* 같은 편 미니 게시판 — 일반/승무원은 서버에서 분리된다.
+                            비공개 스케줄은 서버(RLS)가 글쓰기를 거부하므로 게시판 대신 안내만 둔다 */}
+                        {flight.is_public ? (
+                          <FlightBoard
+                            flight={flight}
+                            memberType={isCrew ? 'crew' : 'passenger'}
+                            onSendMessage={(receiverId, receiverName) => setShowMessageModal({
+                              receiverId,
+                              receiverName: receiverName || '익명',
+                              flightNumber: flight.flight_number,
+                            })}
+                          />
+                        ) : (
+                          <p className="mt-3 text-center text-sm text-gray-400">
+                            스케줄을 공개로 설정해야 같은편 게시판을 쓸 수 있습니다
+                          </p>
+                        )}
                       </div>
                     </motion.div>
                   )}

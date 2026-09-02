@@ -830,6 +830,9 @@ BEGIN
     UPDATE public.profiles SET voucher_count = voucher_count - 1, updated_at = NOW()
       WHERE id = v_me AND voucher_count >= 1;
     IF NOT FOUND THEN RAISE EXCEPTION 'no voucher'; END IF;
+    -- 신청권 사용 기록(환불 계산용, 포인트 변동 0) — 2026-09-03 audit_fix
+    INSERT INTO public.point_transactions(user_id, amount, type, description)
+      VALUES (v_me, 0, 'voucher_use', '매칭신청권 1개 사용 (' || p_flight_number || ' ' || p_flight_date || ')');
     IF v_existing IS NOT NULL THEN
       UPDATE public.commendation_matches
         SET crew_user_id = v_me, status = 'matched', updated_at = NOW()
@@ -995,17 +998,19 @@ DROP POLICY IF EXISTS "Users can create own transactions" ON public.point_transa
 --      send_commendation_gift 의 verified 전제를 위조하던 구멍을 트리거로 봉쇄)
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.commendation_guard()
-RETURNS TRIGGER
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE v_bypass BOOLEAN; v_me UUID;
 BEGIN
   v_me := auth.uid();
-  -- ⚠ COALESCE 필수: current_setting(...,true) 는 미설정 세션에서 NULL → FALSE OR NULL OR FALSE = NULL →
-  --   IF NOT NULL 미실행으로 가드 전체 무력화(profiles_guard 와 동일 버그, 2026-07-18 수정).
+  -- ⚠ COALESCE 필수: current_setting(...,true) 는 미설정 세션에서 NULL → 가드 전체 무력화(실사고).
   v_bypass := (v_me IS NULL)
               OR (COALESCE(current_setting('app.allow_sensitive', true), 'off') = 'on')
               OR COALESCE(public.is_admin(), FALSE);
+
   IF NOT v_bypass THEN
     IF TG_OP = 'INSERT' THEN
       -- 본인이 당사자(crew 또는 passenger)인 매칭만 생성 가능, 초기 상태만 허용
@@ -1013,11 +1018,12 @@ BEGIN
          AND v_me <> COALESCE(NEW.passenger_user_id, '00000000-0000-0000-0000-000000000000'::uuid) THEN
         RAISE EXCEPTION 'not your match';
       END IF;
-      IF NEW.status NOT IN ('pending_crew', 'pending_passenger', 'matched') THEN
+      IF NEW.status NOT IN ('pending_crew', 'pending_passenger') THEN
         RAISE EXCEPTION 'invalid initial status';
       END IF;
       NEW.gift_points := NULL;
       NEW.gift_message := NULL;
+      NEW.commendation_screenshot_url := NULL;
       -- crew_user_id 가 지정되면 반드시 인증 승무원이어야(직접 INSERT 로 일반 사용자를 crew 로 위조 차단)
       IF NEW.crew_user_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM public.profiles
@@ -1027,31 +1033,38 @@ BEGIN
       IF NEW.crew_user_id      IS DISTINCT FROM OLD.crew_user_id
       OR NEW.passenger_user_id IS DISTINCT FROM OLD.passenger_user_id
       OR NEW.gift_points       IS DISTINCT FROM OLD.gift_points
-      OR NEW.gift_message      IS DISTINCT FROM OLD.gift_message THEN
+      OR NEW.gift_message      IS DISTINCT FROM OLD.gift_message
+      OR NEW.flight_number     IS DISTINCT FROM OLD.flight_number
+      OR NEW.flight_date       IS DISTINCT FROM OLD.flight_date
+      OR NEW.commendation_screenshot_url IS DISTINCT FROM OLD.commendation_screenshot_url THEN
         RAISE EXCEPTION 'protected match field';
       END IF;
-      -- 종료 상태(gift_sent/verified)는 되돌리거나 재전이 불가 → 선물 재지급 우회 차단
-      IF OLD.status IN ('gift_sent', 'verified') AND NEW.status IS DISTINCT FROM OLD.status THEN
-        RAISE EXCEPTION 'finalized match cannot change';
-      END IF;
-      -- 승인/발송으로의 전이는 admin/RPC 만 (사용자는 commendation_submitted 제출, rejected 취소만 가능)
-      IF NEW.status IN ('verified', 'gift_sent') AND NEW.status IS DISTINCT FROM OLD.status THEN
-        RAISE EXCEPTION 'status transition not allowed';
-      END IF;
-      -- pending -> matched 전이는 RPC(자동연결)만 — 사용자가 자기 행을 임의 matched 위조 차단
-      IF NEW.status = 'matched' AND OLD.status IS DISTINCT FROM 'matched' THEN
-        RAISE EXCEPTION 'matched only via RPC';
-      END IF;
-      -- 칭송 인증 제출(commendation_submitted)은 스크린샷 URL 이 있을 때만 허용
-      IF NEW.status = 'commendation_submitted' AND OLD.status IS DISTINCT FROM 'commendation_submitted'
-         AND COALESCE(NEW.commendation_screenshot_url, '') = '' THEN
-        RAISE EXCEPTION 'screenshot required';
+      IF NEW.status IS DISTINCT FROM OLD.status THEN
+        -- 취소·거절된 건은 되살릴 수 없다(deleted→pending→RPC matched 로 선물 재지급 우회 차단)
+        IF OLD.status IN ('deleted', 'rejected') THEN
+          RAISE EXCEPTION 'closed match cannot change';
+        END IF;
+        -- 제출·승인·발송 완료 건은 기록 삭제(deleted)만 가능
+        IF OLD.status IN ('gift_sent', 'verified', 'commendation_submitted') AND NEW.status <> 'deleted' THEN
+          RAISE EXCEPTION 'finalized match cannot change';
+        END IF;
+        -- 제출/승인/발송으로의 전이는 RPC(submit_commendation_screenshot)·관리자만
+        IF NEW.status IN ('commendation_submitted', 'verified', 'gift_sent') THEN
+          RAISE EXCEPTION 'status transition not allowed';
+        END IF;
+        -- pending -> matched 전이는 RPC(apply_commendation_match)만 — 사용자가 자기 행을 임의 matched 위조 차단
+        IF NEW.status = 'matched' THEN
+          RAISE EXCEPTION 'matched only via RPC';
+        END IF;
       END IF;
     END IF;
   END IF;
+
   RETURN NEW;
 END;
 $$;
+
+-- (2026-09-03 audit_fix_20260903.sql 과 동일 본문 — 제출 상태·스크린샷 URL 도 RPC 전용)
 
 DROP TRIGGER IF EXISTS trg_commendation_guard ON public.commendation_matches;
 CREATE TRIGGER trg_commendation_guard
@@ -1097,27 +1110,7 @@ REVOKE INSERT, UPDATE, DELETE ON public.point_transactions FROM authenticated, a
 -- 9-3. 매칭 가드: 항공편 변조 + 임의 승인 차단
 --      당사자가 flight_number/flight_date 를 바꿀 수 있어 상대 매칭이 사라지고
 --      재신청 시 신청권이 한 번 더 차감되는 문제가 있었다(실측 재현).
-CREATE OR REPLACE FUNCTION public.commendation_guard()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_bypass BOOLEAN;
-BEGIN
-  v_bypass := (auth.uid() IS NULL)
-              OR (COALESCE(current_setting('app.allow_sensitive', true), 'off') = 'on')
-              OR COALESCE(public.is_admin(), FALSE);
-  IF TG_OP = 'UPDATE' AND NOT v_bypass THEN
-    IF NEW.crew_user_id      IS DISTINCT FROM OLD.crew_user_id
-    OR NEW.passenger_user_id IS DISTINCT FROM OLD.passenger_user_id
-    OR NEW.gift_points       IS DISTINCT FROM OLD.gift_points
-    OR NEW.gift_message      IS DISTINCT FROM OLD.gift_message
-    OR NEW.flight_number     IS DISTINCT FROM OLD.flight_number
-    OR NEW.flight_date       IS DISTINCT FROM OLD.flight_date
-    THEN RAISE EXCEPTION 'protected match field'; END IF;
-    IF NEW.status IN ('verified','gift_sent') AND OLD.status IS DISTINCT FROM NEW.status THEN
-      RAISE EXCEPTION 'protected match status'; END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$;
+-- (commendation_guard 중복 정의 제거 — 최종본은 위 1개, 2026-09-03 audit_fix 와 동일)
 
 -- 9-4. 관리자 승인/거절 RPC (클라이언트가 status 를 직접 UPDATE 하지 않게)
 CREATE OR REPLACE FUNCTION public.admin_review_commendation(p_match_id UUID, p_action TEXT, p_note TEXT DEFAULT NULL)

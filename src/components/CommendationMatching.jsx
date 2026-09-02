@@ -306,9 +306,10 @@ const CommendationMatching = ({ flights = [] }) => {
                   <MatchCard key={match.id} match={match} isCrew={isCrew} partner={getPartnerInfo(match)} isAfterFlight={isAfterFlight(match.flight_date)} onViewDetail={() => setShowDetailModal(match)} isHistory onDelete={async () => {
                     if (!window.confirm('이 기록을 삭제하시겠습니까?')) return;
                     try {
-                      await supabase.from('commendation_matches').update({ status: 'deleted' }).eq('id', match.id);
+                      const { error: delErr } = await supabase.from('commendation_matches').update({ status: 'deleted' }).eq('id', match.id);
+                      if (delErr) throw delErr;
                       await fetchData();
-                    } catch (e) { console.error('삭제 실패:', e); }
+                    } catch (e) { console.error('삭제 실패:', e); alert('기록을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.'); }
                   }} />
                 ))}
               </motion.div>
@@ -469,7 +470,7 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-yellow-50 text-yellow-600 border border-yellow-200">관리자 검토중</span>
               )}
               {match.status === 'gift_sent' && match.gift_points && (
-                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-50 text-purple-600 border border-purple-200">{match.gift_points.toLocaleString()}P 완료</span>
+                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-50 text-purple-600 border border-purple-200">{Number(match.gift_points).toLocaleString()}원 완료</span>
               )}
             </>
           )}
@@ -518,7 +519,7 @@ const MatchDetail = ({ match, isCrew, partner }) => {
         {match.gift_points && (
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">받은 답례품</span>
-            <span className="font-bold text-purple-600">{match.gift_points.toLocaleString()}P</span>
+            <span className="font-bold text-purple-600">{Number(match.gift_points).toLocaleString()}원</span>
           </div>
         )}
         {match.gift_message && (

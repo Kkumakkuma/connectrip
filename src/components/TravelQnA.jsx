@@ -14,6 +14,17 @@ import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 import ListState from './ListState';
 
+// 후기 지역 — 지역별 후기 목록(/reviews/:regionId, Promotions.jsx)과 같은 id·이름·순서.
+// 여기서 region_id 를 넣지 않으면 이 화면에서 쓴 후기가 지역 목록에 잡히지 않는다.
+const reviewRegions = [
+    { id: 'europe', name: '유럽', icon: '🏰' },
+    { id: 'americas', name: '미주', icon: '🗽' },
+    { id: 'africa', name: '아프리카', icon: '🦁' },
+    { id: 'southeast-asia', name: '동남아', icon: '🏝️' },
+    { id: 'asia', name: '아시아', icon: '🐅' },
+    { id: 'oceania', name: '오세아니아', icon: '🦘' },
+];
+
 // 클릭으로만 열리던 카드에 키보드 조작(Enter/Space)을 붙인다.
 // 라우트 이동이 아니라 화면 안 모드 전환이라 Link 대신 button 역할로 처리한다.
 const keyActivate = (fn) => (e) => {
@@ -39,7 +50,7 @@ const TravelQnA = () => {
         if (q) setSearchQuery(q);
     }, [location]);
     const [showModal, setShowModal] = useState(false);
-    const [formData, setFormData] = useState({ title: '', content: '', image_url: '' });
+    const [formData, setFormData] = useState({ title: '', content: '', image_url: '', region_id: '' });
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [posts, setPosts] = useState([]);
@@ -204,6 +215,8 @@ const TravelQnA = () => {
                 const newReview = await reviewsApi.create({
                     user_id: user.id,
                     type: 'review',
+                    // region_id 가 있어야 /reviews/:regionId 지역 목록에 함께 노출된다
+                    region_id: formData.region_id || null,
                     title: formData.title,
                     description: formData.content,
                     image_url: formData.image_url || null,
@@ -211,7 +224,7 @@ const TravelQnA = () => {
                 });
                 setPosts(prev => [newReview, ...prev]);
             }
-            setFormData({ title: '', content: '', image_url: '' });
+            setFormData({ title: '', content: '', image_url: '', region_id: '' });
             setShowModal(false);
         } catch (err) {
             console.error('등록 실패:', err);
@@ -235,7 +248,7 @@ const TravelQnA = () => {
 
     const handleWriteClick = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        setFormData({ title: '', content: '', image_url: '' });
+        setFormData({ title: '', content: '', image_url: '', region_id: '' });
         setShowModal(true);
     };
 
@@ -444,6 +457,23 @@ const TravelQnA = () => {
                                 <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
+                                {mode === 'review' && (
+                                    <div>
+                                        <label htmlFor={`${formId}-region`} className="block text-sm font-bold text-gray-700 mb-2">지역</label>
+                                        <select
+                                            id={`${formId}-region`}
+                                            value={formData.region_id}
+                                            onChange={(e) => setFormData({ ...formData, region_id: e.target.value })}
+                                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all bg-white"
+                                            required
+                                        >
+                                            <option value="" disabled>지역을 선택하세요</option>
+                                            {reviewRegions.map((r) => (
+                                                <option key={r.id} value={r.id}>{r.icon} {r.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div>
                                     <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">제목</label>
                                     <input id={`${formId}-title`} type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}

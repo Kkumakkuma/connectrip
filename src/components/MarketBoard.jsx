@@ -622,7 +622,11 @@ const MarketBoard = () => {
                                         </div>
                                     </div>
                                     {profile?.role === 'admin' && (
-                                        <button onClick={() => { setShowModal(true); }}
+                                        <button
+                                            onClick={() => {
+                                                if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+                                                setShowModal(true);
+                                            }}
                                             className="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors shadow-md flex-shrink-0">
                                             <Plus size={20} /> 공동구매 모집하기
                                         </button>

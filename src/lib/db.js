@@ -344,17 +344,13 @@ export const commendationApi = {
     return data;
   },
 
+  // 제출 상태·스크린샷 URL 은 commendation_guard 가 보호한다(클라이언트 직접 UPDATE 는 거부).
+  // 본인 매칭인지·상태·비행 완료(KST)·URL 형식 검증은 서버 RPC 가 한다.
   async submitCommendation(matchId, screenshotUrl) {
-    const { data, error } = await supabase
-      .from('commendation_matches')
-      .update({
-        status: 'commendation_submitted',
-        commendation_screenshot_url: screenshotUrl,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', matchId)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('submit_commendation_screenshot', {
+      p_match_id: matchId,
+      p_url: screenshotUrl,
+    });
     if (error) throw error;
     return data;
   },

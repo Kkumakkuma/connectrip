@@ -169,6 +169,37 @@ const Admin = () => {
     }
   };
 
+  // 재사용 해제 — 항공사 이메일(영구 1회 사용) / 차단당한 채 탈퇴한 번호.
+  // 운영 DB RPC(admin_release_airline_email / admin_release_phone)가 관리자 권한을 검사한다.
+  const [releaseEmail, setReleaseEmail] = useState('');
+  const [releasePhone, setReleasePhone] = useState('');
+  const [releaseMsg, setReleaseMsg] = useState('');
+  const [releaseLoading, setReleaseLoading] = useState(null); // 'email' | 'phone'
+
+  const handleRelease = async (kind) => {
+    const value = (kind === 'email' ? releaseEmail : releasePhone).trim();
+    if (!value) return;
+    setReleaseLoading(kind);
+    setReleaseMsg('');
+    try {
+      const { data, error } = kind === 'email'
+        ? await supabase.rpc('admin_release_airline_email', { p_email: value })
+        : await supabase.rpc('admin_release_phone', { p_phone: value });
+      if (error) throw error;
+      if (data === true) {
+        setReleaseMsg(`해제했습니다: ${value}`);
+        if (kind === 'email') setReleaseEmail(''); else setReleasePhone('');
+      } else {
+        setReleaseMsg(`해제할 기록이 없습니다: ${value}`);
+      }
+    } catch (err) {
+      console.error('Release failed:', err);
+      setReleaseMsg(`해제에 실패했습니다: ${err?.message || '알 수 없는 오류'}`);
+    } finally {
+      setReleaseLoading(null);
+    }
+  };
+
   const filteredUsers = useMemo(() => {
     if (!userSearch) return users;
     const q = userSearch.toLowerCase();
@@ -501,6 +532,47 @@ const Admin = () => {
                         className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm w-full sm:w-64"
                       />
                     </div>
+                  </div>
+
+                  {/* 재사용 해제 (항공사 이메일 / 차단 번호) */}
+                  <div className="mb-6 p-4 rounded-xl border border-gray-200 bg-gray-50">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          value={releaseEmail}
+                          onChange={(e) => setReleaseEmail(e.target.value)}
+                          placeholder="항공사 이메일"
+                          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm"
+                        />
+                        <button
+                          onClick={() => handleRelease('email')}
+                          disabled={!releaseEmail.trim() || releaseLoading === 'email'}
+                          className="text-xs font-bold px-3 py-2 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+                        >
+                          항공사 이메일 해제
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="tel"
+                          value={releasePhone}
+                          onChange={(e) => setReleasePhone(e.target.value)}
+                          placeholder="차단 번호"
+                          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm"
+                        />
+                        <button
+                          onClick={() => handleRelease('phone')}
+                          disabled={!releasePhone.trim() || releaseLoading === 'phone'}
+                          className="text-xs font-bold px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+                        >
+                          차단 번호 해제
+                        </button>
+                      </div>
+                    </div>
+                    {releaseMsg && (
+                      <p className="mt-3 text-xs font-semibold text-gray-600">{releaseMsg}</p>
+                    )}
                   </div>
 
                   {/* Mobile card layout + Desktop table */}
