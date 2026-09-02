@@ -100,17 +100,17 @@ const CommendationMatching = ({ flights = [] }) => {
     }
   };
 
-  // PASSENGER: 매칭 신청 (무료)
+  // PASSENGER: 매칭 신청
   const handlePassengerApply = async (flight) => {
     if (hasActiveMatch(flight.flight_number, flight.flight_date)) {
       alert('이미 이 항공편에 매칭 신청이 되어있습니다.');
       return;
     }
-    if (!window.confirm('이 항공편에 칭송 매칭을 신청하시겠습니까? (무료)')) return;
+    if (!window.confirm('이 항공편에 칭송 매칭을 신청하시겠습니까?')) return;
 
     setApplyingFlight(flight.id);
     try {
-      // 서버 RPC 가 같은 편 대기중 승무원을 자동 연결(없으면 대기). 승객 신청은 무료.
+      // 서버 RPC 가 같은 편 대기중 승무원을 자동 연결(없으면 대기). 
       const { data: result, error } = await supabase.rpc('apply_commendation_match', {
         p_flight_number: flight.flight_number,
         p_flight_date: flight.flight_date,
@@ -204,7 +204,7 @@ const CommendationMatching = ({ flights = [] }) => {
           <p className="text-sm text-gray-500">
             {isCrew
               ? '신청권을 사용하고 승객의 칭송을 받아보세요'
-              : '무료로 매칭 신청하고 승무원에게 감사를 전해보세요'}
+              : '매칭 신청하고 승무원에게 감사를 전해보세요'}
           </p>
         </div>
       </div>
@@ -223,7 +223,7 @@ const CommendationMatching = ({ flights = [] }) => {
         ) : (
           <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
             <li>비행 스케줄을 등록합니다</li>
-            <li><strong>매칭 신청 (무료)</strong>을 눌러 매칭을 신청합니다</li>
+            <li><strong>매칭 신청</strong>을 눌러 매칭을 신청합니다</li>
             <li>같은 항공편 승무원이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 다음날 승무원 이름이 공개됩니다</li>
             <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 기프티콘을 받습니다</li>
@@ -274,7 +274,7 @@ const CommendationMatching = ({ flights = [] }) => {
                     ) : (
                       <button onClick={() => handlePassengerApply(flight)} disabled={isApplying}
                         className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg font-bold text-xs transition-all disabled:opacity-50 shadow-md">
-                        {isApplying ? <Loader size={14} className="animate-spin" /> : <UserCheck size={14} />} 매칭 신청 (무료)
+                        {isApplying ? <Loader size={14} className="animate-spin" /> : <UserCheck size={14} />} 매칭 신청
                       </button>
                     )}
                   </div>
