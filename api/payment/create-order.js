@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       .eq('user_id', userId).gte('created_at', since);
     if ((count || 0) >= 20) return res.status(429).json({ ok: false, error: 'rate_limited' });
 
-    // 구매자 정보(이니시스 결제창 요건: 이름·이메일 필수, 전화는 있으면 전달). 프로필 값 우선, 이메일은 계정 이메일 fallback.
+    // 구매자 정보(이니시스 V2 일반결제 요건: 이름·휴대폰·이메일 전부 필수 — 휴대폰 없으면 SDK 가 '구매자 휴대폰 번호는 필수' 로 결제창 호출 실패, 2026-09-03 실측). 프로필 값 우선, 이메일은 계정 이메일 fallback.
     // 값은 로그에 남기지 않는다(누락 필드명만).
     const { data: prof, error: pErr } = await supabase.from('profiles').select('name, nickname, phone, email').eq('id', userId).maybeSingle();
     if (pErr) { console.error('[create-order] profile lookup', pErr.code || pErr.message); return res.status(500).json({ ok: false, error: 'server_error' }); }
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
       phoneNumber: String(prof?.phone || '').replace(/[^0-9+]/g, '') || undefined,
       email: String(prof?.email || user.email || '').trim() || undefined,
     };
-    const missing = ['fullName', 'email'].filter((k) => !customer[k]);
+    const missing = ['fullName', 'phoneNumber', 'email'].filter((k) => !customer[k]);
     if (missing.length) {
       console.warn('[create-order] customer incomplete', missing.join(','));
       return res.status(400).json({ ok: false, error: 'customer_incomplete', missing });

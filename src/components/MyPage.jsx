@@ -395,7 +395,7 @@ const MyPage = () => {
             const m = String(e?.message || e);
             if (m === 'login_required') setPayErr('로그인 후 이용해주세요.');
             else if (m === 'pg_unconfigured' || e?.code === 'PG_UNCONFIGURED') setPayErr('결제 서비스가 아직 준비되지 않았습니다. 곧 열립니다.');
-            else if (m === 'customer_incomplete') setPayErr('결제에 필요한 이름·이메일 정보가 프로필에 없습니다. 프로필을 먼저 채워 주세요.');
+            else if (m === 'customer_incomplete') setPayErr('결제에 필요한 이름·휴대폰 번호·이메일이 프로필에 없습니다. 프로필을 먼저 채워 주세요.');
             else if (e?.code) setPayErr('결제가 완료되지 않았습니다: ' + m + (e.pgMessage ? ' (' + e.pgMessage + ')' : ''));
             else setPayErr('결제 준비 실패: ' + m);
         } finally {
