@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { tossAdapter } from '../lib/payments/toss';
+import { requestPointPayment, parsePaymentReturn, stripPaymentParams, readPendingPayment, clearPendingPayment } from '../lib/payments/portone';
+import { isNativeApp } from '../lib/native';
 import { POINT_PACKAGES } from '../lib/products';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -236,15 +237,11 @@ const MyPage = () => {
 
     const [showChargeModal, setShowChargeModal] = useState(false);
     const [chargeAmount, setChargeAmount] = useState(10000);
-    // 토스 결제창 연동 상태 (2026-07-30)
-    const [payPhase, setPayPhase] = useState('select'); // 'select'(금액 선택) | 'pay'(결제창)
-    const [payOrder, setPayOrder] = useState(null);
+    // 포트원 결제 진행 상태 (2026-07-30)
     const [payLoading, setPayLoading] = useState(false);
     const [payErr, setPayErr] = useState('');
-    const payRootRef = useRef(null);
-    const payHandleRef = useRef(null);
+    const [payRetryId, setPayRetryId] = useState(null); // 확인 실패한 결제 ID(다시 시도 버튼)
     const returnHandledRef = useRef(false);
-    const payRequestingRef = useRef(false);
     const chargeStartingRef = useRef(false);
 
     // 회원탈퇴
@@ -334,99 +331,97 @@ const MyPage = () => {
     };
 
     // 선택된 충전 금액(고정 패키지만 — 임의 금액 입력은 PG 심사 요건으로 2026-09-02 제거)
-    const resolveChargeAmount = () => {
-        const v = chargeAmount;
-        return Number.isInteger(v) ? v : 0;
-    };
+    const resolveChargeAmount = () => (Number.isInteger(chargeAmount) ? chargeAmount : 0);
 
     // 충전 모달 닫기 — 결제 상태까지 초기화
     const closeChargeModal = () => {
         setShowChargeModal(false);
-        setPayPhase('select');
-        setPayOrder(null);
         setPayErr('');
-        if (payHandleRef.current) { try { payHandleRef.current.destroy(); } catch { /* noop */ } payHandleRef.current = null; }
+        setPayLoading(false);
     };
 
-    // '충전하기' → 주문 생성 후 결제창 단계로. (2026-07-30 토스 연동)
-    // ※현재 테스트 키 단계라 결제창은 뜨지만 실제 충전은 라이브 키 반영 후. 모달에 정직하게 고지.
+    // 결제 확인: 서버가 포트원 조회로 검증 후 충전(라이브만). 멱등 — 몇 번 불러도 안전.
+    // 재시도 가능 실패(네트워크/5xx/락 경합/조회 지연)는 시작 기록(sessionStorage)을 남겨 "다시 시도"로 복구.
+    const runConfirm = async (paymentId) => {
+        setPayLoading(true); setPayErr('');
+        try {
+            let r = await confirmCharge({ paymentId });
+            // 웹훅과 동시 도착으로 락 경합(busy)이면 짧게 한 번 더(agy 지적) — 대개 그 사이 상대가 끝낸다.
+            if (r.error === 'busy') { await new Promise((ok) => setTimeout(ok, 1500)); r = await confirmCharge({ paymentId }); }
+            if (r.ok) {
+                clearPendingPayment(); setPayRetryId(null);
+                if (r.test) alert('테스트 결제가 확인됐습니다.\n실제 포인트 충전은 정식 오픈(결제 계약 완료) 후 반영됩니다.');
+                else { alert(`${(r.credited || 0).toLocaleString()}P 충전이 완료되었습니다!`); if (user?.id) fetchProfile(user.id); }
+                closeChargeModal();
+                return;
+            }
+            const retryable = r.retryable === true || (!r.httpOk && r.error === undefined);
+            if (retryable) {
+                setPayRetryId(paymentId);
+                setPayErr('결제 확인이 지연되고 있습니다. 잠시 후 "결제 확인 다시 시도"를 눌러 주세요. (결제는 안전하게 처리됩니다.)');
+                setShowChargeModal(true);
+                return;
+            }
+            clearPendingPayment(); setPayRetryId(null);
+            if (r.error === 'credit_failed') { alert(r.message || '결제는 완료됐습니다. 포인트 반영 확인 후 처리해 드립니다.'); closeChargeModal(); return; }
+            if (r.error === 'canceled' || r.code === 'pg_cancelled') { setPayErr('결제가 취소되었습니다.'); setShowChargeModal(true); return; }
+            setPayErr('결제 확인에 실패했습니다. ' + (r.message || r.code || r.error || ''));
+            setShowChargeModal(true);
+        } catch (e) {
+            setPayRetryId(paymentId);
+            setPayErr('네트워크 문제로 결제 확인을 못했습니다. "결제 확인 다시 시도"를 눌러 주세요. ' + String(e?.message || e));
+            setShowChargeModal(true);
+        } finally {
+            setPayLoading(false);
+        }
+    };
+    const runConfirmRef = useRef(null);
+    runConfirmRef.current = runConfirm;
+
+    // '충전하기' → 주문 생성 → 포트원 결제창. PC 는 응답 즉시 확인, 모바일은 리다이렉트 복귀(effect)에서 확인.
     const handleChargePoints = async () => {
         if (chargeStartingRef.current || payLoading) return; // 더블클릭 가드(ref — 상태 반영 전 방어)
         const amt = resolveChargeAmount();
         if (!amt) { setPayErr('충전할 패키지를 선택해 주세요.'); return; }
+        if (isNativeApp()) { setPayErr('앱에서는 결제 준비 중입니다. 웹(www.connecttrip.co.kr)에서 충전해 주세요.'); return; } // 앱 복귀(appScheme·딥링크)는 앱 출시 작업에서
         chargeStartingRef.current = true;
         setPayLoading(true); setPayErr('');
         try {
             const order = await createChargeOrder(amt);
-            setPayOrder(order);
-            setPayPhase('pay'); // 아래 effect 가 위젯을 마운트한다
+            const r = await requestPointPayment(order, { returnPath: '/mypage' });
+            if (r.redirected) return; // 모바일: 페이지 이동 중
+            await runConfirm(r.paymentId);
         } catch (e) {
             const m = String(e?.message || e);
-            setPayErr(m === 'login_required' ? '로그인 후 이용해주세요.' : ('결제 준비 실패: ' + m));
+            if (m === 'login_required') setPayErr('로그인 후 이용해주세요.');
+            else if (m === 'pg_unconfigured' || e?.code === 'PG_UNCONFIGURED') setPayErr('결제 서비스가 아직 준비되지 않았습니다. 곧 열립니다.');
+            else if (m === 'customer_incomplete') setPayErr('결제에 필요한 이름·이메일 정보가 프로필에 없습니다. 프로필을 먼저 채워 주세요.');
+            else if (e?.code) setPayErr('결제가 완료되지 않았습니다: ' + m + (e.pgMessage ? ' (' + e.pgMessage + ')' : ''));
+            else setPayErr('결제 준비 실패: ' + m);
         } finally {
             setPayLoading(false);
             chargeStartingRef.current = false;
         }
     };
 
-    // 결제창 단계 진입 시 토스 위젯 마운트. cleanup 에서 인스턴스 파괴(언마운트·닫기·뒤로 모두 커버 — codex).
-    useEffect(() => {
-        if (payPhase !== 'pay' || !payOrder || !payRootRef.current) return;
-        let cancelled = false;
-        tossAdapter.mount(payRootRef.current, payOrder)
-            .then((h) => {
-                if (cancelled) { try { h.destroy(); } catch { /* noop */ } } // 늦게 완료된 인스턴스도 파괴
-                else payHandleRef.current = h;
-            })
-            .catch((e) => { if (!cancelled) setPayErr('결제창 준비 실패: ' + String(e?.message || e)); });
-        return () => {
-            cancelled = true;
-            if (payHandleRef.current) { try { payHandleRef.current.destroy(); } catch { /* noop */ } payHandleRef.current = null; }
-        };
-    }, [payPhase, payOrder]);
-
-    // '결제하기' → 토스 결제창 호출(성공 시 /mypage 로 리다이렉트되어 아래 return effect 가 승인)
-    const handlePayNow = async () => {
-        if (payRequestingRef.current) return; // 중복 호출 가드
-        if (!payHandleRef.current) { setPayErr('결제창이 아직 준비 중입니다.'); return; }
-        payRequestingRef.current = true;
-        setPayLoading(true);
-        try {
-            await payHandleRef.current.requestPayment({
-                successUrl: window.location.origin + '/mypage',
-                failUrl: window.location.origin + '/mypage?pay=fail',
-            });
-            // 성공 시 여기 이후로 리다이렉트되어 코드가 진행되지 않는다.
-        } catch (e) {
-            setPayErr('결제창 호출 실패: ' + String(e?.message || e));
-            payRequestingRef.current = false;
-            setPayLoading(false);
-        }
-    };
-
-    // 결제 성공 리다이렉트 처리 (토스가 /mypage?paymentKey=&orderId=&amount= 로 돌려보냄)
+    // 결제 리다이렉트 복귀(모바일: /mypage?flow=charge&paymentId=…&code=…) 또는 미확인 결제(시작 기록) 처리.
+    // 서버 confirm 이 멱등이라 새로고침·뒤로가기로 여러 번 불려도 안전. 쿼리는 결제 관련 키만 지운다.
     useEffect(() => {
         if (returnHandledRef.current) return;
-        const q = new URLSearchParams(window.location.search);
-        const paymentKey = q.get('paymentKey');
-        const orderId = q.get('orderId');
-        if (!paymentKey || !orderId) {
-            if (q.get('pay') === 'fail') { returnHandledRef.current = true; window.history.replaceState({}, '', '/mypage'); }
+        const ret = parsePaymentReturn(window.location.search);
+        const pending = readPendingPayment();
+        if (!ret && !pending) return;
+        returnHandledRef.current = true;
+        if (ret) stripPaymentParams();
+        if (ret?.code) {
+            clearPendingPayment();
+            setPayErr('결제가 완료되지 않았습니다: ' + (ret.message || ret.code));
+            setShowChargeModal(true);
             return;
         }
-        returnHandledRef.current = true;
-        const clearUrl = () => window.history.replaceState({}, '', '/mypage');
-        confirmCharge({ paymentKey, orderId, amount: Number(q.get('amount')) })
-            .then((r) => {
-                if (r.ok && r.test) { alert('테스트 결제가 확인됐습니다.\n실제 포인트 충전은 정식 오픈(결제 계약 완료) 후 반영됩니다.'); clearUrl(); return; }
-                if (r.ok) { alert(`${(r.credited || 0).toLocaleString()}P 충전이 완료되었습니다!`); if (user?.id) fetchProfile(user.id); clearUrl(); return; }
-                // 재시도 가능한 실패(네트워크/5xx/일시 충전실패/busy)는 URL 을 남겨 새로고침으로 재시도. 결제만 되고 충전 유실 방지(codex).
-                const retryable = !r.httpOk || r.error === 'credit_failed' || r.error === 'busy';
-                if (retryable) alert('결제 확인이 지연되고 있습니다. 잠시 후 이 페이지를 새로고침해 주세요. (결제는 안전하게 처리됩니다.)');
-                else { alert('결제 확인에 실패했습니다.\n' + (r.message || r.error || '')); clearUrl(); }
-            })
-            .catch((e) => { alert('네트워크 문제로 결제 확인을 못했습니다. 페이지를 새로고침하면 다시 시도합니다.\n' + String(e?.message || e)); /* URL 유지 → 새로고침 재시도 */ });
-    }, [user, fetchProfile]);
+        const id = ret?.paymentId || pending?.paymentId || '';
+        if (id) runConfirmRef.current?.(id);
+    }, []);
 
     const tabs = [
         { id: 'commendation', label: '칭송매칭', icon: Heart },
@@ -997,7 +992,6 @@ const MyPage = () => {
                                     <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#6366f1' }}>{totalPoints.toLocaleString()}P</span>
                                 </div>
 
-                                {payPhase === 'select' && (<>
                                 {/* Preset amounts */}
                                 <div style={{ display: 'grid', gap: '0.8rem', marginBottom: '1rem' }}>
                                     {POINT_PACKAGES.map(({ price: amount }) => (
@@ -1033,29 +1027,17 @@ const MyPage = () => {
                                         {payLoading ? '준비 중…' : '충전하기'}
                                     </button>
                                 </div>
-                                </>)}
 
-                                {payPhase === 'pay' && (<>
-                                    {/* 토스 결제창(위젯). 결제수단 선택 후 결제하기. */}
-                                    <div ref={payRootRef} />
-                                    <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1rem' }}>
-                                        <button
-                                            onClick={() => { setPayPhase('select'); setPayOrder(null); setPayErr(''); if (payHandleRef.current) { try { payHandleRef.current.destroy(); } catch { /* noop */ } payHandleRef.current = null; } }}
-                                            style={{ padding: '0.9rem 1rem', borderRadius: '12px', border: '1px solid #ddd', background: 'white', cursor: 'pointer', fontWeight: 600 }}
-                                        >
-                                            뒤로
-                                        </button>
-                                        <button
-                                            onClick={handlePayNow}
-                                            disabled={payLoading}
-                                            className="btn-primary"
-                                            style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', border: 'none', opacity: payLoading ? 0.6 : 1 }}
-                                        >
-                                            {payLoading ? '처리 중…' : '결제하기'}
-                                        </button>
-                                    </div>
-                                </>)}
 
+                                {payRetryId && (
+                                    <button
+                                        onClick={() => runConfirm(payRetryId)}
+                                        disabled={payLoading}
+                                        style={{ width: '100%', marginTop: '0.8rem', padding: '0.8rem', borderRadius: '12px', border: '1px solid #a855f7', background: '#f5f3ff', color: '#6d28d9', fontWeight: 600, cursor: 'pointer', opacity: payLoading ? 0.6 : 1 }}
+                                    >
+                                        {payLoading ? '확인 중…' : '결제 확인 다시 시도'}
+                                    </button>
+                                )}
                                 {payErr && (
                                     <p style={{ textAlign: 'center', fontSize: '0.8rem', color: '#dc2626', marginTop: '0.8rem' }}>{payErr}</p>
                                 )}

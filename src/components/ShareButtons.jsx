@@ -3,7 +3,7 @@ import { Share2, Link, MessageCircle, X as XIcon, Check } from 'lucide-react';
 
 // 카카오 SDK(85.5kB)를 index.html 에서 빼고 여기서 필요할 때만 받는다. 실사용처는 이 컴포넌트뿐이고
 // ShareButtons 는 lazy 라우트에만 들어가므로, 전 페이지 초기 로딩에서 이 요청이 통째로 빠진다.
-// 로더 패턴은 src/lib/payments/toss.js 의 loadSdk() 와 동일 — 모듈 스코프 프라미스 캐시로 중복 삽입 방지.
+// 로더 패턴은 구 토스 어댑터의 loadSdk() 와 동일(어댑터는 2026-09-02 포트원 전환으로 삭제) — 모듈 스코프 프라미스 캐시로 중복 삽입 방지.
 const KAKAO_SRC = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js';
 let kakaoPromise = null;
 

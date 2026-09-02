@@ -18,6 +18,7 @@
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",
     "@portone/browser-sdk": "^0.1.9",
+    "@portone/server-sdk": "^0.19.0",
     "@supabase/supabase-js": "^2.103.0",
     "framer-motion": "^12.27.0",
     "lucide-react": "^0.562.0",

@@ -21,12 +21,12 @@ export async function createChargeOrder(amount) {
   return j;
 }
 
-/** 결제 승인(성공 리다이렉트 후). 성공 시 서버가 포인트 충전(라이브만). */
-export async function confirmCharge({ paymentKey, orderId, amount }) {
+/** 결제 확인(결제창 응답 또는 리다이렉트 복귀 후). 서버가 포트원 조회로 검증 후 포인트 충전(라이브만). 멱등. */
+export async function confirmCharge({ paymentId }) {
   const r = await fetch(apiUrl('/api/payment/confirm'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ paymentKey, orderId, amount }),
+    body: JSON.stringify({ paymentId }),
   });
   const j = await r.json().catch(() => null);
   return { httpOk: r.ok, ...(j || {}) };

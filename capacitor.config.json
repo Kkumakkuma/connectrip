@@ -15,7 +15,9 @@
       "*.danal.co.kr",
       "danal.co.kr",
       "*.teledit.com",
-      "teledit.com"
+      "teledit.com",
+      "*.inicis.com",
+      "inicis.com"
     ]
   }
 }
