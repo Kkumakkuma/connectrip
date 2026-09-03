@@ -5,6 +5,10 @@
 //   코드·DB(ct_payment_orders, ct_charge_points_by_payment)·API(api/payment/*)는 그대로 두고
 //   이 플래그로만 가린다. 다시 켤 때: Vercel 에 VITE_PAYMENTS_ENABLED=true(빌드) + PAYMENTS_ENABLED=true(서버)
 //   를 넣고 재배포 → routeMeta.js 의 '/points' 주석 해제, public/sitemap.xml 에 /points 복구,
-//   public/robots.txt 의 Disallow: /points 제거, capacitor.config.json allowNavigation 에 *.inicis.com 복구.
+//   public/robots.txt 의 Disallow: /points 와 Disallow: /api/payment/ 제거,
+//   capacitor.config.json allowNavigation 에 "*.inicis.com"·"inicis.com" 복구 후 `npm run app:sync`(앱 재빌드),
+//   src/pages/Terms.jsx 6조 둘째 문단·7조(결제·환불·청약철회)를 git 이력의 2026-09-02 본으로 복구,
+//   MyPage·MarketBoard 의 "1P = 1원" 문구는 필요하면 같은 커밋(24a8355) 이력에서 되살린다.
 //   포인트는 그동안 추천 보너스·게시글 좋아요 적립으로만 쌓이고, 매칭신청권(30,000P)은 그 포인트로 구매한다.
+//   (플래그가 꺼져 있어도 Points 페이지 청크·products.js 는 번들에 남는다 — 라우트가 NotFound 라 사용자에겐 안 보임, 코드 보존 목적.)
 export const PAYMENTS_ENABLED = import.meta.env.VITE_PAYMENTS_ENABLED === 'true';
