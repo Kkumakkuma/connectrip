@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { requestPointPayment, parsePaymentReturn, stripPaymentParams, readPendingPayment, clearPendingPayment } from '../lib/payments/portone';
 import { isNativeApp } from '../lib/native';
 import { POINT_PACKAGES } from '../lib/products';
+import { PAYMENTS_ENABLED } from '../lib/featureFlags';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings, Gift, Copy, Share2, UserX } from 'lucide-react';
@@ -333,9 +334,7 @@ const MyPage = () => {
                 }
             }
         } else {
-            if (window.confirm(`포인트가 부족합니다. (필요: ${totalPrice.toLocaleString()}P / 보유: ${totalPoints.toLocaleString()}P)\n포인트를 충전하시겠습니까?`)) {
-                setShowChargeModal(true);
-            }
+            alert(`포인트가 부족합니다. (필요: ${totalPrice.toLocaleString()}P / 보유: ${totalPoints.toLocaleString()}P)`);
         }
     };
 
@@ -470,6 +469,7 @@ const MyPage = () => {
     // 서버 confirm 이 멱등이라 새로고침·뒤로가기로 여러 번 불려도 안전. 쿼리는 결제 관련 키만 지운다.
     useEffect(() => {
         if (returnHandledRef.current) return;
+        if (!PAYMENTS_ENABLED) { returnHandledRef.current = true; clearPendingPayment(); stripPaymentParams(); return; }
         const ret = parsePaymentReturn(window.location.search);
         const pending = readPendingPayment();
         if (!ret && !pending) return;
@@ -526,8 +526,8 @@ const MyPage = () => {
                                 <div>
                                     <p style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '0.2rem' }}>나의 보유 포인트</p>
                                     <p style={{ fontSize: '1.8rem', fontWeight: '800' }}>{totalPoints.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>P</span></p>
-                                    <p style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.2rem' }}>1P = 1원</p>
                                 </div>
+                                {PAYMENTS_ENABLED && (
                                 <button
                                     onClick={() => setShowChargeModal(true)}
                                     style={{
@@ -547,6 +547,7 @@ const MyPage = () => {
                                 >
                                     <CreditCard size={18} /> 충전하기
                                 </button>
+                                )}
                             </div>
                         </motion.div>
                     )}
@@ -606,14 +607,15 @@ const MyPage = () => {
                                         <p style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '0.5rem' }}>보유 포인트</p>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <p style={{ fontSize: '1.8rem', fontWeight: '800' }}>{totalPoints.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>P</span></p>
+                                            {PAYMENTS_ENABLED && (
                                             <button
                                                 onClick={() => setShowChargeModal(true)}
                                                 style={{ padding: '4px 12px', background: 'white', color: '#a855f7', border: 'none', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
                                             >
                                                 충전하기
                                             </button>
+                                            )}
                                         </div>
-                                        <p style={{ fontSize: '0.7rem', opacity: 0.6, marginTop: '2px' }}>1P = 1원</p>
                                         <button
                                             onClick={handleBuyVoucher}
                                             style={{
@@ -1102,7 +1104,7 @@ const MyPage = () => {
 
                 {/* Point Charge Modal */}
                 <AnimatePresence>
-                    {showChargeModal && (
+                    {PAYMENTS_ENABLED && showChargeModal && (
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             style={{

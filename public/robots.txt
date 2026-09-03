@@ -2,5 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /mypage
+Disallow: /points
+Disallow: /api/payment/
 
 Sitemap: https://www.connecttrip.co.kr/sitemap.xml

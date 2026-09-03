@@ -12,7 +12,7 @@
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { applyCors } from '../_cors.js';
-import { portoneConfig } from './_portone.js';
+import { portoneConfig, paymentsEnabled } from './_portone.js';
 
 // 허용 금액 = 고정 패키지만(src/lib/products.js POINT_PACKAGES 와 동기). 임의 금액은 PG 심사 요건(임의가격 불가)으로 차단.
 const ALLOWED_AMOUNTS = [10000, 30000, 50000, 100000];
@@ -20,6 +20,7 @@ const ALLOWED_AMOUNTS = [10000, 30000, 50000, 100000];
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method' });
+  if (!paymentsEnabled()) return res.status(404).json({ ok: false, error: 'payments_disabled' });
   try {
     const SUPA_URL = (process.env.SUPABASE_URL || '').trim();
     const SUPA_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();

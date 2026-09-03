@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import PayTest from './pages/PayTest'; // 빌드플래그 false 시 트리셰이킹으로 프로덕션 번들에서 제거됨
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useAuth } from './lib/AuthContext';
+import { PAYMENTS_ENABLED } from './lib/featureFlags';
 import { keywordsApi, keywordAlertsApi } from './lib/db';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
@@ -39,7 +40,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 // 결제 테스트 라우트는 빌드플래그(VITE_PAYTEST=1)가 있을 때만 존재.
 // ★정적 import 로 두어야 프로덕션(플래그 없음)에서 Rollup 이 트리셰이킹으로 통째로 제거한다.
 //   lazy(()=>import) 는 항상 별도 청크를 생성해 프로덕션 dist 에 남으므로 쓰지 않는다.
-const PAYTEST = import.meta.env.VITE_PAYTEST === '1';
+const PAYTEST = PAYMENTS_ENABLED && import.meta.env.VITE_PAYTEST === '1';
 
 // 라우트 전환 시 잠깐 보이는 로더 (기존 앱 스피너 톤 유지)
 const RouteFallback = () => (
@@ -228,7 +229,7 @@ function App() {
               />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
-              <Route path="/points" element={<Points />} />
+              <Route path="/points" element={PAYMENTS_ENABLED ? <Points /> : <NotFound />} />
               {PAYTEST && <Route path="/__paytest" element={<PayTest />} />}
               <Route path="*" element={<NotFound />} />
             </Routes>

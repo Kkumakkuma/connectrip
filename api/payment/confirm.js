@@ -6,11 +6,12 @@
 // 사용자 경로라 주문 소유자(JWT)만 호출 가능. 서버→서버 경로는 webhook.js.
 import { createClient } from '@supabase/supabase-js';
 import { applyCors } from '../_cors.js';
-import { portoneConfig, settleLoaded } from './_portone.js';
+import { portoneConfig, settleLoaded, paymentsEnabled } from './_portone.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method' });
+  if (!paymentsEnabled()) return res.status(404).json({ ok: false, error: 'payments_disabled' });
   try {
     const SUPA_URL = (process.env.SUPABASE_URL || '').trim();
     const SUPA_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();

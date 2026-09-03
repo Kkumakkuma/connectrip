@@ -198,7 +198,7 @@ const MarketBoard = () => {
         const myPoints = profile?.points_balance || 0;
 
         if (myPoints < totalPrice) {
-            alert(`포인트가 부족합니다.\n필요: ${totalPrice.toLocaleString()}P / 보유: ${myPoints.toLocaleString()}P\n\n현금·카드 결제(PG)는 사업자 등록 후 제공될 예정입니다. 현재는 포인트로 전액 결제만 가능합니다.`);
+            alert(`포인트가 부족합니다.\n필요: ${totalPrice.toLocaleString()}P / 보유: ${myPoints.toLocaleString()}P`);
             return;
         }
 
@@ -1094,12 +1094,11 @@ const MarketBoard = () => {
                                         <span className="text-gray-600">내 보유 포인트</span>
                                         <span className={`font-semibold ${insufficient ? 'text-red-500' : 'text-gray-800'}`}>{myPoints.toLocaleString()}P</span>
                                     </div>
-                                    <p className="text-xs text-gray-500 pt-1">1P = 1원</p>
                                 </div>
 
                                 {insufficient && (
                                     <p className="text-sm text-red-500 mb-4">
-                                        포인트가 부족합니다. 현금·카드 결제(PG)는 사업자 등록 후 제공될 예정입니다.
+                                        포인트가 부족합니다.
                                     </p>
                                 )}
 

@@ -9,12 +9,13 @@
 // - 응답: 최종 결과(처리 완료·무시 대상·PG 실패/취소·주문 없음)는 200, 일시 장애(조회 timeout/5xx·락 경합·DB)는 503 → 포트원 재시도.
 import { createClient } from '@supabase/supabase-js';
 import * as PortOne from '@portone/server-sdk';
-import { portoneConfig, settleOrder } from './_portone.js';
+import { portoneConfig, settleOrder, paymentsEnabled } from './_portone.js';
 
 const MAX_BODY = 64 * 1024;
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export async function POST(request) {
+  if (!paymentsEnabled()) return json(200, { ok: true, ignored: 'payments_disabled' });
   try {
     const raw = await request.text();
     if (!raw || raw.length > MAX_BODY) return json(413, { ok: false, error: 'body_too_large' });

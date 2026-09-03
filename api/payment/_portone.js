@@ -17,6 +17,11 @@ export const STALE_LOCK_MS = 2 * 60_000;
 const REVIEW_MSG = '결제는 완료됐습니다. 포인트 반영 확인이 필요해 곧 처리해 드립니다.';
 
 /** 서버 env 묶음. PG_ENV 미설정은 test(fail-closed: 실제 포인트 가산 없음). */
+// 결제 기능 스위치(서버). 2026-09-03 PG 정책(포인트 충전 카드결제 불가)으로 기본 꺼짐 — src/lib/featureFlags.js 참조.
+export function paymentsEnabled() {
+  return process.env.PAYMENTS_ENABLED === 'true';
+}
+
 export function portoneConfig() {
   const env = (process.env.PG_ENV || 'test') === 'live' ? 'live' : 'test';
   return {

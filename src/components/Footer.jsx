@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { PAYMENTS_ENABLED } from '../lib/featureFlags';
 import { BUSINESS_INFO, isBusinessValueFilled } from '../lib/businessInfo';
 
 // 패밀리 사이트(자기 자신 커넥트립 제외). 새 탭으로 이동한다.
@@ -41,12 +42,16 @@ const Footer = () => {
                         <Link to="/privacy" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
                             개인정보처리방침
                         </Link>
+                        {PAYMENTS_ENABLED && (
                         <Link to="/terms#refund" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
                             환불 정책
                         </Link>
+                        )}
+                        {PAYMENTS_ENABLED && (
                         <Link to="/points" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>
                             포인트·상품 안내
                         </Link>
+                        )}
                     </div>
                 </div>
 
