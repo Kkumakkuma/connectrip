@@ -138,7 +138,7 @@ const CommendationMatching = ({ flights = [] }) => {
       setShowScreenshotModal(null);
       setScreenshotUrl('');
       await fetchData();
-      alert('칭찬 인증이 제출되었습니다! 관리자 확인 후 소정의 답례품을 보내드립니다.');
+      alert('칭찬 인증이 접수되었습니다. 확인 후 참여에 감사하는 뜻으로 소정의 답례품을 보내드립니다.');
     } catch (err) {
       console.error('제출 실패:', err);
       alert('제출에 실패했습니다.');
@@ -203,11 +203,19 @@ const CommendationMatching = ({ flights = [] }) => {
           <h4 className="text-xl font-extrabold text-gray-800">칭찬매칭</h4>
           <p className="text-sm text-gray-500">
             {isCrew
-              ? '신청권을 사용하고 승객의 칭찬을 받아보세요'
+              ? '매칭신청권을 사용해 같은 항공편 승객과 연결됩니다'
               : '매칭 신청하고 승무원에게 감사를 전해보세요'}
           </p>
         </div>
       </div>
+
+      {/* 취지 안내(2026-09-03 쿠마님 확정 문구) — 답례품은 칭찬의 대가가 아니라 이벤트 참여 감사로 표현 */}
+      <p className="text-sm text-gray-600 leading-relaxed">
+        칭찬매칭은 커넥트립이 진행하는 이벤트입니다. 비행에서 좋은 서비스를 받은 승객이 그 마음을 항공사에 직접 전하고,
+        승무원은 자신의 서비스가 어떻게 닿았는지 확인할 수 있도록 연결합니다. 승무원과 여행자가 서로를 조금 더 가깝게
+        느끼는 문화를 만들고 싶어 시작했고, 실제로 받은 경험을 그대로 남겨 주신 승객께는 참여에 감사하는 뜻으로 소정의
+        답례품을 드립니다.
+      </p>
 
       {/* 매칭 진행 방법 */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4 border border-blue-100">
@@ -226,7 +234,7 @@ const CommendationMatching = ({ flights = [] }) => {
             <li><strong>매칭 신청</strong>을 눌러 매칭을 신청합니다</li>
             <li>같은 항공편 승무원이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 다음날 승무원 이름이 공개됩니다</li>
-            <li>항공사 홈페이지에 칭찬 작성 → 스크린샷 제출 → 관리자 승인 후 소정의 답례품을 받습니다</li>
+            <li>항공사 홈페이지에 받은 경험을 그대로 남기고 스크린샷을 제출하면, 확인 후 참여 감사의 뜻으로 소정의 답례품을 보내드립니다</li>
           </ol>
         )}
       </div>
