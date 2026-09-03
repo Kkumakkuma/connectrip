@@ -15,7 +15,7 @@ export const VOUCHER = {
   id: 'voucher-1',
   name: '매칭신청권 1개',
   pricePoints: 30000,         // 포인트로 결제(1포인트 = 1원 → 30,000원 상당)
-  desc: '승무원 칭송매칭을 신청할 때 1회에 1개를 사용하는 이용권입니다. 보유 포인트로 구매합니다.',
+  desc: '승무원 칭찬매칭을 신청할 때 1회에 1개를 사용하는 이용권입니다. 보유 포인트로 구매합니다.',
 };
 
 export const REFUND_SUMMARY = [

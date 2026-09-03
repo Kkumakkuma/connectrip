@@ -320,7 +320,7 @@ export const flightApi = {
 };
 
 // ============================================================
-// Commendation Matching (칭송매칭)
+// Commendation Matching (칭찬매칭)
 // ============================================================
 
 export const commendationApi = {
@@ -865,7 +865,7 @@ export const adminApi = {
     if (error) throw error;
   },
 
-  // 관리자 직접 지급 — 칭송사용권(매칭신청권) 선물 (RPC admin_grant_vouchers)
+  // 관리자 직접 지급 — 매칭신청권 선물 (RPC admin_grant_vouchers)
   async grantVouchers(userId, qty, reason) {
     const { error } = await supabase.rpc('admin_grant_vouchers', {
       p_user_id: userId, p_qty: qty, p_reason: reason || null,

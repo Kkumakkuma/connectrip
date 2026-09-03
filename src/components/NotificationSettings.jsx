@@ -8,7 +8,7 @@ const NOTIFICATION_CATEGORIES = [
   { id: 'market', label: '장터', desc: '새로운 물품이 등록되었을 때', icon: ShoppingBag, color: 'orange' },
   { id: 'reviews', label: '여행후기/홍보', desc: '새로운 후기나 홍보글이 올라왔을 때', icon: Star, color: 'purple' },
   { id: 'flight', label: '항공편 매칭', desc: '같은 편 동행이 발견되었을 때', icon: Plane, color: 'sky' },
-  { id: 'commendation', label: '칭송매칭', desc: '칭송매칭 관련 알림', icon: Heart, color: 'pink' },
+  { id: 'commendation', label: '칭찬매칭', desc: '칭찬매칭 관련 알림', icon: Heart, color: 'pink' },
   { id: 'keywords', label: '키워드 알림', desc: '등록한 키워드가 포함된 글이 올라왔을 때', icon: Bell, color: 'yellow' },
 ];
 

@@ -66,7 +66,7 @@ const Navbar = () => {
     ]}] : []),
     ...(isAdmin ? [{ name: '관리자', to: '/admin', sub: [
       { name: '🚨 신고 관리', to: '/admin?tab=reports' },
-      { name: '✅ 칭송 인증', to: '/admin?tab=commendations' },
+      { name: '✅ 칭찬 인증', to: '/admin?tab=commendations' },
       { name: '👥 회원 관리', to: '/admin?tab=users' },
       { name: '📊 통계', to: '/admin?tab=stats' },
     ]}] : [])

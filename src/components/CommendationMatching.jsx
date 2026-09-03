@@ -106,7 +106,7 @@ const CommendationMatching = ({ flights = [] }) => {
       alert('이미 이 항공편에 매칭 신청이 되어있습니다.');
       return;
     }
-    if (!window.confirm('이 항공편에 칭송 매칭을 신청하시겠습니까?')) return;
+    if (!window.confirm('이 항공편에 칭찬 매칭을 신청하시겠습니까?')) return;
 
     setApplyingFlight(flight.id);
     try {
@@ -129,7 +129,7 @@ const CommendationMatching = ({ flights = [] }) => {
     }
   };
 
-  // 승객: 칭송 스크린샷 인증 제출 → 관리자 검토 대기
+  // 승객: 칭찬 스크린샷 인증 제출 → 관리자 검토 대기
   const handleSubmitScreenshot = async () => {
     if (!showScreenshotModal || !screenshotUrl) return;
     setSubmitting(true);
@@ -138,7 +138,7 @@ const CommendationMatching = ({ flights = [] }) => {
       setShowScreenshotModal(null);
       setScreenshotUrl('');
       await fetchData();
-      alert('칭송 인증이 제출되었습니다! 관리자 확인 후 소정의 답례품을 보내드립니다.');
+      alert('칭찬 인증이 제출되었습니다! 관리자 확인 후 소정의 답례품을 보내드립니다.');
     } catch (err) {
       console.error('제출 실패:', err);
       alert('제출에 실패했습니다.');
@@ -187,7 +187,7 @@ const CommendationMatching = ({ flights = [] }) => {
       <div className="text-center py-12 text-gray-500">
         <Plane size={48} className="mx-auto mb-4 opacity-40" />
         <p className="text-lg font-semibold">로그인이 필요합니다</p>
-        <p className="text-sm mt-1">칭송매칭 서비스를 이용하려면 로그인해주세요.</p>
+        <p className="text-sm mt-1">칭찬매칭 서비스를 이용하려면 로그인해주세요.</p>
       </div>
     );
   }
@@ -200,10 +200,10 @@ const CommendationMatching = ({ flights = [] }) => {
           <Award size={24} />
         </div>
         <div>
-          <h4 className="text-xl font-extrabold text-gray-800">칭송매칭</h4>
+          <h4 className="text-xl font-extrabold text-gray-800">칭찬매칭</h4>
           <p className="text-sm text-gray-500">
             {isCrew
-              ? '신청권을 사용하고 승객의 칭송을 받아보세요'
+              ? '신청권을 사용하고 승객의 칭찬을 받아보세요'
               : '매칭 신청하고 승무원에게 감사를 전해보세요'}
           </p>
         </div>
@@ -217,7 +217,7 @@ const CommendationMatching = ({ flights = [] }) => {
             <li>비행 스케줄을 등록합니다</li>
             <li><strong>매칭 신청</strong>을 눌러 신청권 1장으로 매칭을 신청합니다</li>
             <li>같은 항공편 승객이 신청하면 <strong>자동 매칭</strong>됩니다</li>
-            <li>비행 후 승객이 칭송 스크린샷을 제출합니다</li>
+            <li>비행 후 승객이 칭찬 스크린샷을 제출합니다</li>
             <li><strong>관리자</strong>가 인증을 확인·승인하면 승객에게 소정의 답례품을 보내드립니다</li>
           </ol>
         ) : (
@@ -226,7 +226,7 @@ const CommendationMatching = ({ flights = [] }) => {
             <li><strong>매칭 신청</strong>을 눌러 매칭을 신청합니다</li>
             <li>같은 항공편 승무원이 신청하면 <strong>자동 매칭</strong>됩니다</li>
             <li>비행 다음날 승무원 이름이 공개됩니다</li>
-            <li>항공사 홈페이지에 칭송 작성 → 스크린샷 제출 → 관리자 승인 후 소정의 답례품을 받습니다</li>
+            <li>항공사 홈페이지에 칭찬 작성 → 스크린샷 제출 → 관리자 승인 후 소정의 답례품을 받습니다</li>
           </ol>
         )}
       </div>
@@ -318,7 +318,7 @@ const CommendationMatching = ({ flights = [] }) => {
         </div>
       )}
 
-      {/* 칭송 스크린샷 제출 모달 */}
+      {/* 칭찬 스크린샷 제출 모달 */}
       <AnimatePresence>
         {showScreenshotModal && (
           <Modal onClose={() => { setShowScreenshotModal(null); setScreenshotUrl(''); }}>
@@ -326,9 +326,9 @@ const CommendationMatching = ({ flights = [] }) => {
               <div className="w-14 h-14 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <ImageIcon size={28} className="text-yellow-600" />
               </div>
-              <h3 className="text-lg font-extrabold text-gray-800">칭송 인증 제출</h3>
+              <h3 className="text-lg font-extrabold text-gray-800">칭찬 인증 제출</h3>
               <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-                항공사 홈페이지의 '칭송(고객의 말씀)' 게시판에<br />
+                항공사 홈페이지의 '칭찬(고객의 말씀)' 게시판에<br />
                 작성하신 후 제출 완료 화면을 캡쳐하여 업로드해 주세요.
               </p>
             </div>
@@ -449,7 +449,7 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
             <>
               {!isCrew && match.status === 'matched' && isAfterFlight && onSubmitScreenshot && (
                 <button onClick={onSubmitScreenshot} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white transition-colors flex items-center gap-1">
-                  <ImageIcon size={12} /> 칭송 인증
+                  <ImageIcon size={12} /> 칭찬 인증
                 </button>
               )}
               {!isCrew && match.status === 'matched' && !isAfterFlight && (
@@ -459,12 +459,12 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-yellow-50 text-yellow-600 border border-yellow-200">관리자 확인중</span>
               )}
               {/* 승인 후 사례는 운영자가 승객 휴대폰으로 직접 보낸다.
-                  승무원은 칭송권을 구매해 신청하는 쪽이고, 승객에게 포인트를 보내지 않는다. */}
+                  승무원은 매칭신청권을 구매해 신청하는 쪽이고, 승객에게 포인트를 보내지 않는다. */}
               {match.status === 'verified' && !isCrew && (
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">승인 완료 · 사례 발송 예정</span>
               )}
               {match.status === 'verified' && isCrew && (
-                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">칭송 확인됨</span>
+                <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-600 border border-green-200">칭찬 확인됨</span>
               )}
               {isCrew && match.status === 'commendation_submitted' && (
                 <span className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-yellow-50 text-yellow-600 border border-yellow-200">관리자 검토중</span>
@@ -530,8 +530,8 @@ const MatchDetail = ({ match, isCrew, partner }) => {
         )}
         {match.commendation_screenshot_url && (
           <div className="pt-2 border-t border-gray-200">
-            <p className="text-xs text-gray-500 mb-2">칭송 캡쳐</p>
-            <img src={match.commendation_screenshot_url} alt="칭송 캡쳐" loading="lazy" decoding="async" className="w-full rounded-xl border border-gray-200" />
+            <p className="text-xs text-gray-500 mb-2">칭찬 캡쳐</p>
+            <img src={match.commendation_screenshot_url} alt="칭찬 캡쳐" loading="lazy" decoding="async" className="w-full rounded-xl border border-gray-200" />
           </div>
         )}
       </div>

@@ -160,7 +160,7 @@ const MyPage = () => {
         e.preventDefault();
         if (!flightDate || !flightNumber || !user) return;
 
-        // 칭송매칭이 편명+날짜 정확 일치라 오타 방지: 항공편명 형식 검증(예: KE081)
+        // 칭찬매칭이 편명+날짜 정확 일치라 오타 방지: 항공편명 형식 검증(예: KE081)
         if (!/^[A-Z]{2}[0-9]{1,4}$/i.test(flightNumber.trim())) {
             alert('편명 형식을 확인해주세요 (예: KE081)');
             return;
@@ -198,14 +198,14 @@ const MyPage = () => {
         }
     };
 
-    // Delete flight + 연관된 칭송매칭/동행 데이터도 삭제
+    // Delete flight + 연관된 칭찬매칭/동행 데이터도 삭제
     const handleDeleteFlight = async (flightId) => {
-        if (!window.confirm('이 스케줄을 삭제하시겠습니까?\n관련 칭송매칭 및 동행 데이터도 함께 삭제됩니다.')) return;
+        if (!window.confirm('이 스케줄을 삭제하시겠습니까?\n관련 칭찬매칭 및 동행 데이터도 함께 삭제됩니다.')) return;
         try {
             // 해당 항공편 정보 가져오기
             const flight = myFlights.find(f => f.id === flightId);
             if (flight) {
-                // 칭송매칭에서 대기중인 레코드 삭제
+                // 칭찬매칭에서 대기중인 레코드 삭제
                 const { data: matches } = await supabase
                     .from('commendation_matches')
                     .select('id, status')
@@ -241,7 +241,7 @@ const MyPage = () => {
             const oldNumber = flight?.flight_number;
             const oldDate = flight?.flight_date;
 
-            // 진행 중인 칭송매칭이 걸린 항공편은 수정 불가(매칭의 편명·날짜는 서버 가드가 보호하며,
+            // 진행 중인 칭찬매칭이 걸린 항공편은 수정 불가(매칭의 편명·날짜는 서버 가드가 보호하며,
             // 상대방의 항공편까지 같이 옮겨지면 안 되므로 신청을 먼저 취소하도록 안내)
             if (flight) {
                 const { data: matches, error: matchErr } = await supabase.from('commendation_matches')
@@ -251,7 +251,7 @@ const MyPage = () => {
                 if (matchErr) throw matchErr;
                 const active = (matches || []).filter(m => !['rejected', 'deleted'].includes(m.status));
                 if (active.length > 0) {
-                    alert('칭송매칭이 진행 중인 항공편은 수정할 수 없습니다. 칭송매칭에서 신청을 취소한 뒤 다시 수정해 주세요.');
+                    alert('칭찬매칭이 진행 중인 항공편은 수정할 수 없습니다. 칭찬매칭에서 신청을 취소한 뒤 다시 수정해 주세요.');
                     return;
                 }
             }
@@ -486,7 +486,7 @@ const MyPage = () => {
     }, []);
 
     const tabs = [
-        { id: 'commendation', label: '칭송매칭', icon: Heart },
+        { id: 'commendation', label: '칭찬매칭', icon: Heart },
         { id: 'companions', label: isCrew ? '듀티 동행' : '같은편 동행', icon: Users },
         { id: 'keywords', label: '키워드 알림', icon: Bell },
         { id: 'notifications', label: '알림 설정', icon: Settings },
@@ -495,7 +495,7 @@ const MyPage = () => {
 
     return (
         <>
-        <SEOHead title="마이 페이지 - ConnectTrip" description="ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭송 매칭 현황을 한눈에 관리하세요." robots="noindex, nofollow" />
+        <SEOHead title="마이 페이지 - ConnectTrip" description="ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭찬 매칭 현황을 한눈에 관리하세요." robots="noindex, nofollow" />
         <section id="mypage" className="section-padding" style={{ background: '#f8f9fa' }}>
             <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -1247,7 +1247,7 @@ const MyPage = () => {
                                     <li>보유 포인트·매칭신청권(환급되지 않습니다)</li>
                                 </ul>
                                 <p className="text-gray-500">
-                                    다만 다른 이용자와 주고받은 <strong>쪽지·칭송매칭 기록</strong>은 상대방의 이용기록 보호를 위해
+                                    다만 다른 이용자와 주고받은 <strong>쪽지·칭찬매칭 기록</strong>은 상대방의 이용기록 보호를 위해
                                     삭제하지 않고, 회원님을 식별할 수 없도록 익명 처리(‘탈퇴한 사용자’로 표시)합니다.
                                 </p>
                                 <p className="text-gray-500">

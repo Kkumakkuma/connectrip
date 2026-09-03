@@ -149,7 +149,7 @@ export const AuthProvider = ({ children }) => {
       .finally(() => { if (profileReqRef.current === reqId) setProfileLoading(false); });
   };
 
-  // 외부(마이페이지·칭송매칭 등)에서 프로필을 새로고침할 때 쓰는 공개 API.
+  // 외부(마이페이지·칭찬매칭 등)에서 프로필을 새로고침할 때 쓰는 공개 API.
   const fetchProfile = async (userId) => {
     const reqId = invalidateProfileRequests();
     dropForeignProfile(userId);

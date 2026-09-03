@@ -148,9 +148,9 @@ const Admin = () => {
     }
   };
 
-  // 관리자 직접 지급 — 칭송사용권(매칭신청권) 선물
+  // 관리자 직접 지급 — 매칭신청권 선물
   const handleGrantVouchers = async (userId) => {
-    const qtyStr = prompt('선물할 칭송사용권(매칭신청권) 수량을 입력하세요:', '1');
+    const qtyStr = prompt('선물할 매칭신청권 수량을 입력하세요:', '1');
     if (qtyStr === null) return;
     if (!/^\d+$/.test(qtyStr.trim())) { alert('숫자만 입력하세요.'); return; }
     const qty = parseInt(qtyStr, 10);
@@ -160,7 +160,7 @@ const Admin = () => {
     try {
       await adminApi.grantVouchers(userId, qty, reason);
       await fetchData();
-      alert(`칭송사용권 ${qty}장 지급 완료`);
+      alert(`매칭신청권 ${qty}장 지급 완료`);
     } catch (err) {
       console.error('Grant vouchers failed:', err);
       alert('사용권 지급에 실패했습니다.');
@@ -332,7 +332,7 @@ const Admin = () => {
       }
       await fetchData();
     } catch (err) {
-      console.error('칭송 처리 실패:', err);
+      console.error('칭찬 처리 실패:', err);
       alert('처리에 실패했습니다.');
     } finally {
       setActionLoading(null);
@@ -341,7 +341,7 @@ const Admin = () => {
 
   const tabs = [
     { id: 'reports', label: '신고 관리', icon: AlertTriangle },
-    { id: 'commendations', label: '칭송 인증', icon: CheckCircle },
+    { id: 'commendations', label: '칭찬 인증', icon: CheckCircle },
     { id: 'users', label: '회원 관리', icon: Users },
     { id: 'stats', label: '통계', icon: BarChart3 },
   ];
@@ -731,11 +731,11 @@ const Admin = () => {
               {/* Commendation Review Tab */}
               {activeTab === 'commendations' && (
                 <div className="p-4 md:p-6">
-                  <h2 className="text-xl font-bold text-gray-900 mb-6">칭송 인증 검토</h2>
+                  <h2 className="text-xl font-bold text-gray-900 mb-6">칭찬 인증 검토</h2>
                   {commendations.length === 0 ? (
                     <div className="text-center py-16 text-gray-400">
                       <CheckCircle size={48} className="mx-auto mb-4 opacity-30" />
-                      <p className="font-semibold">검토할 칭송 인증이 없습니다</p>
+                      <p className="font-semibold">검토할 칭찬 인증이 없습니다</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -765,10 +765,10 @@ const Admin = () => {
 
                           {match.commendation_screenshot_url && (
                             <div className="mb-4">
-                              <p className="text-xs text-gray-500 mb-2 font-semibold">칭송 인증 스크린샷:</p>
+                              <p className="text-xs text-gray-500 mb-2 font-semibold">칭찬 인증 스크린샷:</p>
                               <img
                                 src={match.commendation_screenshot_url}
-                                alt="칭송 캡쳐"
+                                alt="칭찬 캡쳐"
                                 loading="lazy"
                                 decoding="async"
                                 className="max-w-full max-h-64 rounded-lg border border-gray-200 object-contain"
