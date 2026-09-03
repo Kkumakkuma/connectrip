@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { BUSINESS_INFO } from '../lib/businessInfo';
 import SEOHead from '../components/SEOHead';
 import { IDENTITY_PG_NAME } from '../lib/identity';
 
@@ -153,7 +154,7 @@ const Privacy = () => {
         </Section>
 
         <Section title="9. 개인정보 보호책임자">
-          <p>개인정보 보호책임자: 200kgBrothers Company · 문의: 200kgBrothers@gmail.com</p>
+          <p>개인정보 보호책임자: {BUSINESS_INFO.대표자}(대표) · 문의: {BUSINESS_INFO.이메일}</p>
           <p className="text-xs text-gray-400">
             개인정보 침해에 대한 신고·상담은 개인정보침해신고센터(privacy.kisa.or.kr, 국번 없이 118)에서도 받을 수 있습니다.
           </p>
