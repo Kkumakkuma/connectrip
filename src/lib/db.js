@@ -428,12 +428,13 @@ export const keywordsApi = {
 //  RPC/보안 로직과 무관한 단순 SELECT 만 수행한다.)
 // select('*') 로 받아 모든 문자열 컬럼을 매칭 대상으로 삼는다 →
 // 보드별 컬럼명(content/description 등) 차이/스키마 변경에 영향받지 않는다.
+// type = add_keyword_notification(p_post_type) 이 받는 값 (서버가 링크를 조립한다)
 const KEYWORD_BOARDS = [
-  { table: 'companion_posts', path: '/companion' },
-  { table: 'qna_posts', path: '/qna' },
-  { table: 'market_listings', path: '/market' },
-  { table: 'reviews', path: '/reviews' },
-  { table: 'destinations', path: '/recommend' },
+  { table: 'companion_posts', path: '/companion', type: 'companion' },
+  { table: 'qna_posts', path: '/qna', type: 'qna' },
+  { table: 'market_listings', path: '/market', type: 'market' },
+  { table: 'reviews', path: '/reviews', type: 'reviews' },
+  { table: 'destinations', path: '/recommend', type: 'destinations' },
 ];
 
 // 매칭에서 제외할 비텍스트/식별자 성격 컬럼 (오탐 방지)
@@ -447,8 +448,13 @@ export const keywordAlertsApi = {
   // 실패한 보드는 조용히 건너뛰고(앱 안정성 우선) 나머지는 정상 반환한다.
   async findMatches(sinceIso, keywords) {
     if (!Array.isArray(keywords) || keywords.length === 0) return [];
-    const lowered = keywords.map(k => String(k).toLowerCase()).filter(Boolean);
-    if (lowered.length === 0) return [];
+    // 매칭은 소문자로, 반환은 등록 원문으로 한다.
+    // add_keyword_notification 이 user_keywords.keyword 와 정확히 비교하므로
+    // 소문자로 변환된 값을 넘기면 영문 키워드가 조용히 무시된다.
+    const targets = keywords
+      .map(k => ({ raw: String(k), lc: String(k).toLowerCase() }))
+      .filter(t => t.lc);
+    if (targets.length === 0) return [];
 
     const results = [];
     await Promise.all(
@@ -467,11 +473,14 @@ export const keywordAlertsApi = {
               .map(k => row[k])
               .join(' ')
               .toLowerCase();
-            const matched = lowered.find(kw => haystack.includes(kw));
+            const matched = targets.find(t => haystack.includes(t.lc));
             if (matched) {
               results.push({
+                // id 는 seen 집합 키(테이블 간 id 충돌 방지) — 형식 유지
                 id: `${board.table}:${row.id}`,
-                keyword: matched,
+                postId: row.id,
+                postType: board.type,
+                keyword: matched.raw,
                 table: board.table,
                 path: board.path,
                 created_at: row.created_at,
@@ -494,9 +503,21 @@ export const notificationsApi = {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(30);
     if (error) throw error;
     return data;
+  },
+
+  // 종 아이콘 배지용 정확 집계. 목록(30건)만 세면 그보다 많을 때 숫자가 틀린다.
+  // RLS 가 본인 행만 보여주지만 user_id 조건을 명시해 의도를 남긴다.
+  async getUnreadCount(userId) {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('read_at', null);
+    if (error) throw error;
+    return count || 0;
   },
 
   async markRead(id) {
@@ -504,6 +525,51 @@ export const notificationsApi = {
       .from('notifications')
       .update({ read_at: new Date().toISOString() })
       .eq('id', id);
+    if (error) throw error;
+  },
+
+  // 본인 것 전부 읽음 처리 + 보관 상한 정리. 처리 건수를 반환한다.
+  async markAllRead() {
+    const { data, error } = await supabase.rpc('mark_all_notifications_read');
+    if (error) throw error;
+    return data || 0;
+  },
+
+  async remove(id) {
+    const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+// 알림 설정 (행이 없으면 전부 켬으로 간주 — DB 의 notify_user 와 같은 기본값)
+export const NOTIFICATION_PREF_DEFAULTS = {
+  comments: true,
+  commendation: true,
+  flight: true,
+  companion: true,
+  keywords: true,
+};
+
+export const notificationPrefsApi = {
+  async get(userId) {
+    const { data, error } = await supabase
+      .from('notification_prefs')
+      .select('comments, commendation, flight, companion, keywords')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw error;
+    return { ...NOTIFICATION_PREF_DEFAULTS, ...(data || {}) };
+  },
+
+  async upsert(userId, prefs) {
+    const row = { user_id: userId, updated_at: new Date().toISOString() };
+    // 스위치 5개만 저장한다 (호출부가 넘긴 여분 필드로 upsert 가 깨지지 않게)
+    for (const key of Object.keys(NOTIFICATION_PREF_DEFAULTS)) {
+      row[key] = prefs?.[key] !== false;
+    }
+    const { error } = await supabase
+      .from('notification_prefs')
+      .upsert(row, { onConflict: 'user_id' });
     if (error) throw error;
   },
 };

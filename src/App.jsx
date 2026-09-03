@@ -3,14 +3,14 @@ import PayTest from './pages/PayTest'; // 빌드플래그 false 시 트리셰이
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useAuth } from './lib/AuthContext';
 import { PAYMENTS_ENABLED } from './lib/featureFlags';
-import { keywordsApi, keywordAlertsApi } from './lib/db';
+import { keywordsApi, keywordAlertsApi, notificationPrefsApi } from './lib/db';
+import { supabase } from './lib/supabase';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import ProfileCompleteGate from './components/ProfileCompleteGate';
 import RouteResetGuard from './components/RouteResetGuard';
 import AnalyticsTracker from './components/AnalyticsTracker';
 import Footer from './components/Footer';
-import PushPermission from './components/PushPermission';
 import AppSplash from './components/AppSplash'; // 앱 오프닝 모션(웹 no-op)
 import { isNativeApp } from './lib/native';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -110,6 +110,9 @@ function App() {
     let timerId = null;
     let polling = false;       // 한 tick 이 60초 넘게 걸려도 다음 tick 과 겹치지 않게
     let myKeywords = [];
+    // 알림 설정에서 키워드 알림을 끄면 폴링 자체를 하지 않는다.
+    // (설정을 켰다 껐다 한 결과는 다음 새로고침/로그인부터 반영된다 — 구조를 단순하게 유지)
+    let keywordAlertsOn = true;
 
     // 알림 폭주 방지: 마운트 직후에는 "지금 이후" 글만 본다.
     lastCheckRef.current = new Date().toISOString();
@@ -140,6 +143,17 @@ function App() {
           if (seenAlertIds.current.has(m.id)) continue;
           seenAlertIds.current.add(m.id);
           showToast(`'${m.keyword}' 키워드의 새 글이 올라왔어요!`, 'keyword');
+          // 종 아이콘 알림함에도 남긴다. 중복은 서버(유니크 인덱스)가 막고,
+          // 실패해도 토스트는 이미 떴으므로 로그만 남기고 폴링을 계속한다.
+          supabase
+            .rpc('add_keyword_notification', {
+              p_post_id: m.postId,
+              p_post_type: m.postType,
+              p_keyword: m.keyword,
+            })
+            .then(({ error }) => {
+              if (error) console.error('키워드 알림 저장 실패:', error);
+            }, (err) => console.error('키워드 알림 저장 실패:', err));
         }
         // 메모리 누수 방지: seen 집합이 너무 커지면 최근 항목만 남긴다.
         if (seenAlertIds.current.size > 500) {
@@ -153,7 +167,7 @@ function App() {
     // 키워드 갱신 + 폴링을 묶되, 이전 실행이 끝나기 전엔 새로 시작하지 않는다.
     // 탭이 숨겨져 있으면 건너뛴다 — 안 보는 화면 때문에 1분마다 쿼리가 나가던 것을 막는다.
     const tick = async () => {
-      if (cancelled || polling) return;
+      if (cancelled || polling || !keywordAlertsOn) return;
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       polling = true;
       try {
@@ -168,11 +182,22 @@ function App() {
     const onVisible = () => {
       if (document.visibilityState === 'visible') tick();
     };
-    document.addEventListener('visibilitychange', onVisible);
 
     (async () => {
+      try {
+        const prefs = await notificationPrefsApi.get(user.id);
+        if (cancelled) return;
+        keywordAlertsOn = prefs.keywords !== false;
+      } catch (err) {
+        // 설정을 못 읽으면 기본값(켬)으로 동작한다
+        console.error('알림 설정 로딩 실패(폴링):', err);
+      }
+      if (cancelled || !keywordAlertsOn) return;
       await loadKeywords();
       if (cancelled) return;
+      // 리스너는 설정 확인이 끝난 뒤 등록한다 — 확인 전에 탭이 활성화되면
+      // 꺼둔 사용자에게도 폴링이 한 번 나가기 때문이다.
+      document.addEventListener('visibilitychange', onVisible);
       timerId = setInterval(tick, 60000);
     })();
 
@@ -236,9 +261,6 @@ function App() {
           </Suspense>
         </main>
         <Footer />
-
-        {/* Push Notification Permission Banner */}
-        <PushPermission />
 
         {/* Global Toast Notifications */}
         <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full sm:w-80">

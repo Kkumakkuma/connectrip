@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plane, Calendar, Send, MessageCircle, X, ChevronDown, ChevronUp, Inbox, Eye, EyeOff
@@ -35,6 +36,10 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [replyTo, setReplyTo] = useState(null); // { senderId, senderName }
   const [replyContent, setReplyContent] = useState('');
+
+  // 쪽지 알림 딥링크(?inbox=1) 자동 열기 — 처리한 진입 기록
+  const location = useLocation();
+  const inboxAutoOpenedRef = useRef('');
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -79,7 +84,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
     if (isLoggedIn) fetchData();
   }, [isLoggedIn, fetchData]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     if (!user) return;
     setLoadingMessages(true);
     try {
@@ -94,7 +99,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
     } finally {
       setLoadingMessages(false);
     }
-  };
+  }, [user]);
 
   const handleBlockUser = async (userId, displayName) => {
     if (!userId) return;
@@ -113,6 +118,19 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
     setShowInbox(true);
     await fetchMessages();
   };
+
+  // 쪽지 알림 링크(/mypage?tab=companions&inbox=1)로 들어오면 받은편지함을 바로 연다.
+  // 같은 진입에서 두 번 열지 않도록 처리한 location 을 기억해 둔다.
+  useEffect(() => {
+    if (!user) return;
+    if (new URLSearchParams(location.search).get('inbox') !== '1') return;
+    // 계정 전환(A→B) 후에도 같은 URL 이면 B 에게 다시 열어줘야 하므로 사용자까지 키에 넣는다
+    const entry = `${user.id}|${location.key || ''}|${location.search}`;
+    if (inboxAutoOpenedRef.current === entry) return;
+    inboxAutoOpenedRef.current = entry;
+    setShowInbox(true);
+    fetchMessages();
+  }, [location, user, fetchMessages]);
 
   const handleSendMessage = async () => {
     if (!showMessageModal || !messageContent.trim()) return;

@@ -10,7 +10,6 @@ import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, Credit
 import KeywordSettings from './KeywordSettings';
 import CommendationMatching from './CommendationMatching';
 import FlightCompanions from './FlightCompanions';
-import NotificationSettings from './NotificationSettings';
 import BlockedUsers from './BlockedUsers';
 import SEOHead from './SEOHead';
 import { useAuth } from '../lib/AuthContext';
@@ -25,13 +24,15 @@ const MyPage = () => {
     // Active tab for bottom sections
     const [activeTab, setActiveTab] = useState('commendation');
 
-    // ?tab= 딥링크 반영. useState 초기값으로만 읽으면 이미 /mypage 에 있을 때(종 아이콘 → 알림 설정)
+    // ?tab= 딥링크 반영. useState 초기값으로만 읽으면 이미 /mypage 에 있을 때(알림 링크 등)
     // 컴포넌트가 재마운트되지 않아 탭이 바뀌지 않는다.
+    // 알림 설정은 종 아이콘 드롭다운으로 옮겼다 — 폐지된 ?tab=notifications 로 들어와도
+    // 빈 화면이 되지 않게 기본 탭으로 보낸다.
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
-        if (tab && ['commendation', 'companions', 'keywords', 'notifications', 'blocks'].includes(tab)) {
-            setActiveTab(tab);
-        }
+        if (!tab) return;
+        const allowed = ['commendation', 'companions', 'keywords', 'blocks'];
+        setActiveTab(allowed.includes(tab) ? tab : 'commendation');
     }, [location]);
 
     // 승무원 추천코드 + 초대링크
@@ -489,7 +490,6 @@ const MyPage = () => {
         { id: 'commendation', label: '칭찬매칭', icon: Heart },
         { id: 'companions', label: isCrew ? '듀티 동행' : '같은편 동행', icon: Users },
         { id: 'keywords', label: '키워드 알림', icon: Bell },
-        { id: 'notifications', label: '알림 설정', icon: Settings },
         { id: 'blocks', label: '차단 목록', icon: UserX },
     ];
 
@@ -1058,7 +1058,6 @@ const MyPage = () => {
                             {activeTab === 'commendation' && <CommendationMatching flights={myFlights} onFlightsChange={fetchFlights} />}
                             {activeTab === 'companions' && <FlightCompanions flights={myFlights} onFlightsChange={fetchFlights} />}
                             {activeTab === 'keywords' && <KeywordSettings />}
-                            {activeTab === 'notifications' && <NotificationSettings />}
                             {activeTab === 'blocks' && <BlockedUsers />}
                         </div>
                     </div>
