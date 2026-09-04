@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Compass,
   Copy,
   Download,
   Link2,
@@ -322,16 +323,32 @@ export function MoreSheet({
   published,
   stale,
   shareUrl,
+  destName,
   onClose,
   onShare,
   onCopyShare,
   onPublish,
   onUnpublish,
   onExport,
+  onChooseDest,
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="더보기">
       <div className="-mx-2">
+        {/* 일정판이 비어 있을 때만이 아니라 여기서도 목적지를 바꿀 수 있어야 한다 —
+            도시를 잘못 골랐는데 장소를 이미 담았으면 고칠 길이 없어진다. */}
+        <MenuRow
+          icon={Compass}
+          label={destName ? `목적지 · ${destName}` : '목적지 정하기'}
+          description={
+            destName
+              ? '바꾸면 추천 장소도 그 도시 것으로 바뀝니다.'
+              : '정하면 그 도시의 대표 명소를 바로 담을 수 있습니다.'
+          }
+          disabled={busy}
+          onClick={onChooseDest}
+        />
+
         <MenuRow
           icon={Link2}
           label={shareUrl ? '공유 링크 새로 만들기' : '공유 링크 만들기'}

@@ -238,5 +238,10 @@ export async function resolveTripZoneAsync(trip, places = []) {
     const zone = await zoneForCoords(p?.lat, p?.lng);
     if (zone) return zone;
   }
+  // 담은 장소가 아직 없어도 목적지 좌표가 있으면 그걸로 정한다. 이게 없으면 장소를 한 번도
+  // 담지 않은 여행은 나라 이름 추정까지 밀려나고, 나라 이름으로는 발리·퍼스처럼 나라 안에
+  // 시간대가 여럿인 곳을 못 맞춘다.
+  const destZone = await zoneForCoords(trip?.dest_lat, trip?.dest_lng);
+  if (destZone) return destZone;
   return zoneForCountry(trip?.country);
 }

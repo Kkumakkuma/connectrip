@@ -53,7 +53,14 @@ self.addEventListener('activate', (event) => {
 });
 
 function isAsset(url) {
-  return url.origin === self.location.origin && url.pathname.startsWith('/assets/');
+  if (url.origin !== self.location.origin) return false;
+  // /assets/* 는 Vite 내용 해시라 키가 배포마다 바뀐다.
+  if (url.pathname.startsWith('/assets/')) return true;
+  // /planner-data/* 는 파일 이름이 고정이라 대신 ?v= 로 버전을 붙인다(lib/destinations.js).
+  // 캐시 키는 쿼리까지 포함한 요청이므로 버전을 올리면 새 항목이 되고, 낡은 항목은
+  // activate 의 캐시 이름 정리에서 함께 사라진다.
+  if (url.pathname.startsWith('/planner-data/')) return true;
+  return false;
 }
 
 function isPlannerDocument(request, url) {
@@ -97,7 +104,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (isAsset(url)) {
-    // 자산은 cache-first. 파일명에 내용 해시가 붙어 있어 낡은 것을 내줄 위험이 없다.
+    // 자산은 cache-first. 파일명 해시 또는 ?v= 로 키가 갈리므로 낡은 것을 내줄 위험이 없다.
+    // 여기 걸리면 목적지 목록과 추천 명소가 비행기 안에서도 열린다.
     event.respondWith(
       (async () => {
         const cached = await caches.match(request, { cacheName: ASSET_CACHE });

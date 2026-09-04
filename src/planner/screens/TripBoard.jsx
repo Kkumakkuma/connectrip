@@ -13,6 +13,8 @@ import PlaceSheet from './board/PlaceSheet';
 import TripHeader from './board/TripHeader';
 import ActionBar from './board/ActionBar';
 import { LinkImportSheet, PlaceSearchSheet } from './board/PickerSheets';
+import SuggestedPlaces from './board/SuggestedPlaces';
+import DestinationSheet from './board/DestinationSheet';
 import SnapshotView from './SnapshotView';
 import { buildLocalSnapshot } from '../lib/snapshot';
 import { readSnapshot, saveSnapshot } from '../lib/offlineStore';
@@ -37,6 +39,7 @@ import {
   setDates,
   unpublish,
   updatePlace,
+  updateTrip,
 } from '../api';
 import { checkDay, warningsByPlace } from '../lib/feasibility';
 import { resolveStale } from '../lib/boardSync';
@@ -71,7 +74,7 @@ export default function TripBoard() {
   const [sync, setSync] = useState({ published: false, stale: false });
 
   const [activeDayId, setActiveDayId] = useState(null);
-  const [sheet, setSheet] = useState(null); // place | add | search | link | dates | assumptions | more | warning
+  const [sheet, setSheet] = useState(null); // place | add | search | link | dates | assumptions | more | warning | dest
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [activeWarning, setActiveWarning] = useState(null);
   const [addSeed, setAddSeed] = useState(null);
@@ -259,6 +262,25 @@ export default function TripBoard() {
 
   const activeLabel = activeDay ? `${activeDay.day_index + 1}일차` : '보관함';
 
+  // 추천 블록을 언제 보여줄지.
+  //   목적지가 있으면 여행이 어느 정도 채워질 때까지 계속 곁에 둔다 — 하나 담자마자 사라지면
+  //   두 번째 장소를 담을 방법이 없어진다(교차검토 지적).
+  //   목적지가 없으면 완전히 빈 여행에서만 "목적지 정하기"를 권한다. 이미 장소를 담아 둔
+  //   사람에게는 참견이 된다.
+  const SUGGEST_UNTIL = 8;
+  const showSuggest = trip?.dest_id ? places.length < SUGGEST_UNTIL : places.length === 0;
+
+  // 추천 카드에 "담김"을 표시하려면 이 여행에 이미 들어온 장소의 제공자 id 가 필요하다.
+  // 날짜와 무관하게 여행 전체를 본다 — 1일차에 담아 둔 곳이 2일차 추천에 또 뜨면 안 된다.
+  const addedKeys = useMemo(() => {
+    const keys = new Set();
+    for (const p of places) {
+      const entry = p.catalog_id ? catalog.get(p.catalog_id) : null;
+      if (entry?.provider_place_id) keys.add(entry.provider_place_id);
+    }
+    return keys;
+  }, [places, catalog]);
+
   // ---------------------------------------------------------------------
   // 동작
   // ---------------------------------------------------------------------
@@ -359,6 +381,24 @@ export default function TripBoard() {
         setSheet(null);
       },
       { success: `${activeLabel}에 담았습니다.` }
+    );
+  };
+
+  // 목적지 정하기·바꾸기. 통화는 건드리지 않는다 — 이미 적어 둔 비용의 단위가 말없이 바뀐다.
+  const handleSetDest = (d) => {
+    runSaving(
+      async () => {
+        await updateTrip(tripId, {
+          dest_id: d.id,
+          dest_name: d.ko,
+          dest_lat: d.lat,
+          dest_lng: d.lng,
+          country: d.country || null,
+        });
+        await refresh();
+        setSheet(null);
+      },
+      { success: `목적지를 ${d.ko}(으)로 정했습니다.` }
     );
   };
 
@@ -620,16 +660,19 @@ export default function TripBoard() {
           )}
 
           {dayPlaces.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={MapPinned}
-                message={
-                  activeDay
-                    ? '이 날에 담아 둔 장소가 없습니다.'
-                    : '보관함에 담아 둔 장소가 없습니다.'
-                }
-              />
-            </Card>
+            // 추천 블록이 아래에 뜨는 상황이면 "없습니다" 안내를 겹쳐 놓지 않는다.
+            showSuggest ? null : (
+              <Card>
+                <EmptyState
+                  icon={MapPinned}
+                  message={
+                    activeDay
+                      ? '이 날에 담아 둔 장소가 없습니다.'
+                      : '보관함에 담아 둔 장소가 없습니다.'
+                  }
+                />
+              </Card>
+            )
           ) : (
             <PlaceList
               places={dayPlaces}
@@ -640,6 +683,19 @@ export default function TripBoard() {
               onCommitOrder={commitOrder}
               onOpenPlace={openPlace}
               onOpenWarning={openWarning}
+            />
+          )}
+
+          {/* 빈 화면을 그대로 두지 않는다. 그 도시 대표 명소를 눌러서 바로 담게 한다.
+              목록 아래에 두어, 하나 담은 뒤에도 이어서 담을 수 있게 한다. */}
+          {showSuggest && (
+            <SuggestedPlaces
+              destId={trip?.dest_id || null}
+              destName={trip?.dest_name || null}
+              addedKeys={addedKeys}
+              saving={busy}
+              onPick={handlePickPlace}
+              onChooseDest={() => setSheet('dest')}
             />
           )}
         </div>
@@ -698,6 +754,16 @@ export default function TripBoard() {
         />
       )}
 
+      {sheet === 'dest' && (
+        <DestinationSheet
+          open
+          current={trip?.dest_name || ''}
+          saving={busy}
+          onClose={closeSheet}
+          onPick={handleSetDest}
+        />
+      )}
+
       {sheet === 'dates' && (
         <DatesSheet
           open
@@ -733,12 +799,14 @@ export default function TripBoard() {
         published={sync.published}
         stale={sync.stale}
         shareUrl={shareUrl}
+        destName={trip?.dest_name || ''}
         onClose={closeSheet}
         onShare={handleShare}
         onCopyShare={handleCopyShare}
         onPublish={handlePublish}
         onUnpublish={handleUnpublish}
         onExport={() => navigate(`/planner/t/${tripId}/export`)}
+        onChooseDest={() => setSheet('dest')}
       />
 
       <ToastStack

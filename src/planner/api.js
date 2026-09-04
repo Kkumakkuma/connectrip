@@ -110,7 +110,9 @@ async function callRpc(name, args) {
 // ---------------------------------------------------------------------------
 
 const TRIP_COLUMNS =
-  'id, title, start_date, end_date, currency, budget_total, country, timezone, cover_place_id, visibility, origin_post_id, created_at, updated_at';
+  'id, title, start_date, end_date, currency, budget_total, country, timezone, '
+  + 'dest_id, dest_name, dest_lat, dest_lng, '
+  + 'cover_place_id, visibility, origin_post_id, created_at, updated_at';
 
 const PLACE_COLUMNS =
   'id, trip_id, day_id, catalog_id, name, address, lat, lng, sort_order, planned_time, stay_min, cost, note, note_public, visited_at, source, created_at, updated_at';
@@ -125,13 +127,23 @@ export async function createTrip({
   currency = 'KRW',
   country = null,
   timezone = null,
+  destId = null,
+  destName = null,
+  destLat = null,
+  destLng = null,
 }) {
+  // 좌표는 쌍으로만 보낸다. 한쪽만 보내면 RPC 가 bad coords 로 거절한다.
+  const hasCoords = Number.isFinite(destLat) && Number.isFinite(destLng);
   const tripId = await callRpc('planner_create_trip', {
     p_title: title,
     p_start: startDate,
     p_end: endDate,
     p_currency: currency,
     p_country: country,
+    p_dest_id: hasCoords ? destId : null,
+    p_dest_name: destName,
+    p_dest_lat: hasCoords ? destLat : null,
+    p_dest_lng: hasCoords ? destLng : null,
   });
   if (timezone) {
     const { error } = await supabase.from('planner_trips').update({ timezone }).eq('id', tripId);
@@ -378,7 +390,9 @@ export async function deletePlace(placeId) {
 // 여행 수정 (기간·visibility 는 컬럼 단위 권한으로 막혀 있어 여기로 오지 않는다)
 // ---------------------------------------------------------------------------
 
-const TRIP_WRITABLE = ['title', 'currency', 'budget_total', 'country', 'timezone', 'cover_place_id'];
+const TRIP_WRITABLE = ['title', 'currency', 'budget_total', 'country', 'timezone', 'cover_place_id',
+  // 여행을 만든 뒤에도 목적지를 정하거나 바꿀 수 있다. SQL 의 컬럼 단위 GRANT 와 같은 목록이어야 한다.
+  'dest_id', 'dest_name', 'dest_lat', 'dest_lng'];
 
 export async function updateTrip(tripId, values) {
   const patch = {};
