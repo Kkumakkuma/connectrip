@@ -63,9 +63,22 @@ const Navbar = () => {
     ]},
     // 여행 플래너. 네비바만 얹어 놓고 들어갈 길을 안 내면 주소를 직접 쳐야 한다 —
     // 그건 아무도 안 쓴다. 웹·앱 모두 같은 메뉴로 앱 안에서 바로 연다(2026-09-04).
-    ...(PLANNER_ENABLED ? [{ name: '여행 플래너', to: '/planner' }] : []),
-    // 여행 일정 게시판은 하위 분류가 없다(sub 없이 링크 하나).
-    ...(ITINERARY_ENABLED ? [{ name: '여행 일정', to: '/itinerary' }] : []),
+    //
+    // 여행 일정 게시판은 **플래너 하위 메뉴**로 넣는다(쿠마님 2026-09-04).
+    // 커넥트립 첫 줄에 따로 두면 글 0건짜리 게시판이 그대로 노출되지만,
+    // 플래너 안에 두면 일정을 만든 사람이 올리고 보는 자연스러운 자리가 된다.
+    ...(PLANNER_ENABLED
+      ? [{
+          name: '여행 플래너',
+          to: '/planner',
+          ...(ITINERARY_ENABLED
+            ? { sub: [
+                { name: '🗺️ 내 여행', to: '/planner' },
+                { name: '📋 여행 일정 게시판', to: '/itinerary' },
+              ] }
+            : {}),
+        }]
+      : []),
     ...(isCrew ? [{ name: 'CREW 전용', to: '/crew', sub: [
       { name: '💬 자유게시판', to: '/crew?tab=free' },
       { name: '✈️ 레이오버 정보', to: '/crew?tab=layover' },

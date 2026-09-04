@@ -12,4 +12,4 @@ VITE_API_BASE=https://www.connecttrip.co.kr
 VITE_PLANNER_ENABLED=true
 
 # 커넥트립 안의 "여행 일정" 게시판. 글이 0건이라 웹과 마찬가지로 꺼 둔다.
-VITE_ITINERARY_ENABLED=false
+VITE_ITINERARY_ENABLED=true
