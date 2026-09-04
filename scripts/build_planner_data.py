@@ -176,6 +176,8 @@ def build_destinations(seed, only=None, dry_run=False, prev=None):
             "lat": hit["lat"], "lng": hit["lng"],
             "cc": row["cc"], "country": row["country"], "cur": row["cur"],
             "r": row.get("r", 12),
+            # 추천 명소를 준비한 도시인지. 화면이 미리 안내할 때 쓴다.
+            **({"major": True} if row.get("major") else {}),
         })
         print(f"  o {row['ko']:<12} {hit['lat']:>9.4f},{hit['lng']:>10.4f}  ({hit['matched']})")
     return out, failed
@@ -200,7 +202,7 @@ CATEGORY = [
 CAT_CAP = {"worship": 3, "historic": 5, "district": 2, "park": 2, "shopping": 2, "nature": 2}
 
 
-def overpass_query(lat, lng, radius_m):
+def overpass_query(lat, lng, radius_m, require_wd=True):
     """분류를 두 무리로 나눠 각각 상한을 준다.
 
     한 union 에 몰아넣고 전체 상한을 걸면 개수가 많은 쪽이 자리를 다 먹는다.
@@ -211,9 +213,11 @@ def overpass_query(lat, lng, radius_m):
     wikidata 태그는 모든 분류에 요구한다. 랭킹 근거가 Wikidata sitelinks 뿐이라
     QID 없는 항목은 어차피 0점이고, 요구하면 후보가 줄어 잘림이 사라진다.
     """
+    wd = '["wikidata"]' if require_wd else ""
+
     def block(keys):
         return "".join(
-            f'nwr(around:{radius_m},{lat},{lng})["{k}"~"{pat}"]["name"]["wikidata"];'
+            f'nwr(around:{radius_m},{lat},{lng})["{k}"~"{pat}"]["name"]{wd};'
             for k, pat, *_ in CATEGORY if k in keys
         )
 
@@ -252,8 +256,8 @@ def classify(tags):
     return None, 0.0
 
 
-def fetch_candidates(dest):
-    q = overpass_query(dest["lat"], dest["lng"], int(dest["r"] * 1000))
+def fetch_candidates(dest, require_wd=True):
+    q = overpass_query(dest["lat"], dest["lng"], int(dest["r"] * 1000), require_wd=require_wd)
     data, last = None, None
     for attempt, url in enumerate(OVERPASS_ENDPOINTS * 2, 1):
         try:
@@ -293,6 +297,10 @@ def fetch_candidates(dest):
             "lat": round(pt[0], 5), "lng": round(pt[1], 5),
             "cat": cat, "weight": weight,
             "dist": haversine_km(dest["lat"], dest["lng"], pt[0], pt[1]),
+            # QID 가 없는 후보를 줄 세울 때 쓰는 "제대로 등록된 곳인가" 신호.
+            # 문화재 지정·위키백과 문서·홈페이지·영업시간이 붙어 있으면 실제로 찾아가는 곳이다.
+            "rich": sum(1 for k in ("wikipedia", "heritage", "website", "opening_hours", "description")
+                        if tags.get(k)),
         })
     return out
 
@@ -460,6 +468,11 @@ def main():
     ap.add_argument("--only", default="", help="쉼표로 구분한 도시 id")
     ap.add_argument("--geocode-only", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--skip-existing", action="store_true",
+                    help="이미 만들어 둔 도시는 건너뛴다. Overpass 가 느려 중간에 끊겼을 때 이어서 돌린다.")
+    ap.add_argument("--sleep", type=float, default=3.0, help="도시 사이 대기(초)")
+    ap.add_argument("--major-only", action="store_true",
+                    help="씨앗에 major 표시된 도시만 만든다. 쿠마님 방침(2026-09-04) 기본 운용 방식이다.")
     ap.add_argument("--stamp", default="", help="생성일(YYYY-MM-DD). 비우면 today")
     args = ap.parse_args()
 
@@ -491,25 +504,63 @@ def main():
         return
 
     print("\n[2] 도시별 추천 명소")
+    major_ids = {r["id"] for r in seed if r.get("major")}
     targets = [d for d in dests if not only or d["id"] in only]
+    if args.major_only:
+        targets = [d for d in targets if d["id"] in major_ids]
+        print(f"  주요 도시만: {len(targets)}개")
     thin = []
     for i, d in enumerate(targets, 1):
-        print(f"  [{i}/{len(targets)}] {d['ko']} (r={d['r']}km)")
         path = os.path.join(ATTR_DIR, f"{d['id']}.json")
+        if args.skip_existing and os.path.exists(path):
+            continue
+        print(f"  [{i}/{len(targets)}] {d['ko']} (r={d['r']}km)")
         try:
             cands = fetch_candidates(d)
         except Exception as e:
             print(f"    X 건너뜀: {e}")
+            time.sleep(args.sleep)
             continue
         cands = enrich(cands)
         cands = dedupe(cands)
         picked = rank(cands, d["r"])
 
+        # 지방 소도시는 OSM 에 wikidata 가 거의 안 붙어 있다(강릉 4곳). 자리가 남으면
+        # QID 없는 후보로 채운다. 저명도를 알 수 없으니 분류 가중 + 중심 거리로만 줄 세우고,
+        # 이미 뽑힌 것과 이름·좌표로 중복 제거한다. 요청이 한 번 더 나가므로 부족할 때만 한다.
+        if len(picked) < TARGET:
+            print(f"    자리 {TARGET - len(picked)}개 남음 — QID 없는 후보로 2차 수집")
+            time.sleep(args.sleep)
+            try:
+                extra = fetch_candidates(d, require_wd=False)
+            except Exception as e:
+                extra = []
+                print(f"    ~ 2차 수집 실패(무시): {e}")
+            seen_osm = {c["osm"] for c in picked}
+            seen_name = {norm_name(c.get("ko") or c["name"]) for c in picked}
+            fill = []
+            for c in extra:
+                if c["osm"] in seen_osm:
+                    continue
+                c["ko"] = c.get("name_ko") or c["name"]
+                c["en"] = c.get("name_en") or c["name"]
+                c["sitelinks"] = 0
+                n = norm_name(c["ko"])
+                if n in seen_name:
+                    continue
+                seen_name.add(n)
+                # QID 가 없으므로 저명도를 모른다. 분류 가중 · 중심 거리 · 등록 충실도로 줄 세운다.
+                near = max(0.0, 1.0 - c["dist"] / max(d["r"], 1))
+                c["score"] = round(c["weight"] * near * (1.0 + 0.5 * c.get("rich", 0)), 3)
+                fill.append(c)
+            fill.sort(key=lambda x: (-x["score"], x["dist"]))
+            picked = picked + fill[: TARGET - len(picked)]
+
         if len(picked) < MIN_KEEP and os.path.exists(path):
             # 이번 결과가 부실하면 이미 있던 좋은 파일을 덮어쓰지 않는다.
             print(f"    ~ {len(picked)}건뿐 — 기존 파일 유지")
             thin.append(d["id"])
-            time.sleep(3)
+            time.sleep(args.sleep)
             continue
         if len(picked) < MIN_KEEP:
             thin.append(d["id"])
@@ -521,7 +572,7 @@ def main():
             "places": [to_place(c) for c in picked],
         }, args.dry_run)
         print("    → " + ", ".join(f"{c.get('ko') or c['name']}({c['sitelinks']})" for c in picked[:6]))
-        time.sleep(3)
+        time.sleep(args.sleep)
 
     if thin:
         print(f"\n! 후보가 {MIN_KEEP}개 미만인 도시 {len(thin)}건: {', '.join(thin)}")

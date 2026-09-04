@@ -69,10 +69,14 @@ export default function SuggestedPlaces({
     return (
       <Card className="p-5 text-center">
         <MapPin size={22} className="mx-auto mb-2 text-muted" aria-hidden="true" />
-        <p className="text-sm text-body">
-          {destName ? `${destName}의 ` : ''}추천 장소는 아직 준비 중입니다.
+        {/* 추천 목록은 나라별 주요 도시에만 둔다(2026-09-04 쿠마님 방침).
+            "준비 중"이라고 하면 곧 생길 것처럼 읽히므로 그렇게 쓰지 않는다. */}
+        <p className="break-keep text-sm text-body">
+          {destName ? `${destName}는 ` : '이 도시는 '}추천 목록이 없습니다.
         </p>
-        <p className="mt-1 text-xs text-muted">아래 장소 검색으로 담아 주세요.</p>
+        <p className="mt-1 break-keep text-xs text-muted">
+          아래 장소 검색이나 링크로 담기로 직접 담아 주세요.
+        </p>
       </Card>
     );
   }
