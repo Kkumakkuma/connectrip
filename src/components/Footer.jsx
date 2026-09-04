@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { PAYMENTS_ENABLED } from '../lib/featureFlags';
 import { BUSINESS_INFO, isBusinessValueFilled } from '../lib/businessInfo';
+import KbEscrowMark from './KbEscrowMark';
 
 // 패밀리 사이트(자기 자신 커넥트립 제외). 새 탭으로 이동한다.
 const FAMILY_SITES = [
@@ -95,6 +96,11 @@ const Footer = () => {
                             BUSINESS_INFO.이메일,
                         ].filter(Boolean).join(' · ')}
                     </p>
+                    {/* KB 에스크로 인증마크 — 구매안전 서비스 이용확인증 발급 요건.
+                        푸터는 모든 화면에 렌더되므로 초기화면과 결제화면 구간을 함께 만족한다. */}
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                        <KbEscrowMark />
+                    </div>
                     <p>&copy; {new Date().getFullYear()} ConnectTrip. All rights reserved.</p>
                 </div>
             </div>

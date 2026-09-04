@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import JsonLd from '../components/JsonLd';
 import { BUSINESS_INFO } from '../lib/businessInfo';
+import KbEscrowMark from '../components/KbEscrowMark';
 import { POINT_PACKAGES, VOUCHER, REFUND_SUMMARY, buildProductsJsonLd } from '../lib/products';
 
 // 포인트·매칭신청권 안내 — 로그인 없이 보이는 유료 서비스(상품) 설명·가격 페이지.
@@ -84,6 +85,12 @@ const Points = () => {
 
         <Section title="3. 결제 수단">
           <p>신용카드·체크카드 등 결제대행사가 제공하는 결제 수단으로 결제합니다. 결제 정보는 결제대행사가 처리하며 ConnectTrip은 카드번호를 보관하지 않습니다.</p>
+          <div className="mt-3 flex items-center gap-3">
+            <KbEscrowMark />
+            <span className="text-xs text-gray-500">
+              KB국민은행 에스크로 이체 서비스에 가입한 가맹점입니다. 마크를 누르면 가맹점 정보를 확인할 수 있습니다.
+            </span>
+          </div>
         </Section>
 
         <Section title="4. 취소·환불">
