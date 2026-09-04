@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import PayTest from './pages/PayTest'; // 빌드플래그 false 시 트리셰이킹으로 프로덕션 번들에서 제거됨
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/AuthContext';
-import { PAYMENTS_ENABLED } from './lib/featureFlags';
+import { PAYMENTS_ENABLED, PLANNER_ENABLED } from './lib/featureFlags';
 import { keywordsApi, keywordAlertsApi, notificationPrefsApi } from './lib/db';
 import { supabase } from './lib/supabase';
 import Navbar from './components/Navbar';
@@ -30,6 +30,9 @@ const CrewOnly = lazy(() => import('./components/CrewOnly'));
 const Promotions = lazy(() => import('./components/Promotions'));
 const CompanionBoard = lazy(() => import('./components/CompanionBoard'));
 const RegionalBoard = lazy(() => import('./components/RegionalBoard'));
+// 여행 일정 게시판. 플래너와 달리 앱에도 실린다(앱은 게시판 + 가져오기만 갖는다).
+const ItineraryBoard = lazy(() => import('./components/ItineraryBoard'));
+const ItineraryPost = lazy(() => import('./components/ItineraryPost'));
 const MyPage = lazy(() => import('./components/MyPage'));
 const Search = lazy(() => import('./pages/Search'));
 const Admin = lazy(() => import('./pages/Admin'));
@@ -41,6 +44,21 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 // ★정적 import 로 두어야 프로덕션(플래그 없음)에서 Rollup 이 트리셰이킹으로 통째로 제거한다.
 //   lazy(()=>import) 는 항상 별도 청크를 생성해 프로덕션 dist 에 남으므로 쓰지 않는다.
 const PAYTEST = PAYMENTS_ENABLED && import.meta.env.VITE_PAYTEST === '1';
+
+// 여행 플래너 진입점.
+// ★lazy() 호출식 자체가 삼항 안에 있어야 Vite 가 import.meta.env 를 상수로 접고
+//   dynamic import 를 통째로 지운다. `{PLANNER_ENABLED && <Route …/>}` 로 라우트만 가리는
+//   형태는 플래그가 꺼져 있어도 청크를 dist 에 남긴다(Points 선례 = featureFlags.js 말미 주석).
+//   실제로 어떤 모듈이 붙는지는 vite.config.js 의 '@planner' alias 가 빌드 시점에 고른다.
+const PlannerRoutes = PLANNER_ENABLED ? lazy(() => import('@planner')) : null;
+
+// 플래너는 자체 하단 액션바를 쓰므로 커넥트립 Footer 를 겹쳐 놓지 않는다.
+// useLocation 은 Router 안에서만 쓸 수 있어 별도 컴포넌트로 감싼다.
+const ShellFooter = () => {
+  const { pathname } = useLocation();
+  if (PLANNER_ENABLED && (pathname === '/planner' || pathname.startsWith('/planner/'))) return null;
+  return <Footer />;
+};
 
 // 라우트 전환 시 잠깐 보이는 로더 (기존 앱 스피너 톤 유지)
 const RouteFallback = () => (
@@ -235,6 +253,8 @@ function App() {
               <Route path="/signup/complete" element={<SignupComplete />} />
               <Route path="/companion" element={<CompanionBoard />} />
               <Route path="/companion/:regionId" element={<RegionalBoard />} />
+              <Route path="/itinerary" element={<ItineraryBoard />} />
+              <Route path="/itinerary/:postId" element={<ItineraryPost />} />
               <Route path="/qna" element={<div className="py-20"><TravelQnA /></div>} />
               <Route path="/market" element={<div className="py-20"><MarketBoard /></div>} />
               <Route path="/crew" element={<div className="py-20"><CrewOnly /></div>} />
@@ -255,12 +275,15 @@ function App() {
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/points" element={PAYMENTS_ENABLED ? <Points /> : <NotFound />} />
+              {PLANNER_ENABLED && PlannerRoutes && (
+                <Route path="/planner/*" element={<PlannerRoutes />} />
+              )}
               {PAYTEST && <Route path="/__paytest" element={<PayTest />} />}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </main>
-        <Footer />
+        <ShellFooter />
 
         {/* Global Toast Notifications */}
         <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full sm:w-80">

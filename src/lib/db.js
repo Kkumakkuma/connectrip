@@ -83,6 +83,59 @@ export const marketApi = {
 };
 
 // ============================================================
+// Itinerary Posts (여행 일정 게시판)
+// ------------------------------------------------------------
+// 글쓰기 경로가 없는 게시판이다. 글은 플래너의 planner_publish_to_board RPC 만 만들고
+// (itinerary_posts = 읽기 공개 / 쓰기 RPC 전용), 여기에는 읽기와 가져오기만 둔다.
+// 목록에서 snapshot(여행 전체 jsonb)을 통째로 받지 않는다 — 카드 미니맵에 필요한 days 만
+// PostgREST 의 JSON 경로 선택(snapshot->days)으로 좁혀 받는다.
+// ============================================================
+
+// 카드가 실제로 쓰는 컬럼만. snapshot 은 여기에 넣지 않는다.
+const ITINERARY_CARD_COLUMNS =
+  'id,created_at,title,country,start_date,end_date,days_count,places_count,author_name,user_id,view_count,import_count';
+
+export const itineraryApi = {
+  // 1차 범위는 '더보기' 없이 첫 페이지 고정.
+  // 정렬은 idx_itinerary_posts_created (created_at DESC, id DESC) 와 같은 순서로 둔다.
+  async getList(limit = 20) {
+    const { data, error } = await supabase
+      .from('itinerary_posts')
+      .select(`${ITINERARY_CARD_COLUMNS},days:snapshot->days,profiles(user_type, crew_verified)`)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data || [];
+  },
+
+  // 상세는 날짜별 동선 요약을 그려야 해서 스냅샷 전문이 필요하다.
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('itinerary_posts')
+      .select('*, profiles(user_type, crew_verified)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  // 조회수. 서버가 글당 10분 60회로 스로틀한다(planner_bump_post_view).
+  async bumpView(id) {
+    const { error } = await supabase.rpc('planner_bump_post_view', { p_post_id: id });
+    if (error) throw error;
+  },
+
+  // 게시글 스냅샷을 내 플래너로 복사한다. 반환값 = 새로 만들어진 여행 id.
+  // 값 검증·상한은 전부 서버(planner_import)가 한다.
+  async importPost(postId) {
+    const { data, error } = await supabase.rpc('planner_import', { p_post_id: postId });
+    if (error) throw error;
+    return data;
+  },
+};
+
+// ============================================================
 // QnA Board (여행 Q&A)
 // ============================================================
 
@@ -426,8 +479,11 @@ export const keywordsApi = {
 // 키워드 알림: 최근 게시글을 가볍게 폴링해서 키워드와 매칭한다.
 // (Supabase realtime 퍼블리케이션 설정 없이도 동작하도록 폴링 방식 채택.
 //  RPC/보안 로직과 무관한 단순 SELECT 만 수행한다.)
-// select('*') 로 받아 모든 문자열 컬럼을 매칭 대상으로 삼는다 →
+// 기본은 select('*') 로 받아 모든 문자열 컬럼을 매칭 대상으로 삼는다 →
 // 보드별 컬럼명(content/description 등) 차이/스키마 변경에 영향받지 않는다.
+// 단 큰 비텍스트 컬럼(itinerary_posts.snapshot jsonb = 여행 전체)을 가진 보드는 board.select 로
+// 좁힌다. 폴링이 1분 주기 × 보드당 최대 20행이라 전송량이 그대로 Supabase egress 비용이 된다.
+// (board.select 를 적어 두기만 하면 아무 일도 일어나지 않는다 — 아래 쿼리도 함께 읽어야 한다.)
 // type = add_keyword_notification(p_post_type) 이 받는 값 (서버가 링크를 조립한다)
 const KEYWORD_BOARDS = [
   { table: 'companion_posts', path: '/companion', type: 'companion' },
@@ -435,6 +491,14 @@ const KEYWORD_BOARDS = [
   { table: 'market_listings', path: '/market', type: 'market' },
   { table: 'reviews', path: '/reviews', type: 'reviews' },
   { table: 'destinations', path: '/recommend', type: 'destinations' },
+  // author_name 포함은 의도적이다 — 기존 5개 보드가 전부 author_name 을 매칭 대상으로 삼고
+  // 있어서(KEYWORD_SKIP_FIELDS 에도 없다) 여기서만 빼면 보드별 매칭 범위가 갈라진다.
+  {
+    table: 'itinerary_posts',
+    path: '/itinerary',
+    type: 'itinerary',
+    select: 'id,created_at,title,content,author_name,country',
+  },
 ];
 
 // 매칭에서 제외할 비텍스트/식별자 성격 컬럼 (오탐 방지)
@@ -462,7 +526,7 @@ export const keywordAlertsApi = {
         try {
           const { data, error } = await supabase
             .from(board.table)
-            .select('*')
+            .select(board.select || '*')
             .gt('created_at', sinceIso)
             .order('created_at', { ascending: false })
             .limit(20);
@@ -957,11 +1021,13 @@ export const adminApi = {
       { count: qnaCount },
       { count: marketCount },
       { count: crewCount },
+      { count: itineraryCount },
       { data: recentUsers },
       { data: recentCompanion },
       { data: recentQna },
       { data: recentMarket },
       { data: recentCrew },
+      { data: recentItinerary },
     ] = await Promise.all([
       // Total users
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
@@ -974,6 +1040,8 @@ export const adminApi = {
       supabase.from('qna_posts').select('*', { count: 'exact', head: true }),
       supabase.from('market_listings').select('*', { count: 'exact', head: true }),
       supabase.from('crew_posts').select('*', { count: 'exact', head: true }),
+      // 여행 일정 게시판. head:true 라 snapshot 본문은 오지 않는다(개수만).
+      supabase.from('itinerary_posts').select('id', { count: 'exact', head: true }),
       // Daily signups (last 7 days)
       supabase.from('profiles').select('created_at').gte('created_at', sevenDaysAgoISO),
       // Daily posts (last 7 days) - combine all boards
@@ -981,9 +1049,11 @@ export const adminApi = {
       supabase.from('qna_posts').select('created_at').gte('created_at', sevenDaysAgoISO),
       supabase.from('market_listings').select('created_at').gte('created_at', sevenDaysAgoISO),
       supabase.from('crew_posts').select('created_at').gte('created_at', sevenDaysAgoISO),
+      supabase.from('itinerary_posts').select('created_at').gte('created_at', sevenDaysAgoISO),
     ]);
 
-    const totalPosts = (companionCount || 0) + (qnaCount || 0) + (marketCount || 0) + (crewCount || 0);
+    const totalPosts =
+      (companionCount || 0) + (qnaCount || 0) + (marketCount || 0) + (crewCount || 0) + (itineraryCount || 0);
 
     return {
       totalUsers: totalUsers || 0,
@@ -995,6 +1065,7 @@ export const adminApi = {
         qna: qnaCount || 0,
         market: marketCount || 0,
         crew: crewCount || 0,
+        itinerary: itineraryCount || 0,
       },
       recentUsers: recentUsers || [],
       recentPosts: [
@@ -1002,6 +1073,7 @@ export const adminApi = {
         ...(recentQna || []),
         ...(recentMarket || []),
         ...(recentCrew || []),
+        ...(recentItinerary || []),
       ],
     };
   },

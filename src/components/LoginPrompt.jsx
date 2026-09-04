@@ -1,9 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogIn, X } from 'lucide-react';
+import { nextQuery } from '../lib/safeNext';
 
-const LoginPrompt = ({ isOpen, onClose }) => {
+// next: 로그인·가입을 마친 뒤 돌아올 우리 사이트 안의 경로(선택).
+// 넘기지 않으면 기존과 똑같이 /signup, /signup?mode=login 으로만 이동한다 — 기존 호출부 회귀 없음.
+const LoginPrompt = ({ isOpen, onClose, next }) => {
   const navigate = useNavigate();
+  const nextQ = nextQuery(next);
 
   if (!isOpen) return null;
 
@@ -38,7 +42,7 @@ const LoginPrompt = ({ isOpen, onClose }) => {
             <button
               onClick={() => {
                 onClose();
-                navigate('/signup');
+                navigate(`/signup${nextQuery(next, { first: true })}`);
                 window.scrollTo(0, 0);
               }}
               className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
@@ -49,7 +53,7 @@ const LoginPrompt = ({ isOpen, onClose }) => {
           <button
             onClick={() => {
               onClose();
-              navigate('/signup?mode=login');
+              navigate(`/signup?mode=login${nextQ}`);
               window.scrollTo(0, 0);
             }}
             className="mt-4 text-sm text-gray-500 hover:text-blue-600 transition-colors"

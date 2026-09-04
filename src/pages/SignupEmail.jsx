@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, User, Phone, MapPin, Gift, CheckCircle, Loader2, Plane, Shield, Calendar } from 'lucide-react';
@@ -11,6 +11,7 @@ import { apiUrl } from '../lib/api';
 import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
+import { resolveNext, rememberNext } from '../lib/safeNext';
 
 function loadDaumPostcode() {
   return new Promise((resolve, reject) => {
@@ -39,6 +40,15 @@ export default function SignupEmail() {
 
   const initialUserType = searchParams.get('type') === 'crew' ? 'crew' : 'traveler';
   const initialAirlineEmail = searchParams.get('airline') || '';
+  // 로그인이 필요해서 가입까지 온 경우 원래 하려던 화면(?next=...)으로 돌려보낸다.
+  // stripIdentityParams 는 본인확인 복귀 키만 지우므로 next 는 URL 에 그대로 남는다(확인 완료).
+  const nextParam = searchParams.get('next');
+  // 복귀 경로는 화면당 한 번만 확정한다. resolveNext 가 보관본을 소비하므로 두 번 부르면 홈이 된다.
+  const nextTargetRef = useRef(undefined);
+  const resolveNextTarget = () => {
+    if (nextTargetRef.current === undefined) nextTargetRef.current = resolveNext(nextParam);
+    return nextTargetRef.current;
+  };
   const [userType] = useState(initialUserType);
   // 승무원은 이 페이지 안에서 항공사 이메일을 직접 입력/수정할 수 있어야 함
   const [airlineEmail, setAirlineEmail] = useState(initialAirlineEmail);
@@ -125,9 +135,15 @@ export default function SignupEmail() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // 이미 로그인돼 있으면 홈으로
+  // 확인 메일 링크는 새 탭에서 열려 URL 의 next 가 끊긴다 → 로컬에 30분만 적어둔다.
   useEffect(() => {
-    if (isLoggedIn) navigate('/');
+    rememberNext(nextParam);
+  }, [nextParam]);
+
+  // 이미 로그인돼 있으면 복귀 경로(없으면 홈)로
+  useEffect(() => {
+    if (isLoggedIn) navigate(resolveNextTarget());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, navigate]);
 
   // 이메일 중복 체크 (profiles.email 조회)
@@ -531,7 +547,7 @@ export default function SignupEmail() {
         });
         if (compErr) throw compErr;
         clearIdentityProof();
-        navigate('/');
+        navigate(resolveNextTarget());
       } else {
         // 이메일 확인 ON: 여기서 페이지를 떠나므로 소비 토큰이 state 와 함께 사라진다.
         // /signup/complete 에서 이어서 가입을 마칠 수 있도록 세션 스토리지로 넘긴다(서버 유효기간과 같은 1시간).

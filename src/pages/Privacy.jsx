@@ -6,6 +6,10 @@ import { IDENTITY_PG_NAME } from '../lib/identity';
 // 개인정보처리방침. 보호책임자 = 회사명 대표 표기(쿠마님 2026-07-20 확정).
 // 2026-09-02 개정: 휴대폰 본인확인(PASS/SMS) 수집항목·수탁자(포트원·{IDENTITY_PG_NAME})·차단 회원 해시 보관 추가.
 //   가입 화면 ConsentBox 의 요약 문구와 complete_signup_profile 의 policy_version('2026-09-02')을 같이 맞춘다.
+// 2026-09-04 추가: 여행 플래너(티켓 파일·장소 검색어·OpenStreetMap 국외이전·기기 로컬 사본 보관기간).
+//   플래너는 아직 꺼져 있어(VITE_PLANNER_ENABLED=false) 실제 수집이 시작되기 전 미리 고지하는 항목이다.
+//   ⚠ 플래너를 켜는 시점에 '최종 개정일'과 complete_signup_profile 의 policy_version 을 같은 날짜로 함께 올린다.
+//     (지금 날짜만 올리면 동의 기록의 버전과 화면 표기가 어긋난다.)
 function Section({ title, children }) {
   return (
     <section className="mt-8">
@@ -38,6 +42,7 @@ const Privacy = () => {
             <li><strong className="text-gray-900">휴대폰 본인확인</strong>: 이름, 생년월일, 성별, 휴대폰번호, 이동통신사, 내외국인 여부, 연계정보(CI). 본인확인기관(이동통신사)이 확인한 값을 {IDENTITY_PG_NAME}·포트원을 통해 제공받으며, 연계정보(CI)는 복원할 수 없는 해시값으로만 저장합니다.</li>
             <li><strong className="text-gray-900">주소</strong>: 우편번호, 도로명 주소, 상세 주소(포인트 선물 등 배송 목적)</li>
             <li><strong className="text-gray-900">승무원 회원</strong>: 항공사 이메일, 항공사명(승무원 인증용)</li>
+            <li><strong className="text-gray-900">여행 플래너</strong>: 이용자가 올린 티켓 파일(항공권·입장권 등 이미지·PDF)과 그 파일에서 읽어낸 날짜·편명, 장소 검색어</li>
             <li><strong className="text-gray-900">자동 수집</strong>: 접속 기록(서비스 이용·접속 로그)</li>
           </ul>
         </Section>
@@ -47,6 +52,7 @@ const Privacy = () => {
             <li>회원 관리 및 본인 확인(실명 확인, 1인 1계정 확인, 만 14세 미만 가입 제한)</li>
             <li>커뮤니티(동행·정보공유·물품거래·후기 등) 운영</li>
             <li>승무원 칭찬매칭 운영</li>
+            <li>여행 일정 작성·공유 및 티켓 보관 기능 제공</li>
             <li>포인트 적립·이용 등 운영</li>
             <li>부정 이용 방지, 분쟁 조정, 고객 문의 대응</li>
           </ul>
@@ -61,6 +67,7 @@ const Privacy = () => {
             <li><strong className="text-gray-900">포트원(주)</strong> — 휴대폰 본인확인 연동(본인확인 요청 중계·결과 전달)</li>
             <li><strong className="text-gray-900">{IDENTITY_PG_NAME}</strong> — 휴대폰 본인확인 서비스(이동통신사 본인확인 대행, PASS 앱·문자 인증)</li>
             <li><strong className="text-gray-900">Solapi</strong> — 인증 문자(SMS) 발송</li>
+            <li><strong className="text-gray-900">OpenStreetMap Foundation</strong> — 여행 플래너의 지도 표시·장소 검색(해외)</li>
           </ul>
           <p className="text-xs text-gray-400">위탁 업무 내용이나 수탁자가 변경되는 경우 본 방침을 통해 고지합니다.</p>
         </Section>
@@ -95,11 +102,17 @@ const Privacy = () => {
                   <td className="py-2 pr-3">서비스 접속·이용 과정의 요청 정보(접속기록 등)</td>
                   <td className="py-2">웹/앱 호스팅·전송 / 위탁계약 종료 시까지</td>
                 </tr>
-                <tr>
+                <tr className="border-b border-gray-100">
                   <td className="py-2 pr-3">Resend (Plus Five Five, Inc.)</td>
                   <td className="py-2 pr-3">미국</td>
                   <td className="py-2 pr-3">이메일 주소</td>
                   <td className="py-2">인증·알림 이메일 발송 / 발송 목적 달성 시까지</td>
+                </tr>
+                <tr>
+                  <td className="py-2 pr-3">OpenStreetMap Foundation</td>
+                  <td className="py-2 pr-3">영국</td>
+                  <td className="py-2 pr-3">여행 플래너에서 입력한 장소 검색어, 지도 요청 정보(접속 IP 등)</td>
+                  <td className="py-2">지도 표시·장소 검색 결과 제공 / 해당 재단의 로그 보관 정책에 따름</td>
                 </tr>
               </tbody>
             </table>
@@ -131,6 +144,12 @@ const Privacy = () => {
           <p>
             다만 「전자상거래 등에서의 소비자보호에 관한 법률」 등 관계 법령이 보존을 정한 결제·거래 기록은 해당
             법정 보존기간 동안 다른 개인정보와 분리하여 별도로 보관한 뒤 파기합니다.
+          </p>
+          <p>
+            여행 플래너에 올린 티켓 파일은 회원이 해당 티켓이나 여행을 삭제하면 저장소의 실제 파일까지 함께
+            지우며, 회원탈퇴 시에도 같은 방식으로 삭제합니다. 바로 지워지지 않고 남은 파일은 하루 한 번 도는
+            정리 작업에서 삭제합니다. 오프라인으로 보기 위해 이용자 기기에 저장한 사본은 로그아웃하거나
+            보관 기간(저장 후 30일, 여행 종료 3일 뒤 중 이른 때)이 지나면 자동으로 지워집니다.
           </p>
           <p>
             본인확인 과정에서 임시로 받은 정보는 가입이 완료되면 즉시, 가입을 마치지 않으면 24시간 안에 파기합니다.

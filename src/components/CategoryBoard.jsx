@@ -50,6 +50,14 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
             path: '/recommend'
         },
         {
+            id: 'itinerary',
+            name: '여행 일정',
+            desc: '다른 여행자가 짠 날짜별 동선을 보고, 마음에 들면 내 플래너로 가져올 수 있습니다.',
+            crewComment: '레이오버 하루 동선을 그대로 옮겨 담을 수 있어요.',
+            image: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=800&auto=format&fit=crop',
+            path: '/itinerary'
+        },
+        {
             id: 'crew',
             name: 'CREW 전용',
             desc: '승무원끼리 정보를 공유하고 특별 할인 혜택을 확인하세요.',

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Plane, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { resolveNext, rememberNext, nextQuery } from '../lib/safeNext';
 import SEOHead from '../components/SEOHead';
 
 const Signup = () => {
@@ -14,16 +15,32 @@ const Signup = () => {
     // 초대링크(?ref=코드)로 진입 시 유형 선택 후에도 추천코드를 이어서 전달
     const refParam = searchParams.get('ref');
     const refQuery = refParam ? `&ref=${encodeURIComponent(refParam)}` : '';
+    // 로그인이 필요해서 여기로 온 화면(?next=/planner/import?post=...)으로 돌아가기 위한 값.
+    // 유형 선택 → /signup/email 로도 이어 넘기고, 확인 메일을 거치는 경로를 위해 보관도 해둔다.
+    const nextParam = searchParams.get('next');
+    const nextQ = nextQuery(nextParam);
+    // 복귀 경로는 화면당 한 번만 확정한다. resolveNext 가 보관본을 소비하므로 두 번 부르면 홈이 된다.
+    const nextTargetRef = useRef(undefined);
+    const resolveNextTarget = () => {
+        if (nextTargetRef.current === undefined) nextTargetRef.current = resolveNext(nextParam);
+        return nextTargetRef.current;
+    };
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // 확인 메일 링크는 새 탭에서 열려 URL 의 next 가 끊긴다 → 로컬에 30분만 적어둔다.
+    useEffect(() => {
+        rememberNext(nextParam);
+    }, [nextParam]);
+
     useEffect(() => {
         if (isLoggedIn && !searchParams.get('mode')) {
-            navigate('/');
+            navigate(resolveNextTarget());
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLoggedIn, searchParams, navigate]);
 
     useEffect(() => {
@@ -44,7 +61,7 @@ const Signup = () => {
         setError('');
         try {
             await signIn(email, password);
-            navigate('/');
+            navigate(resolveNextTarget());
             window.scrollTo(0, 0);
         } catch (err) {
             if (err.message.includes('Invalid login')) {
@@ -90,7 +107,7 @@ const Signup = () => {
                                 <div className="grid md:grid-cols-2 gap-6">
                                     {/* 일반 여행자 카드 → 즉시 /signup/email?type=traveler */}
                                     <motion.button
-                                        onClick={() => navigate(`/signup/email?type=traveler${refQuery}`)}
+                                        onClick={() => navigate(`/signup/email?type=traveler${refQuery}${nextQ}`)}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-blue-500 transition-all group text-left"
@@ -114,7 +131,7 @@ const Signup = () => {
 
                                     {/* 승무원 카드 → 즉시 /signup/email?type=crew, 페이지 안에서 항공사 이메일 인증 */}
                                     <motion.button
-                                        onClick={() => navigate(`/signup/email?type=crew${refQuery}`)}
+                                        onClick={() => navigate(`/signup/email?type=crew${refQuery}${nextQ}`)}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                         className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-purple-500 transition-all group text-left"

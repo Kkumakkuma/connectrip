@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield, Calendar } from 'lucide-react';
 import { getAirlineInfo } from '../lib/airlines';
@@ -11,6 +11,7 @@ import { apiUrl } from '../lib/api';
 import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
+import { resolveNext, rememberNext } from '../lib/safeNext';
 
 // Daum 우편번호 스크립트 동적 로더
 function loadDaumPostcode() {
@@ -38,6 +39,16 @@ function loadDaumPostcode() {
 export default function SignupComplete() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  // 프로필 완성 후 복귀 경로. ProfileCompleteGate 가 여기로 튕길 때 next 를 붙여 보내고,
+  // 확인 메일처럼 URL 이 한 번 끊기는 경로는 safeNext 의 보관본(30분)이 잇는다.
+  const nextParam = searchParams.get('next');
+  // 복귀 경로는 화면당 한 번만 확정한다. resolveNext 가 보관본을 소비하므로 두 번 부르면 홈이 된다.
+  const nextTargetRef = useRef(undefined);
+  const resolveNextTarget = () => {
+    if (nextTargetRef.current === undefined) nextTargetRef.current = resolveNext(nextParam);
+    return nextTargetRef.current;
+  };
   const { user, profile, isLoggedIn, fetchProfile } = useAuth();
 
   const [name, setName] = useState('');
@@ -120,11 +131,17 @@ export default function SignupComplete() {
     }
   }, [isLoggedIn, navigate]);
 
-  // 이미 profile_completed=true 면 홈으로
+  // 복귀 경로를 로컬에도 적어둔다(이 화면을 벗어났다가 돌아오는 경로 대비).
+  useEffect(() => {
+    rememberNext(nextParam);
+  }, [nextParam]);
+
+  // 이미 profile_completed=true 면 복귀 경로(없으면 홈)로
   useEffect(() => {
     if (profile?.profile_completed) {
-      navigate('/');
+      navigate(resolveNextTarget());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, navigate]);
 
   // OAuth 복귀 시 sessionStorage 에 저장된 승무원 항공사 정보 복원
@@ -512,7 +529,7 @@ export default function SignupComplete() {
       } catch { /* noop */ }
       clearIdentityProof();
       await fetchProfile(user.id);
-      navigate('/');
+      navigate(resolveNextTarget());
     } catch (err) {
       // 저장은 됐는데 응답만 유실됐을 수 있다. 프로필을 다시 확인해 성공이면 그대로 진행한다.
       try {
@@ -526,7 +543,7 @@ export default function SignupComplete() {
           } catch { /* noop */ }
           clearIdentityProof();
           await fetchProfile(user.id);
-          navigate('/');
+          navigate(resolveNextTarget());
           return;
         }
       } catch { /* 조회 실패 시 아래 안내로 진행 */ }

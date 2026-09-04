@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, Users, ShoppingBag, HelpCircle, Shield } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Users, ShoppingBag, HelpCircle, Shield, Map as MapIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
@@ -8,12 +8,22 @@ import CrewBadge from '../components/CrewBadge';
 import ListState from '../components/ListState';
 
 // fields = 검색 대상 컬럼(모든 게시판 본문은 content 로 통일됨),
-// bodyField = 결과 카드에 본문 미리보기로 보여줄 컬럼.
+// bodyField = 결과 카드에 본문 미리보기로 보여줄 컬럼,
+// select  = 받아올 컬럼(생략하면 '*'). 큰 비텍스트 컬럼을 가진 보드만 적는다,
+// detail  = 결과 한 건을 여는 경로. 없으면 종전대로 게시판 목록으로 이동한다.
 const BOARDS = [
   { key: 'companion_posts', label: '동행 게시판', icon: Users, color: 'blue', link: '/companion', fields: ['title', 'content'], bodyField: 'content' },
   { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content' },
   { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', fields: ['title', 'content'], bodyField: 'content' },
   { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', fields: ['title', 'content'], bodyField: 'content' },
+  // itinerary_posts 는 snapshot(jsonb = 여행 전체)을 갖고 있어 '*' 로 받으면 검색 응답이 통째로
+  // 커진다. 카드가 쓰는 컬럼만 적고, 아래 쿼리가 board.select 를 읽는다(둘 중 하나만 고치면 무효).
+  {
+    key: 'itinerary_posts', label: '여행 일정', icon: MapIcon, color: 'teal', link: '/itinerary',
+    fields: ['title', 'content'], bodyField: 'content',
+    select: 'id,created_at,title,content,author_name,country,user_id',
+    detail: (item) => `/itinerary/${item.id}`,
+  },
 ];
 
 const Search = () => {
@@ -53,7 +63,7 @@ const Search = () => {
           // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
           const authorEmbed = board.key === 'market_listings'
             ? '*, profiles!market_listings_user_id_fkey(user_type, crew_verified)'
-            : '*, profiles(user_type, crew_verified)';
+            : `${board.select || '*'}, profiles(user_type, crew_verified)`;
           const { data, error } = await supabase
             .from(board.key)
             .select(authorEmbed)
@@ -132,6 +142,7 @@ const Search = () => {
                 green: 'bg-green-100 text-green-600',
                 amber: 'bg-amber-100 text-amber-600',
                 purple: 'bg-purple-100 text-purple-600',
+                teal: 'bg-teal-100 text-teal-600',
               };
 
               return (
@@ -165,7 +176,13 @@ const Search = () => {
                       return (
                         <button
                           key={item.id}
-                          onClick={() => navigate(board.link + '?q=' + encodeURIComponent(query))}
+                          onClick={() =>
+                            navigate(
+                              board.detail
+                                ? board.detail(item)
+                                : board.link + '?q=' + encodeURIComponent(query)
+                            )
+                          }
                           className="w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors"
                         >
                           <h4 className="font-semibold text-gray-900 mb-1 line-clamp-1">

@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import {
   Shield, Users, FileText, BarChart3, AlertTriangle, Search,
   CheckCircle, XCircle, Ban, UserCheck, Loader2, ChevronDown,
-  TrendingUp, Calendar, MessageSquare, ShoppingBag, Plane, HelpCircle
+  TrendingUp, Calendar, MessageSquare, ShoppingBag, Plane, HelpCircle,
+  Map as MapIcon
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { reportApi, blockApi, adminApi, commendationApi } from '../lib/db';
@@ -846,12 +847,13 @@ const Admin = () => {
                   {/* Board post counts */}
                   <div className="mb-8">
                     <h3 className="text-sm font-bold text-gray-500 mb-4">게시판별 글 수</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                       {[
                         { label: '동행 게시판', count: stats.boardCounts.companion, icon: Users, color: 'blue' },
                         { label: '여행 Q&A', count: stats.boardCounts.qna, icon: HelpCircle, color: 'green' },
                         { label: '장터', count: stats.boardCounts.market, icon: ShoppingBag, color: 'purple' },
                         { label: '크루 전용', count: stats.boardCounts.crew, icon: Plane, color: 'orange' },
+                        { label: '여행 일정', count: stats.boardCounts.itinerary, icon: MapIcon, color: 'teal' },
                       ].map((item) => (
                         <div key={item.label} className={`bg-${item.color}-50 rounded-xl p-4 border border-${item.color}-100`}>
                           <div className="flex items-center gap-2 mb-2">

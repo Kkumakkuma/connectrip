@@ -67,8 +67,8 @@ const Terms = () => {
 
         <Section title="2. 서비스의 성격">
           <p>
-            ConnectTrip은 여행자와 승무원이 동행 모집, 여행 정보·후기 공유, 물품 거래·나눔, 승무원 칭찬 등을
-            나누는 <strong className="text-gray-900">커뮤니티 플랫폼</strong>입니다. 서비스는 통신판매중개자가 아니며,
+            ConnectTrip은 여행자와 승무원이 동행 모집, 여행 일정 작성·공유, 여행 정보·후기 공유, 물품 거래·나눔,
+            승무원 칭찬 등을 나누는 <strong className="text-gray-900">커뮤니티 플랫폼</strong>입니다. 서비스는 통신판매중개자가 아니며,
             회원 간 물품 거래·나눔·동행 등은 <strong className="text-gray-900">회원이 직접 진행하는 거래</strong>입니다.
           </p>
           <p>

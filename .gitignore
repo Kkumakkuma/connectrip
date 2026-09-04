@@ -32,4 +32,6 @@ scripts/*
 # 2026-08-28: prerender-seo.mjs 가 ignore 에 걸려 커밋되지 않아 Vercel 프로덕션 빌드가
 # 두 번 연속 실패했다(로컬은 파일이 있어서 통과 — 그래서 못 잡았다).
 !scripts/prerender-seo.mjs
+# GitHub Actions 로 매일 도는 플래너 티켓 고아 파일 스위퍼도 추적 대상이다.
+!scripts/planner_purge_orphans.mjs
 *.code-workspace

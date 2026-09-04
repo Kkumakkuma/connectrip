@@ -19,6 +19,7 @@
 //   /market              src/components/MarketBoard.jsx
 //   /reviews             src/components/Promotions.jsx
 //   /recommend           src/components/Destinations.jsx
+//   /itinerary           src/components/ItineraryBoard.jsx
 //   /search              src/pages/Search.jsx
 //   /signup              src/pages/Signup.jsx (기본 mode = 'signup')
 
@@ -76,6 +77,13 @@ export const ROUTE_META = {
     title: '여행지 추천 - ConnectTrip',
     description:
       '승무원들이 직접 추천하는 전 세계 여행지. 유럽, 미주, 동남아 등 지역별 숨은 명소와 핫플레이스를 만나보세요.',
+  },
+  // 글 단위 경로(/itinerary/:postId)는 사이트맵에 없어 프리렌더 대상이 아니다.
+  // 목록만 정적 HTML 로 굽고, 글 문구는 화면의 SEOHead 가 채운다.
+  '/itinerary': {
+    title: '여행 일정 - ConnectTrip',
+    description:
+      '여행자들이 직접 짠 날짜별 여행 일정을 살펴보고, 마음에 드는 일정을 내 플래너로 가져오세요.',
   },
   '/search': {
     title: '검색 결과 - ConnectTrip',
