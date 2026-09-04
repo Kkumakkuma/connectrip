@@ -36,7 +36,13 @@ export async function gate(req, res, { methods = ['POST'], rateKey, rateLimit = 
   }
 
   // 기능이 꺼져 있으면 존재 자체를 알리지 않는다(라우트가 없는 것과 같게).
-  if (String(process.env.PLANNER_ENABLED || '').trim() !== 'true') {
+  //
+  // 기본값을 '열림'으로 둔다. 예전처럼 'true' 를 요구하면 Vercel 대시보드에 환경변수를
+  // 넣기 전까지 장소 검색·링크로 담기가 404 로 죽는데, 그 사실이 화면에서는 그냥
+  // "안 된다"로만 보여 원인을 찾기 어렵다. 끄고 싶을 때 PLANNER_ENABLED=false 를 넣으면
+  // 그대로 닫힌다 — 킬 스위치는 그대로 있다.
+  // 어차피 이 함수들은 로그인한 사용자만 통과하고 사용자별 레이트리밋도 건다.
+  if (String(process.env.PLANNER_ENABLED || '').trim().toLowerCase() === 'false') {
     res.status(404).json({ ok: false, code: 'NOT_FOUND', error: 'Not found' });
     return null;
   }
