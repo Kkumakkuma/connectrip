@@ -20,7 +20,9 @@ export function registerOfflineSW() {
   if (typeof window === 'undefined') return;
   if (window.Capacitor?.isNativePlatform?.()) return;
   if (!('serviceWorker' in navigator)) return;
-  if (!window.location.pathname.startsWith('/planner')) return;
+  // 접두사만 보면 /plannerfoo 도 통과한다. 경계를 명시한다.
+  const path = window.location.pathname;
+  if (path !== '/planner' && !path.startsWith('/planner/')) return;
 
   // 등록 실패는 조용히 넘긴다 — 오프라인 캐시는 있으면 좋은 것이지 없으면 못 쓰는 기능이 아니다.
   navigator.serviceWorker.register('/planner-sw.js', { scope: '/planner' }).catch(() => {});

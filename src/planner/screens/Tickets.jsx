@@ -179,7 +179,13 @@ export default function Tickets() {
     setBusy(true);
     try {
       const row = await uploadTicket({ tripId, userId: user?.id, file });
-      await refresh();
+      // 여기서부터는 파일도 행도 이미 서버에 있다. 뒤 단계가 실패해도 "올리지 못했습니다"로
+      // 말하면 안 된다 — 사용자가 다시 올려 사본이 둘 생긴다(교차검토 지적).
+      try {
+        await refresh();
+      } catch {
+        pushToast('warning', '올리기는 끝났는데 목록을 새로 못 읽었습니다. 화면을 새로고침해 주세요.');
+      }
 
       // 판독은 여기서부터. 실패해도 업로드는 이미 끝났으니 화면을 막지 않는다.
       let text = '';
@@ -251,7 +257,13 @@ export default function Tickets() {
     }
   };
 
+  // 날짜를 아직 확인하지 않은 티켓은 열면 확인 시트를 다시 띄운다.
+  // "나중에"로 닫고 나면 되돌아올 길이 없던 문제(교차검토 지적).
   const handleOpen = async (ticket) => {
+    if (!ticket.event_date) {
+      setPending({ row: ticket, detection: { candidates: [], best: null, ambiguous: true }, bcbp: null, barcode: null });
+      return;
+    }
     setViewing(ticket);
     setViewUrl(null);
     try {
@@ -259,7 +271,14 @@ export default function Tickets() {
         const { downloadTicket } = await import('../api');
         const { renderPdfFirstPage } = await import('../lib/pdfText');
         const blob = await downloadTicket(ticket.storage_path);
-        setViewUrl(await renderPdfFirstPage(blob));
+        const rendered = await renderPdfFirstPage(blob);
+        if (!rendered) {
+          // null 을 성공으로 치면 전체화면이 영원히 로딩만 돈다.
+          pushToast('warning', 'PDF 를 화면에 그리지 못했습니다.');
+          setViewing(null);
+          return;
+        }
+        setViewUrl(rendered);
       } else {
         setViewUrl(await ticketUrl(ticket.storage_path));
       }

@@ -76,6 +76,19 @@ describe('zonedTimeToUtc', () => {
     expect(d.toISOString()).toBe('2026-11-01T05:30:00.000Z');
   });
 
+
+  it('남반구 겹치는 시각(오클랜드 가을 전환)도 앞선 쪽을 고른다', () => {
+    // 2026-04-05 02:30 Pacific/Auckland 는 두 번 온다(+13 먼저, +12 나중).
+    // 초기 추측 방향에 끌려가면 남반구에서만 틀린다 — 실제로 그랬다(2026-09-04 교차검토).
+    const d = zonedTimeToUtc('2026-04-05', '02:30', 'Pacific/Auckland');
+    expect(d.toISOString()).toBe('2026-04-04T13:30:00.000Z');
+  });
+
+  it('달력에 없는 날짜는 다른 달로 넘기지 않고 거부한다', () => {
+    expect(zonedTimeToUtc('2026-02-31', '10:00', 'Asia/Seoul')).toBeNull();
+    expect(zonedTimeToUtc('2026-13-01', '10:00', 'Asia/Seoul')).toBeNull();
+  });
+
   it('타임존을 모르면 null — 추측하지 않는다', () => {
     expect(zonedTimeToUtc('2026-10-01', '10:30', null)).toBeNull();
     expect(zonedTimeToUtc('2026-10-01', '10:30', 'Not/AZone')).toBeNull();
@@ -118,6 +131,14 @@ describe('zoneForCountry / resolveTripZone', () => {
     expect(zoneForCountry('러시아')).toBeNull();
     expect(zoneForCountry('')).toBeNull();
   });
+
+  it('여러 시간대인 나라는 넣지 않는다 — 발리·퍼스에서 알림이 어긋난다', () => {
+    expect(zoneForCountry('호주')).toBeNull();
+    expect(zoneForCountry('인도네시아')).toBeNull();
+    expect(zoneForCountry('스페인')).toBeNull();
+    expect(zoneForCountry('포르투갈')).toBeNull();
+  });
+
   it('여행에 저장된 타임존이 나라 이름보다 우선한다', () => {
     expect(resolveTripZone({ timezone: 'America/Los_Angeles', country: '일본' })).toBe('America/Los_Angeles');
     expect(resolveTripZone({ timezone: null, country: '일본' })).toBe('Asia/Tokyo');

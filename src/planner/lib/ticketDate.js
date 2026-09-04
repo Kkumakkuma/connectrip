@@ -26,12 +26,28 @@ function iso(y, m, d) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-// 앞 30자에 붙은 말로 가산·감점.
-function contextScore(text, index) {
-  const before = text.slice(Math.max(0, index - 30), index);
+// 날짜 주변에 붙은 말로 가산·감점.
+//
+// 앞 30자만 보면 두 가지가 샌다(2026-09-04 교차검토).
+//   · 줄 경계를 넘어가 윗줄 라벨이 아랫줄 날짜에 묻는다 —
+//     "Departure 2026-10-03 / Arrival 2026-10-05" 에서 둘째 날짜가 상쇄돼 버린다.
+//   · 표 형태 PDF 는 날짜 **뒤에** 라벨이 오는데 그건 아예 안 본다.
+// 그래서 같은 줄 안에서만, 앞뒤 양쪽을 본다.
+function contextScore(text, index, matchLen) {
+  const NL = String.fromCharCode(10);   // 역슬래시 이스케이프가 도구를 거치며 먹히는 사고가 있어 코드로 만든다
+  const lineStart = text.lastIndexOf(NL, index) + 1;
+  let lineEnd = text.indexOf(NL, index);
+  if (lineEnd === -1) lineEnd = text.length;
+
+  const before = text.slice(Math.max(lineStart, index - 30), index);
+  const after = text.slice(index + matchLen, Math.min(lineEnd, index + matchLen + 20));
+
   let s = 0;
   if (BOOST.test(before)) s += 3;
   if (PENALTY.test(before)) s -= 3;
+  // 뒤쪽 라벨은 앞쪽보다 약하게 본다 — 다음 항목의 라벨일 수도 있다.
+  if (BOOST.test(after)) s += 1;
+  if (PENALTY.test(after)) s -= 1;
   return s;
 }
 
@@ -46,7 +62,7 @@ export function findDateCandidates(text) {
     if (!date) return;
     out.push({
       date,
-      score: contextScore(src, index),
+      score: contextScore(src, index, matched.length),
       ambiguous,
       // 사람이 판단할 근거를 그대로 보여 준다. 앞뒤를 조금씩 붙인다.
       evidence: src.slice(Math.max(0, index - 20), index + matched.length + 10).replace(/\s+/g, ' ').trim(),
@@ -97,7 +113,7 @@ export function findDateCandidates(text) {
       date: null,
       month: Number(m[1]),
       day: Number(m[2]),
-      score: contextScore(src, m.index),
+      score: contextScore(src, m.index, m[0].length),
       ambiguous: false,
       evidence: src.slice(Math.max(0, m.index - 20), m.index + m[0].length + 10).replace(/\s+/g, ' ').trim(),
     });
@@ -161,8 +177,13 @@ export function pickTicketDate(text, trip) {
   );
 
   const best = candidates[0] || null;
-  // 애매하다 = 슬래시 표기라 뒤집힐 수 있거나, 1등과 2등의 점수가 같다.
-  const tie = candidates.length > 1 && candidates[0].score === candidates[1].score;
+  // 애매하다 = 슬래시 표기라 뒤집힐 수 있거나, 1등과 2등을 가를 근거가 없다.
+  // 정렬 기준(score → hits)과 같은 기준으로 본다 — 점수만 비교하면 등장 횟수가
+  // 4:1 로 갈리는데도 애매하다고 물어보게 된다(교차검토 지적).
+  const tie =
+    candidates.length > 1 &&
+    candidates[0].score === candidates[1].score &&
+    candidates[0].hits === candidates[1].hits;
   const ambiguous = Boolean(best?.ambiguous) || tie || candidates.length === 0;
 
   return { candidates, best, ambiguous };

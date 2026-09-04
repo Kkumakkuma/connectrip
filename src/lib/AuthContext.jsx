@@ -249,12 +249,21 @@ export const AuthProvider = ({ children }) => {
           setProfile(null);
           setProfileLoading(false);
           setProfileError(false);
-          // 세션이 끊긴 모든 경우(로그아웃·토큰 만료·갱신 실패)가 여기로 온다.
-          // 기기에 남은 여행 사본과 티켓 원본을 통째로 지운다. 티켓은 예약 조회가 가능한
-          // 자격증명이라 세션이 없는 기기에 남겨 두지 않는다.
-          import('@planner-offline')
-            .then((m) => m.purgeAll())
-            .catch(() => {});
+          // 기기에 남은 여행 사본·티켓 원본 삭제.
+          //
+          // ⚠ "세션이 없으면 무조건 지운다"로 두면 안 된다(2026-09-04 교차검토에서 잡힘).
+          //   티켓 지갑의 주 시나리오가 "비행기 안·로밍 끔"인데, 그 상태에서는 토큰 갱신 요청이
+          //   네트워크 실패로 떨어진다. 그걸 로그아웃으로 오해해 지우면, 티켓을 보려고 연 순간
+          //   바로 그 티켓이 사라진다.
+          //   그래서 **명시적 로그아웃(SIGNED_OUT)** 이고 **온라인일 때만** 지운다.
+          //   오프라인에서 진짜 로그아웃된 경우는 다시 온라인이 되어 SIGNED_OUT 이 오거나,
+          //   다른 계정으로 로그인할 때 sweep 이 정리한다.
+          const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+          if (_event === 'SIGNED_OUT' && !offline) {
+            import('@planner-offline')
+              .then((m) => m.purgeAll())
+              .catch(() => {});
+          }
         }
         setLoading(false);
       }

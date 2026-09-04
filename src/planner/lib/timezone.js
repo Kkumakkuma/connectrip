@@ -21,6 +21,9 @@ function formatter(timeZone) {
     f = new Intl.DateTimeFormat('en-US', {
       timeZone,
       hour12: false,
+      // en-US 에 hour12:false 만 주면 구현에 따라 h24(자정을 24 로 표기)가 될 수 있다.
+      // 그러면 날짜 파트가 전날로 묶여 하루가 어긋난다. h23 을 못박는다.
+      hourCycle: 'h23',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -77,24 +80,40 @@ export function zonedTimeToUtc(dateStr, timeStr, timeZone) {
   const minute = t ? Number(t[2]) : 0;
   if (hour > 23 || minute > 59) return null;
 
-  const wanted = Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), hour, minute, 0, 0);
-
-  // 1차: 그 시각쯤의 오프셋으로 빼 본다.
-  let guess = wanted - offsetMsAt(wanted, timeZone);
-  // 2차: 빼고 나서 오프셋이 달라졌다면(전환 구간) 새 오프셋으로 다시 계산한다.
-  const second = wanted - offsetMsAt(guess, timeZone);
-  if (second !== guess) {
-    // 겹치는 시각이면 두 후보 중 앞선 쪽을 고른다.
-    guess = Math.min(guess, second);
+  const y = Number(d[1]);
+  const mo = Number(d[2]);
+  const day = Number(d[3]);
+  const wanted = Date.UTC(y, mo - 1, day, hour, minute, 0, 0);
+  // 2026-02-31 같은 날짜는 Date.UTC 가 3월로 넘겨 버린다. 조용히 다른 날이 되면 안 된다.
+  const probe = new Date(wanted);
+  if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== mo - 1 || probe.getUTCDate() !== day) {
+    return null;
   }
 
-  // 없는 시각(봄 전환)이면 되돌려 읽었을 때 원하던 벽시계가 안 나온다.
-  // 그때는 전환 뒤 첫 유효 시각으로 민다 — 알림이 사라지는 것보다 낫다.
-  if (wallClockMs(guess, timeZone) !== wanted) {
-    const shifted = wanted - offsetMsAt(guess, timeZone);
-    return new Date(Math.max(guess, shifted));
-  }
-  return new Date(guess);
+  // 후보를 **양쪽 다** 만들어 놓고 고른다.
+  //   한 번 빼서 얻은 추측 하나만 쓰면 초기 추측 방향에 결과가 끌려간다. 북반구에서는
+  //   맞고 남반구(Pacific/Auckland)에서는 틀리는 사고가 있었다(2026-09-04 교차검토).
+  //   여기서는 하루 앞뒤 오프셋을 각각 적용한 후보를 만들고, 되돌려 읽어 원하던 벽시계가
+  //   나오는 것만 남긴다.
+  const DAY = 86400000;
+  const offsets = new Set([
+    offsetMsAt(wanted, timeZone),
+    offsetMsAt(wanted - DAY, timeZone),
+    offsetMsAt(wanted + DAY, timeZone),
+  ]);
+  const valid = [...offsets]
+    .map((off) => wanted - off)
+    .filter((ms) => wallClockMs(ms, timeZone) === wanted)
+    .sort((a, b) => a - b);
+
+  // 겹치는 시각(가을 전환): 유효 후보가 둘이다 → 앞선 쪽.
+  if (valid.length) return new Date(valid[0]);
+
+  // 없는 시각(봄 전환): 유효 후보가 없다 → 전환 뒤 첫 시각으로 민다.
+  // 달력 앱들의 관례대로 건너뛴 만큼 뒤로 옮긴다(02:30 → 03:30).
+  const fallback = wanted - offsetMsAt(wanted, timeZone);
+  const shifted = wanted - offsetMsAt(fallback, timeZone);
+  return new Date(Math.max(fallback, shifted));
 }
 
 /** 절대 시각 → 그 타임존의 'YYYY-MM-DD HH:MM'. 화면 표시용. */
@@ -124,8 +143,16 @@ export function timeZoneGapText(instant, tripZone, viewerZone) {
 
 // 나라 이름 → 대표 타임존. 여행을 만들 때 타임존을 고르지 않은 사람이 대부분이라,
 // 나라만 적어 놨을 때 알림 계산에 쓸 기본값을 준다.
-// 나라 전체가 한 시간대인 곳만 넣는다 — 미국·러시아처럼 여러 시간대인 나라는
-// 추측하면 틀리므로 넣지 않고, 그런 여행은 사용자가 타임존을 직접 고르게 한다.
+//
+// **나라 전체가 한 시간대인 곳만 넣는다.** 여러 시간대인 나라는 추측하면 틀린다 —
+// 없으면 알림을 안 걸 뿐이지만, 틀리면 비행기를 놓친다.
+// 빼기로 한 나라와 이유(2026-09-04 교차검토에서 잡힘):
+//   미국·러시아·캐나다·브라질 — 애초에 넣지 않음
+//   호주   퍼스(+8)·애들레이드(+9:30)·시드니(+10) 최대 2시간 차
+//   인도네시아 자카르타(+7)·발리(+8)·파푸아(+9). 발리를 자카르타로 계산하면 1시간 늦는다
+//   스페인 본토(+1)·카나리아(0)
+//   포르투갈 본토(0)·아조레스(-1)
+// 이 나라들은 사용자가 여행 설정에서 타임존을 직접 고른다.
 const COUNTRY_ZONES = {
   대한민국: 'Asia/Seoul',
   한국: 'Asia/Seoul',
@@ -147,8 +174,6 @@ const COUNTRY_ZONES = {
   프랑스: 'Europe/Paris',
   독일: 'Europe/Berlin',
   이탈리아: 'Europe/Rome',
-  스페인: 'Europe/Madrid',
-  포르투갈: 'Europe/Lisbon',
   네덜란드: 'Europe/Amsterdam',
   스위스: 'Europe/Zurich',
   오스트리아: 'Europe/Vienna',
@@ -160,8 +185,6 @@ const COUNTRY_ZONES = {
   터키: 'Europe/Istanbul',
   아랍에미리트: 'Asia/Dubai',
   인도: 'Asia/Kolkata',
-  인도네시아: 'Asia/Jakarta',
-  호주: 'Australia/Sydney',
   뉴질랜드: 'Pacific/Auckland',
   괌: 'Pacific/Guam',
   사이판: 'Pacific/Saipan',
