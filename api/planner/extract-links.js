@@ -156,7 +156,9 @@ export default async function handler(req, res) {
   }
 
   if (!candidates.length) {
-    return fail(res, 404, 'LINK_NOT_SUPPORTED', '이 링크에서는 장소를 찾지 못했습니다.');
+    // 상태 코드도 400 으로 맞춘다. 가드에서 막힌 것과 추출에 실패한 것을 코드로 구분해 주면
+    // 그 차이만으로 "이 주소가 가드를 통과했는지"를 알아낼 수 있다(agy 지적).
+    return fail(res, 400, 'LINK_NOT_SUPPORTED', '이 링크에서는 장소를 찾지 못했습니다.');
   }
 
   // 본문·리다이렉트 체인은 저장하지 않는다. 뽑아낸 후보만 남긴다.

@@ -36,6 +36,10 @@ const HOST_RULES = new Map([
   ['google.com', ['/maps']],
   ['www.google.co.kr', ['/maps']],
   ['google.co.kr', ['/maps']],
+  // maps.app.goo.gl 이 쿠키 동의 페이지로 한 번 튀는 경우가 있다(agy 지적).
+  // 구글이 소유한 고정 호스트이고 https·DNS 검사는 그대로 받으므로 표면이 넓어지지 않는다.
+  ['consent.google.com', []],
+  ['consent.google.co.kr', []],
 ]);
 
 const ALLOWED_CONTENT_TYPES = [
@@ -71,18 +75,75 @@ function isPrivateV4(ip) {
   return false;
 }
 
+// IPv6 를 16바이트로 편다. 형식이 이상하면 null — 호출부는 null 을 "사설"로 취급한다.
+// 문자열 접두사 비교로 판정하면 같은 주소의 다른 표기에 뚫린다(codex 지적:
+// ::ffff:7f00:1 은 127.0.0.1 인데 점 표기 정규식에 안 걸렸다).
+export function parseIPv6(ip) {
+  let v = String(ip || '').toLowerCase().trim();
+  if (!v) return null;
+  v = v.replace(/%.*$/, '');            // 스코프 id 제거 (fe80::1%eth0)
+
+  // 끝에 IPv4 가 박힌 형태(::ffff:127.0.0.1)는 16진 두 그룹으로 바꿔 일반 경로로 보낸다.
+  const tail = /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(v);
+  if (tail) {
+    const p = tail[1].split('.').map(Number);
+    if (p.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    const hi = ((p[0] << 8) | p[1]).toString(16);
+    const lo = ((p[2] << 8) | p[3]).toString(16);
+    v = v.slice(0, tail.index) + hi + ':' + lo;
+  }
+
+  const halves = v.split('::');
+  if (halves.length > 2) return null;
+  const toGroups = (part) => (part ? part.split(':') : []);
+  const head = toGroups(halves[0]);
+  const rest = halves.length === 2 ? toGroups(halves[1]) : [];
+  const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
+  if (fill < 0) return null;
+  const groups = [...head, ...Array(fill).fill('0'), ...rest];
+  if (groups.length !== 8) return null;
+
+  const bytes = [];
+  for (const g of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+    const n = parseInt(g, 16);
+    bytes.push((n >> 8) & 0xff, n & 0xff);
+  }
+  return bytes;
+}
+
 function isPrivateV6(ip) {
-  const v = ip.toLowerCase();
-  if (v === '::' || v === '::1') return true;
-  // IPv4-mapped / IPv4-compatible 는 v4 규칙으로 다시 판정한다.
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v);
-  if (mapped) return isPrivateV4(mapped[1]);
-  if (/^fe[89ab]/.test(v)) return true;    // fe80::/10 링크로컬
-  if (/^f[cd]/.test(v)) return true;       // fc00::/7 유니크 로컬
-  if (v.startsWith('2002:')) return true;  // 6to4
-  if (v.startsWith('64:ff9b:')) return true;
-  if (v.startsWith('100:')) return true;   // discard-only
-  if (v.startsWith('ff')) return true;     // 멀티캐스트
+  const b = parseIPv6(ip);
+  if (!b) return true;                       // 못 읽는 주소는 막는다
+
+  const allZeroTo = (n) => b.slice(0, n).every((x) => x === 0);
+  const v4 = () => `${b[12]}.${b[13]}.${b[14]}.${b[15]}`;
+
+  // ::/128, ::1/128
+  if (allZeroTo(16)) return true;
+  if (allZeroTo(15) && b[15] === 1) return true;
+
+  // ::ffff:0:0/96 (IPv4-mapped), ::/96 (IPv4-compatible), ::ffff:0:x (translated)
+  // → 내장된 IPv4 규칙으로 다시 판정한다. 점 표기든 16진 표기든 같은 결론이 나온다.
+  if (allZeroTo(10) && b[10] === 0xff && b[11] === 0xff) return isPrivateV4(v4());
+  if (allZeroTo(12)) return isPrivateV4(v4());
+
+  // 64:ff9b::/96, 64:ff9b:1::/48 (NAT64)
+  if (b[0] === 0x00 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b) return true;
+  // 100::/64 discard-only
+  if (b[0] === 0x01 && b[1] === 0x00 && allZeroTo(8) === false && b.slice(2, 8).every((x) => x === 0)) return true;
+  // 2001:db8::/32 문서용, 2001::/23 특수 목적
+  if (b[0] === 0x20 && b[1] === 0x01 && b[2] === 0x0d && b[3] === 0xb8) return true;
+  if (b[0] === 0x20 && b[1] === 0x01 && b[2] <= 0x01) return true;
+  // 2002::/16 6to4
+  if (b[0] === 0x20 && b[1] === 0x02) return true;
+  // fc00::/7 유니크 로컬
+  if ((b[0] & 0xfe) === 0xfc) return true;
+  // fe80::/10 링크로컬
+  if (b[0] === 0xfe && (b[1] & 0xc0) === 0x80) return true;
+  // ff00::/8 멀티캐스트
+  if (b[0] === 0xff) return true;
+
   return false;
 }
 
@@ -160,7 +221,15 @@ function requestOnce(url, pinned, deadlineAt) {
           'Accept-Language': 'ko,en;q=0.8',
         },
         // 이 lookup 이 DNS 리바인딩을 막는다 — 검사에 쓴 주소를 그대로 돌려준다.
-        lookup: (_host, _opts, cb) => cb(null, pinned.address, pinned.family),
+        // Node 20+ 는 주소군 자동 선택 과정에서 { all: true } 로 부르고, 그때는 배열을
+        // 돌려줘야 한다. 단일 주소만 주면 ERR_INVALID_IP_ADDRESS 로 요청이 죽는다.
+        lookup: (_host, opts, cb) => {
+          // (host, cb) 2인자 호출도 있다 — 인자 위치가 밀리면 cb 가 undefined 가 된다.
+          const done = typeof opts === 'function' ? opts : cb;
+          const options = typeof opts === 'function' ? {} : opts || {};
+          if (options.all) done(null, [{ address: pinned.address, family: pinned.family }]);
+          else done(null, pinned.address, pinned.family);
+        },
       },
       (resp) => {
         const status = resp.statusCode || 0;
@@ -199,6 +268,15 @@ function requestOnce(url, pinned, deadlineAt) {
       },
     );
 
+    // 소켓 유휴 타임아웃과 별개로, 요청 전체에 상한을 건다.
+    // 본문을 아주 느리게 흘리면 유휴 타임아웃은 계속 갱신돼 영원히 안 끊긴다.
+    const overall = setTimeout(() => {
+      req.destroy();
+      reject(new GuardError('deadline'));
+    }, Math.max(remaining, 1));
+    const clear = () => clearTimeout(overall);
+    req.on('close', clear);
+
     req.on('timeout', () => {
       req.destroy();
       reject(new GuardError('timeout'));
@@ -208,13 +286,30 @@ function requestOnce(url, pinned, deadlineAt) {
   });
 }
 
+// 네이버 PC 블로그(blog.naver.com/{id}/{logNo})는 프레임 껍데기만 돌려준다 — 본문이 든
+// PostView 는 iframe 안에 있어서 data-linkdata 가 첫 응답에 없다(agy 지적).
+// 모바일 주소는 본문을 그대로 주므로 요청 전에 바꿔 둔다. 호스트는 화이트리스트 안이라 안전하다.
+export function normalizeTarget(rawUrl) {
+  let u;
+  try {
+    u = new URL(String(rawUrl || '').trim());
+  } catch {
+    return rawUrl;
+  }
+  if (u.hostname.toLowerCase() === 'blog.naver.com') {
+    u.hostname = 'm.blog.naver.com';
+    return u.href;
+  }
+  return u.href;
+}
+
 /**
  * 검사를 통과한 URL 만 가져온다. 리다이렉트는 홉마다 전 검사를 다시 통과해야 한다.
  * @returns {{ body: string, url: string }}
  */
 export async function guardedGet(rawUrl) {
   const deadlineAt = Date.now() + DEADLINE_MS;
-  let current = rawUrl;
+  let current = normalizeTarget(rawUrl);
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const url = parseTarget(current);          // 홉마다 정적 검사

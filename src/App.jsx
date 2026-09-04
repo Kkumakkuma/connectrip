@@ -3,6 +3,7 @@ import PayTest from './pages/PayTest'; // 빌드플래그 false 시 트리셰이
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/AuthContext';
 import { PAYMENTS_ENABLED, PLANNER_ENABLED, ITINERARY_ENABLED } from './lib/featureFlags';
+import RequireLogin from './components/RequireLogin';
 import { keywordsApi, keywordAlertsApi, notificationPrefsApi } from './lib/db';
 import { supabase } from './lib/supabase';
 import Navbar from './components/Navbar';
@@ -251,29 +252,31 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/signup/email" element={<SignupEmail />} />
               <Route path="/signup/complete" element={<SignupComplete />} />
-              <Route path="/companion" element={<CompanionBoard />} />
-              <Route path="/companion/:regionId" element={<RegionalBoard />} />
+              <Route path="/companion" element={<RequireLogin><CompanionBoard /></RequireLogin>} />
+              <Route path="/companion/:regionId" element={<RequireLogin><RegionalBoard /></RequireLogin>} />
               {ITINERARY_ENABLED && (
-                <Route path="/itinerary" element={<ItineraryBoard />} />
+                <Route path="/itinerary" element={<RequireLogin><ItineraryBoard /></RequireLogin>} />
               )}
               {ITINERARY_ENABLED && (
-                <Route path="/itinerary/:postId" element={<ItineraryPost />} />
+                <Route path="/itinerary/:postId" element={<RequireLogin><ItineraryPost /></RequireLogin>} />
               )}
-              <Route path="/qna" element={<div className="py-20"><TravelQnA /></div>} />
-              <Route path="/market" element={<div className="py-20"><MarketBoard /></div>} />
-              <Route path="/crew" element={<div className="py-20"><CrewOnly /></div>} />
-              <Route path="/search" element={<Search />} />
+              <Route path="/qna" element={<RequireLogin><div className="py-20"><TravelQnA /></div></RequireLogin>} />
+              <Route path="/market" element={<RequireLogin><div className="py-20"><MarketBoard /></div></RequireLogin>} />
+              <Route path="/crew" element={<RequireLogin><div className="py-20"><CrewOnly /></div></RequireLogin>} />
+              <Route path="/search" element={<RequireLogin><Search /></RequireLogin>} />
               <Route path="/admin" element={<Admin />} />
-              <Route path="/recommend" element={<div className="py-20"><Destinations /></div>} />
-              <Route path="/recommend/:regionId" element={<div className="py-20"><Destinations /></div>} />
-              <Route path="/reviews" element={<div className="py-20"><Promotions /></div>} />
-              <Route path="/reviews/:regionId" element={<div className="py-20"><Promotions /></div>} />
+              <Route path="/recommend" element={<RequireLogin><div className="py-20"><Destinations /></div></RequireLogin>} />
+              <Route path="/recommend/:regionId" element={<RequireLogin><div className="py-20"><Destinations /></div></RequireLogin>} />
+              <Route path="/reviews" element={<RequireLogin><div className="py-20"><Promotions /></div></RequireLogin>} />
+              <Route path="/reviews/:regionId" element={<RequireLogin><div className="py-20"><Promotions /></div></RequireLogin>} />
               <Route
                 path="/mypage"
                 element={
-                  <div className="py-20">
-                    <MyPage />
-                  </div>
+                  <RequireLogin>
+                    <div className="py-20">
+                      <MyPage />
+                    </div>
+                  </RequireLogin>
                 }
               />
               <Route path="/terms" element={<Terms />} />

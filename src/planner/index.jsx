@@ -1,4 +1,4 @@
-import { Routes, Route, Outlet, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Outlet, Link, Navigate, useLocation } from 'react-router-dom';
 import { Map } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import Button from './kit/Button';
@@ -31,23 +31,17 @@ function useNextParam() {
   return encodeURIComponent(`${location.pathname}${location.search}`);
 }
 
-// 로그인이 있어야 하는 화면의 가드. 모달 대신 화면 안 카드로 안내한다 —
-// 주소를 직접 열고 들어온 사람에게는 덮개보다 페이지 자체가 설명이 되는 편이 낫다.
+// 로그인이 있어야 하는 화면의 가드.
+// 2026-09-04 쿠마님 지시로 "안내 카드를 띄우고 기다리는" 방식을 버렸다. 비회원에게
+// 화면을 보여 주고 기다리면 가입할 이유가 없어진다 — 바로 로그인 화면으로 보낸다.
+// 세션 확인 중에는 아무것도 하지 않는다(새로고침마다 로그인 화면이 번쩍이는 것 방지).
 function RequireAuth({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const next = useNextParam();
 
+  if (loading) return null;
   if (user) return children;
-
-  return (
-    <Card className="mx-auto max-w-md p-6 text-center">
-      <h1 className="mb-2 text-lg">로그인이 필요합니다</h1>
-      <p className="mb-5 text-sm text-muted">커넥트립 계정으로 바로 이용할 수 있습니다.</p>
-      <Link to={`/signup?mode=login&next=${next}`}>
-        <Button variant="primary">로그인</Button>
-      </Link>
-    </Card>
-  );
+  return <Navigate to={`/signup?mode=login&next=${next}`} replace />;
 }
 
 // 공통 레이아웃. 루트에 .ct-planner 를 달아 planner.css 스코프를 연다.
@@ -75,14 +69,15 @@ export default function PlannerRoutes() {
   return (
     <Routes>
       <Route element={<PlannerLayout />}>
-        {/* 내 여행 목록. 비로그인도 들어올 수 있고 화면 안에서 안내한다. */}
-        <Route index element={<TripList />} />
+        {/* 내 여행 목록도 로그인 뒤에만 연다(2026-09-04). */}
+        <Route index element={<RequireAuth><TripList /></RequireAuth>} />
         <Route path="new" element={<RequireAuth><TripNew /></RequireAuth>} />
         <Route path="t/:tripId" element={<RequireAuth><TripBoard /></RequireAuth>} />
         <Route path="t/:tripId/tickets" element={<RequireAuth><Tickets /></RequireAuth>} />
         <Route path="t/:tripId/export" element={<RequireAuth><ExportView /></RequireAuth>} />
-        {/* 공유 보기는 비로그인 열람 허용(읽기 전용). 화면에서 noindex 를 건다. */}
-        <Route path="s/:token" element={<SharedView />} />
+        {/* 공유 보기도 로그인 뒤에만 연다(2026-09-04 쿠마님 지시). 공유 링크를 받은 사람이
+            가입하고 보게 하는 것이 이 결정의 목적이다. noindex 는 그대로 건다. */}
+        <Route path="s/:token" element={<RequireAuth><SharedView /></RequireAuth>} />
         {/* 가져오기는 화면 자체가 비로그인 분기를 갖는다(대기 항목 저장 + next 로 로그인 이동).
             RequireAuth 로 감싸면 그 분기가 실행되지 않아 대상이 사라진다. */}
         <Route path="import" element={<ImportView />} />

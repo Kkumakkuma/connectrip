@@ -73,16 +73,20 @@ function clockParts(value) {
 }
 
 // 부동 시각 문자열. 하루를 넘기면 날짜를 넘겨 준다(체류가 자정을 넘는 경우).
+//
+// 달력 산술은 UTC 로 한다. new Date(y, m, d, ...) 와 getHours() 는 실행 환경의 로컬
+// 타임존을 타서, 서머타임 전환일에는 존재하지 않는 시각이 조용히 밀린다(codex 지적).
+// 출력 문자열에는 Z 를 붙이지 않으므로 결과는 여전히 부동 시각이다 — 산술만 중립으로 한다.
 function floatingStamp(dateStr, minutesFromMidnight) {
   const base = dateValue(dateStr);
   if (!base) return null;
   const y = Number(base.slice(0, 4));
   const mo = Number(base.slice(4, 6));
   const d = Number(base.slice(6, 8));
-  const dt = new Date(y, mo - 1, d, 0, minutesFromMidnight, 0, 0);
+  const dt = new Date(Date.UTC(y, mo - 1, d, 0, minutesFromMidnight, 0, 0));
   return (
-    `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}` +
-    `T${pad(dt.getHours())}${pad(dt.getMinutes())}00`
+    `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}` +
+    `T${pad(dt.getUTCHours())}${pad(dt.getUTCMinutes())}00`
   );
 }
 
@@ -90,8 +94,8 @@ function floatingStamp(dateStr, minutesFromMidnight) {
 function nextDateValue(dateStr) {
   const base = dateValue(dateStr);
   if (!base) return null;
-  const dt = new Date(Number(base.slice(0, 4)), Number(base.slice(4, 6)) - 1, Number(base.slice(6, 8)) + 1);
-  return `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}`;
+  const dt = new Date(Date.UTC(Number(base.slice(0, 4)), Number(base.slice(4, 6)) - 1, Number(base.slice(6, 8)) + 1));
+  return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}`;
 }
 
 function asArray(value) {
