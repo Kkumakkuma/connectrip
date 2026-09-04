@@ -34,6 +34,12 @@ scripts/*
 !scripts/prerender-seo.mjs
 # GitHub Actions 로 매일 도는 플래너 티켓 고아 파일 스위퍼도 추적 대상이다.
 !scripts/planner_purge_orphans.mjs
+# 2026-09-04: 같은 함정에 또 빠졌다. 아래 셋이 ignore 에 걸려 커밋되지 않아
+# Vercel 빌드가 prebuild 단계에서 죽었다(로컬은 파일이 있어 끝까지 통과했다).
+# **scripts/ 아래에 빌드·CI 가 부르는 파일을 새로 만들면 여기에 반드시 예외를 추가할 것.**
+!scripts/copy-pdfjs-assets.mjs
+!scripts/check-seo-surfaces.mjs
+!scripts/planner-sw.js
 *.code-workspace
 
 # pdf.js 자산(빌드 때 node_modules 에서 복사) — scripts/copy-pdfjs-assets.mjs
