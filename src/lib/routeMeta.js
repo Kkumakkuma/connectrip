@@ -113,6 +113,26 @@ export const ROUTE_META = {
 
 // 사이트맵에 있어도 정적 HTML 을 굽지 않는 경로.
 // 로그인·권한이 필요하거나 개인화된 화면이라 크롤러에게 보여 줄 고정 문서가 없다.
+// 색인 차단 경로의 단일 출처 (설계 §1.3(d) codex-22).
+// robots.txt 와 이 목록이 갈라지면 "막았다고 생각한 경로가 안 막혀 있는" 상태가 조용히 생긴다.
+// scripts/check-seo-surfaces.mjs 가 빌드마다 둘을 대조한다.
+//
+// /planner/s/ (공유 토큰)는 여기 넣지 않는다 — 화면 자체가 noindex, nofollow 로 나가고,
+// robots 로 막으면 크롤러가 그 meta 를 읽지도 못한다.
+export const ROBOTS_DISALLOW = [
+  '/admin',
+  '/mypage',
+  '/points',
+  '/api/payment/',
+  '/crew',
+  '/planner/t/',
+  '/planner/import',
+  '/api/planner/',
+];
+
+// 사이트맵에 실린 경로 중 정적 HTML 을 굽지 않을 것.
+// ⚠ 사이트맵에 없는 경로를 여기 적어도 **아무 일도 하지 않는다** — prerender-seo.mjs 는
+//   public/sitemap.xml 의 <loc> 만 순회한다. 색인 차단은 ROBOTS_DISALLOW 로 한다.
 export const PRERENDER_EXCLUDED_PATHS = ['/mypage', '/admin', '/crew'];
 
 // 끝의 슬래시만 다른 경로를 같은 항목으로 취급한다(/companion/ == /companion).

@@ -4,5 +4,9 @@ Disallow: /admin
 Disallow: /mypage
 Disallow: /points
 Disallow: /api/payment/
+Disallow: /crew
+Disallow: /planner/t/
+Disallow: /planner/import
+Disallow: /api/planner/
 
 Sitemap: https://www.connecttrip.co.kr/sitemap.xml
