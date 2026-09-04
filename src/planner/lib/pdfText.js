@@ -9,7 +9,14 @@
 //     PDF 는 cMap 없이 textContent 를 뽑으면 글자가 깨진다. 그러면 "10월 3일" 정규식이
 //     아예 무력화된다. 자산은 scripts/copy-pdfjs-assets.mjs 가 public/pdfjs 로 복사한다.
 
+import { apiUrl } from '../../lib/api';
+
 const MAX_PAGES = 3;
+
+// 앱 빌드는 public/pdfjs 를 싣지 않는다(APK 가 2MB 이상 커진다). 앱에서는 사이트에서 받아온다.
+// 웹에서는 API_BASE 가 빈 문자열이라 지금과 똑같은 상대경로다.
+const CMAP_URL = apiUrl('/pdfjs/cmaps/');
+const FONT_URL = apiUrl('/pdfjs/standard_fonts/');
 
 let pdfjsPromise = null;
 
@@ -36,9 +43,9 @@ export async function extractPdfText(file) {
     const buf = await file.arrayBuffer();
     doc = await pdfjs.getDocument({
       data: buf,
-      cMapUrl: '/pdfjs/cmaps/',
+      cMapUrl: CMAP_URL,
       cMapPacked: true,
-      standardFontDataUrl: '/pdfjs/standard_fonts/',
+      standardFontDataUrl: FONT_URL,
       isEvalSupported: false,
       // 티켓 PDF 는 대개 암호가 없다. 있으면 조용히 포기한다(암호를 물어보지 않는다).
       password: '',
@@ -75,9 +82,9 @@ export async function renderPdfFirstPage(file, { maxWidth = 1200 } = {}) {
     const buf = await file.arrayBuffer();
     doc = await pdfjs.getDocument({
       data: buf,
-      cMapUrl: '/pdfjs/cmaps/',
+      cMapUrl: CMAP_URL,
       cMapPacked: true,
-      standardFontDataUrl: '/pdfjs/standard_fonts/',
+      standardFontDataUrl: FONT_URL,
       isEvalSupported: false,
     }).promise;
     const page = await doc.getPage(1);

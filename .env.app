@@ -3,6 +3,13 @@
 # 시크릿 아님(공개 URL) — 커밋 가능. 웹 빌드는 이 파일을 읽지 않는다.
 VITE_API_BASE=https://www.connecttrip.co.kr
 
-# 플래너는 웹 전용이다. 앱에는 "여행 일정" 게시판과 가져오기만 들어간다.
-# .env 에 true 가 있어도 .env.app 이 나중에 읽혀 이기므로, app:sync 가 플래너 포함 APK 를 만들 수 없다.
-VITE_PLANNER_ENABLED=false
+# 2026-09-04 변경 — 쿠마님 지적: "플래너에서 사이트를 따로 띄울 거면 그게 의미가 있냐.
+#   커넥트립 앱에서 다 지원을 하던가 해야지."
+#   맞는 말이다. 앱에서 메뉴를 누르면 외부 브라우저가 뜨는 건 쓰다 만 것과 같다.
+#   앱 번들에 플래너를 싣고 앱 안에서 그대로 쓰게 한다.
+#   지도(leaflet)·PDF(pdfjs)·바코드(zxing)는 전부 필요할 때만 불러오는 조각이라
+#   앱 첫 화면 무게에는 영향이 없다.
+VITE_PLANNER_ENABLED=true
+
+# 커넥트립 안의 "여행 일정" 게시판. 글이 0건이라 웹과 마찬가지로 꺼 둔다.
+VITE_ITINERARY_ENABLED=false

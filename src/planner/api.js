@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { apiUrl } from '../lib/api';
 
 // 플래너 Supabase 데이터 레이어.
 // 운영 DB(src/lib/planner_20260904.sql)에 이미 적용된 RPC 만 호출한다. 스키마는 여기서 바꾸지 않는다.
@@ -447,7 +448,8 @@ export async function getCatalogEntries(ids) {
 // 사용자가 준 링크)를 서버가 대신 부르기 때문이다 — 브라우저에서 직접 부르면
 // 이용 정책(1 req/s 전역)을 지킬 수 없고, 링크 쪽은 SSRF 가드를 태울 수 없다.
 //
-// 앱 빌드에는 플래너가 실리지 않으므로 상대 경로로 충분하다.
+// 주소는 apiUrl 로 만든다. 앱(Capacitor) WebView 의 오리진은 https://localhost 라
+// 상대경로 fetch 가 전부 실패한다 — 웹에서는 API_BASE 가 빈 문자열이라 지금과 똑같다.
 
 async function callFunction(path, body) {
   const { data: sessionData } = await supabase.auth.getSession();
@@ -456,7 +458,7 @@ async function callFunction(path, body) {
 
   let resp;
   try {
-    resp = await fetch(path, {
+    resp = await fetch(apiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),

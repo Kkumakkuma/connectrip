@@ -6,12 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell';
 import SearchBar from './SearchBar';
 import { ITINERARY_ENABLED, PLANNER_ENABLED } from '../lib/featureFlags';
-import { isNativeApp } from '../lib/native';
 
-// 앱에는 플래너 코드가 실리지 않는다(웹 전용). 그래도 앱 사용자가 플래너로 갈 길은 있어야 해서
-// 앱에서는 시스템 브라우저로 열리는 절대주소를 쓴다 — capacitor allowNavigation 밖 주소라
-// 별도 플러그인 없이 기본 동작으로 브라우저가 뜬다(설계 §1.2 가져오기와 같은 방식).
-const PLANNER_WEB_URL = 'https://www.connecttrip.co.kr/planner';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -66,12 +61,9 @@ const Navbar = () => {
       { name: '🐅 아시아', to: '/recommend/asia' },
       { name: '🦘 오세아니아', to: '/recommend/oceania' },
     ]},
-    // 여행 플래너. 2026-09-04 쿠마님 지적 — 네비바만 얹어 놓고 들어갈 길을 안 내면
-    // 주소를 직접 쳐야 한다. 그건 아무도 안 쓴다. 메뉴로 낸다.
-    // 앱에서는 external:true 로 시스템 브라우저를 띄운다(앱 번들엔 플래너가 없다).
-    ...(PLANNER_ENABLED || isNativeApp()
-      ? [{ name: '여행 플래너', to: '/planner', external: isNativeApp() ? PLANNER_WEB_URL : null }]
-      : []),
+    // 여행 플래너. 네비바만 얹어 놓고 들어갈 길을 안 내면 주소를 직접 쳐야 한다 —
+    // 그건 아무도 안 쓴다. 웹·앱 모두 같은 메뉴로 앱 안에서 바로 연다(2026-09-04).
+    ...(PLANNER_ENABLED ? [{ name: '여행 플래너', to: '/planner' }] : []),
     // 여행 일정 게시판은 하위 분류가 없다(sub 없이 링크 하나).
     ...(ITINERARY_ENABLED ? [{ name: '여행 일정', to: '/itinerary' }] : []),
     ...(isCrew ? [{ name: 'CREW 전용', to: '/crew', sub: [
