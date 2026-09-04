@@ -28,3 +28,9 @@ export const PLANNER_ENABLED = import.meta.env.VITE_PLANNER_ENABLED === 'true';
 //   경로가 없어 빈 게시판이 된다. 플래너 완성 시 웹은 둘 다, 앱은 이 플래그만 켠다.
 //   켤 때: Vercel 에 VITE_ITINERARY_ENABLED=true, 앱은 .env.app 에 같은 값.
 export const ITINERARY_ENABLED = import.meta.env.VITE_ITINERARY_ENABLED === 'true';
+
+// FAMILY_SITES_ENABLED — 푸터 "패밀리 사이트" 3개(TravelDeal·가전딜·DiskRescue) 노출.
+//   2026-09-04 쿠마님 지시로 잠시 내린다. 커넥트립을 먼저 정식 오픈하는데, 나머지 사이트가
+//   아직 다 구현된 상태가 아니라 지금 링크를 걸면 방문자가 미완성 화면을 보게 된다.
+//   나머지 사이트가 완성되면 이 값을 true 로 바꾸면 그대로 돌아온다(링크 목록은 Footer 에 그대로 둔다).
+export const FAMILY_SITES_ENABLED = false;

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { PAYMENTS_ENABLED } from '../lib/featureFlags';
+import { PAYMENTS_ENABLED, FAMILY_SITES_ENABLED } from '../lib/featureFlags';
 import { BUSINESS_INFO, isBusinessValueFilled } from '../lib/businessInfo';
 import KbEscrowMark from './KbEscrowMark';
 
@@ -56,6 +56,7 @@ const Footer = () => {
                     </div>
                 </div>
 
+                {FAMILY_SITES_ENABLED && (
                 <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: 700, opacity: 0.95, marginBottom: '0.35rem' }}>
                         패밀리 사이트
@@ -83,6 +84,7 @@ const Footer = () => {
                         ))}
                     </div>
                 </div>
+                )}
 
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem', textAlign: 'center', fontSize: '0.9rem', opacity: 0.5 }}>
                     <p style={{ fontSize: '0.75rem', lineHeight: 1.7, marginBottom: '0.75rem', wordBreak: 'keep-all' }}>
