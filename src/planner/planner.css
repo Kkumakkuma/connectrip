@@ -87,3 +87,30 @@
 .ct-planner .leaflet-control-attribution {
   font-size: 10px;
 }
+
+/* 인쇄 (설계 §7.2 — 브라우저 PDF 저장 경로).
+   화면용 장식만 걷어내고 내용은 그대로 흘린다. 카드 테두리는 남겨야 하루 단위가 구분된다.
+   print:hidden 유틸리티는 Tailwind 가 만들어 주므로 여기서는 공통 규칙만 둔다. */
+@media print {
+  .ct-planner {
+    padding-top: 0;
+    background: #fff;
+  }
+  /* 플래너 상단 바와 커넥트립 셸(헤더·푸터·토스트)은 종이에 필요 없다. */
+  .ct-planner > div:first-child,
+  body > div > nav,
+  body > div > footer {
+    display: none !important;
+  }
+  .ct-planner main {
+    max-width: none;
+    padding: 0;
+  }
+  /* 하루가 페이지 경계에서 잘리지 않게 한다. */
+  .ct-planner section > div > div {
+    break-inside: avoid;
+  }
+  .ct-planner a[href]::after {
+    content: '';
+  }
+}

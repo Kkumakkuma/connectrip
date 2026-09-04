@@ -12,6 +12,7 @@ import PlaceList from './board/PlaceList';
 import PlaceSheet from './board/PlaceSheet';
 import TripHeader from './board/TripHeader';
 import ActionBar from './board/ActionBar';
+import { LinkImportSheet, PlaceSearchSheet } from './board/PickerSheets';
 import {
   AddPlaceSheet,
   AssumptionsSheet,
@@ -23,6 +24,7 @@ import { warningLabel, warningSentence } from './board/warningText';
 import {
   boardSyncState,
   createPlace,
+  upsertCatalog,
   createShare,
   deletePlace,
   getCatalogEntries,
@@ -63,7 +65,7 @@ export default function TripBoard() {
   const [sync, setSync] = useState({ published: false, stale: false });
 
   const [activeDayId, setActiveDayId] = useState(null);
-  const [sheet, setSheet] = useState(null); // place | add | dates | assumptions | more | warning
+  const [sheet, setSheet] = useState(null); // place | add | search | link | dates | assumptions | more | warning
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [activeWarning, setActiveWarning] = useState(null);
   const [addSeed, setAddSeed] = useState(null);
@@ -297,6 +299,47 @@ export default function TripBoard() {
         await refresh();
         setSheet(null);
         setAddSeed(null);
+      },
+      { success: `${activeLabel}에 담았습니다.` }
+    );
+  };
+
+  // 검색·링크에서 고른 결과를 핀으로 담는다.
+  // 제공자 정보가 있으면 장소 카탈로그에 먼저 넣어 catalog_id 를 받는다 — 후기는 그 id 로 걸린다.
+  // 카탈로그 등록이 실패해도 핀은 담는다(좌표·이름은 이미 손에 있다). 후기만 나중 일이 된다.
+  const handlePickPlace = (item) => {
+    runSaving(
+      async () => {
+        let catalogId = null;
+        if (item.provider && item.provider_place_id) {
+          try {
+            catalogId = await upsertCatalog({
+              provider: item.provider,
+              providerPlaceId: item.provider_place_id,
+              name: item.name,
+              address: item.address || null,
+              lat: item.lat,
+              lng: item.lng,
+              extra: item.opening_hours ? { opening_hours: item.opening_hours } : null,
+            });
+          } catch {
+            catalogId = null;
+          }
+        }
+        await createPlace({
+          tripId,
+          userId: user?.id,
+          day_id: activeDayId === UNASSIGNED_ID ? null : activeDayId,
+          sort_order: dayPlaces.length,
+          source: item.source || 'search',
+          catalog_id: catalogId,
+          name: item.name,
+          address: item.address || null,
+          lat: item.lat,
+          lng: item.lng,
+        });
+        await refresh();
+        setSheet(null);
       },
       { success: `${activeLabel}에 담았습니다.` }
     );
@@ -571,8 +614,8 @@ export default function TripBoard() {
       </div>
 
       <ActionBar
-        onSearch={() => pushToast('info', PREPARING)}
-        onAddByLink={() => pushToast('info', PREPARING)}
+        onSearch={() => setSheet('search')}
+        onAddByLink={() => setSheet('link')}
         onTickets={() => pushToast('info', PREPARING)}
         onMore={() => setSheet('more')}
       />
@@ -600,6 +643,26 @@ export default function TripBoard() {
           saving={busy}
           onClose={closeSheet}
           onSubmit={handleAddPlace}
+        />
+      )}
+
+      {sheet === 'search' && (
+        <PlaceSearchSheet
+          open
+          targetLabel={activeLabel}
+          saving={busy}
+          onClose={closeSheet}
+          onPick={handlePickPlace}
+        />
+      )}
+
+      {sheet === 'link' && (
+        <LinkImportSheet
+          open
+          targetLabel={activeLabel}
+          saving={busy}
+          onClose={closeSheet}
+          onPick={handlePickPlace}
         />
       )}
 

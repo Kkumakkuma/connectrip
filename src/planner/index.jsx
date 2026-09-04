@@ -83,8 +83,9 @@ export default function PlannerRoutes() {
         <Route path="t/:tripId/export" element={<RequireAuth><ExportView /></RequireAuth>} />
         {/* 공유 보기는 비로그인 열람 허용(읽기 전용). 화면에서 noindex 를 건다. */}
         <Route path="s/:token" element={<SharedView />} />
-        {/* 가져오기는 처리 화면이라 로그인 필수. 비로그인 대기 처리도 여기서 이어붙인다. */}
-        <Route path="import" element={<RequireAuth><ImportView /></RequireAuth>} />
+        {/* 가져오기는 화면 자체가 비로그인 분기를 갖는다(대기 항목 저장 + next 로 로그인 이동).
+            RequireAuth 로 감싸면 그 분기가 실행되지 않아 대상이 사라진다. */}
+        <Route path="import" element={<ImportView />} />
         {KIT_ENABLED && <Route path="__kit" element={<KitPreview />} />}
         <Route path="*" element={<PlannerMissing />} />
       </Route>

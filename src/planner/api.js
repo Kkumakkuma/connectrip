@@ -439,3 +439,54 @@ export async function getCatalogEntries(ids) {
   if (error) fail(error);
   return new Map((data || []).map((row) => [row.id, row]));
 }
+
+// ---------------------------------------------------------------------------
+// 서버리스 함수 (장소 검색 · 링크로 담기)
+// ---------------------------------------------------------------------------
+// 이 둘만 Supabase 가 아니라 우리 서버리스 함수를 부른다. 외부 제공자(OSM Nominatim,
+// 사용자가 준 링크)를 서버가 대신 부르기 때문이다 — 브라우저에서 직접 부르면
+// 이용 정책(1 req/s 전역)을 지킬 수 없고, 링크 쪽은 SSRF 가드를 태울 수 없다.
+//
+// 앱 빌드에는 플래너가 실리지 않으므로 상대 경로로 충분하다.
+
+async function callFunction(path, body) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new PlannerError('로그인이 필요합니다.', 'auth required');
+
+  let resp;
+  try {
+    resp = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new PlannerError('네트워크가 불안정합니다. 잠시 뒤에 다시 시도해 주세요.', 'network');
+  }
+
+  let payload = null;
+  try {
+    payload = await resp.json();
+  } catch {
+    payload = null;
+  }
+  if (!resp.ok || !payload?.ok) {
+    throw new PlannerError(
+      payload?.error || '요청을 처리하지 못했습니다.',
+      payload?.code || `http ${resp.status}`,
+    );
+  }
+  return payload;
+}
+
+// 검색은 Enter 를 눌렀을 때만 부른다 — Nominatim 정책상 타이핑마다 부르면 안 된다.
+export async function searchPlaces(q) {
+  const out = await callFunction('/api/planner/places', { q });
+  return { provider: out.provider, results: out.results || [] };
+}
+
+export async function extractLinkPlaces(url) {
+  const out = await callFunction('/api/planner/extract-links', { url });
+  return out.candidates || [];
+}
