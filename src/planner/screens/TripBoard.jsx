@@ -13,6 +13,9 @@ import PlaceSheet from './board/PlaceSheet';
 import TripHeader from './board/TripHeader';
 import ActionBar from './board/ActionBar';
 import { LinkImportSheet, PlaceSearchSheet } from './board/PickerSheets';
+import SnapshotView from './SnapshotView';
+import { buildLocalSnapshot } from '../lib/snapshot';
+import { readSnapshot, saveSnapshot } from '../lib/offlineStore';
 import {
   AddPlaceSheet,
   AssumptionsSheet,
@@ -46,17 +49,20 @@ import { readDayWindow, writeDayWindow } from '../lib/dayWindow';
 // 이 화면이 들고 있는 것: 여행·날짜·핀 원본 데이터와 화면 상태(어느 날짜를 보는지, 어떤 시트가 열렸는지).
 // 계산(이동시간 추정·동선 검사)은 전부 lib 의 순수 함수에 맡기고, 저장은 api.js 를 거친다.
 //
-// 아직 없는 것: 장소 검색·링크로 담기·티켓 지갑. 셋 다 서버리스 함수가 있어야 동작해서
-// 버튼만 두고 "준비 중입니다."로 안내한다. 그동안 장소는 지도 롱프레스나 '장소 추가'로 담는다.
-
-const PREPARING = '준비 중입니다.';
+// 장소를 담는 길은 셋이다: 지도 롱프레스(수동 핀) · 장소 검색 · 링크로 담기.
+// 뒤의 둘은 서버리스 함수(api/planner/*)를 거친다 — 외부 제공자 호출 정책과 SSRF 가드가
+// 서버에 있어야 하기 때문이다.
+//
+// 네트워크가 죽으면 기기에 남겨 둔 스냅샷으로 읽기 전용 화면을 띄운다(설계 §7.1).
 
 export default function TripBoard() {
   const { tripId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [status, setStatus] = useState('loading'); // loading | ready | error
+  const [status, setStatus] = useState('loading'); // loading | ready | offline | error
+  // 네트워크가 죽었을 때 기기에 남은 사본으로 띄우는 읽기 전용 화면.
+  const [offlineSnapshot, setOfflineSnapshot] = useState(null);
   const [errorText, setErrorText] = useState('');
   const [trip, setTrip] = useState(null);
   const [days, setDays] = useState([]);
@@ -149,13 +155,24 @@ export default function TripBoard() {
       setDayWindow(readDayWindow(tripId));
       setShareUrl('');
       setStatus('ready');
+      setOfflineSnapshot(null);
       loadCatalog(data.places);
       loadSync();
+      // 기기에 사본을 남긴다. 비행기 안이나 로밍을 끈 상태에서 일정만이라도 보이게 하는 용도다.
+      // 실패해도 화면에는 영향이 없다(저장은 있으면 좋은 것이지 없으면 못 쓰는 게 아니다).
+      saveSnapshot(user?.id, tripId, buildLocalSnapshot(data), data.trip?.end_date).catch(() => {});
     } catch (err) {
+      // 네트워크가 죽었을 때 기기에 남은 사본으로 읽기 전용 화면을 띄운다.
+      const cached = await readSnapshot(user?.id, tripId).catch(() => null);
+      if (cached) {
+        setOfflineSnapshot(cached);
+        setStatus('offline');
+        return;
+      }
       setErrorText(err.message);
       setStatus('error');
     }
-  }, [tripId, applyTrip, loadCatalog, loadSync]);
+  }, [tripId, applyTrip, loadCatalog, loadSync, user?.id]);
 
   // 저장 뒤 조용한 갱신. 화면을 로딩 상태로 되돌리지 않는다.
   const refresh = useCallback(async () => {
@@ -468,6 +485,21 @@ export default function TripBoard() {
     );
   }
 
+  if (status === 'offline' && offlineSnapshot) {
+    return (
+      <section>
+        <div className="mb-3 rounded-sm border border-hairline bg-surface-soft px-3 py-2 text-xs text-body">
+          지금 인터넷에 연결되지 않아 <strong className="font-semibold text-ink">기기에 저장해 둔 일정</strong>을 보여 드립니다.
+          이 화면에서는 고칠 수 없습니다.
+          <button type="button" onClick={load} className="ml-2 underline underline-offset-2">
+            다시 시도
+          </button>
+        </div>
+        <SnapshotView snapshot={offlineSnapshot} />
+      </section>
+    );
+  }
+
   if (status === 'error') {
     return (
       <Card className="mx-auto max-w-md">
@@ -616,7 +648,7 @@ export default function TripBoard() {
       <ActionBar
         onSearch={() => setSheet('search')}
         onAddByLink={() => setSheet('link')}
-        onTickets={() => pushToast('info', PREPARING)}
+        onTickets={() => navigate(`/planner/t/${tripId}/tickets`)}
         onMore={() => setSheet('more')}
       />
 

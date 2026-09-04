@@ -17,7 +17,9 @@ import {
   updateTicket,
   uploadTicket,
 } from '../api';
+import Switch from '../kit/Switch';
 import { formatDateWithWeekday, todayISO } from '../lib/format';
+import { purgeTicket, readTicket, saveTicket, ticketBytes } from '../lib/offlineStore';
 import { pickTicketDate, parseBcbp } from '../lib/ticketDate';
 import { resolveTripZone, timeZoneGapText } from '../lib/timezone';
 import TicketDateConfirm from '../tickets/TicketDateConfirm';
@@ -131,6 +133,16 @@ export default function Tickets() {
   const [pending, setPending] = useState(null);   // 업로드 직후 확인 대기 중인 티켓
   const [viewing, setViewing] = useState(null);
   const [viewUrl, setViewUrl] = useState(null);
+  // 티켓 원본을 기기에 남길지. **여행별 opt-in, 기본 꺼짐**(설계 §5.4).
+  // 탑승권 바코드는 성 + 예약번호 조합이라 항공사 예약 조회가 되는 자격증명이다.
+  const [offlineOn, setOfflineOn] = useState(() => {
+    try {
+      return localStorage.getItem(`ct_planner_ticket_offline_${tripId}`) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [offlineBytes, setOfflineBytes] = useState(0);
 
   const pushToast = useCallback((tone, message) => {
     setToasts((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, tone, message }]);
@@ -139,7 +151,47 @@ export default function Tickets() {
   const refresh = useCallback(async () => {
     const rows = await listTickets(tripId);
     setTickets(rows);
-  }, [tripId]);
+    setOfflineBytes(await ticketBytes(user?.id).catch(() => 0));
+  }, [tripId, user?.id]);
+
+  // 기기 저장을 켜면 지금 있는 티켓을 내려받아 보관하고, 끄면 이 여행 사본을 지운다.
+  const toggleOffline = async (on) => {
+    setOfflineOn(on);
+    try {
+      localStorage.setItem(`ct_planner_ticket_offline_${tripId}`, on ? '1' : '0');
+    } catch { /* 저장이 막힌 환경 — 이번 세션에만 적용된다 */ }
+
+    setBusy(true);
+    try {
+      if (!on) {
+        await Promise.all(tickets.map((t) => purgeTicket(user?.id, t.id)));
+        setOfflineBytes(await ticketBytes(user?.id).catch(() => 0));
+        pushToast('info', '기기에 저장된 티켓 사본을 지웠습니다.');
+        return;
+      }
+      const { downloadTicket } = await import('../api');
+      let saved = 0;
+      let blocked = '';
+      for (const t of tickets) {
+        try {
+          const blob = await downloadTicket(t.storage_path);
+          const r = await saveTicket(user?.id, {
+            tripId, ticketId: t.id, blob, mime: t.mime, tripEndDate: trip?.end_date,
+          });
+          if (r === 'ok') saved += 1;
+          else blocked = r;
+        } catch { /* 한 장 실패가 전체를 막지 않는다 */ }
+      }
+      setOfflineBytes(await ticketBytes(user?.id).catch(() => 0));
+      if (blocked === 'quota' || blocked === 'no-room') {
+        pushToast('warning', '저장 공간이 부족해 일부만 저장했습니다.');
+      } else {
+        pushToast('success', `티켓 ${saved}장을 기기에 저장했습니다.`);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -234,6 +286,15 @@ export default function Tickets() {
         barcode_format: pending.barcode?.format || null,
       });
       await refresh();
+      if (offlineOn) {
+        try {
+          const { downloadTicket } = await import('../api');
+          const blob = await downloadTicket(pending.row.storage_path);
+          await saveTicket(user?.id, {
+            tripId, ticketId: pending.row.id, blob, mime: pending.row.mime, tripEndDate: trip?.end_date,
+          });
+        } catch { /* 기기 저장 실패는 티켓 저장 자체를 막지 않는다 */ }
+      }
       setPending(null);
       pushToast('success', '티켓을 저장했습니다.');
     } catch (err) {
@@ -248,6 +309,7 @@ export default function Tickets() {
     setBusy(true);
     try {
       await deleteTicket(ticket.id);
+      await purgeTicket(user?.id, ticket.id);   // 기기 사본도 같이
       await refresh();
       pushToast('success', '티켓을 지웠습니다.');
     } catch (err) {
@@ -280,7 +342,9 @@ export default function Tickets() {
         }
         setViewUrl(rendered);
       } else {
-        setViewUrl(await ticketUrl(ticket.storage_path));
+        // 기기에 사본이 있으면 그걸 먼저 쓴다. 오프라인에서 티켓을 여는 게 이 기능의 목적이다.
+        const local = await readTicket(user?.id, ticket.id).catch(() => null);
+        setViewUrl(local ? URL.createObjectURL(local) : await ticketUrl(ticket.storage_path));
       }
     } catch {
       pushToast('warning', '티켓을 열지 못했습니다.');
@@ -370,6 +434,20 @@ export default function Tickets() {
           </div>
         </>
       )}
+
+      <Card className="mt-5 p-4">
+        <Switch
+          checked={offlineOn}
+          onChange={toggleOffline}
+          disabled={busy}
+          label="티켓 오프라인 저장"
+        />
+        <p className="mt-2 text-xs text-muted">
+          {offlineOn
+            ? `기기에 티켓 사본이 저장됩니다. 여행이 끝나면 자동으로 지워집니다. (현재 ${(offlineBytes / 1048576).toFixed(1)}MB)`
+            : '켜면 인터넷이 없어도 티켓을 열 수 있습니다. 기기에 사본이 남으므로 공용 기기에서는 켜지 마세요.'}
+        </p>
+      </Card>
 
       {tripZone ? (
         <p className="mt-5 text-xs text-muted">
