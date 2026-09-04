@@ -1,188 +1,1962 @@
 {
-  "_comment": [
-    "여행 플래너 목적지 씨앗 목록. 좌표는 여기에 적지 않는다 — scripts/build_planner_data.py 가",
-    "Nominatim 으로 실측해서 public/planner-data/destinations.json 을 만든다.",
-    "손으로 좌표를 적으면 틀린 값이 조용히 들어간다.",
-    "",
-    "필드",
-    "  id       파일명·DB dest_id 로 쓰는 슬러그. [a-z0-9][a-z0-9_-]{0,39}",
-    "  ko       화면에 보이는 이름",
-    "  en       영문 이름(검색 매칭용)",
-    "  q        Nominatim 질의어. 구어체 이름은 엉뚱한 걸 물어오므로(실측: '도쿄' -> 도쿄역)",
-    "           정식 행정구역명이나 영문명을 쓴다.",
-    "  alias    추가 검색 키워드(별칭·구표기·오타)",
-    "  cc       국가코드 2자리",
-    "  country  국가 한국어 이름",
-    "  cur      통화 3자리",
-    "  major    추천 명소 데이터를 만들 도시. 쿠마님 방침(2026-09-04): 나라별 진짜 대도시만 준비하고,",
-"           그 외는 비워 둔다. 덜 알려진 곳을 가는 사람은 직접 찾아 담는 게 목적일 수 있다.",
-"  r        추천 명소를 모을 반경(km). 도시 크기에 맞춰 다르게 준다 —",
-    "           일괄 10km 로 두면 제주는 서귀포가 빠지고 피렌체는 외곽 잡지물이 들어온다."
-  ],
-  "destinations": [
-    {"id":"seoul","ko":"서울","en":"Seoul","q":"서울특별시","alias":["Seoul"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":14},
-    {"id":"busan","ko":"부산","en":"Busan","q":"부산광역시","alias":["Busan","釜山"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":16},
-    {"id":"jeju","ko":"제주","en":"Jeju","q":"제주특별자치도","alias":["제주도","Jeju"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":30},
-    {"id":"gangneung","ko":"강릉","en":"Gangneung","q":"강릉시","alias":["Gangneung"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":15},
-    {"id":"sokcho","ko":"속초","en":"Sokcho","q":"속초시","alias":["Sokcho"],"cc":"KR","country":"대한민국","cur":"KRW","r":14},
-    {"id":"yangyang","ko":"양양","en":"Yangyang","q":"양양군","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":15},
-    {"id":"gyeongju","ko":"경주","en":"Gyeongju","q":"경주시","alias":["Gyeongju"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":18},
-    {"id":"jeonju","ko":"전주","en":"Jeonju","q":"전주시","alias":["Jeonju"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":12},
-    {"id":"yeosu","ko":"여수","en":"Yeosu","q":"여수시","alias":["Yeosu"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":16},
-    {"id":"tongyeong","ko":"통영","en":"Tongyeong","q":"통영시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":15},
-    {"id":"namhae","ko":"남해","en":"Namhae","q":"남해군","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":16},
-    {"id":"geoje","ko":"거제","en":"Geoje","q":"거제시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":18},
-    {"id":"daegu","ko":"대구","en":"Daegu","q":"대구광역시","alias":["Daegu"],"cc":"KR","country":"대한민국","cur":"KRW","r":14},
-    {"id":"incheon","ko":"인천","en":"Incheon","q":"인천광역시","alias":["Incheon"],"major":true,"cc":"KR","country":"대한민국","cur":"KRW","r":16},
-    {"id":"daejeon","ko":"대전","en":"Daejeon","q":"대전광역시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":13},
-    {"id":"gwangju","ko":"광주","en":"Gwangju","q":"광주광역시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":13},
-    {"id":"ulsan","ko":"울산","en":"Ulsan","q":"울산광역시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":15},
-    {"id":"pohang","ko":"포항","en":"Pohang","q":"포항시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":15},
-    {"id":"andong","ko":"안동","en":"Andong","q":"안동시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":16},
-    {"id":"chuncheon","ko":"춘천","en":"Chuncheon","q":"춘천시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":14},
-    {"id":"gapyeong","ko":"가평","en":"Gapyeong","q":"가평군","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":16},
-    {"id":"mokpo","ko":"목포","en":"Mokpo","q":"목포시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":12},
-    {"id":"gunsan","ko":"군산","en":"Gunsan","q":"군산시","alias":[],"cc":"KR","country":"대한민국","cur":"KRW","r":13},
-
-    {"id":"tokyo","ko":"도쿄","en":"Tokyo","q":"도쿄도","alias":["동경","Tokyo","도쿄도"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":15},
-    {"id":"osaka","ko":"오사카","en":"Osaka","q":"오사카시","alias":["Osaka"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"kyoto","ko":"교토","en":"Kyoto","q":"교토시","alias":["Kyoto"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"fukuoka","ko":"후쿠오카","en":"Fukuoka","q":"후쿠오카시","alias":["Fukuoka"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"sapporo","ko":"삿포로","en":"Sapporo","q":"삿포로시","alias":["Sapporo"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":14},
-    {"id":"nagoya","ko":"나고야","en":"Nagoya","q":"나고야시","alias":["Nagoya"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"okinawa","ko":"오키나와","en":"Okinawa","q":"나하시","alias":["나하","Naha","Okinawa"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":25},
-    {"id":"hiroshima","ko":"히로시마","en":"Hiroshima","q":"히로시마시","alias":[],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":13},
-    {"id":"beppu","ko":"벳푸","en":"Beppu","q":"벳푸시","alias":["별부"],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"yufuin","ko":"유후인","en":"Yufuin","q":"유후시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"kumamoto","ko":"구마모토","en":"Kumamoto","q":"구마모토시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":13},
-    {"id":"kagoshima","ko":"가고시마","en":"Kagoshima","q":"가고시마시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":13},
-    {"id":"nara","ko":"나라","en":"Nara","q":"나라시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":10},
-    {"id":"kobe","ko":"고베","en":"Kobe","q":"고베시","alias":[],"major":true,"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"yokohama","ko":"요코하마","en":"Yokohama","q":"요코하마시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"hakone","ko":"하코네","en":"Hakone","q":"하코네정","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"otaru","ko":"오타루","en":"Otaru","q":"오타루시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":11},
-    {"id":"furano","ko":"후라노","en":"Furano","q":"후라노시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":16},
-    {"id":"sendai","ko":"센다이","en":"Sendai","q":"센다이시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":13},
-    {"id":"kanazawa","ko":"가나자와","en":"Kanazawa","q":"가나자와시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":11},
-    {"id":"takamatsu","ko":"다카마쓰","en":"Takamatsu","q":"다카마쓰시","alias":["타카마츠"],"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"matsuyama","ko":"마쓰야마","en":"Matsuyama","q":"마쓰야마시","alias":["마츠야마"],"cc":"JP","country":"일본","cur":"JPY","r":12},
-    {"id":"miyazaki","ko":"미야자키","en":"Miyazaki","q":"미야자키시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":13},
-    {"id":"saga","ko":"사가","en":"Saga","q":"사가시","alias":[],"cc":"JP","country":"일본","cur":"JPY","r":12},
-
-    {"id":"danang","ko":"다낭","en":"Da Nang","q":"다낭","alias":["Da Nang","Danang"],"major":true,"cc":"VN","country":"베트남","cur":"VND","r":16},
-    {"id":"hoian","ko":"호이안","en":"Hoi An","q":"Hội An","alias":["Hoi An"],"cc":"VN","country":"베트남","cur":"VND","r":10},
-    {"id":"hochiminh","ko":"호치민","en":"Ho Chi Minh City","q":"Thành phố Hồ Chí Minh","alias":["호찌민","사이공","Saigon"],"major":true,"cc":"VN","country":"베트남","cur":"VND","r":12},
-    {"id":"hanoi","ko":"하노이","en":"Hanoi","q":"Hà Nội","alias":["Hanoi"],"major":true,"cc":"VN","country":"베트남","cur":"VND","r":12},
-    {"id":"nhatrang","ko":"나트랑","en":"Nha Trang","q":"Nha Trang","alias":["냐짱","Nha Trang"],"major":true,"cc":"VN","country":"베트남","cur":"VND","r":14},
-    {"id":"phuquoc","ko":"푸꾸옥","en":"Phu Quoc","q":"Phú Quốc","alias":["푸꾸억","Phu Quoc"],"cc":"VN","country":"베트남","cur":"VND","r":25},
-    {"id":"dalat","ko":"달랏","en":"Da Lat","q":"Đà Lạt","alias":["Dalat"],"cc":"VN","country":"베트남","cur":"VND","r":14},
-    {"id":"halong","ko":"하롱베이","en":"Ha Long","q":"Hạ Long","alias":["하롱","Halong"],"cc":"VN","country":"베트남","cur":"VND","r":18},
-
-    {"id":"bangkok","ko":"방콕","en":"Bangkok","q":"Bangkok","alias":["Bangkok"],"major":true,"cc":"TH","country":"태국","cur":"THB","r":14},
-    {"id":"chiangmai","ko":"치앙마이","en":"Chiang Mai","q":"Chiang Mai","alias":["Chiang Mai"],"major":true,"cc":"TH","country":"태국","cur":"THB","r":14},
-    {"id":"phuket","ko":"푸껫","en":"Phuket","q":"Phuket","alias":["푸켓","Phuket"],"major":true,"cc":"TH","country":"태국","cur":"THB","r":22},
-    {"id":"pattaya","ko":"파타야","en":"Pattaya","q":"Pattaya","alias":[],"cc":"TH","country":"태국","cur":"THB","r":14},
-    {"id":"krabi","ko":"끄라비","en":"Krabi","q":"Krabi","alias":["크라비"],"cc":"TH","country":"태국","cur":"THB","r":20},
-
-    {"id":"taipei","ko":"타이베이","en":"Taipei","q":"臺北市","alias":["타이페이","대만","Taipei"],"major":true,"cc":"TW","country":"대만","cur":"TWD","r":13},
-    {"id":"kaohsiung","ko":"가오슝","en":"Kaohsiung","q":"高雄市","alias":["카오슝"],"major":true,"cc":"TW","country":"대만","cur":"TWD","r":14},
-    {"id":"taichung","ko":"타이중","en":"Taichung","q":"臺中市","alias":[],"cc":"TW","country":"대만","cur":"TWD","r":14},
-    {"id":"hualien","ko":"화롄","en":"Hualien","q":"花蓮市","alias":["화련"],"cc":"TW","country":"대만","cur":"TWD","r":16},
-    {"id":"tainan","ko":"타이난","en":"Tainan","q":"臺南市","alias":[],"cc":"TW","country":"대만","cur":"TWD","r":13},
-
-    {"id":"hongkong","ko":"홍콩","en":"Hong Kong","q":"Hong Kong","alias":["Hong Kong"],"major":true,"cc":"HK","cc_geo":"CN","country":"홍콩","cur":"HKD","r":14},
-    {"id":"macau","ko":"마카오","en":"Macau","q":"Macau","alias":["Macao"],"major":true,"cc":"MO","cc_geo":"CN","country":"마카오","cur":"MOP","r":8},
-    {"id":"shanghai","ko":"상하이","en":"Shanghai","q":"上海市","alias":["상해","Shanghai"],"major":true,"cc":"CN","country":"중국","cur":"CNY","r":14},
-    {"id":"beijing","ko":"베이징","en":"Beijing","q":"北京市","alias":["북경","Beijing"],"major":true,"cc":"CN","country":"중국","cur":"CNY","r":16},
-    {"id":"qingdao","ko":"칭다오","en":"Qingdao","q":"青岛市","alias":["청도"],"cc":"CN","country":"중국","cur":"CNY","r":14},
-    {"id":"xian","ko":"시안","en":"Xi'an","q":"西安市","alias":["서안"],"cc":"CN","country":"중국","cur":"CNY","r":15},
-    {"id":"zhangjiajie","ko":"장자제","en":"Zhangjiajie","q":"张家界市","alias":["장가계"],"cc":"CN","country":"중국","cur":"CNY","r":25},
-
-    {"id":"cebu","ko":"세부","en":"Cebu","q":"Cebu City","alias":["Cebu"],"major":true,"cc":"PH","country":"필리핀","cur":"PHP","r":16},
-    {"id":"boracay","ko":"보라카이","en":"Boracay","q":"Boracay","alias":[],"cc":"PH","country":"필리핀","cur":"PHP","r":10},
-    {"id":"manila","ko":"마닐라","en":"Manila","q":"Manila","alias":[],"major":true,"cc":"PH","country":"필리핀","cur":"PHP","r":14},
-    {"id":"clark","ko":"클락","en":"Clark","q":"Angeles City","alias":["앙헬레스","Clark"],"cc":"PH","country":"필리핀","cur":"PHP","r":14},
-
-    {"id":"singapore","ko":"싱가포르","en":"Singapore","q":"Singapore","alias":["Singapore"],"major":true,"cc":"SG","country":"싱가포르","cur":"SGD","r":16},
-    {"id":"kualalumpur","ko":"쿠알라룸푸르","en":"Kuala Lumpur","q":"Kuala Lumpur","alias":["말레이시아","KL"],"major":true,"cc":"MY","country":"말레이시아","cur":"MYR","r":14},
-    {"id":"kotakinabalu","ko":"코타키나발루","en":"Kota Kinabalu","q":"Kota Kinabalu","alias":["코타키나바루"],"cc":"MY","country":"말레이시아","cur":"MYR","r":16},
-    {"id":"penang","ko":"페낭","en":"Penang","q":"George Town, Penang","alias":["조지타운"],"cc":"MY","country":"말레이시아","cur":"MYR","r":15},
-    {"id":"bali","ko":"발리","en":"Bali","q":"Denpasar","alias":["덴파사르","Bali"],"major":true,"cc":"ID","country":"인도네시아","cur":"IDR","r":25},
-    {"id":"jakarta","ko":"자카르타","en":"Jakarta","q":"Jakarta","alias":[],"cc":"ID","country":"인도네시아","cur":"IDR","r":15},
-
-    {"id":"siemreap","ko":"씨엠립","en":"Siem Reap","q":"Siem Reap","alias":["시엠립","앙코르와트"],"major":true,"cc":"KH","country":"캄보디아","cur":"USD","r":16},
-    {"id":"luangprabang","ko":"루앙프라방","en":"Luang Prabang","q":"Luang Prabang","alias":[],"cc":"LA","country":"라오스","cur":"USD","r":12},
-
-    {"id":"paris","ko":"파리","en":"Paris","q":"Paris","alias":["Paris"],"major":true,"cc":"FR","country":"프랑스","cur":"EUR","r":10},
-    {"id":"nice","ko":"니스","en":"Nice","q":"Nice, France","alias":[],"cc":"FR","country":"프랑스","cur":"EUR","r":10},
-    {"id":"london","ko":"런던","en":"London","q":"London","alias":["London"],"major":true,"cc":"GB","country":"영국","cur":"GBP","r":12},
-    {"id":"rome","ko":"로마","en":"Rome","q":"Roma","alias":["Rome"],"major":true,"cc":"IT","country":"이탈리아","cur":"EUR","r":10},
-    {"id":"venice","ko":"베네치아","en":"Venice","q":"Venezia","alias":["베니스","Venice"],"major":true,"cc":"IT","country":"이탈리아","cur":"EUR","r":6},
-    {"id":"florence","ko":"피렌체","en":"Florence","q":"Firenze","alias":["플로렌스"],"cc":"IT","country":"이탈리아","cur":"EUR","r":6},
-    {"id":"milan","ko":"밀라노","en":"Milan","q":"Milano","alias":[],"cc":"IT","country":"이탈리아","cur":"EUR","r":9},
-    {"id":"barcelona","ko":"바르셀로나","en":"Barcelona","q":"Barcelona","alias":[],"major":true,"cc":"ES","country":"스페인","cur":"EUR","r":10},
-    {"id":"madrid","ko":"마드리드","en":"Madrid","q":"Madrid","alias":[],"major":true,"cc":"ES","country":"스페인","cur":"EUR","r":10},
-    {"id":"seville","ko":"세비야","en":"Seville","q":"Sevilla","alias":["세빌리아"],"cc":"ES","country":"스페인","cur":"EUR","r":8},
-    {"id":"granada","ko":"그라나다","en":"Granada","q":"Granada, Spain","alias":[],"cc":"ES","country":"스페인","cur":"EUR","r":8},
-    {"id":"prague","ko":"프라하","en":"Prague","q":"Praha","alias":["Prague"],"major":true,"cc":"CZ","country":"체코","cur":"CZK","r":9},
-    {"id":"vienna","ko":"비엔나","en":"Vienna","q":"Wien","alias":["빈","Vienna"],"major":true,"cc":"AT","country":"오스트리아","cur":"EUR","r":10},
-    {"id":"budapest","ko":"부다페스트","en":"Budapest","q":"Budapest","alias":[],"major":true,"cc":"HU","country":"헝가리","cur":"HUF","r":10},
-    {"id":"amsterdam","ko":"암스테르담","en":"Amsterdam","q":"Amsterdam","alias":[],"major":true,"cc":"NL","country":"네덜란드","cur":"EUR","r":9},
-    {"id":"berlin","ko":"베를린","en":"Berlin","q":"Berlin","alias":[],"major":true,"cc":"DE","country":"독일","cur":"EUR","r":12},
-    {"id":"munich","ko":"뮌헨","en":"Munich","q":"München","alias":["Munich"],"major":true,"cc":"DE","country":"독일","cur":"EUR","r":10},
-    {"id":"frankfurt","ko":"프랑크푸르트","en":"Frankfurt","q":"Frankfurt am Main","alias":[],"cc":"DE","country":"독일","cur":"EUR","r":10},
-    {"id":"zurich","ko":"취리히","en":"Zurich","q":"Zürich","alias":["Zurich"],"major":true,"cc":"CH","country":"스위스","cur":"CHF","r":9},
-    {"id":"interlaken","ko":"인터라켄","en":"Interlaken","q":"Interlaken","alias":[],"cc":"CH","country":"스위스","cur":"CHF","r":14},
-    {"id":"lucerne","ko":"루체른","en":"Lucerne","q":"Luzern","alias":[],"cc":"CH","country":"스위스","cur":"CHF","r":10},
-    {"id":"lisbon","ko":"리스본","en":"Lisbon","q":"Lisboa","alias":["Lisbon"],"major":true,"cc":"PT","country":"포르투갈","cur":"EUR","r":10},
-    {"id":"porto","ko":"포르투","en":"Porto","q":"Porto","alias":["포르토"],"cc":"PT","country":"포르투갈","cur":"EUR","r":9},
-    {"id":"istanbul","ko":"이스탄불","en":"Istanbul","q":"İstanbul","alias":["Istanbul"],"major":true,"cc":"TR","country":"튀르키예","cur":"TRY","r":14},
-    {"id":"athens","ko":"아테네","en":"Athens","q":"Αθήνα","alias":["Athens"],"major":true,"cc":"GR","country":"그리스","cur":"EUR","r":10},
-    {"id":"santorini","ko":"산토리니","en":"Santorini","q":"Santorini","alias":[],"cc":"GR","country":"그리스","cur":"EUR","r":14},
-    {"id":"dubrovnik","ko":"두브로브니크","en":"Dubrovnik","q":"Dubrovnik","alias":[],"cc":"HR","country":"크로아티아","cur":"EUR","r":10},
-    {"id":"copenhagen","ko":"코펜하겐","en":"Copenhagen","q":"København","alias":["Copenhagen"],"cc":"DK","country":"덴마크","cur":"DKK","r":10},
-    {"id":"stockholm","ko":"스톡홀름","en":"Stockholm","q":"Stockholm","alias":[],"cc":"SE","country":"스웨덴","cur":"SEK","r":11},
-    {"id":"helsinki","ko":"헬싱키","en":"Helsinki","q":"Helsinki","alias":[],"cc":"FI","country":"핀란드","cur":"EUR","r":11},
-    {"id":"oslo","ko":"오슬로","en":"Oslo","q":"Oslo","alias":[],"cc":"NO","country":"노르웨이","cur":"NOK","r":11},
-    {"id":"reykjavik","ko":"레이캬비크","en":"Reykjavik","q":"Reykjavík","alias":["레이캬빅"],"cc":"IS","country":"아이슬란드","cur":"ISK","r":12},
-    {"id":"brussels","ko":"브뤼셀","en":"Brussels","q":"Brussel","alias":[],"cc":"BE","country":"벨기에","cur":"EUR","r":9},
-
-    {"id":"newyork","ko":"뉴욕","en":"New York","q":"New York City","alias":["New York","NYC"],"major":true,"cc":"US","country":"미국","cur":"USD","r":12},
-    {"id":"losangeles","ko":"로스앤젤레스","en":"Los Angeles","q":"Los Angeles","alias":["LA","엘에이"],"major":true,"cc":"US","country":"미국","cur":"USD","r":18},
-    {"id":"lasvegas","ko":"라스베이거스","en":"Las Vegas","q":"Las Vegas","alias":["라스베가스"],"major":true,"cc":"US","country":"미국","cur":"USD","r":14},
-    {"id":"sanfrancisco","ko":"샌프란시스코","en":"San Francisco","q":"San Francisco","alias":["샌프란"],"major":true,"cc":"US","country":"미국","cur":"USD","r":11},
-    {"id":"seattle","ko":"시애틀","en":"Seattle","q":"Seattle","alias":[],"major":true,"cc":"US","country":"미국","cur":"USD","r":12},
-    {"id":"honolulu","ko":"하와이","en":"Honolulu","q":"Honolulu","alias":["호놀룰루","Hawaii"],"major":true,"cc":"US","country":"미국","cur":"USD","r":18},
-    {"id":"guam","ko":"괌","en":"Guam","q":"Hagåtña","alias":["Guam","하갓냐"],"major":true,"cc":"GU","cc_geo":"US","country":"괌","cur":"USD","r":18},
-    {"id":"saipan","ko":"사이판","en":"Saipan","q":"Saipan","alias":[],"major":true,"cc":"MP","cc_geo":"US","country":"북마리아나제도","cur":"USD","r":16},
-    {"id":"chicago","ko":"시카고","en":"Chicago","q":"Chicago","alias":[],"cc":"US","country":"미국","cur":"USD","r":13},
-    {"id":"boston","ko":"보스턴","en":"Boston","q":"Boston","alias":[],"cc":"US","country":"미국","cur":"USD","r":11},
-    {"id":"washington","ko":"워싱턴","en":"Washington DC","q":"Washington, D.C.","alias":["워싱턴DC"],"cc":"US","country":"미국","cur":"USD","r":11},
-    {"id":"vancouver","ko":"밴쿠버","en":"Vancouver","q":"Vancouver","alias":[],"major":true,"cc":"CA","country":"캐나다","cur":"CAD","r":13},
-    {"id":"toronto","ko":"토론토","en":"Toronto","q":"Toronto","alias":[],"major":true,"cc":"CA","country":"캐나다","cur":"CAD","r":14},
-    {"id":"cancun","ko":"칸쿤","en":"Cancun","q":"Cancún","alias":[],"cc":"MX","country":"멕시코","cur":"MXN","r":16},
-    {"id":"mexicocity","ko":"멕시코시티","en":"Mexico City","q":"Ciudad de México","alias":[],"cc":"MX","country":"멕시코","cur":"MXN","r":14},
-
-    {"id":"sydney","ko":"시드니","en":"Sydney","q":"Sydney","alias":[],"major":true,"cc":"AU","country":"호주","cur":"AUD","r":14},
-    {"id":"melbourne","ko":"멜버른","en":"Melbourne","q":"Melbourne","alias":["멜번"],"major":true,"cc":"AU","country":"호주","cur":"AUD","r":13},
-    {"id":"brisbane","ko":"브리즈번","en":"Brisbane","q":"Brisbane","alias":[],"cc":"AU","country":"호주","cur":"AUD","r":13},
-    {"id":"goldcoast","ko":"골드코스트","en":"Gold Coast","q":"Gold Coast, Queensland","alias":[],"major":true,"cc":"AU","country":"호주","cur":"AUD","r":16},
-    {"id":"cairns","ko":"케언즈","en":"Cairns","q":"Cairns","alias":[],"cc":"AU","country":"호주","cur":"AUD","r":16},
-    {"id":"auckland","ko":"오클랜드","en":"Auckland","q":"Auckland","alias":[],"major":true,"cc":"NZ","country":"뉴질랜드","cur":"NZD","r":14},
-    {"id":"queenstown","ko":"퀸스타운","en":"Queenstown","q":"Queenstown, New Zealand","alias":[],"cc":"NZ","country":"뉴질랜드","cur":"NZD","r":16},
-
-    {"id":"dubai","ko":"두바이","en":"Dubai","q":"Dubai","alias":[],"major":true,"cc":"AE","country":"아랍에미리트","cur":"AED","r":18},
-    {"id":"abudhabi","ko":"아부다비","en":"Abu Dhabi","q":"Abu Dhabi","alias":[],"cc":"AE","country":"아랍에미리트","cur":"AED","r":16},
-    {"id":"doha","ko":"도하","en":"Doha","q":"Doha","alias":[],"major":true,"cc":"QA","country":"카타르","cur":"QAR","r":14},
-    {"id":"cairo","ko":"카이로","en":"Cairo","q":"القاهرة","alias":["Cairo"],"cc":"EG","country":"이집트","cur":"EGP","r":16},
-    {"id":"marrakesh","ko":"마라케시","en":"Marrakesh","q":"Marrakesh","alias":["마라케쉬"],"cc":"MA","country":"모로코","cur":"MAD","r":10},
-    {"id":"capetown","ko":"케이프타운","en":"Cape Town","q":"Cape Town","alias":[],"cc":"ZA","country":"남아프리카공화국","cur":"ZAR","r":18},
-
-    {"id":"vladivostok","ko":"블라디보스토크","en":"Vladivostok","q":"Владивосток","alias":["블라디"],"cc":"RU","country":"러시아","cur":"RUB","r":13},
-    {"id":"almaty","ko":"알마티","en":"Almaty","q":"Алматы","alias":[],"cc":"KZ","country":"카자흐스탄","cur":"KZT","r":14},
-    {"id":"tashkent","ko":"타슈켄트","en":"Tashkent","q":"Toshkent","alias":[],"cc":"UZ","country":"우즈베키스탄","cur":"UZS","r":14},
-    {"id":"ulaanbaatar","ko":"울란바토르","en":"Ulaanbaatar","q":"Улаанбаатар","alias":[],"cc":"MN","country":"몽골","cur":"MNT","r":14},
-    {"id":"delhi","ko":"델리","en":"Delhi","q":"New Delhi","alias":["뉴델리"],"cc":"IN","country":"인도","cur":"INR","r":14},
-    {"id":"kathmandu","ko":"카트만두","en":"Kathmandu","q":"Kathmandu","alias":[],"cc":"NP","country":"네팔","cur":"NPR","r":12}
-  ]
+ "_comment": [
+  "여행 플래너 목적지 씨앗 목록. 좌표는 여기에 적지 않는다 — scripts/build_planner_data.py 가",
+  "Nominatim 으로 실측해서 public/planner-data/destinations.json 을 만든다.",
+  "손으로 좌표를 적으면 틀린 값이 조용히 들어간다.",
+  "",
+  "필드",
+  "  id       파일명·DB dest_id 로 쓰는 슬러그. [a-z0-9][a-z0-9_-]{0,39}",
+  "  ko       화면에 보이는 이름",
+  "  en       영문 이름(검색 매칭용)",
+  "  q        Nominatim 질의어. 구어체 이름은 엉뚱한 걸 물어오므로(실측: '도쿄' -> 도쿄역)",
+  "           정식 행정구역명이나 영문명을 쓴다.",
+  "  alias    추가 검색 키워드(별칭·구표기·오타)",
+  "  cc       국가코드 2자리",
+  "  country  국가 한국어 이름",
+  "  cur      통화 3자리",
+  "  major    추천 명소 데이터를 만들 도시. 쿠마님 방침(2026-09-04): 나라별 진짜 대도시만 준비하고,",
+  "           그 외는 비워 둔다. 덜 알려진 곳을 가는 사람은 직접 찾아 담는 게 목적일 수 있다.",
+  "  r        추천 명소를 모을 반경(km). 도시 크기에 맞춰 다르게 준다 —",
+  "           일괄 10km 로 두면 제주는 서귀포가 빠지고 피렌체는 외곽 잡지물이 들어온다."
+ ],
+ "destinations": [
+  {
+   "id": "seoul",
+   "ko": "서울",
+   "en": "Seoul",
+   "q": "서울특별시",
+   "alias": [
+    "Seoul"
+   ],
+   "major": true,
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 14
+  },
+  {
+   "id": "busan",
+   "ko": "부산",
+   "en": "Busan",
+   "q": "부산광역시",
+   "alias": [
+    "Busan",
+    "釜山"
+   ],
+   "major": true,
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 16
+  },
+  {
+   "id": "jeju",
+   "ko": "제주",
+   "en": "Jeju",
+   "q": "제주특별자치도",
+   "alias": [
+    "제주도",
+    "Jeju"
+   ],
+   "major": true,
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 45,
+   "lat": 33.375,
+   "lng": 126.53,
+   "block": [
+    "제주 러브랜드",
+    "러브랜드"
+   ],
+   "rename": {
+    "성산일출봉 천연보호구역": "성산일출봉",
+    "제주 중문·대포 해안 주상절리대대포주상절리대": "중문 대포 주상절리대",
+    "김녕굴·만장굴": "만장굴"
+   }
+  },
+  {
+   "id": "gangneung",
+   "ko": "강릉",
+   "en": "Gangneung",
+   "q": "강릉시",
+   "alias": [
+    "Gangneung"
+   ],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 15
+  },
+  {
+   "id": "sokcho",
+   "ko": "속초",
+   "en": "Sokcho",
+   "q": "속초시",
+   "alias": [
+    "Sokcho"
+   ],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 14
+  },
+  {
+   "id": "yangyang",
+   "ko": "양양",
+   "en": "Yangyang",
+   "q": "양양군",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 15
+  },
+  {
+   "id": "gyeongju",
+   "ko": "경주",
+   "en": "Gyeongju",
+   "q": "경주시",
+   "alias": [
+    "Gyeongju"
+   ],
+   "major": true,
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 18,
+   "rename": {
+    "경주 동궁과 월지": "동궁과 월지"
+   }
+  },
+  {
+   "id": "jeonju",
+   "ko": "전주",
+   "en": "Jeonju",
+   "q": "전주시",
+   "alias": [
+    "Jeonju"
+   ],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 12
+  },
+  {
+   "id": "yeosu",
+   "ko": "여수",
+   "en": "Yeosu",
+   "q": "여수시",
+   "alias": [
+    "Yeosu"
+   ],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 16
+  },
+  {
+   "id": "tongyeong",
+   "ko": "통영",
+   "en": "Tongyeong",
+   "q": "통영시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 15
+  },
+  {
+   "id": "namhae",
+   "ko": "남해",
+   "en": "Namhae",
+   "q": "남해군",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 16
+  },
+  {
+   "id": "geoje",
+   "ko": "거제",
+   "en": "Geoje",
+   "q": "거제시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 18
+  },
+  {
+   "id": "daegu",
+   "ko": "대구",
+   "en": "Daegu",
+   "q": "대구광역시",
+   "alias": [
+    "Daegu"
+   ],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 14
+  },
+  {
+   "id": "incheon",
+   "ko": "인천",
+   "en": "Incheon",
+   "q": "인천광역시",
+   "alias": [
+    "Incheon"
+   ],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 11,
+   "block": [
+    "광명동굴",
+    "충현박물관",
+    "수명산",
+    "개웅산",
+    "서서울호수공원",
+    "귤현동",
+    "와룡산"
+   ]
+  },
+  {
+   "id": "daejeon",
+   "ko": "대전",
+   "en": "Daejeon",
+   "q": "대전광역시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 13
+  },
+  {
+   "id": "gwangju",
+   "ko": "광주",
+   "en": "Gwangju",
+   "q": "광주광역시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 13
+  },
+  {
+   "id": "ulsan",
+   "ko": "울산",
+   "en": "Ulsan",
+   "q": "울산광역시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 15
+  },
+  {
+   "id": "pohang",
+   "ko": "포항",
+   "en": "Pohang",
+   "q": "포항시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 15
+  },
+  {
+   "id": "andong",
+   "ko": "안동",
+   "en": "Andong",
+   "q": "안동시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 16
+  },
+  {
+   "id": "chuncheon",
+   "ko": "춘천",
+   "en": "Chuncheon",
+   "q": "춘천시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 14
+  },
+  {
+   "id": "gapyeong",
+   "ko": "가평",
+   "en": "Gapyeong",
+   "q": "가평군",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 16
+  },
+  {
+   "id": "mokpo",
+   "ko": "목포",
+   "en": "Mokpo",
+   "q": "목포시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 12
+  },
+  {
+   "id": "gunsan",
+   "ko": "군산",
+   "en": "Gunsan",
+   "q": "군산시",
+   "alias": [],
+   "cc": "KR",
+   "country": "대한민국",
+   "cur": "KRW",
+   "r": 13
+  },
+  {
+   "id": "tokyo",
+   "ko": "도쿄",
+   "en": "Tokyo",
+   "q": "도쿄도",
+   "alias": [
+    "동경",
+    "Tokyo",
+    "도쿄도"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 15
+  },
+  {
+   "id": "osaka",
+   "ko": "오사카",
+   "en": "Osaka",
+   "q": "오사카시",
+   "alias": [
+    "Osaka"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "kyoto",
+   "ko": "교토",
+   "en": "Kyoto",
+   "q": "교토시",
+   "alias": [
+    "Kyoto"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "fukuoka",
+   "ko": "후쿠오카",
+   "en": "Fukuoka",
+   "q": "후쿠오카시",
+   "alias": [
+    "Fukuoka"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "sapporo",
+   "ko": "삿포로",
+   "en": "Sapporo",
+   "q": "삿포로시",
+   "alias": [
+    "Sapporo"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 14
+  },
+  {
+   "id": "nagoya",
+   "ko": "나고야",
+   "en": "Nagoya",
+   "q": "나고야시",
+   "alias": [
+    "Nagoya"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "okinawa",
+   "ko": "오키나와",
+   "en": "Okinawa",
+   "q": "나하시",
+   "alias": [
+    "나하",
+    "Naha",
+    "Okinawa"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 25
+  },
+  {
+   "id": "hiroshima",
+   "ko": "히로시마",
+   "en": "Hiroshima",
+   "q": "히로시마시",
+   "alias": [],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 13,
+   "rename": {
+    "원폭의 아이의 동상": "원폭의 아이 상"
+   }
+  },
+  {
+   "id": "beppu",
+   "ko": "벳푸",
+   "en": "Beppu",
+   "q": "벳푸시",
+   "alias": [
+    "별부"
+   ],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "yufuin",
+   "ko": "유후인",
+   "en": "Yufuin",
+   "q": "유후시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "kumamoto",
+   "ko": "구마모토",
+   "en": "Kumamoto",
+   "q": "구마모토시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 13
+  },
+  {
+   "id": "kagoshima",
+   "ko": "가고시마",
+   "en": "Kagoshima",
+   "q": "가고시마시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 13
+  },
+  {
+   "id": "nara",
+   "ko": "나라",
+   "en": "Nara",
+   "q": "나라시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 10
+  },
+  {
+   "id": "kobe",
+   "ko": "고베",
+   "en": "Kobe",
+   "q": "고베시",
+   "alias": [],
+   "major": true,
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "yokohama",
+   "ko": "요코하마",
+   "en": "Yokohama",
+   "q": "요코하마시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "hakone",
+   "ko": "하코네",
+   "en": "Hakone",
+   "q": "하코네정",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "otaru",
+   "ko": "오타루",
+   "en": "Otaru",
+   "q": "오타루시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 11
+  },
+  {
+   "id": "furano",
+   "ko": "후라노",
+   "en": "Furano",
+   "q": "후라노시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 16
+  },
+  {
+   "id": "sendai",
+   "ko": "센다이",
+   "en": "Sendai",
+   "q": "센다이시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 13
+  },
+  {
+   "id": "kanazawa",
+   "ko": "가나자와",
+   "en": "Kanazawa",
+   "q": "가나자와시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 11
+  },
+  {
+   "id": "takamatsu",
+   "ko": "다카마쓰",
+   "en": "Takamatsu",
+   "q": "다카마쓰시",
+   "alias": [
+    "타카마츠"
+   ],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "matsuyama",
+   "ko": "마쓰야마",
+   "en": "Matsuyama",
+   "q": "마쓰야마시",
+   "alias": [
+    "마츠야마"
+   ],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "miyazaki",
+   "ko": "미야자키",
+   "en": "Miyazaki",
+   "q": "미야자키시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 13
+  },
+  {
+   "id": "saga",
+   "ko": "사가",
+   "en": "Saga",
+   "q": "사가시",
+   "alias": [],
+   "cc": "JP",
+   "country": "일본",
+   "cur": "JPY",
+   "r": 12
+  },
+  {
+   "id": "danang",
+   "ko": "다낭",
+   "en": "Da Nang",
+   "q": "다낭",
+   "alias": [
+    "Da Nang",
+    "Danang"
+   ],
+   "major": true,
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 16
+  },
+  {
+   "id": "hoian",
+   "ko": "호이안",
+   "en": "Hoi An",
+   "q": "Hội An",
+   "alias": [
+    "Hoi An"
+   ],
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 10
+  },
+  {
+   "id": "hochiminh",
+   "ko": "호치민",
+   "en": "Ho Chi Minh City",
+   "q": "Thành phố Hồ Chí Minh",
+   "alias": [
+    "호찌민",
+    "사이공",
+    "Saigon"
+   ],
+   "major": true,
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 12
+  },
+  {
+   "id": "hanoi",
+   "ko": "하노이",
+   "en": "Hanoi",
+   "q": "Hà Nội",
+   "alias": [
+    "Hanoi"
+   ],
+   "major": true,
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 12
+  },
+  {
+   "id": "nhatrang",
+   "ko": "나트랑",
+   "en": "Nha Trang",
+   "q": "Nha Trang",
+   "alias": [
+    "냐짱",
+    "Nha Trang"
+   ],
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 14
+  },
+  {
+   "id": "phuquoc",
+   "ko": "푸꾸옥",
+   "en": "Phu Quoc",
+   "q": "Phú Quốc",
+   "alias": [
+    "푸꾸억",
+    "Phu Quoc"
+   ],
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 25
+  },
+  {
+   "id": "dalat",
+   "ko": "달랏",
+   "en": "Da Lat",
+   "q": "Đà Lạt",
+   "alias": [
+    "Dalat"
+   ],
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 14
+  },
+  {
+   "id": "halong",
+   "ko": "하롱베이",
+   "en": "Ha Long",
+   "q": "Hạ Long",
+   "alias": [
+    "하롱",
+    "Halong"
+   ],
+   "cc": "VN",
+   "country": "베트남",
+   "cur": "VND",
+   "r": 18
+  },
+  {
+   "id": "bangkok",
+   "ko": "방콕",
+   "en": "Bangkok",
+   "q": "Bangkok",
+   "alias": [
+    "Bangkok"
+   ],
+   "major": true,
+   "cc": "TH",
+   "country": "태국",
+   "cur": "THB",
+   "r": 14
+  },
+  {
+   "id": "chiangmai",
+   "ko": "치앙마이",
+   "en": "Chiang Mai",
+   "q": "Chiang Mai",
+   "alias": [
+    "Chiang Mai"
+   ],
+   "major": true,
+   "cc": "TH",
+   "country": "태국",
+   "cur": "THB",
+   "r": 14
+  },
+  {
+   "id": "phuket",
+   "ko": "푸껫",
+   "en": "Phuket",
+   "q": "Phuket",
+   "alias": [
+    "푸켓",
+    "Phuket"
+   ],
+   "major": true,
+   "cc": "TH",
+   "country": "태국",
+   "cur": "THB",
+   "r": 22
+  },
+  {
+   "id": "pattaya",
+   "ko": "파타야",
+   "en": "Pattaya",
+   "q": "Pattaya",
+   "alias": [],
+   "cc": "TH",
+   "country": "태국",
+   "cur": "THB",
+   "r": 14
+  },
+  {
+   "id": "krabi",
+   "ko": "끄라비",
+   "en": "Krabi",
+   "q": "Krabi",
+   "alias": [
+    "크라비"
+   ],
+   "cc": "TH",
+   "country": "태국",
+   "cur": "THB",
+   "r": 20
+  },
+  {
+   "id": "taipei",
+   "ko": "타이베이",
+   "en": "Taipei",
+   "q": "臺北市",
+   "alias": [
+    "타이페이",
+    "대만",
+    "Taipei"
+   ],
+   "major": true,
+   "cc": "TW",
+   "country": "대만",
+   "cur": "TWD",
+   "r": 13
+  },
+  {
+   "id": "kaohsiung",
+   "ko": "가오슝",
+   "en": "Kaohsiung",
+   "q": "高雄市",
+   "alias": [
+    "카오슝"
+   ],
+   "major": true,
+   "cc": "TW",
+   "country": "대만",
+   "cur": "TWD",
+   "r": 14
+  },
+  {
+   "id": "taichung",
+   "ko": "타이중",
+   "en": "Taichung",
+   "q": "臺中市",
+   "alias": [],
+   "cc": "TW",
+   "country": "대만",
+   "cur": "TWD",
+   "r": 14
+  },
+  {
+   "id": "hualien",
+   "ko": "화롄",
+   "en": "Hualien",
+   "q": "花蓮市",
+   "alias": [
+    "화련"
+   ],
+   "cc": "TW",
+   "country": "대만",
+   "cur": "TWD",
+   "r": 16
+  },
+  {
+   "id": "tainan",
+   "ko": "타이난",
+   "en": "Tainan",
+   "q": "臺南市",
+   "alias": [],
+   "cc": "TW",
+   "country": "대만",
+   "cur": "TWD",
+   "r": 13
+  },
+  {
+   "id": "hongkong",
+   "ko": "홍콩",
+   "en": "Hong Kong",
+   "q": "Hong Kong",
+   "alias": [
+    "Hong Kong"
+   ],
+   "major": true,
+   "cc": "HK",
+   "cc_geo": "CN",
+   "country": "홍콩",
+   "cur": "HKD",
+   "r": 14
+  },
+  {
+   "id": "macau",
+   "ko": "마카오",
+   "en": "Macau",
+   "q": "Macau",
+   "alias": [
+    "Macao"
+   ],
+   "major": true,
+   "cc": "MO",
+   "cc_geo": "CN",
+   "country": "마카오",
+   "cur": "MOP",
+   "r": 8
+  },
+  {
+   "id": "shanghai",
+   "ko": "상하이",
+   "en": "Shanghai",
+   "q": "上海市",
+   "alias": [
+    "상해",
+    "Shanghai"
+   ],
+   "major": true,
+   "cc": "CN",
+   "country": "중국",
+   "cur": "CNY",
+   "r": 14
+  },
+  {
+   "id": "beijing",
+   "ko": "베이징",
+   "en": "Beijing",
+   "q": "北京市",
+   "alias": [
+    "북경",
+    "Beijing"
+   ],
+   "major": true,
+   "cc": "CN",
+   "country": "중국",
+   "cur": "CNY",
+   "r": 16
+  },
+  {
+   "id": "qingdao",
+   "ko": "칭다오",
+   "en": "Qingdao",
+   "q": "青岛市",
+   "alias": [
+    "청도"
+   ],
+   "cc": "CN",
+   "country": "중국",
+   "cur": "CNY",
+   "r": 14
+  },
+  {
+   "id": "xian",
+   "ko": "시안",
+   "en": "Xi'an",
+   "q": "西安市",
+   "alias": [
+    "서안"
+   ],
+   "cc": "CN",
+   "country": "중국",
+   "cur": "CNY",
+   "r": 15
+  },
+  {
+   "id": "zhangjiajie",
+   "ko": "장자제",
+   "en": "Zhangjiajie",
+   "q": "张家界市",
+   "alias": [
+    "장가계"
+   ],
+   "cc": "CN",
+   "country": "중국",
+   "cur": "CNY",
+   "r": 25
+  },
+  {
+   "id": "cebu",
+   "ko": "세부",
+   "en": "Cebu",
+   "q": "Cebu City",
+   "alias": [
+    "Cebu"
+   ],
+   "major": true,
+   "cc": "PH",
+   "country": "필리핀",
+   "cur": "PHP",
+   "r": 16
+  },
+  {
+   "id": "boracay",
+   "ko": "보라카이",
+   "en": "Boracay",
+   "q": "Boracay",
+   "alias": [],
+   "cc": "PH",
+   "country": "필리핀",
+   "cur": "PHP",
+   "r": 10
+  },
+  {
+   "id": "manila",
+   "ko": "마닐라",
+   "en": "Manila",
+   "q": "Manila",
+   "alias": [],
+   "major": true,
+   "cc": "PH",
+   "country": "필리핀",
+   "cur": "PHP",
+   "r": 14
+  },
+  {
+   "id": "clark",
+   "ko": "클락",
+   "en": "Clark",
+   "q": "Angeles City",
+   "alias": [
+    "앙헬레스",
+    "Clark"
+   ],
+   "cc": "PH",
+   "country": "필리핀",
+   "cur": "PHP",
+   "r": 14
+  },
+  {
+   "id": "singapore",
+   "ko": "싱가포르",
+   "en": "Singapore",
+   "q": "Singapore",
+   "alias": [
+    "Singapore"
+   ],
+   "major": true,
+   "cc": "SG",
+   "country": "싱가포르",
+   "cur": "SGD",
+   "r": 16
+  },
+  {
+   "id": "kualalumpur",
+   "ko": "쿠알라룸푸르",
+   "en": "Kuala Lumpur",
+   "q": "Kuala Lumpur",
+   "alias": [
+    "말레이시아",
+    "KL"
+   ],
+   "major": true,
+   "cc": "MY",
+   "country": "말레이시아",
+   "cur": "MYR",
+   "r": 14
+  },
+  {
+   "id": "kotakinabalu",
+   "ko": "코타키나발루",
+   "en": "Kota Kinabalu",
+   "q": "Kota Kinabalu",
+   "alias": [
+    "코타키나바루"
+   ],
+   "cc": "MY",
+   "country": "말레이시아",
+   "cur": "MYR",
+   "r": 16
+  },
+  {
+   "id": "penang",
+   "ko": "페낭",
+   "en": "Penang",
+   "q": "George Town, Penang",
+   "alias": [
+    "조지타운"
+   ],
+   "cc": "MY",
+   "country": "말레이시아",
+   "cur": "MYR",
+   "r": 15
+  },
+  {
+   "id": "bali",
+   "ko": "발리",
+   "en": "Bali",
+   "q": "Denpasar",
+   "alias": [
+    "덴파사르",
+    "Bali"
+   ],
+   "major": true,
+   "cc": "ID",
+   "country": "인도네시아",
+   "cur": "IDR",
+   "r": 25
+  },
+  {
+   "id": "jakarta",
+   "ko": "자카르타",
+   "en": "Jakarta",
+   "q": "Jakarta",
+   "alias": [],
+   "cc": "ID",
+   "country": "인도네시아",
+   "cur": "IDR",
+   "r": 15
+  },
+  {
+   "id": "siemreap",
+   "ko": "씨엠립",
+   "en": "Siem Reap",
+   "q": "Siem Reap",
+   "alias": [
+    "시엠립",
+    "앙코르와트"
+   ],
+   "major": true,
+   "cc": "KH",
+   "country": "캄보디아",
+   "cur": "USD",
+   "r": 16
+  },
+  {
+   "id": "luangprabang",
+   "ko": "루앙프라방",
+   "en": "Luang Prabang",
+   "q": "Luang Prabang",
+   "alias": [],
+   "cc": "LA",
+   "country": "라오스",
+   "cur": "USD",
+   "r": 12
+  },
+  {
+   "id": "paris",
+   "ko": "파리",
+   "en": "Paris",
+   "q": "Paris",
+   "alias": [
+    "Paris"
+   ],
+   "major": true,
+   "cc": "FR",
+   "country": "프랑스",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "nice",
+   "ko": "니스",
+   "en": "Nice",
+   "q": "Nice, France",
+   "alias": [],
+   "cc": "FR",
+   "country": "프랑스",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "london",
+   "ko": "런던",
+   "en": "London",
+   "q": "London",
+   "alias": [
+    "London"
+   ],
+   "major": true,
+   "cc": "GB",
+   "country": "영국",
+   "cur": "GBP",
+   "r": 12
+  },
+  {
+   "id": "rome",
+   "ko": "로마",
+   "en": "Rome",
+   "q": "Roma",
+   "alias": [
+    "Rome"
+   ],
+   "major": true,
+   "cc": "IT",
+   "country": "이탈리아",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "venice",
+   "ko": "베네치아",
+   "en": "Venice",
+   "q": "Venezia",
+   "alias": [
+    "베니스",
+    "Venice"
+   ],
+   "major": true,
+   "cc": "IT",
+   "country": "이탈리아",
+   "cur": "EUR",
+   "r": 6
+  },
+  {
+   "id": "florence",
+   "ko": "피렌체",
+   "en": "Florence",
+   "q": "Firenze",
+   "alias": [
+    "플로렌스"
+   ],
+   "cc": "IT",
+   "country": "이탈리아",
+   "cur": "EUR",
+   "r": 6
+  },
+  {
+   "id": "milan",
+   "ko": "밀라노",
+   "en": "Milan",
+   "q": "Milano",
+   "alias": [],
+   "cc": "IT",
+   "country": "이탈리아",
+   "cur": "EUR",
+   "r": 9
+  },
+  {
+   "id": "barcelona",
+   "ko": "바르셀로나",
+   "en": "Barcelona",
+   "q": "Barcelona",
+   "alias": [],
+   "major": true,
+   "cc": "ES",
+   "country": "스페인",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "madrid",
+   "ko": "마드리드",
+   "en": "Madrid",
+   "q": "Madrid",
+   "alias": [],
+   "major": true,
+   "cc": "ES",
+   "country": "스페인",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "seville",
+   "ko": "세비야",
+   "en": "Seville",
+   "q": "Sevilla",
+   "alias": [
+    "세빌리아"
+   ],
+   "cc": "ES",
+   "country": "스페인",
+   "cur": "EUR",
+   "r": 8
+  },
+  {
+   "id": "granada",
+   "ko": "그라나다",
+   "en": "Granada",
+   "q": "Granada, Spain",
+   "alias": [],
+   "cc": "ES",
+   "country": "스페인",
+   "cur": "EUR",
+   "r": 8
+  },
+  {
+   "id": "prague",
+   "ko": "프라하",
+   "en": "Prague",
+   "q": "Praha",
+   "alias": [
+    "Prague"
+   ],
+   "major": true,
+   "cc": "CZ",
+   "country": "체코",
+   "cur": "CZK",
+   "r": 9
+  },
+  {
+   "id": "vienna",
+   "ko": "비엔나",
+   "en": "Vienna",
+   "q": "Wien",
+   "alias": [
+    "빈",
+    "Vienna"
+   ],
+   "major": true,
+   "cc": "AT",
+   "country": "오스트리아",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "budapest",
+   "ko": "부다페스트",
+   "en": "Budapest",
+   "q": "Budapest",
+   "alias": [],
+   "major": true,
+   "cc": "HU",
+   "country": "헝가리",
+   "cur": "HUF",
+   "r": 10
+  },
+  {
+   "id": "amsterdam",
+   "ko": "암스테르담",
+   "en": "Amsterdam",
+   "q": "Amsterdam",
+   "alias": [],
+   "major": true,
+   "cc": "NL",
+   "country": "네덜란드",
+   "cur": "EUR",
+   "r": 9
+  },
+  {
+   "id": "berlin",
+   "ko": "베를린",
+   "en": "Berlin",
+   "q": "Berlin",
+   "alias": [],
+   "major": true,
+   "cc": "DE",
+   "country": "독일",
+   "cur": "EUR",
+   "r": 12
+  },
+  {
+   "id": "munich",
+   "ko": "뮌헨",
+   "en": "Munich",
+   "q": "München",
+   "alias": [
+    "Munich"
+   ],
+   "major": true,
+   "cc": "DE",
+   "country": "독일",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "frankfurt",
+   "ko": "프랑크푸르트",
+   "en": "Frankfurt",
+   "q": "Frankfurt am Main",
+   "alias": [],
+   "cc": "DE",
+   "country": "독일",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "zurich",
+   "ko": "취리히",
+   "en": "Zurich",
+   "q": "Zürich",
+   "alias": [
+    "Zurich"
+   ],
+   "major": true,
+   "cc": "CH",
+   "country": "스위스",
+   "cur": "CHF",
+   "r": 9
+  },
+  {
+   "id": "interlaken",
+   "ko": "인터라켄",
+   "en": "Interlaken",
+   "q": "Interlaken",
+   "alias": [],
+   "cc": "CH",
+   "country": "스위스",
+   "cur": "CHF",
+   "r": 14
+  },
+  {
+   "id": "lucerne",
+   "ko": "루체른",
+   "en": "Lucerne",
+   "q": "Luzern",
+   "alias": [],
+   "cc": "CH",
+   "country": "스위스",
+   "cur": "CHF",
+   "r": 10
+  },
+  {
+   "id": "lisbon",
+   "ko": "리스본",
+   "en": "Lisbon",
+   "q": "Lisboa",
+   "alias": [
+    "Lisbon"
+   ],
+   "major": true,
+   "cc": "PT",
+   "country": "포르투갈",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "porto",
+   "ko": "포르투",
+   "en": "Porto",
+   "q": "Porto",
+   "alias": [
+    "포르토"
+   ],
+   "cc": "PT",
+   "country": "포르투갈",
+   "cur": "EUR",
+   "r": 9
+  },
+  {
+   "id": "istanbul",
+   "ko": "이스탄불",
+   "en": "Istanbul",
+   "q": "İstanbul",
+   "alias": [
+    "Istanbul"
+   ],
+   "major": true,
+   "cc": "TR",
+   "country": "튀르키예",
+   "cur": "TRY",
+   "r": 14
+  },
+  {
+   "id": "athens",
+   "ko": "아테네",
+   "en": "Athens",
+   "q": "Αθήνα",
+   "alias": [
+    "Athens"
+   ],
+   "major": true,
+   "cc": "GR",
+   "country": "그리스",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "santorini",
+   "ko": "산토리니",
+   "en": "Santorini",
+   "q": "Santorini",
+   "alias": [],
+   "cc": "GR",
+   "country": "그리스",
+   "cur": "EUR",
+   "r": 14
+  },
+  {
+   "id": "dubrovnik",
+   "ko": "두브로브니크",
+   "en": "Dubrovnik",
+   "q": "Dubrovnik",
+   "alias": [],
+   "cc": "HR",
+   "country": "크로아티아",
+   "cur": "EUR",
+   "r": 10
+  },
+  {
+   "id": "copenhagen",
+   "ko": "코펜하겐",
+   "en": "Copenhagen",
+   "q": "København",
+   "alias": [
+    "Copenhagen"
+   ],
+   "cc": "DK",
+   "country": "덴마크",
+   "cur": "DKK",
+   "r": 10
+  },
+  {
+   "id": "stockholm",
+   "ko": "스톡홀름",
+   "en": "Stockholm",
+   "q": "Stockholm",
+   "alias": [],
+   "cc": "SE",
+   "country": "스웨덴",
+   "cur": "SEK",
+   "r": 11
+  },
+  {
+   "id": "helsinki",
+   "ko": "헬싱키",
+   "en": "Helsinki",
+   "q": "Helsinki",
+   "alias": [],
+   "cc": "FI",
+   "country": "핀란드",
+   "cur": "EUR",
+   "r": 11
+  },
+  {
+   "id": "oslo",
+   "ko": "오슬로",
+   "en": "Oslo",
+   "q": "Oslo",
+   "alias": [],
+   "cc": "NO",
+   "country": "노르웨이",
+   "cur": "NOK",
+   "r": 11
+  },
+  {
+   "id": "reykjavik",
+   "ko": "레이캬비크",
+   "en": "Reykjavik",
+   "q": "Reykjavík",
+   "alias": [
+    "레이캬빅"
+   ],
+   "cc": "IS",
+   "country": "아이슬란드",
+   "cur": "ISK",
+   "r": 12
+  },
+  {
+   "id": "brussels",
+   "ko": "브뤼셀",
+   "en": "Brussels",
+   "q": "Brussel",
+   "alias": [],
+   "cc": "BE",
+   "country": "벨기에",
+   "cur": "EUR",
+   "r": 9
+  },
+  {
+   "id": "newyork",
+   "ko": "뉴욕",
+   "en": "New York",
+   "q": "New York City",
+   "alias": [
+    "New York",
+    "NYC"
+   ],
+   "major": true,
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 12
+  },
+  {
+   "id": "losangeles",
+   "ko": "로스앤젤레스",
+   "en": "Los Angeles",
+   "q": "Los Angeles",
+   "alias": [
+    "LA",
+    "엘에이"
+   ],
+   "major": true,
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 18
+  },
+  {
+   "id": "lasvegas",
+   "ko": "라스베이거스",
+   "en": "Las Vegas",
+   "q": "Las Vegas",
+   "alias": [
+    "라스베가스"
+   ],
+   "major": true,
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 14
+  },
+  {
+   "id": "sanfrancisco",
+   "ko": "샌프란시스코",
+   "en": "San Francisco",
+   "q": "San Francisco",
+   "alias": [
+    "샌프란"
+   ],
+   "major": true,
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 11
+  },
+  {
+   "id": "seattle",
+   "ko": "시애틀",
+   "en": "Seattle",
+   "q": "Seattle",
+   "alias": [],
+   "major": true,
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 12
+  },
+  {
+   "id": "honolulu",
+   "ko": "하와이",
+   "en": "Honolulu",
+   "q": "Honolulu",
+   "alias": [
+    "호놀룰루",
+    "Hawaii"
+   ],
+   "major": true,
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 18
+  },
+  {
+   "id": "guam",
+   "ko": "괌",
+   "en": "Guam",
+   "q": "Hagåtña",
+   "alias": [
+    "Guam",
+    "하갓냐"
+   ],
+   "major": true,
+   "cc": "GU",
+   "cc_geo": "US",
+   "country": "괌",
+   "cur": "USD",
+   "r": 18
+  },
+  {
+   "id": "saipan",
+   "ko": "사이판",
+   "en": "Saipan",
+   "q": "Saipan",
+   "alias": [],
+   "major": true,
+   "cc": "MP",
+   "cc_geo": "US",
+   "country": "북마리아나제도",
+   "cur": "USD",
+   "r": 16
+  },
+  {
+   "id": "chicago",
+   "ko": "시카고",
+   "en": "Chicago",
+   "q": "Chicago",
+   "alias": [],
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 13
+  },
+  {
+   "id": "boston",
+   "ko": "보스턴",
+   "en": "Boston",
+   "q": "Boston",
+   "alias": [],
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 11
+  },
+  {
+   "id": "washington",
+   "ko": "워싱턴",
+   "en": "Washington DC",
+   "q": "Washington, D.C.",
+   "alias": [
+    "워싱턴DC"
+   ],
+   "cc": "US",
+   "country": "미국",
+   "cur": "USD",
+   "r": 11
+  },
+  {
+   "id": "vancouver",
+   "ko": "밴쿠버",
+   "en": "Vancouver",
+   "q": "Vancouver",
+   "alias": [],
+   "major": true,
+   "cc": "CA",
+   "country": "캐나다",
+   "cur": "CAD",
+   "r": 13
+  },
+  {
+   "id": "toronto",
+   "ko": "토론토",
+   "en": "Toronto",
+   "q": "Toronto",
+   "alias": [],
+   "major": true,
+   "cc": "CA",
+   "country": "캐나다",
+   "cur": "CAD",
+   "r": 14
+  },
+  {
+   "id": "cancun",
+   "ko": "칸쿤",
+   "en": "Cancun",
+   "q": "Cancún",
+   "alias": [],
+   "cc": "MX",
+   "country": "멕시코",
+   "cur": "MXN",
+   "r": 16
+  },
+  {
+   "id": "mexicocity",
+   "ko": "멕시코시티",
+   "en": "Mexico City",
+   "q": "Ciudad de México",
+   "alias": [],
+   "cc": "MX",
+   "country": "멕시코",
+   "cur": "MXN",
+   "r": 14
+  },
+  {
+   "id": "sydney",
+   "ko": "시드니",
+   "en": "Sydney",
+   "q": "Sydney",
+   "alias": [],
+   "major": true,
+   "cc": "AU",
+   "country": "호주",
+   "cur": "AUD",
+   "r": 14
+  },
+  {
+   "id": "melbourne",
+   "ko": "멜버른",
+   "en": "Melbourne",
+   "q": "Melbourne",
+   "alias": [
+    "멜번"
+   ],
+   "major": true,
+   "cc": "AU",
+   "country": "호주",
+   "cur": "AUD",
+   "r": 13
+  },
+  {
+   "id": "brisbane",
+   "ko": "브리즈번",
+   "en": "Brisbane",
+   "q": "Brisbane",
+   "alias": [],
+   "cc": "AU",
+   "country": "호주",
+   "cur": "AUD",
+   "r": 13
+  },
+  {
+   "id": "goldcoast",
+   "ko": "골드코스트",
+   "en": "Gold Coast",
+   "q": "Gold Coast, Queensland",
+   "alias": [],
+   "major": true,
+   "cc": "AU",
+   "country": "호주",
+   "cur": "AUD",
+   "r": 16
+  },
+  {
+   "id": "cairns",
+   "ko": "케언즈",
+   "en": "Cairns",
+   "q": "Cairns",
+   "alias": [],
+   "cc": "AU",
+   "country": "호주",
+   "cur": "AUD",
+   "r": 16
+  },
+  {
+   "id": "auckland",
+   "ko": "오클랜드",
+   "en": "Auckland",
+   "q": "Auckland",
+   "alias": [],
+   "major": true,
+   "cc": "NZ",
+   "country": "뉴질랜드",
+   "cur": "NZD",
+   "r": 14
+  },
+  {
+   "id": "queenstown",
+   "ko": "퀸스타운",
+   "en": "Queenstown",
+   "q": "Queenstown, New Zealand",
+   "alias": [],
+   "cc": "NZ",
+   "country": "뉴질랜드",
+   "cur": "NZD",
+   "r": 16
+  },
+  {
+   "id": "dubai",
+   "ko": "두바이",
+   "en": "Dubai",
+   "q": "Dubai",
+   "alias": [],
+   "major": true,
+   "cc": "AE",
+   "country": "아랍에미리트",
+   "cur": "AED",
+   "r": 18
+  },
+  {
+   "id": "abudhabi",
+   "ko": "아부다비",
+   "en": "Abu Dhabi",
+   "q": "Abu Dhabi",
+   "alias": [],
+   "cc": "AE",
+   "country": "아랍에미리트",
+   "cur": "AED",
+   "r": 16
+  },
+  {
+   "id": "doha",
+   "ko": "도하",
+   "en": "Doha",
+   "q": "Doha",
+   "alias": [],
+   "major": true,
+   "cc": "QA",
+   "country": "카타르",
+   "cur": "QAR",
+   "r": 14
+  },
+  {
+   "id": "cairo",
+   "ko": "카이로",
+   "en": "Cairo",
+   "q": "القاهرة",
+   "alias": [
+    "Cairo"
+   ],
+   "cc": "EG",
+   "country": "이집트",
+   "cur": "EGP",
+   "r": 16
+  },
+  {
+   "id": "marrakesh",
+   "ko": "마라케시",
+   "en": "Marrakesh",
+   "q": "Marrakesh",
+   "alias": [
+    "마라케쉬"
+   ],
+   "cc": "MA",
+   "country": "모로코",
+   "cur": "MAD",
+   "r": 10
+  },
+  {
+   "id": "capetown",
+   "ko": "케이프타운",
+   "en": "Cape Town",
+   "q": "Cape Town",
+   "alias": [],
+   "cc": "ZA",
+   "country": "남아프리카공화국",
+   "cur": "ZAR",
+   "r": 18
+  },
+  {
+   "id": "vladivostok",
+   "ko": "블라디보스토크",
+   "en": "Vladivostok",
+   "q": "Владивосток",
+   "alias": [
+    "블라디"
+   ],
+   "cc": "RU",
+   "country": "러시아",
+   "cur": "RUB",
+   "r": 13
+  },
+  {
+   "id": "almaty",
+   "ko": "알마티",
+   "en": "Almaty",
+   "q": "Алматы",
+   "alias": [],
+   "cc": "KZ",
+   "country": "카자흐스탄",
+   "cur": "KZT",
+   "r": 14
+  },
+  {
+   "id": "tashkent",
+   "ko": "타슈켄트",
+   "en": "Tashkent",
+   "q": "Toshkent",
+   "alias": [],
+   "cc": "UZ",
+   "country": "우즈베키스탄",
+   "cur": "UZS",
+   "r": 14
+  },
+  {
+   "id": "ulaanbaatar",
+   "ko": "울란바토르",
+   "en": "Ulaanbaatar",
+   "q": "Улаанбаатар",
+   "alias": [],
+   "cc": "MN",
+   "country": "몽골",
+   "cur": "MNT",
+   "r": 14
+  },
+  {
+   "id": "delhi",
+   "ko": "델리",
+   "en": "Delhi",
+   "q": "New Delhi",
+   "alias": [
+    "뉴델리"
+   ],
+   "cc": "IN",
+   "country": "인도",
+   "cur": "INR",
+   "r": 14
+  },
+  {
+   "id": "kathmandu",
+   "ko": "카트만두",
+   "en": "Kathmandu",
+   "q": "Kathmandu",
+   "alias": [],
+   "cc": "NP",
+   "country": "네팔",
+   "cur": "NPR",
+   "r": 12
+  }
+ ]
 }

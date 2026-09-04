@@ -3,6 +3,7 @@ import { Check, Compass, MapPin, Plus } from 'lucide-react';
 import Button from '../../kit/Button';
 import Card from '../../kit/Card';
 import { loadAttractions } from '../../lib/destinations';
+import { josa } from '../../../lib/korean';
 
 // 빈 일정판에 그 도시의 대표 명소를 깔아 준다.
 //
@@ -72,7 +73,7 @@ export default function SuggestedPlaces({
         {/* 추천 목록은 나라별 주요 도시에만 둔다(2026-09-04 쿠마님 방침).
             "준비 중"이라고 하면 곧 생길 것처럼 읽히므로 그렇게 쓰지 않는다. */}
         <p className="break-keep text-sm text-body">
-          {destName ? `${destName}는 ` : '이 도시는 '}추천 목록이 없습니다.
+          {destName ? `${destName}${josa(destName, '은', '는')} ` : '이 도시는 '}추천 목록이 없습니다.
         </p>
         <p className="mt-1 break-keep text-xs text-muted">
           아래 장소 검색이나 링크로 담기로 직접 담아 주세요.

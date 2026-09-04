@@ -12,6 +12,7 @@ import { companionApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
+import { josa } from '../lib/korean';
 
 const regions = [
     { id: 'europe', name: '유럽', icon: '🏰' },
@@ -161,7 +162,7 @@ const RegionalBoard = () => {
                             <span className="text-4xl sm:text-6xl p-2 sm:p-4 bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-gray-100 flex-shrink-0">{region.icon}</span>
                             <div className="min-w-0">
                                 <h1 className="text-xl sm:text-4xl font-black text-gray-900 break-words">{region.name} 지역 동행자 모집</h1>
-                                <p className="text-gray-500 mt-1 sm:mt-2 font-medium text-sm sm:text-base">우리와 함께 {region.name}를 여행할 소중한 인연을 만나보세요.</p>
+                                <p className="text-gray-500 mt-1 sm:mt-2 font-medium text-sm sm:text-base">우리와 함께 {region.name}{josa(region.name, '을', '를')} 여행할 소중한 인연을 만나보세요.</p>
                             </div>
                         </div>
                         <button
