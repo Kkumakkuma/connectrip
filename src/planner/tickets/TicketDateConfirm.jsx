@@ -149,7 +149,7 @@ export default function TicketDateConfirm({
 
       <p className="mt-3 text-xs text-muted">
         적힌 그대로 넣어 주세요. 현지 시각으로 저장하고, 알림은 시차를 계산해서 보냅니다.
-        {tripZone ? '' : ' 여행에 시간대가 없어 알림 계산은 하지 않습니다.'}
+        {tripZone ? '' : ' 담은 장소가 없어 현지 시간대를 몰라 알림 계산은 하지 않습니다.'}
       </p>
       {gap && <p className="mt-1 text-xs text-muted">{gap}</p>}
       {error && <p className="mt-2 text-xs text-warning">{error}</p>}

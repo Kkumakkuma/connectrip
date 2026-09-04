@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatInZone,
+  resolveTripZoneAsync,
+  zoneForCoords,
   isValidTimeZone,
   offsetMsAt,
   resolveTripZone,
@@ -143,5 +145,41 @@ describe('zoneForCountry / resolveTripZone', () => {
     expect(resolveTripZone({ timezone: 'America/Los_Angeles', country: '일본' })).toBe('America/Los_Angeles');
     expect(resolveTripZone({ timezone: null, country: '일본' })).toBe('Asia/Tokyo');
     expect(resolveTripZone({ timezone: 'Not/AZone', country: '미국' })).toBeNull();
+  });
+});
+
+describe('zoneForCoords / resolveTripZoneAsync', () => {
+  it('좌표로 시간대를 찾는다', async () => {
+    expect(await zoneForCoords(35.6812, 139.7671)).toBe('Asia/Tokyo');   // 도쿄역
+    expect(await zoneForCoords(37.5547, 126.9707)).toBe('Asia/Seoul');   // 서울역
+  });
+
+  it('나라 이름으로는 못 맞추던 곳을 좌표로는 맞춘다', async () => {
+    // 발리는 자카르타(WIB +7)가 아니라 WITA(+8). 퍼스는 시드니와 2시간 차.
+    expect(await zoneForCoords(-8.65, 115.216)).toBe('Asia/Makassar');
+    expect(await zoneForCoords(-31.95, 115.86)).toBe('Australia/Perth');
+  });
+
+  it('좌표가 없거나 0,0 이면 null', async () => {
+    expect(await zoneForCoords(null, null)).toBeNull();
+    expect(await zoneForCoords(0, 0)).toBeNull();
+  });
+
+  it('여행에 저장된 타임존이 좌표보다 우선한다', async () => {
+    const zone = await resolveTripZoneAsync(
+      { timezone: 'America/New_York', country: '일본' },
+      [{ lat: 35.6812, lng: 139.7671 }],
+    );
+    expect(zone).toBe('America/New_York');
+  });
+
+  it('저장된 값이 없으면 담은 장소 좌표를 쓴다', async () => {
+    const zone = await resolveTripZoneAsync({ country: '인도네시아' }, [{ lat: -8.65, lng: 115.216 }]);
+    expect(zone).toBe('Asia/Makassar');
+  });
+
+  it('장소가 없으면 나라 이름으로 물러난다', async () => {
+    expect(await resolveTripZoneAsync({ country: '일본' }, [])).toBe('Asia/Tokyo');
+    expect(await resolveTripZoneAsync({ country: '미국' }, [])).toBeNull();
   });
 });

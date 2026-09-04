@@ -8,7 +8,12 @@ import Select from '../kit/Select';
 import { createTrip } from '../api';
 import { daysBetween, todayISO } from '../lib/format';
 
-// /planner/new — 이름·기간·통화·타임존을 받아 planner_create_trip 을 부른다.
+// /planner/new — 이름·기간·통화를 받아 planner_create_trip 을 부른다.
+//
+// 타임존은 묻지 않는다(2026-09-04 쿠마님). 'Asia/Tokyo' 를 고르라고 하는 건 아무도 모른다.
+// 대신 담은 장소의 좌표에서 자동으로 알아낸다(lib/timezone.zoneForCoords).
+// 그 편이 정확하기도 하다 — 발리는 자카르타와 1시간, 퍼스는 시드니와 2시간 차라
+// 나라 이름으로는 못 맞춘다.
 // 생성이 끝나면 날짜 행까지 함께 만들어진 상태라 곧바로 일정판으로 넘긴다.
 
 // DB CHECK 가 3자리 대문자만 받는다(currency ~ '^[A-Z]{3}$').
@@ -29,29 +34,6 @@ const CURRENCIES = [
   { value: 'AUD', label: 'AUD · 호주 달러' },
 ];
 
-// IANA 이름. DB CHECK 가 'Area/City' 형태만 받는다.
-const TIMEZONES = [
-  { value: '', label: '선택 안 함' },
-  { value: 'Asia/Seoul', label: '한국 표준시 (Asia/Seoul)' },
-  { value: 'Asia/Tokyo', label: '일본 (Asia/Tokyo)' },
-  { value: 'Asia/Shanghai', label: '중국 (Asia/Shanghai)' },
-  { value: 'Asia/Hong_Kong', label: '홍콩 (Asia/Hong_Kong)' },
-  { value: 'Asia/Taipei', label: '대만 (Asia/Taipei)' },
-  { value: 'Asia/Bangkok', label: '태국 (Asia/Bangkok)' },
-  { value: 'Asia/Ho_Chi_Minh', label: '베트남 (Asia/Ho_Chi_Minh)' },
-  { value: 'Asia/Singapore', label: '싱가포르 (Asia/Singapore)' },
-  { value: 'Asia/Manila', label: '필리핀 (Asia/Manila)' },
-  { value: 'Asia/Kuala_Lumpur', label: '말레이시아 (Asia/Kuala_Lumpur)' },
-  { value: 'Asia/Jakarta', label: '인도네시아 (Asia/Jakarta)' },
-  { value: 'Asia/Dubai', label: '아랍에미리트 (Asia/Dubai)' },
-  { value: 'Europe/London', label: '영국 (Europe/London)' },
-  { value: 'Europe/Paris', label: '중부 유럽 (Europe/Paris)' },
-  { value: 'America/New_York', label: '미국 동부 (America/New_York)' },
-  { value: 'America/Los_Angeles', label: '미국 서부 (America/Los_Angeles)' },
-  { value: 'Australia/Sydney', label: '호주 동부 (Australia/Sydney)' },
-  { value: 'Pacific/Guam', label: '괌 (Pacific/Guam)' },
-  { value: 'Pacific/Honolulu', label: '하와이 (Pacific/Honolulu)' },
-];
 
 const MAX_SPAN_DAYS = 60; // 여행 기간 상한 = 61일 (DB CHECK 와 같은 값)
 
@@ -63,7 +45,6 @@ export default function TripNew() {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [currency, setCurrency] = useState('KRW');
-  const [timezone, setTimezone] = useState('');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
@@ -94,7 +75,6 @@ export default function TripNew() {
         startDate,
         endDate,
         currency,
-        timezone: timezone || null,
       });
       navigate(`/planner/t/${tripId}`, { replace: true });
     } catch (err) {
@@ -155,13 +135,6 @@ export default function TripNew() {
               options={CURRENCIES}
               hint="예상 비용을 적을 때 쓰는 단위입니다."
               onChange={(e) => setCurrency(e.target.value)}
-            />
-            <Select
-              label="타임존"
-              value={timezone}
-              options={TIMEZONES}
-              hint="달력으로 내보낼 때 쓰입니다. 나중에 바꿀 수 있습니다."
-              onChange={(e) => setTimezone(e.target.value)}
             />
           </div>
 

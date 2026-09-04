@@ -21,7 +21,7 @@ import Switch from '../kit/Switch';
 import { formatDateWithWeekday, todayISO } from '../lib/format';
 import { purgeTicket, readTicket, saveTicket, ticketBytes } from '../lib/offlineStore';
 import { pickTicketDate, parseBcbp } from '../lib/ticketDate';
-import { resolveTripZone, timeZoneGapText } from '../lib/timezone';
+import { resolveTripZoneAsync, timeZoneGapText } from '../lib/timezone';
 import TicketDateConfirm from '../tickets/TicketDateConfirm';
 
 // /planner/t/:tripId/tickets — 티켓 지갑 (설계 §5)
@@ -143,6 +143,9 @@ export default function Tickets() {
     }
   });
   const [offlineBytes, setOfflineBytes] = useState(0);
+  // 알림 계산에 쓸 시간대. 여행에 저장된 값이 없으면 담은 장소 좌표에서 찾는다.
+  // 좌표 판별 데이터는 152KB 라 이 화면에 들어올 때 한 번만 불러온다.
+  const [tripZone, setTripZone] = useState(null);
 
   const pushToast = useCallback((tone, message) => {
     setToasts((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, tone, message }]);
@@ -197,10 +200,12 @@ export default function Tickets() {
     let alive = true;
     (async () => {
       try {
-        const [{ trip: t }, rows] = await Promise.all([getTrip(tripId), listTickets(tripId)]);
+        const [tripData, rows] = await Promise.all([getTrip(tripId), listTickets(tripId)]);
         if (!alive) return;
-        setTrip(t);
+        setTrip(tripData.trip);
         setTickets(rows);
+        const zone = await resolveTripZoneAsync(tripData.trip, tripData.places);
+        if (alive) setTripZone(zone);
       } catch (e) {
         if (alive) pushToast('warning', e?.message || '티켓을 불러오지 못했습니다.');
       } finally {
@@ -212,7 +217,6 @@ export default function Tickets() {
     };
   }, [tripId, pushToast]);
 
-  const tripZone = resolveTripZone(trip);
   const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const handleFile = async (e) => {
@@ -458,7 +462,7 @@ export default function Tickets() {
         </p>
       ) : (
         <p className="mt-5 text-xs text-muted">
-          여행에 시간대가 정해져 있지 않아 알림 시각은 계산하지 않습니다. 여행 설정에서 시간대를 고르면 계산합니다.
+          담은 장소가 없어 현지 시간대를 아직 알 수 없습니다. 일정에 장소를 하나 담으면 그 위치로 자동으로 잡힙니다.
         </p>
       )}
 

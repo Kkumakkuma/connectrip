@@ -200,8 +200,43 @@ export function zoneForCountry(country) {
 /**
  * 알림 계산에 쓸 타임존을 정한다. 우선순위: 여행에 저장된 타임존 → 나라 이름 → null.
  * null 이면 절대 시각을 만들지 않는다(틀린 알림보다 알림 없는 편이 낫다).
+ *
+ * 좌표를 쓸 수 있으면 resolveTripZoneAsync 를 써라 — 훨씬 정확하다.
  */
 export function resolveTripZone(trip) {
   if (isValidTimeZone(trip?.timezone)) return trip.timezone;
+  return zoneForCountry(trip?.country);
+}
+
+/**
+ * 좌표 → IANA 타임존. 오프라인 데이터라 인터넷도 API 키도 필요 없다.
+ * 152KB 라 필요한 순간에만 불러온다(티켓 저장 화면).
+ */
+export async function zoneForCoords(lat, lng) {
+  const a = Number(lat);
+  const b = Number(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  if (a === 0 && b === 0) return null;          // 좌표 미입력 핀
+  try {
+    const mod = await import('tz-lookup');
+    const fn = mod.default || mod;
+    const zone = fn(a, b);
+    return isValidTimeZone(zone) ? zone : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 여행의 타임존을 정한다. 담은 장소가 있으면 그 좌표를 우선한다 —
+ * 나라 이름으로는 발리(자카르타와 1시간 차)·퍼스(시드니와 2시간 차)를 맞출 수 없다.
+ * 우선순위: 저장된 타임존 → 첫 장소 좌표 → 나라 이름 → null.
+ */
+export async function resolveTripZoneAsync(trip, places = []) {
+  if (isValidTimeZone(trip?.timezone)) return trip.timezone;
+  for (const p of places) {
+    const zone = await zoneForCoords(p?.lat, p?.lng);
+    if (zone) return zone;
+  }
   return zoneForCountry(trip?.country);
 }
