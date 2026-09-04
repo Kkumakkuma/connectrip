@@ -133,7 +133,10 @@ export const ROBOTS_DISALLOW = [
 // 사이트맵에 실린 경로 중 정적 HTML 을 굽지 않을 것.
 // ⚠ 사이트맵에 없는 경로를 여기 적어도 **아무 일도 하지 않는다** — prerender-seo.mjs 는
 //   public/sitemap.xml 의 <loc> 만 순회한다. 색인 차단은 ROBOTS_DISALLOW 로 한다.
-export const PRERENDER_EXCLUDED_PATHS = ['/mypage', '/admin', '/crew'];
+// 2026-09-04 현재 비어 있다. 로그인해야 보이는 게시판을 사이트맵에서 통째로 뺐고,
+// /mypage·/admin·/crew 는 애초에 사이트맵에 없어 여기 적어 봐야 아무 일도 하지 않았다.
+// 나중에 "사이트맵에는 있지만 정적 HTML 은 굽지 않을 경로"가 생기면 그때 채운다.
+export const PRERENDER_EXCLUDED_PATHS = [];
 
 // 끝의 슬래시만 다른 경로를 같은 항목으로 취급한다(/companion/ == /companion).
 export function normalizeRoutePath(path) {
