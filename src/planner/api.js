@@ -490,3 +490,122 @@ export async function extractLinkPlaces(url) {
   const out = await callFunction('/api/planner/extract-links', { url });
   return out.candidates || [];
 }
+
+// ---------------------------------------------------------------------------
+// 티켓 지갑
+// ---------------------------------------------------------------------------
+// 파일은 비공개 버킷 planner-tickets 에 <user_id>/<trip_id>/<파일명> 으로 올린다.
+// 경로 3조각은 SQL CHECK 와 스토리지 정책이 함께 강제한다 — 형식을 바꾸면 업로드가 막힌다.
+//
+// event_date/event_time 은 티켓에 적힌 현지 시각 그대로 둔다(표시용).
+// event_at 은 그 시각을 여행 타임존으로 해석한 절대 시각이다(알림용). 타임존을 모르면 넣지 않는다.
+
+const TICKET_COLUMNS =
+  'id, trip_id, user_id, place_id, storage_path, mime, size_bytes, title, kind, event_date, event_time, event_at, barcode_text, barcode_format, created_at, updated_at';
+
+export const TICKET_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+export const TICKET_MAX_BYTES = 15 * 1024 * 1024;
+
+// 파일명은 우리가 만든다. 사용자 파일명을 그대로 쓰면 한글·공백·경로문자가 섞여
+// 스토리지 키가 깨지고, 같은 이름이 겹치면 UNIQUE 제약에 걸린다.
+function storageName(file) {
+  const ext =
+    file.type === 'application/pdf' ? 'pdf'
+    : file.type === 'image/png' ? 'png'
+    : file.type === 'image/webp' ? 'webp'
+    : 'jpg';
+  const rand = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${rand}.${ext}`;
+}
+
+export async function listTickets(tripId) {
+  const { data, error } = await supabase
+    .from('planner_tickets')
+    .select(TICKET_COLUMNS)
+    .eq('trip_id', tripId)
+    // 날짜 없는 티켓(아직 확인 전)은 뒤로 보낸다.
+    .order('event_date', { ascending: true, nullsFirst: false })
+    .order('event_time', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+  if (error) fail(error);
+  return data || [];
+}
+
+/**
+ * 파일을 올리고 티켓 행을 만든다. 날짜는 아직 넣지 않는다 —
+ * 확인 시트를 거친 뒤 updateTicket 으로 채운다(설계 §5.1: 판독 결과 자동 저장 금지).
+ */
+export async function uploadTicket({ tripId, userId, file }) {
+  if (!TICKET_MIME.includes(file?.type)) {
+    throw new PlannerError('사진(JPG·PNG·WebP)이나 PDF만 올릴 수 있습니다.', 'bad mime');
+  }
+  if (!(file.size > 0 && file.size <= TICKET_MAX_BYTES)) {
+    throw new PlannerError('15MB 이하 파일만 올릴 수 있습니다.', 'too large');
+  }
+
+  const path = `${userId}/${tripId}/${storageName(file)}`;
+  // 원본 그대로 올린다. 줄이면 전체화면에서 확대했을 때 바코드가 뭉개진다(설계 §5.3).
+  const { error: upErr } = await supabase.storage
+    .from('planner-tickets')
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) fail(upErr);
+
+  const { data, error } = await supabase
+    .from('planner_tickets')
+    .insert({
+      trip_id: tripId,
+      user_id: userId,
+      storage_path: path,
+      mime: file.type,
+      size_bytes: file.size,
+      title: null,
+    })
+    .select(TICKET_COLUMNS)
+    .single();
+  if (error) {
+    // 행을 못 만들면 올린 파일이 고아가 된다. 바로 지운다.
+    await supabase.storage.from('planner-tickets').remove([path]).catch(() => {});
+    fail(error);
+  }
+  return data;
+}
+
+const TICKET_WRITABLE = ['title', 'kind', 'event_date', 'event_time', 'event_at', 'place_id', 'barcode_text', 'barcode_format'];
+
+export async function updateTicket(ticketId, values) {
+  const patch = {};
+  TICKET_WRITABLE.forEach((k) => {
+    if (values && Object.prototype.hasOwnProperty.call(values, k)) patch[k] = values[k];
+  });
+  if (Object.keys(patch).length === 0) return null;
+  const { data, error } = await supabase
+    .from('planner_tickets')
+    .update(patch)
+    .eq('id', ticketId)
+    .select(TICKET_COLUMNS)
+    .single();
+  if (error) fail(error);
+  return data;
+}
+
+// 행을 지우면 트리거가 스토리지 파일을 삭제 큐에 넣는다(SQL 의 planner_ticket_orphans).
+// 그래서 여기서는 행만 지운다 — 파일을 직접 지우려다 실패하면 오히려 상태가 갈린다.
+export async function deleteTicket(ticketId) {
+  const { error } = await supabase.from('planner_tickets').delete().eq('id', ticketId);
+  if (error) fail(error);
+}
+
+// 비공개 버킷이라 볼 때마다 서명 URL 을 받는다. 기본 10분.
+export async function ticketUrl(storagePath, { expiresIn = 600 } = {}) {
+  const { data, error } = await supabase.storage
+    .from('planner-tickets')
+    .createSignedUrl(storagePath, expiresIn);
+  if (error) fail(error);
+  return data?.signedUrl || null;
+}
+
+export async function downloadTicket(storagePath) {
+  const { data, error } = await supabase.storage.from('planner-tickets').download(storagePath);
+  if (error) fail(error);
+  return data;
+}

@@ -35,3 +35,6 @@ scripts/*
 # GitHub Actions 로 매일 도는 플래너 티켓 고아 파일 스위퍼도 추적 대상이다.
 !scripts/planner_purge_orphans.mjs
 *.code-workspace
+
+# pdf.js 자산(빌드 때 node_modules 에서 복사) — scripts/copy-pdfjs-assets.mjs
+public/pdfjs

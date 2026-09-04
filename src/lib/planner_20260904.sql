@@ -487,6 +487,10 @@ CREATE TABLE IF NOT EXISTS public.planner_tickets (
   kind text CHECK (kind IS NULL OR kind IN ('flight','train','bus','ticket','hotel','other')),
   event_date date,
   event_time time,
+  -- 2026-09-04 추가. 티켓에 적힌 현지 시각(event_date/event_time)은 표시용으로 그대로 두고,
+  -- 알림 계산용 절대 시각을 따로 둔다. 여행 타임존으로 해석해 넣으며, 타임존을 모르면 NULL
+  -- (틀린 시각으로 알림을 보내느니 걸지 않는다). 운영 DB 에도 같은 문장으로 적용했다.
+  event_at timestamptz,
   barcode_text text CHECK (barcode_text IS NULL OR length(barcode_text) <= 2000),
   barcode_format text CHECK (barcode_format IS NULL OR length(barcode_format) <= 30),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -503,6 +507,8 @@ ALTER TABLE public.planner_tickets ADD CONSTRAINT planner_tickets_path_shape CHE
 );
 
 CREATE INDEX IF NOT EXISTS idx_planner_tickets_trip_date ON public.planner_tickets (trip_id, event_date);
+CREATE INDEX IF NOT EXISTS idx_planner_tickets_event_at
+  ON public.planner_tickets (user_id, event_at) WHERE event_at IS NOT NULL;
 ALTER TABLE public.planner_tickets ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.planner_tickets FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.planner_tickets TO authenticated;
