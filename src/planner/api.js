@@ -609,3 +609,26 @@ export async function downloadTicket(storagePath) {
   if (error) fail(error);
   return data;
 }
+
+// ---------------------------------------------------------------------------
+// 장소 후기
+// ---------------------------------------------------------------------------
+// 후기는 "그 장소에 실제로 다녀온 사람"만 쓸 수 있다. 판정은 서버가 한다 —
+// 방문 완료로 표시한 내 핀이 없으면 planner_submit_review 가 거절한다.
+//
+// 같은 장소가 제공자별로 여러 카탈로그 행이 될 수 있어(구글/OSM 병합) 후기는 대표 행(root)에 모인다.
+// 읽을 때도 대표 행을 먼저 구해서 그 아래를 통째로 본다.
+
+export async function listReviews(catalogId) {
+  if (!catalogId) return [];
+  const { data: root, error: rootErr } = await supabase.rpc('planner_catalog_root', { p_catalog_id: catalogId });
+  if (rootErr || !root) return [];
+  const { data, error } = await supabase
+    .from('planner_place_reviews')
+    .select('id, catalog_id, user_id, rating, body, recommended_menu, visited_on, author_name, created_at')
+    .eq('catalog_id', root)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) fail(error);
+  return data || [];
+}

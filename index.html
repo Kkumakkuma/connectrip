@@ -102,14 +102,24 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
   <script>
-    // Force unregister old service workers and clear caches on version change
-    // (앱(Capacitor)에서는 스테일 번들 캐시 위험이 있어 서비스워커 코드를 실행하지 않는다)
+    // 오래된 서비스워커·캐시 정리. 스테일 번들이 남는 것을 막는 장치다.
+    // (앱(Capacitor)에서는 실행하지 않는다.)
+    //
+    // 2026-09-04: 전면 제거에서 **스코프 필터**로 바꿨다. 플래너는 /planner 스코프 전용
+    // 서비스워커를 쓰는데(티켓 지갑 오프라인), 여기서 전부 지우면 매 로드마다
+    // 등록→해제가 반복돼 캐시가 계속 날아간다. 이 인라인 스크립트는 defer module 보다
+    // 먼저 도는 탓에 필터가 없으면 등록 자체가 의미를 잃는다.
     if ('serviceWorker' in navigator && !window.Capacitor?.isNativePlatform?.()) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        registrations.forEach(function(reg) { reg.unregister(); });
+        registrations.forEach(function(reg) {
+          var scope = (reg.scope || '');
+          if (scope.indexOf('/planner') === -1) reg.unregister();
+        });
       });
       caches.keys().then(function(names) {
-        names.forEach(function(name) { caches.delete(name); });
+        names.forEach(function(name) {
+          if (name.indexOf('ct-planner-') !== 0) caches.delete(name);
+        });
       });
     }
   </script>

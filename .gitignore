@@ -38,3 +38,4 @@ scripts/*
 
 # pdf.js 자산(빌드 때 node_modules 에서 복사) — scripts/copy-pdfjs-assets.mjs
 public/pdfjs
+public/planner-sw.js

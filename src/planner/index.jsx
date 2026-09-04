@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Routes, Route, Outlet, Link, Navigate, useLocation } from 'react-router-dom';
 import { Map } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -13,6 +14,7 @@ import ImportView from './screens/ImportView';
 import PlannerMissing from './screens/PlannerMissing';
 import KitPreview from './KitPreview';
 import './planner.css';
+import { registerOfflineSW } from './registerOfflineSW';
 
 // 여행 플래너 셸. vite.config.js 의 '@planner' alias 가 가리키는 진입점이며,
 // App.jsx 가 /planner/* 아래에 통째로 마운트한다(플래그가 켜졌을 때만).
@@ -48,6 +50,13 @@ function RequireAuth({ children }) {
 // ⚠ 이 컨테이너와 조상에는 transform/filter 를 걸지 않는다 — 바텀시트가 position:fixed 로
 //    화면 전체를 덮는 것이 그 조건에 달려 있다.
 function PlannerLayout() {
+  // 플래너에 들어온 순간 한 번만 등록한다. 티켓 지갑을 오프라인에서 열려면
+  // 문서(HTML)와 번들이 캐시에 있어야 한다 — 그게 없으면 IndexedDB 에 저장해 둔
+  // 티켓까지 도달할 수가 없다.
+  useEffect(() => {
+    registerOfflineSW();
+  }, []);
+
   return (
     <div className="ct-planner min-h-screen bg-canvas pt-20">
       <div className="border-b border-hairline">

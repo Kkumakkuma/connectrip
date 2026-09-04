@@ -34,6 +34,11 @@ export default defineConfig(({ mode }) => {
         '@planner': plannerOn
           ? r('./src/planner/index.jsx')
           : r('./src/planner/planner.disabled.jsx'),
+        // 오프라인 저장 정리만 따로 가른다. AuthContext(앱 셸)가 부르는데, 플래너 진입점을
+        // 통째로 물리면 웹에서도 로그인할 때마다 플래너 청크가 딸려 온다.
+        '@planner-offline': plannerOn
+          ? r('./src/planner/lib/offlineStore.js')
+          : r('./src/planner/offline.disabled.js'),
       },
     },
     server: {

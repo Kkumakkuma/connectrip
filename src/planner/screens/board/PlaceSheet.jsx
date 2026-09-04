@@ -7,10 +7,11 @@ import Sheet from '../../kit/Sheet';
 import Switch from '../../kit/Switch';
 import Textarea from '../../kit/Textarea';
 import { UNASSIGNED_ID } from './DayTabs';
+import PlaceReviews from './PlaceReviews';
 
 // 핀 상세. 설계 §1.1 대로 페이지가 아니라 바텀시트로 연다.
-// 후기(평점·추천 메뉴)는 장소 카탈로그에 연결된 핀에서만 쓸 수 있어 이번 범위에 넣지 않았다
-// — 카탈로그 행은 장소 검색·링크로 담기에서 생기고, 그 두 경로가 아직 서버리스 함수를 기다린다.
+// 후기는 장소 카탈로그에 연결된 핀(장소 검색·링크로 담기로 담은 핀)에서만 쓸 수 있다.
+// 지도 롱프레스로 찍은 수동 핀은 같은 장소인지 판정할 근거가 없어 후기를 붙이지 않는다.
 
 const MAX_NOTE = 2000;
 const MAX_STAY = 1440;
@@ -171,6 +172,8 @@ export default function PlaceSheet({
             {error}
           </p>
         )}
+
+        <PlaceReviews place={place} visited={visited} />
 
         <div className="border-t border-hairline pt-4">
           <Button

@@ -238,12 +238,23 @@ export const AuthProvider = ({ children }) => {
         setUser(session?.user ?? null);
         if (session?.user) {
           runProfileFetch(session.user.id);
+          // 로그인 성공: 기기에 남은 이전 계정 사본과 만료분을 청소한다(플래너 오프라인 저장).
+          // 동적 import 다 — 정적으로 끌어오면 플래너 코드가 앱 번들에 딸려 들어온다.
+          import('@planner-offline')
+            .then((m) => m.sweep(session.user.id))
+            .catch(() => {});
         } else {
           // 로그아웃: 진행 중이던 프로필 응답이 뒤늦게 도착해도 무시되도록 id 를 올린다.
           invalidateProfileRequests();
           setProfile(null);
           setProfileLoading(false);
           setProfileError(false);
+          // 세션이 끊긴 모든 경우(로그아웃·토큰 만료·갱신 실패)가 여기로 온다.
+          // 기기에 남은 여행 사본과 티켓 원본을 통째로 지운다. 티켓은 예약 조회가 가능한
+          // 자격증명이라 세션이 없는 기기에 남겨 두지 않는다.
+          import('@planner-offline')
+            .then((m) => m.purgeAll())
+            .catch(() => {});
         }
         setLoading(false);
       }
