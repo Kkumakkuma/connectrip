@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { ITINERARY_ENABLED } from './featureFlags';
 
 // ============================================================
 // 게시판 목록 조회 상한
@@ -493,12 +494,13 @@ const KEYWORD_BOARDS = [
   { table: 'destinations', path: '/recommend', type: 'destinations' },
   // author_name 포함은 의도적이다 — 기존 5개 보드가 전부 author_name 을 매칭 대상으로 삼고
   // 있어서(KEYWORD_SKIP_FIELDS 에도 없다) 여기서만 빼면 보드별 매칭 범위가 갈라진다.
-  {
+  // 게시판이 닫혀 있는 동안은 대상에서 뺀다 — 알림을 눌러도 NotFound 로 떨어진다.
+  ...(ITINERARY_ENABLED ? [{
     table: 'itinerary_posts',
     path: '/itinerary',
     type: 'itinerary',
     select: 'id,created_at,title,content,author_name,country',
-  },
+  }] : []),
 ];
 
 // 매칭에서 제외할 비텍스트/식별자 성격 컬럼 (오탐 방지)

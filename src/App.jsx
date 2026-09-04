@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import PayTest from './pages/PayTest'; // 빌드플래그 false 시 트리셰이킹으로 프로덕션 번들에서 제거됨
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/AuthContext';
-import { PAYMENTS_ENABLED, PLANNER_ENABLED } from './lib/featureFlags';
+import { PAYMENTS_ENABLED, PLANNER_ENABLED, ITINERARY_ENABLED } from './lib/featureFlags';
 import { keywordsApi, keywordAlertsApi, notificationPrefsApi } from './lib/db';
 import { supabase } from './lib/supabase';
 import Navbar from './components/Navbar';
@@ -253,8 +253,12 @@ function App() {
               <Route path="/signup/complete" element={<SignupComplete />} />
               <Route path="/companion" element={<CompanionBoard />} />
               <Route path="/companion/:regionId" element={<RegionalBoard />} />
-              <Route path="/itinerary" element={<ItineraryBoard />} />
-              <Route path="/itinerary/:postId" element={<ItineraryPost />} />
+              {ITINERARY_ENABLED && (
+                <Route path="/itinerary" element={<ItineraryBoard />} />
+              )}
+              {ITINERARY_ENABLED && (
+                <Route path="/itinerary/:postId" element={<ItineraryPost />} />
+              )}
               <Route path="/qna" element={<div className="py-20"><TravelQnA /></div>} />
               <Route path="/market" element={<div className="py-20"><MarketBoard /></div>} />
               <Route path="/crew" element={<div className="py-20"><CrewOnly /></div>} />

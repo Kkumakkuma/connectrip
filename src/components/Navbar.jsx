@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell';
 import SearchBar from './SearchBar';
+import { ITINERARY_ENABLED } from '../lib/featureFlags';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -60,7 +61,7 @@ const Navbar = () => {
       { name: '🦘 오세아니아', to: '/recommend/oceania' },
     ]},
     // 여행 일정 게시판은 하위 분류가 없다(sub 없이 링크 하나).
-    { name: '여행 일정', to: '/itinerary' },
+    ...(ITINERARY_ENABLED ? [{ name: '여행 일정', to: '/itinerary' }] : []),
     ...(isCrew ? [{ name: 'CREW 전용', to: '/crew', sub: [
       { name: '💬 자유게시판', to: '/crew?tab=free' },
       { name: '✈️ 레이오버 정보', to: '/crew?tab=layover' },

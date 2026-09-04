@@ -78,13 +78,15 @@ export const ROUTE_META = {
     description:
       '승무원들이 직접 추천하는 전 세계 여행지. 유럽, 미주, 동남아 등 지역별 숨은 명소와 핫플레이스를 만나보세요.',
   },
+  // 여행 일정 게시판은 ITINERARY_ENABLED 가 꺼져 있는 동안 라우트가 없다(2026-09-04).
+  // 프리렌더는 사이트맵을 따라가므로 사이트맵에서 빼는 것으로 굽기가 멈추지만,
+  // 문구는 다시 열 때 그대로 쓰려고 남겨 둔다. 켤 때: 아래 주석 해제 + 사이트맵 복구.
   // 글 단위 경로(/itinerary/:postId)는 사이트맵에 없어 프리렌더 대상이 아니다.
-  // 목록만 정적 HTML 로 굽고, 글 문구는 화면의 SEOHead 가 채운다.
-  '/itinerary': {
-    title: '여행 일정 - ConnectTrip',
-    description:
-      '여행자들이 직접 짠 날짜별 여행 일정을 살펴보고, 마음에 드는 일정을 내 플래너로 가져오세요.',
-  },
+  // '/itinerary': {
+  //   title: '여행 일정 - ConnectTrip',
+  //   description:
+  //     '여행자들이 직접 짠 날짜별 여행 일정을 살펴보고, 마음에 드는 일정을 내 플래너로 가져오세요.',
+  // },
   '/search': {
     title: '검색 결과 - ConnectTrip',
     description: 'ConnectTrip에서 동행, 장터, Q&A, 승무원 게시판을 통합 검색하세요.',

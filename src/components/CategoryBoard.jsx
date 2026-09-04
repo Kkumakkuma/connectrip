@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
+import { ITINERARY_ENABLED } from './../lib/featureFlags';
 
 // 카드 자체를 앵커(<a href>)로 만든다 — 크롤러가 따라갈 내부 링크가 생기고
 // 별도 tabIndex 없이도 키보드 포커스·Enter 이동이 된다.
@@ -49,14 +50,14 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
             image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800&auto=format&fit=crop',
             path: '/recommend'
         },
-        {
+        ...(ITINERARY_ENABLED ? [{
             id: 'itinerary',
             name: '여행 일정',
             desc: '다른 여행자가 짠 날짜별 동선을 보고, 마음에 들면 내 플래너로 가져올 수 있습니다.',
             crewComment: '레이오버 하루 동선을 그대로 옮겨 담을 수 있어요.',
             image: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=800&auto=format&fit=crop',
             path: '/itinerary'
-        },
+        }] : []),
         {
             id: 'crew',
             name: 'CREW 전용',

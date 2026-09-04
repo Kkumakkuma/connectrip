@@ -21,3 +21,10 @@ export const PAYMENTS_ENABLED = import.meta.env.VITE_PAYMENTS_ENABLED === 'true'
 //   삼항 안에 넣고(PLANNER_ENABLED ? lazy(...) : null), alias 는 OFF 일 때 빈 스텁을 가리킨다.
 //   켤 때: Vercel 에 VITE_PLANNER_ENABLED=true(빌드) + PLANNER_ENABLED=true(서버리스) 를 넣고 재배포.
 export const PLANNER_ENABLED = import.meta.env.VITE_PLANNER_ENABLED === 'true';
+
+// ITINERARY_ENABLED — "여행 일정" 게시판(/itinerary). 플래너와 별개 플래그인 이유는
+//   앱 빌드가 PLANNER_ENABLED=false 인데도 게시판은 실어야 하기 때문이다(8889 통합안).
+//   2026-09-04 쿠마님 지시로 지금은 양쪽 다 꺼 둔다 — 플래너 없이 게시판만 열면 글을 올릴
+//   경로가 없어 빈 게시판이 된다. 플래너 완성 시 웹은 둘 다, 앱은 이 플래그만 켠다.
+//   켤 때: Vercel 에 VITE_ITINERARY_ENABLED=true, 앱은 .env.app 에 같은 값.
+export const ITINERARY_ENABLED = import.meta.env.VITE_ITINERARY_ENABLED === 'true';
