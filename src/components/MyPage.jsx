@@ -8,6 +8,7 @@ import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings, Gift, Copy, Share2, UserX } from 'lucide-react';
 import KeywordSettings from './KeywordSettings';
+import CrewVerification from './CrewVerification';
 import CommendationMatching from './CommendationMatching';
 import FlightCompanions from './FlightCompanions';
 import BlockedUsers from './BlockedUsers';
@@ -33,6 +34,25 @@ const MyPage = () => {
         if (!tab) return;
         const allowed = ['commendation', 'companions', 'keywords', 'blocks'];
         setActiveTab(allowed.includes(tab) ? tab : 'commendation');
+    }, [location]);
+
+    // 전역 배너의 '갱신하기'(/mypage#crew-renewal)로 들어오면 승무원 인증 섹션으로 내려준다.
+    // MyPage 는 lazy 라우트라 브라우저 기본 앵커 이동이 걸리지 않는다 — 렌더 후 직접 스크롤한다.
+    // 섹션은 프로필(user_type)이 도착해야 마운트되므로 한 번만 찾지 말고 잠깐 기다렸다 다시 본다.
+    useEffect(() => {
+        if (location.hash !== '#crew-renewal') return;
+        let tries = 0;
+        const timer = setInterval(() => {
+            const el = document.getElementById('crew-renewal');
+            tries += 1;
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                clearInterval(timer);
+            } else if (tries >= 20) { // 최대 약 3초
+                clearInterval(timer);
+            }
+        }, 150);
+        return () => clearInterval(timer);
     }, [location]);
 
     // 승무원 추천코드 + 초대링크
@@ -673,6 +693,9 @@ const MyPage = () => {
                             <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '150px', height: '150px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }} />
                         </motion.div>
                     )}
+
+                    {/* 승무원 인증 (상태 + 1년 갱신) — 승무원 계정에만 */}
+                    {isCrew && <CrewVerification />}
 
                     {/* 최근 포인트 내역 (잔액 카드 바로 아래) */}
                     <motion.div

@@ -10,6 +10,7 @@ import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
 import ReportButton from './ReportButton';
 import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
+import { crewVerificationStatus } from '../lib/crewVerification';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
 
@@ -92,8 +93,11 @@ const Destinations = () => {
     const location = useLocation();
     const { user, profile, isLoggedIn, isCrew, profileLoading } = useAuth();
     // 승무원 추천지 = 인증 승무원 전용 작성. 일반 회원은 읽기만 가능.
-    // DB RLS(destinations INSERT) 와 동일 조건: user_type='crew' AND crew_verified
-    const canWrite = isLoggedIn && isCrew && !!profile?.crew_verified;
+    // 바탕은 DB RLS(destinations INSERT)와 같은 조건: user_type='crew' AND crew_verified.
+    // 거기에 만료 판정을 하나 더 건다 — DB 플래그는 매일 새벽 cron 이 내리므로 만료 시각부터
+    // 그때까지는 crew_verified 가 아직 true 다. 만료됐다고 안내하면서 글쓰기를 열어 두지 않는다.
+    const crewExpired = isLoggedIn && isCrew && crewVerificationStatus(profile).state === 'expired';
+    const canWrite = isLoggedIn && isCrew && !!profile?.crew_verified && !crewExpired;
     const selectedRegion = regionId ? regions.find(r => r.id === regionId) : null;
     const [showModal, setShowModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -261,8 +265,15 @@ const Destinations = () => {
                                             <Plus size={20} /> 명소 추천하기
                                         </button>
                                     ) : isLoggedIn && profileLoading ? null : (
-                                        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-gray-100 text-gray-500 text-sm font-semibold whitespace-nowrap">
-                                            <Lock size={16} aria-hidden="true" /> 인증 승무원만 작성할 수 있습니다
+                                        <div className="flex flex-col items-end gap-1">
+                                            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-gray-100 text-gray-500 text-sm font-semibold whitespace-nowrap">
+                                                <Lock size={16} aria-hidden="true" /> 인증 승무원만 작성할 수 있습니다
+                                            </div>
+                                            {crewExpired && (
+                                                <Link to="/mypage#crew-renewal" className="text-xs font-semibold text-red-600 hover:underline text-right">
+                                                    승무원 인증이 만료되었습니다. 마이페이지에서 갱신하세요
+                                                </Link>
+                                            )}
                                         </div>
                                     )}
                                 </div>
