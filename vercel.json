@@ -89,5 +89,11 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/planner/purge",
+      "schedule": "35 17 * * *"
+    }
   ]
 }

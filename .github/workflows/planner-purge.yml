@@ -1,8 +1,10 @@
 name: Planner Orphan Purge
 
-# 플래너 티켓 고아 파일 정리(하루 1회).
+# 플래너 티켓 고아 파일 정리 — 수동 실행 전용(workflow_dispatch).
 # 회원 탈퇴·여행 삭제·티켓 삭제로 planner_tickets 행이 지워지면 DB 트리거가 저장 경로를
-# planner_orphan_objects 큐에 넣는다. 이 워크플로가 그 큐를 비워 Storage 실파일까지 지운다.
+# planner_orphan_objects 큐에 넣는다. 매일 비우는 운영 경로는 서버리스 /api/planner/purge
+# (Supabase pg_cron 이 Vault 토큰으로 호출)이고, 이 워크플로는 같은 로직을 손으로 돌릴 때만 쓴다.
+# 예전엔 여기 schedule 이 있었지만 시크릿이 없어 매일 skip 하면서 초록 성공만 찍혔다(2026-09-05 제거).
 #
 # 필요한 시크릿(레포 Settings → Secrets and variables → Actions):
 #   SUPABASE_URL                  (Supabase 키핑얼라이브 워크플로와 같은 값, 이미 등록돼 있음)
@@ -10,8 +12,6 @@ name: Planner Orphan Purge
 # 시크릿이 비어 있으면 스크립트가 스스로 skip 하고 성공으로 끝난다(등록 전 매일 빨간불 방지).
 
 on:
-  schedule:
-    - cron: '35 17 * * *' # 매일 02:35 KST (17:35 UTC)
   workflow_dispatch:
     inputs:
       dry_run:
