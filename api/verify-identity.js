@@ -96,9 +96,9 @@ export default async function handler(req, res) {
 
     const body = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
     const id = str(body.identityVerificationId);
-    // 증빙 용도: 가입(signup_identity) 또는 비밀번호 찾기(password_reset). 허용 밖은 400.
+    // 증빙 용도: 가입(signup_identity)·비밀번호 찾기(password_reset)·아이디 찾기(find_id). 허용 밖은 400.
     const purpose = body.purpose === undefined ? 'signup_identity' : String(body.purpose);
-    if (!['signup_identity', 'password_reset'].includes(purpose)) {
+    if (!['signup_identity', 'password_reset', 'find_id'].includes(purpose)) {
       return fail(res, 400, 'BAD_PURPOSE', '본인확인 용도가 올바르지 않습니다.');
     }
     if (!ID_RE.test(id)) {
