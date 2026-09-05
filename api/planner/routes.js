@@ -70,16 +70,26 @@ async function googleRoute(from, to, mode) {
         ...(mode === 'DRIVE' ? { routingPreference: 'TRAFFIC_UNAWARE' } : {}),
       }),
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      // 실패 이유를 남긴다(9/5 운영 실측: TRANSIT 만 조용히 추정치로 떨어져 원인을 알 수 없었다). 키는 로그에 안 남는다.
+      let detail = '';
+      try { detail = (await resp.text()).slice(0, 300); } catch { /* ignore */ }
+      console.error('[planner/routes] google', resp.status, mode, detail);
+      return null;
+    }
     const data = await resp.json();
     const route = data?.routes?.[0];
-    if (!route) return null;
+    if (!route) {
+      console.warn('[planner/routes] google no route', mode, JSON.stringify(data).slice(0, 200));
+      return null;
+    }
     // duration 은 "123s" 형태다.
     const seconds = Number(String(route.duration || '').replace(/s$/, ''));
     const meters = Number(route.distanceMeters);
     if (!Number.isFinite(seconds) || !Number.isFinite(meters)) return null;
     return { mode, duration_s: Math.round(seconds), distance_m: Math.round(meters), source: 'google' };
-  } catch {
+  } catch (e) {
+    console.error('[planner/routes] google fetch failed', mode, e?.name || '', String(e?.message || '').slice(0, 120));
     return null;
   }
 }
