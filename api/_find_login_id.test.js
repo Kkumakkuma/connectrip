@@ -20,7 +20,7 @@ function fakeSupabase(calls, { rows = [], rpcError = null } = {}) {
 async function load(supabase) {
   vi.resetModules();
   vi.doMock('@supabase/supabase-js', () => ({ createClient: () => supabase }));
-  return (await import('./find-login-id.js')).default;
+  return (await import('./_account_find_login_id.js')).default;
 }
 let savedEnv;
 beforeEach(() => { savedEnv = { ...process.env }; Object.assign(process.env, { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sk' }); });

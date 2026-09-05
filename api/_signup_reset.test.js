@@ -196,7 +196,7 @@ describe('POST /api/reset-password-confirm (아이디 + PASS 증빙)', () => {
 
   it('증빙 CI 가 계정 CI 와 일치하면 비밀번호 변경 + 세션 폐기', async () => {
     const calls = newCalls();
-    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' }, reset: 'ok' }));
+    const handler = await load('./_account_reset_password.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' }, reset: 'ok' }));
     const res = mockRes();
     await handler(post(body), res);
     expect(res.statusCode).toBe(200);
@@ -213,7 +213,7 @@ describe('POST /api/reset-password-confirm (아이디 + PASS 증빙)', () => {
       [{ contact: { user_id: 'u1', email: 'x@y.com' }, reset: 'proof_invalid' }, 401, 'IDENTITY_PROOF_INVALID'],
     ]) {
       const calls = newCalls();
-      const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, opts));
+      const handler = await load('./_account_reset_password.js', fakeSupabase(calls, opts));
       const res = mockRes();
       await handler(post(body), res);
       expect(res.statusCode, code).toBe(status);
@@ -221,14 +221,14 @@ describe('POST /api/reset-password-confirm (아이디 + PASS 증빙)', () => {
       expect(calls.updated, code).toHaveLength(0);
     }
     // 없는 아이디와 불일치의 응답 본문이 완전히 같다(존재 여부 비노출)
-    const a = mockRes(); await (await load('./reset-password-confirm.js', fakeSupabase(newCalls(), { contact: undefined })))(post(body), a);
-    const b = mockRes(); await (await load('./reset-password-confirm.js', fakeSupabase(newCalls(), { contact: { user_id: 'u1', email: 'x@y.com' }, reset: 'mismatch' })))(post(body), b);
+    const a = mockRes(); await (await load('./_account_reset_password.js', fakeSupabase(newCalls(), { contact: undefined })))(post(body), a);
+    const b = mockRes(); await (await load('./_account_reset_password.js', fakeSupabase(newCalls(), { contact: { user_id: 'u1', email: 'x@y.com' }, reset: 'mismatch' })))(post(body), b);
     expect(a.body).toEqual(b.body);
   });
 
   it('비밀번호 변경 실패는 500 + 일반 문구, 세션 폐기 실패는 재시도 후 200', async () => {
     let calls = newCalls();
-    let handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, updateError: { message: 'auth down' } }));
+    let handler = await load('./_account_reset_password.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, updateError: { message: 'auth down' } }));
     let res = mockRes();
     await handler(post(body), res);
     expect(res.statusCode).toBe(500);
@@ -236,7 +236,7 @@ describe('POST /api/reset-password-confirm (아이디 + PASS 증빙)', () => {
     expect(calls.rpcs.find((r) => r.name === 'revoke_user_sessions')).toBeUndefined();
 
     calls = newCalls();
-    handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, revokeError: { message: 'boom' } }));
+    handler = await load('./_account_reset_password.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, revokeError: { message: 'boom' } }));
     res = mockRes();
     await handler(post(body), res);
     expect(res.statusCode).toBe(200);
@@ -250,7 +250,7 @@ describe('POST /api/reset-password-confirm (아이디 + PASS 증빙)', () => {
       [{ ...body, login_id: 'a b' }, 400, 'LOGIN_ID_INVALID'],
     ]) {
       const calls = newCalls();
-      const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' } }));
+      const handler = await load('./_account_reset_password.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' } }));
       const res = mockRes();
       await handler(post(b2), res);
       expect(res.statusCode, code).toBe(status);

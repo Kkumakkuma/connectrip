@@ -14,6 +14,14 @@
   ],
   "rewrites": [
     {
+      "source": "/api/reset-password-confirm",
+      "destination": "/api/account?action=reset-password"
+    },
+    {
+      "source": "/api/find-login-id",
+      "destination": "/api/account?action=find-id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
