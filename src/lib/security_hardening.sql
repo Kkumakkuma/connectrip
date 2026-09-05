@@ -510,6 +510,12 @@ DROP FUNCTION IF EXISTS public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,
 -- 5-6b. OTP 검증 + 소비토큰 발급 (서버리스 verify API 전용, service_role 로만 호출)
 --   기존 API 는 "조회 후 별도 UPDATE" 라 동시 검증 시 마지막 토큰만 남아 정상 사용자가
 --   못 쓰는 토큰을 받을 수 있었다. 검증과 토큰 기록을 한 트랜잭션으로 묶는다.
+--
+--   ⛔ 2026-09-05 이후 이 정의는 낡았다 — src/lib/otp_hash_20260905.sql 의 6인자 버전이 최신이다.
+--      (OTP 를 평문이 아니라 HMAC 해시로 비교한다)
+--      이 파일을 통째로 재실행하면 아래 5인자 함수가 되살아나 6인자 함수와 공존하고,
+--      이름 붙인 인자 호출이 "function is not unique" 로 모호해져 인증이 전부 막힌다.
+--      부득이 재실행할 때는 반드시 뒤이어 otp_hash_20260905.sql 을 다시 실행할 것.
 CREATE OR REPLACE FUNCTION public.verify_otp_and_issue_token(
   p_kind TEXT, p_subject TEXT, p_code TEXT, p_token_hash TEXT, p_purpose TEXT DEFAULT 'generic'
 ) RETURNS TEXT

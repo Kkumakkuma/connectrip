@@ -964,17 +964,25 @@ export const userBlockApi = {
 // Admin API (관리자)
 // ============================================================
 
+// 관리자 회원 목록에서 실제로 화면에 그리는 컬럼(src/pages/Admin.jsx '회원 관리' 탭 실측:
+// 이름·이메일·회원유형·포인트·가입일·차단여부·권한 + 행 조작용 id).
+// ⚠ select('*') 로 되돌리지 말 것 — 화면에 쓰지도 않는 개인정보(전화·주소·항공사 이메일 등)까지
+//   브라우저로 내려보내게 되고, 관리자 PC 하나가 털리면 그게 그대로 유출 범위가 된다.
+//   PII 암호화 컬럼(phone_enc/phone_hash/name_enc/addr_*_enc/pii_key_version)은 클라이언트 롤에
+//   SELECT 권한 자체가 없으므로(src/lib/pii_encryption_20260905.sql) 절대 넣지 않는다.
+const ADMIN_PROFILE_COLUMNS = 'id, name, email, user_type, points_balance, created_at, is_banned, role';
+
 export const adminApi = {
   async getAllProfiles() {
     // admin_list_profiles RPC 우선 (profiles SELECT 컬럼 잠금 대비).
-    // 전환기 폴백: profiles 잠금 SQL 적용 후 select('*') 폴백은 제거 가능.
+    // 전환기 폴백: profiles 잠금 SQL 적용 후 아래 직접 조회 폴백은 제거 가능.
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_list_profiles');
       if (!rpcError && rpcData) return rpcData;
     } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(ADMIN_PROFILE_COLUMNS)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data;
