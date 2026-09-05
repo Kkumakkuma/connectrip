@@ -6,7 +6,7 @@ export const AIRLINE_DOMAINS = {
   'airbusan.com': { name: '에어부산', nameEn: 'Air Busan', logo: '🔵', logoSrc: '/airlines/airbusan.png' },
   'flyairseoul.com': { name: '에어서울', nameEn: 'Air Seoul', logo: '🟡', logoSrc: '/airlines/flyairseoul.png' },
   'air-incheon.com': { name: '에어인천', nameEn: 'Air Incheon', logo: '✈️', logoSrc: '/airlines/air-incheon.png' },
-  'twayair.com': { name: '티웨이항공', nameEn: "T'way Air", logo: '🔴', logoSrc: '/airlines/twayair.png' },
+  'trinityairways.com': { name: '트리니티항공', nameEn: 'Trinity Airways', logo: '🔻', logoSrc: '/airlines/trinityairways.png' }, // 2026-09 티웨이항공에서 사명 변경
   'jejuair.net': { name: '제주항공', nameEn: 'Jeju Air', logo: '🍊', logoSrc: '/airlines/jejuair.png' },
   'airpremia.com': { name: '에어프레미아', nameEn: 'Air Premia', logo: '💜', logoSrc: '/airlines/airpremia.png' },
   'aerok.com': { name: '에어로케이', nameEn: 'Aero K', logo: '🅰️', logoSrc: '/airlines/aerok.png' },
