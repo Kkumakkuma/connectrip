@@ -7,8 +7,8 @@
 --       서버(api/signup.js, service_role)가 증빙을 확인한 뒤 auth.admin.createUser 로 한다 — 클라이언트 signUp 을
 --       그대로 두면 누구나 남의 아이디의 합성 주소를 먼저 만들어 선점할 수 있다(codex 치명 지적).
 --       OAuth(구글) 가입자는 Auth email 이 실제 구글 주소이고 /signup/complete 에서 아이디를 정한다.
--- 비밀번호 찾기: 아이디 → 연락 이메일로 인증번호(password_resets 챌린지, user_id 결합·원자 소비·5회 제한)
---       → 서버가 auth.admin.updateUserById + 전체 세션 폐기.
+-- 비밀번호 찾기: 아이디 + PASS 본인확인(purpose 'password_reset') → CI 가 계정의 CI 와 일치하면
+--       서버가 auth.admin.updateUserById + 전체 세션 폐기(revoke_user_sessions). 이메일 인증번호 방식 없음.
 -- 적용 순서: 1) 이 파일(DB) → 2) 서버 API + 클라이언트 배포 → 3) 시험 계정 3개 이행(맨 아래 §7, 계정별로
 --       로그인 확인) → 4) 안정화 후 구 recovery 라우트 정리.
 
@@ -332,7 +332,7 @@ $$;
 REVOKE ALL ON FUNCTION public.complete_signup_profile_admin(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.complete_signup_profile_admin(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT) TO service_role;
 
--- 아이디로 연락 이메일 조회(service_role 전용, 비밀번호 찾기 발송용). 없으면 NULL.
+-- 아이디로 계정·연락 이메일 조회(service_role 전용, 비밀번호 찾기용). 없으면 빈 결과.
 CREATE OR REPLACE FUNCTION public.login_id_contact(p_login_id TEXT)
 RETURNS TABLE (user_id UUID, email TEXT)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
@@ -342,120 +342,44 @@ REVOKE ALL ON FUNCTION public.login_id_contact(TEXT) FROM PUBLIC, anon, authenti
 GRANT EXECUTE ON FUNCTION public.login_id_contact(TEXT) TO service_role;
 
 -- ----------------------------------------------------------------------------------------
--- 4. 비밀번호 찾기 챌린지: user_id 에 결합, 원자 소비, 5회 제한, 새 코드 발급 시 이전 코드 무효
+-- 4. 비밀번호 찾기 = 아이디 + PASS 본인확인 (쿠마님 확정 2026-09-05 13:17). 이메일 인증번호 방식은 쓰지 않는다.
+--    api/verify-identity.js 가 purpose='password_reset' 로 증빙을 남기면, 서버가 아이디로 계정을 찾고
+--    이 RPC 로 "증빙의 CI == 그 계정의 CI(profiles_identity)" 를 원자적으로 확인·소비한다.
+--    회사 메일을 잃은 승무원도 PASS 만 되면 비밀번호를 되찾는다.
 -- ----------------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.password_resets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  code_hash TEXT NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  attempts INT NOT NULL DEFAULT 0,
-  verified_at TIMESTAMPTZ,   -- 코드 일치 확인 시각(비밀번호 변경 진행 중 잠금). 변경 성공 후 consumed_at.
-  consumed_at TIMESTAMPTZ,
-  ip_address TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-ALTER TABLE public.password_resets ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
-CREATE INDEX IF NOT EXISTS idx_password_resets_user_open ON public.password_resets (user_id, created_at DESC) WHERE consumed_at IS NULL;
-ALTER TABLE public.password_resets ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.password_resets FROM PUBLIC, anon, authenticated;
-
--- 공통: service_role 호출인지
-CREATE OR REPLACE FUNCTION public.assert_service_role()
-RETURNS void LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+CREATE OR REPLACE FUNCTION public.password_reset_by_identity(p_user UUID, p_identity_token TEXT)
+RETURNS TEXT   -- 'ok' | 'proof_invalid' | 'mismatch'
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
+DECLARE v_idv_id UUID; v_ci TEXT; v_account_ci TEXT;
 BEGIN
   IF current_setting('request.jwt.claims', true)::jsonb->>'role' IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'service role required';
   END IF;
-END;
-$$;
+  IF p_user IS NULL OR COALESCE(btrim(p_identity_token), '') = '' THEN RETURN 'proof_invalid'; END IF;
 
--- 발급: 사용자별 advisory lock 으로 동시 요청 직렬화(codex 지적) → 60초 쿨다운 → 열린 챌린지 무효 → 새 행.
-CREATE OR REPLACE FUNCTION public.password_reset_issue(p_user UUID, p_code_hash TEXT, p_ip TEXT)
-RETURNS TEXT
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
-BEGIN
-  PERFORM public.assert_service_role();
-  PERFORM pg_advisory_xact_lock(hashtext('password_reset:' || p_user::text));
-  IF EXISTS (SELECT 1 FROM public.password_resets WHERE user_id = p_user AND created_at > NOW() - INTERVAL '60 seconds') THEN
-    RETURN 'cooldown';
-  END IF;
-  UPDATE public.password_resets SET consumed_at = NOW() WHERE user_id = p_user AND consumed_at IS NULL;
-  INSERT INTO public.password_resets (user_id, code_hash, expires_at, ip_address)
-  VALUES (p_user, p_code_hash, NOW() + INTERVAL '5 minutes', p_ip);
+  -- 증빙 소비(1회): purpose 가 password_reset 이고 1시간 안, 미소비
+  UPDATE public.identity_verifications
+     SET consumed_at = NOW(), consumed_by = p_user
+   WHERE consume_token_hash = encode(extensions.digest(p_identity_token, 'sha256'), 'hex')
+     AND purpose = 'password_reset'
+     AND verified_at > NOW() - INTERVAL '1 hour'
+     AND consumed_at IS NULL AND consumed_by IS NULL
+  RETURNING id, ci_hash INTO v_idv_id, v_ci;
+  IF v_idv_id IS NULL OR v_ci IS NULL THEN RETURN 'proof_invalid'; END IF;
+
+  -- 증빙 행의 개인정보는 즉시 파기(가입 흐름과 동일)
+  UPDATE public.identity_verifications
+     SET name = NULL, birthdate = NULL, phone = NULL, gender = NULL, operator = NULL,
+         is_foreigner = NULL, ci_hash = NULL, ip_address = NULL
+   WHERE id = v_idv_id;
+
+  SELECT ci_hash INTO v_account_ci FROM public.profiles_identity WHERE user_id = p_user;
+  IF v_account_ci IS NULL OR v_account_ci <> v_ci THEN RETURN 'mismatch'; END IF;
   RETURN 'ok';
 END;
 $$;
-REVOKE ALL ON FUNCTION public.password_reset_issue(UUID,TEXT,TEXT) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.password_reset_issue(UUID,TEXT,TEXT) TO service_role;
-
--- 메일 발송 실패 시: 방금 만든(아직 검증 안 된) 챌린지를 지워 60초 쿨다운도 풀어 준다.
-CREATE OR REPLACE FUNCTION public.password_reset_cancel(p_user UUID)
-RETURNS INTEGER
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
-DECLARE v_n INTEGER;
-BEGIN
-  PERFORM public.assert_service_role();
-  DELETE FROM public.password_resets WHERE user_id = p_user AND consumed_at IS NULL AND verified_at IS NULL;
-  GET DIAGNOSTICS v_n = ROW_COUNT;
-  RETURN v_n;
-END;
-$$;
-REVOKE ALL ON FUNCTION public.password_reset_cancel(UUID) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.password_reset_cancel(UUID) TO service_role;
-
--- 검증(원자, 2단계의 1단): 코드가 맞으면 verified_at 을 찍어 잠근다(아직 소비 아님).
--- 'ok' | 'mismatch' | 'not_found' | 'too_many_attempts'
-CREATE OR REPLACE FUNCTION public.password_reset_consume(p_user UUID, p_code_hash TEXT)
-RETURNS TEXT
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
-DECLARE v_id UUID; v_hash TEXT; v_attempts INT;
-BEGIN
-  PERFORM public.assert_service_role();
-  SELECT id, code_hash, attempts INTO v_id, v_hash, v_attempts
-    FROM public.password_resets
-   WHERE user_id = p_user AND consumed_at IS NULL AND verified_at IS NULL AND expires_at >= NOW()
-   ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
-  IF v_id IS NULL THEN RETURN 'not_found'; END IF;
-  IF v_attempts >= 5 THEN RETURN 'too_many_attempts'; END IF;
-  IF COALESCE(btrim(p_code_hash),'') = '' OR v_hash <> p_code_hash THEN
-    UPDATE public.password_resets SET attempts = attempts + 1 WHERE id = v_id;
-    RETURN 'mismatch';
-  END IF;
-  UPDATE public.password_resets SET verified_at = NOW() WHERE id = v_id;
-  RETURN 'ok';
-END;
-$$;
-REVOKE ALL ON FUNCTION public.password_reset_consume(UUID,TEXT) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.password_reset_consume(UUID,TEXT) TO service_role;
-
--- 2단계의 2단: 비밀번호 변경 성공 → 최종 소비. 실패 → release(잠금 해제, 같은 코드로 재시도 가능; 만료·5회 제한은 그대로).
-CREATE OR REPLACE FUNCTION public.password_reset_finalize(p_user UUID)
-RETURNS INTEGER
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
-DECLARE v_n INTEGER;
-BEGIN
-  PERFORM public.assert_service_role();
-  UPDATE public.password_resets SET consumed_at = NOW() WHERE user_id = p_user AND consumed_at IS NULL;
-  GET DIAGNOSTICS v_n = ROW_COUNT;
-  RETURN v_n;
-END;
-$$;
-CREATE OR REPLACE FUNCTION public.password_reset_release(p_user UUID)
-RETURNS INTEGER
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
-DECLARE v_n INTEGER;
-BEGIN
-  PERFORM public.assert_service_role();
-  UPDATE public.password_resets SET verified_at = NULL WHERE user_id = p_user AND consumed_at IS NULL AND verified_at IS NOT NULL;
-  GET DIAGNOSTICS v_n = ROW_COUNT;
-  RETURN v_n;
-END;
-$$;
-REVOKE ALL ON FUNCTION public.password_reset_finalize(UUID) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.password_reset_release(UUID) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.password_reset_finalize(UUID) TO service_role;
-GRANT EXECUTE ON FUNCTION public.password_reset_release(UUID) TO service_role;
+REVOKE ALL ON FUNCTION public.password_reset_by_identity(UUID,TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.password_reset_by_identity(UUID,TEXT) TO service_role;
 
 -- 세션 전부 폐기(비밀번호 재설정 성공 직후). supabase-js admin.signOut 은 사용자 JWT 가 필요해 서버에서 못 쓴다.
 -- auth.sessions 를 지우면 refresh_tokens 는 FK CASCADE 로 함께 사라진다. 이미 발급된 access JWT 는 만료까지 유효.
@@ -561,7 +485,7 @@ $$;
 -- SELECT public.check_login_id_taken('admin'), public.check_login_id_taken('kuma_01');  -- true, false
 
 -- ----------------------------------------------------------------------------------------
--- 6. (참고) 클라이언트 롤 권한: check_login_id_taken 만 공개. login_id_contact·password_reset_* 는 service_role.
+-- 6. (참고) 클라이언트 롤 권한: check_login_id_taken 만 공개. login_id_contact·password_reset_by_identity·revoke_user_sessions 는 service_role.
 -- 7. 시험 계정 3개 이행 (별도 마이그레이션 loginid_migrate_test_accounts — 서버 API 배포 후 실행)
 --    예약어 충돌 때문에 test/crew/admin 대신 cttest/ctcrew/ctadmin. auth.users.email 만 바꾸면 GoTrue 가
 --    auth.identities.identity_data.email 과 어긋나 비밀번호 로그인이 실패하므로 같은 트랜잭션에서 동기화한다(agy 지적).

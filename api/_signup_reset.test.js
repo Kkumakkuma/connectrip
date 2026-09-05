@@ -1,13 +1,11 @@
 // 아이디 가입·비밀번호 찾기 서버리스 함수 단위 테스트 (2026-09-05 아이디 로그인 전환).
 // 지키려는 것
 //   · 가입은 서버가 auth.admin.createUser 로 만들고, 완료 RPC 가 실패하면 그 계정을 지운다(고아 없음).
-//   · 아이디 규칙·예약어·비밀번호 규칙은 서버가 먼저 거른다. RPC 예외 문구는 고정 code 로 매핑되고 내부 원문은 새지 않는다.
-//   · 비밀번호 찾기 요청은 없는 아이디에도 200(열거 방지), 확인은 원자 소비 RPC 결과대로 응답하고 성공 시 세션을 폐기한다.
+//   · 아이디 규칙·예약어·비밀번호 규칙·생년월일은 서버가 먼저 거른다. RPC 예외 문구는 고정 code 로 매핑되고 내부 원문은 새지 않는다.
+//   · 비밀번호 찾기 = 아이디 + PASS 증빙. 없는 아이디와 CI 불일치는 같은 응답, 통과 시 비밀번호 변경 + 세션 폐기.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { normalizeLoginId, isReservedLoginId, synthEmail, isSyntheticEmail, passwordWeak } from './_login_id.js';
-
-const SECRET = 'test-otp-hash-secret-0123456789abcdef';
 
 function mockRes() {
   const res = {
@@ -23,21 +21,15 @@ const post = (body, headers = {}) => ({ method: 'POST', headers, body });
 
 /** 가짜 supabase: rpc 이름별 응답 + auth.admin 호출 기록. */
 function fakeSupabase(calls, opts = {}) {
-  const {
-    taken = false, createError = null, rpcErrors = {}, contact = undefined, issue = 'ok', consume = 'ok',
-    secret = SECRET, updateError = null,
-  } = opts;
+  const { taken = false, createError = null, rpcErrors = {}, contact = undefined, reset = 'ok', updateError = null, revokeError = null } = opts;
   return {
     rpc(name, args) {
       calls.rpcs.push({ name, args });
-      if (name === 'otp_hash_secret') return Promise.resolve({ data: secret, error: null });
       if (name === 'planner_rate_hit') return Promise.resolve({ data: 1, error: null });
       if (name === 'check_login_id_taken') return Promise.resolve({ data: taken, error: null });
       if (name === 'login_id_contact') return Promise.resolve({ data: contact === undefined ? [] : [contact], error: null });
-      if (name === 'password_reset_issue') return Promise.resolve({ data: issue, error: null });
-      if (name === 'password_reset_consume') return Promise.resolve({ data: consume, error: null });
-      if (name === 'revoke_user_sessions') return Promise.resolve({ data: 1, error: opts.revokeError || null });
-      if (name === 'password_reset_finalize' || name === 'password_reset_release' || name === 'password_reset_cancel') return Promise.resolve({ data: 1, error: null });
+      if (name === 'password_reset_by_identity') return Promise.resolve({ data: reset, error: null });
+      if (name === 'revoke_user_sessions') return Promise.resolve({ data: 1, error: revokeError });
       if (rpcErrors[name]) return Promise.resolve({ data: null, error: { message: rpcErrors[name] } });
       return Promise.resolve({ data: null, error: null });
     },
@@ -65,10 +57,9 @@ async function load(path, supabase) {
 let savedEnv;
 beforeEach(() => {
   savedEnv = { ...process.env };
-  Object.assign(process.env, { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sk', RESEND_API_KEY: 'rk', OTP_HASH_SECRET: SECRET });
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ id: 'em' }) })));
+  Object.assign(process.env, { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'sk' });
 });
-afterEach(() => { process.env = savedEnv; vi.unstubAllGlobals(); vi.doUnmock('@supabase/supabase-js'); vi.resetModules(); });
+afterEach(() => { process.env = savedEnv; vi.doUnmock('@supabase/supabase-js'); vi.resetModules(); });
 
 const TRAVELER = {
   login_id: 'Kuma_01', password: 'passw0rd!', user_type: 'traveler', identity_token: 'idtok',
@@ -200,81 +191,26 @@ describe('POST /api/signup', () => {
   });
 });
 
-describe('POST /api/reset-password-request', () => {
-  it('아이디가 있으면 챌린지 발급 + 메일 발송, 없어도 같은 200', async () => {
-    let calls = newCalls();
-    let handler = await load('./reset-password-request.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' } }));
-    let res = mockRes();
-    await handler(post({ login_id: 'Kuma_01' }), res);
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    const issue = calls.rpcs.find((r) => r.name === 'password_reset_issue');
-    expect(issue.args.p_user).toBe('u1');
-    expect(issue.args.p_code_hash).toMatch(/^[0-9a-f]{64}$/);
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetch.mock.calls[0][1].body).to).toEqual(['me@gmail.com']);
+describe('POST /api/reset-password-confirm (아이디 + PASS 증빙)', () => {
+  const body = { login_id: 'Kuma_01', identity_token: 'idtok-reset', new_password: 'newpassw0rd' };
 
-    calls = newCalls();
-    vi.mocked(fetch).mockClear();
-    handler = await load('./reset-password-request.js', fakeSupabase(calls, { contact: undefined }));
-    res = mockRes();
-    await handler(post({ login_id: 'nobody_99' }), res);
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-    expect(calls.rpcs.find((r) => r.name === 'password_reset_issue')).toBeUndefined();
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it('쿨다운이면 메일을 다시 보내지 않고 200', async () => {
+  it('증빙 CI 가 계정 CI 와 일치하면 비밀번호 변경 + 세션 폐기', async () => {
     const calls = newCalls();
-    const handler = await load('./reset-password-request.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' }, issue: 'cooldown' }));
-    const res = mockRes();
-    await handler(post({ login_id: 'kuma_01' }), res);
-    expect(res.statusCode).toBe(200);
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it('메일 발송이 실패하면 챌린지를 취소한다(쿨다운 해제), 응답은 200', async () => {
-    const calls = newCalls();
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ message: 'provider down' }) })));
-    const handler = await load('./reset-password-request.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' } }));
-    const res = mockRes();
-    await handler(post({ login_id: 'kuma_01' }), res);
-    expect(res.statusCode).toBe(200);
-    expect(calls.rpcs.find((r) => r.name === 'password_reset_cancel').args.p_user).toBe('u1');
-  });
-
-  it('형식이 틀린 아이디는 400', async () => {
-    const handler = await load('./reset-password-request.js', fakeSupabase(newCalls()));
-    const res = mockRes();
-    await handler(post({ login_id: 'a b' }), res);
-    expect(res.statusCode).toBe(400);
-  });
-});
-
-describe('POST /api/reset-password-confirm', () => {
-  const body = { login_id: 'kuma_01', code: '123456', new_password: 'newpassw0rd' };
-
-  it('원자 소비 ok → 비밀번호 변경 + 세션 폐기', async () => {
-    const calls = newCalls();
-    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' }, consume: 'ok' }));
+    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' }, reset: 'ok' }));
     const res = mockRes();
     await handler(post(body), res);
     expect(res.statusCode).toBe(200);
+    const rpc = calls.rpcs.find((r) => r.name === 'password_reset_by_identity');
+    expect(rpc.args).toEqual({ p_user: 'u1', p_identity_token: 'idtok-reset' });
     expect(calls.updated).toEqual([{ id: 'u1', patch: { password: 'newpassw0rd' } }]);
     expect(calls.rpcs.find((r) => r.name === 'revoke_user_sessions').args.p_user).toBe('u1');
-    expect(calls.rpcs.find((r) => r.name === 'password_reset_finalize').args.p_user).toBe('u1');
-    expect(calls.rpcs.find((r) => r.name === 'password_reset_release')).toBeUndefined();
-    const consume = calls.rpcs.find((r) => r.name === 'password_reset_consume');
-    expect(consume.args.p_code_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('불일치·만료·없는 아이디는 같은 문구 400, 시도 초과는 429, 비밀번호는 바뀌지 않는다', async () => {
+  it('없는 아이디와 CI 불일치는 같은 403 응답, 증빙 만료는 401, 비밀번호는 바뀌지 않는다', async () => {
     for (const [opts, status, code] of [
-      [{ contact: { user_id: 'u1', email: 'x@y.com' }, consume: 'mismatch' }, 400, 'OTP_INVALID'],
-      [{ contact: { user_id: 'u1', email: 'x@y.com' }, consume: 'not_found' }, 400, 'OTP_INVALID'],
-      [{ contact: undefined }, 400, 'OTP_INVALID'],
-      [{ contact: { user_id: 'u1', email: 'x@y.com' }, consume: 'too_many_attempts' }, 429, 'TOO_MANY_ATTEMPTS'],
+      [{ contact: undefined }, 403, 'IDENTITY_MISMATCH'],
+      [{ contact: { user_id: 'u1', email: 'x@y.com' }, reset: 'mismatch' }, 403, 'IDENTITY_MISMATCH'],
+      [{ contact: { user_id: 'u1', email: 'x@y.com' }, reset: 'proof_invalid' }, 401, 'IDENTITY_PROOF_INVALID'],
     ]) {
       const calls = newCalls();
       const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, opts));
@@ -284,36 +220,42 @@ describe('POST /api/reset-password-confirm', () => {
       expect(res.body.code, code).toBe(code);
       expect(calls.updated, code).toHaveLength(0);
     }
+    // 없는 아이디와 불일치의 응답 본문이 완전히 같다(존재 여부 비노출)
+    const a = mockRes(); await (await load('./reset-password-confirm.js', fakeSupabase(newCalls(), { contact: undefined })))(post(body), a);
+    const b = mockRes(); await (await load('./reset-password-confirm.js', fakeSupabase(newCalls(), { contact: { user_id: 'u1', email: 'x@y.com' }, reset: 'mismatch' })))(post(body), b);
+    expect(a.body).toEqual(b.body);
   });
 
-  it('비밀번호 변경이 실패하면 release 로 잠금을 풀고 500 (finalize 없음)', async () => {
-    const calls = newCalls();
-    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, consume: 'ok', updateError: { message: 'auth down' } }));
-    const res = mockRes();
+  it('비밀번호 변경 실패는 500 + 일반 문구, 세션 폐기 실패는 재시도 후 200', async () => {
+    let calls = newCalls();
+    let handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, updateError: { message: 'auth down' } }));
+    let res = mockRes();
     await handler(post(body), res);
     expect(res.statusCode).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain('auth down');
-    expect(calls.rpcs.find((r) => r.name === 'password_reset_release').args.p_user).toBe('u1');
-    expect(calls.rpcs.find((r) => r.name === 'password_reset_finalize')).toBeUndefined();
     expect(calls.rpcs.find((r) => r.name === 'revoke_user_sessions')).toBeUndefined();
-  });
 
-  it('세션 폐기가 실패하면 1회 재시도하고도 200 (비밀번호는 이미 변경)', async () => {
-    const calls = newCalls();
-    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, consume: 'ok', revokeError: { message: 'boom' } }));
-    const res = mockRes();
+    calls = newCalls();
+    handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, revokeError: { message: 'boom' } }));
+    res = mockRes();
     await handler(post(body), res);
     expect(res.statusCode).toBe(200);
     expect(calls.rpcs.filter((r) => r.name === 'revoke_user_sessions')).toHaveLength(2);
   });
 
-  it('약한 새 비밀번호는 400 PASSWORD_WEAK (RPC 호출 없음)', async () => {
-    const calls = newCalls();
-    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' } }));
-    const res = mockRes();
-    await handler(post({ ...body, new_password: 'weak' }), res);
-    expect(res.statusCode).toBe(400);
-    expect(res.body.code).toBe('PASSWORD_WEAK');
-    expect(calls.rpcs.find((r) => r.name === 'password_reset_consume')).toBeUndefined();
+  it('입력 선검사: 증빙 없음 401, 약한 비밀번호 400, 아이디 형식 400 (RPC 호출 없음)', async () => {
+    for (const [b2, status, code] of [
+      [{ ...body, identity_token: '' }, 401, 'IDENTITY_REQUIRED'],
+      [{ ...body, new_password: 'weak' }, 400, 'PASSWORD_WEAK'],
+      [{ ...body, login_id: 'a b' }, 400, 'LOGIN_ID_INVALID'],
+    ]) {
+      const calls = newCalls();
+      const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' } }));
+      const res = mockRes();
+      await handler(post(b2), res);
+      expect(res.statusCode, code).toBe(status);
+      expect(res.body.code, code).toBe(code);
+      expect(calls.rpcs.find((r) => r.name === 'password_reset_by_identity'), code).toBeUndefined();
+    }
   });
 });

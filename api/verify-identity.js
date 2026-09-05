@@ -96,6 +96,11 @@ export default async function handler(req, res) {
 
     const body = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
     const id = str(body.identityVerificationId);
+    // 증빙 용도: 가입(signup_identity) 또는 비밀번호 찾기(password_reset). 허용 밖은 400.
+    const purpose = body.purpose === undefined ? 'signup_identity' : String(body.purpose);
+    if (!['signup_identity', 'password_reset'].includes(purpose)) {
+      return fail(res, 400, 'BAD_PURPOSE', '본인확인 용도가 올바르지 않습니다.');
+    }
     if (!ID_RE.test(id)) {
       return fail(res, 400, 'BAD_REQUEST', '본인확인 요청 정보가 올바르지 않습니다.');
     }
@@ -187,7 +192,7 @@ export default async function handler(req, res) {
       p_is_foreigner: typeof c.isForeigner === 'boolean' ? c.isForeigner : null,
       p_ci_hash: ciHash,
       p_token_hash: tokenHash,
-      p_purpose: 'signup_identity',
+      p_purpose: purpose,
       p_ip: ipAddr,
     });
     if (error) {
