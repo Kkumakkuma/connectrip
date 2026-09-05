@@ -346,6 +346,11 @@ BAD_ALWAYS = {
     "Q12708896",                         # FIFA 월드컵 결승전
     "Q17315159",                         # 국제 축구 경기
     "Q13406554",                         # 스포츠 대회
+    # 교통 시설·표지·놀이기구. 재검토(2026-09-05)에서 가오슝 '구산 역·산퀴춰 역', 세부 'historical marker' 2건,
+    # 골드코스트 'Jet Rescue·Batwing Spaceshot'(놀이공원 안의 기구)이 꼬리에 올라와 있었다.
+    "Q55488", "Q22808403", "Q928830", "Q2175765", "Q1793804",   # 철도역·지하역·도시철도역·노면전차 정류장·S-Bahn
+    "Q21562164",                         # 필리핀 국가역사위원회 표지
+    "Q2389789", "Q390365",               # 스틸 롤러코스터·Space Shot(놀이기구)
 }
 
 # 사람이 사는 곳. 동네 분류로 들어왔을 때만 뺀다.
@@ -580,6 +585,9 @@ def rank(cands, radius_km):
     return picked
 
 
+HANGUL_RE = re.compile(r"[가-힣]")
+
+
 def place_rows(picked, rename=None):
     """화면에 나갈 목록. 같은 이름이 두 줄 나오지 않게 한다.
 
@@ -588,9 +596,19 @@ def place_rows(picked, rename=None):
     순위가 높은 쪽만 남긴다.
     """
     rows, seen = [], set()
+    # 알려진 곳이 충분하면(6개 이상) 꼬리의 무명 항목(sitelinks 0~1)은 뺀다.
+    # 상위 4~6개는 어느 도시나 좋은데 7~12위에 동네 상가·기구·표지가 섞이는 게 문제였다.
+    strong = sum(1 for c in picked if c["sitelinks"] >= STRONG_SITELINKS)
     for c in picked:
+        if strong >= 6 and c["sitelinks"] < 2:
+            continue
         row = to_place(c, rename)
-        key = norm_name(row["name"])
+        name = row["name"]
+        # 한국어도 영어(ASCII)도 아닌 이름(베트남어 등 라틴 확장)은 라벨이 없다는 뜻이다.
+        # 저명도까지 낮으면 사용자가 읽지도 못하는 줄이 된다 — 뺀다.
+        if not HANGUL_RE.search(name) and not name.isascii() and c["sitelinks"] < 3:
+            continue
+        key = norm_name(name)
         if key in seen:
             continue
         seen.add(key)
