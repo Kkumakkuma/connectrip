@@ -15,7 +15,7 @@
 // 한국은 구글이 자동차·도보 경로를 제공하지 않는다. 키가 있어도 estimate 로 떨어질 수 있고,
 // 그건 결함이 아니라 예정된 동작이다.
 
-import { fail, fetchWithTimeout, gate, pickProvider, sha256, googleServerKey, reserveDaily } from './_common.js';
+import { fail, fetchWithTimeout, gate, pickProvider, sha256, googleServerKey } from './_common.js';
 // 화면과 같은 추정식을 쓰려고 그대로 가져온다. 브라우저 의존이 없는 순수 모듈이다.
 import { estimateLeg } from '../../src/planner/lib/travelTime.js';
 
@@ -92,35 +92,12 @@ export default async function handler(req, res) {
   }
   const out = [];
 
-  // 구글 호출 예산(2026-09-05, codex 감사 ③): 한 요청이 최대 30구간이라 사용자 축 요청 제한(120/10분)만으론
-  // 30배 증폭된다. 캐시 미스로 실제 구글을 부르는 구간마다 두 예산을 직렬로 센다(사용자 → 전역).
-  //   · 사용자 축: 10분 창 200구간(planner_rate_hit)   · 전역 일일: 300구간(planner_daily_reserve, 월 무료 10,000회 안)
-  // 사용자 한도에 걸린 요청이 전역 예산을 갉아먹지 않도록 순서를 지킨다(교차검토 v2).
-  // 예산 초과·카운터 RPC 오류·서버 키 없음은 모두 fail-closed — 구글을 부르지 않고 추정치로 답한다.
-  let googleBudgetOpen = provider === 'google' && Boolean(googleServerKey());
-  const spendGoogleBudget = async () => {
-    if (!googleBudgetOpen) return false;
-    // 클라이언트가 끊었으면 남은 구간에 예산·구글 호출을 쓰지 않는다(codex 지적)
-    if (req.aborted || res.destroyed || res.writableEnded) { googleBudgetOpen = false; return false; }
-    try {
-      const { data: uHits, error: uErr } = await supabase.rpc('planner_rate_hit', {
-        p_key: `routes_legs:${ctx.user.id}`,
-        p_limit: 200,
-      });
-      if (uErr || Number(uHits) > 200) {
-        googleBudgetOpen = false; // 이번 요청의 남은 구간도 구글 없이 간다
-        return false;
-      }
-      if (!(await reserveDaily(supabase, 'google_routes', 300))) {
-        googleBudgetOpen = false;
-        return false;
-      }
-      return true;
-    } catch {
-      googleBudgetOpen = false; // 카운터 호출 자체가 던져도 fail-closed
-      return false;
-    }
-  };
+  // 구글 호출 한도 없음(2026-09-05 쿠마님 결정): 예전의 사용자 200/10분·전역 300/일 예산은 제거했다.
+  // 사용자가 한도에 막히는 손실이 과금보다 크다. 남용 방어는 구글 콘솔 쿼터로만 한다.
+  // 서버 키가 없으면 구글을 부르지 않고 추정치(OSM 으로 갈라지지 않는다 — 제공자 판정은 그대로 google).
+  const googleOpen = provider === 'google' && Boolean(googleServerKey());
+  // 클라이언트가 끊었으면 남은 구간에 구글 호출을 쓰지 않는다(codex 지적)
+  const clientGone = () => Boolean(req.aborted || res.destroyed || res.writableEnded);
 
   for (const leg of rawLegs) {
     const from = validPoint(leg?.from);
@@ -155,7 +132,7 @@ export default async function handler(req, res) {
       continue;
     }
 
-    let leg1 = (provider === 'google' && await spendGoogleBudget()) ? await googleRoute(from, to, mode) : null;
+    let leg1 = googleOpen && !clientGone() ? await googleRoute(from, to, mode) : null;
     // 구글이 답을 못 주면(한국의 자동차·도보처럼) 추정으로 떨어진다. 결함이 아니다.
     if (!leg1) leg1 = estimate(from, to, mode);
 

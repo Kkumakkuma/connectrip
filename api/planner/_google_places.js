@@ -7,7 +7,7 @@
 //   · Place Details: formattedAddress·location = Essentials, displayName = Pro(월 5,000회 무료).
 // 아래 필드마스크 상수는 테스트(_google_places.test.js)가 완전일치로 고정한다. 필드를 늘리면 테스트가 먼저 막는다.
 //
-// 이 모듈은 예산을 세지 않는다 — 부르는 쪽(places.js / _refresh_core.js)이 reserveDaily 로 먼저 예약한 뒤에만 부른다.
+// 이 모듈은 호출 횟수를 세지 않는다(호출 한도는 2026-09-05 쿠마님 결정으로 두지 않는다). 부르는 쪽은 캐시 미스일 때만 부른다.
 
 import { fetchWithTimeout } from './_common.js';
 

@@ -97,16 +97,8 @@ export async function pickProvider(supabase) {
 export function googleServerKey() {
   return (process.env.GOOGLE_MAPS_SERVER_KEY || '').trim();
 }
-
-// 일일 예산 예약(planner_daily_reserve, KST 일 버킷). 한도 안이면 true. RPC 오류·예외·이상값은 전부 false(fail-closed).
-export async function reserveDaily(supabase, key, limit) {
-  try {
-    const { data, error } = await supabase.rpc('planner_daily_reserve', { p_key: key, p_limit: limit });
-    return !error && data === true;
-  } catch {
-    return false;
-  }
-}
+// 구글 호출 일일 예산(reserveDaily/planner_daily_reserve)은 2026-09-05 쿠마님 결정으로 제거했다 —
+// 사용자가 한도에 막혀 떠나는 손실이 과금보다 크다. 남용 방어는 구글 콘솔 쿼터로만 한다.
 
 // 외부 제공자 호출 전 전역 게이트. 반환된 ms 만큼 기다린 뒤 딱 한 번 호출한다.
 // -1 이면 대기 상한을 넘긴 것이라 호출을 포기한다(약관 위반 방향으로 새지 않는다).

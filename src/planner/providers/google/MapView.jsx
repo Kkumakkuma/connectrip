@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { APIProvider, AdvancedMarker, Map as GoogleMap, Polyline, useMap } from '@vis.gl/react-google-maps';
-import { supabase } from '../../../lib/supabase';
 import MapNotice from '../MapNotice';
 
 // 구글 지도 (설계 §4, 2026-09-05 구현 — 교차검토 v2 반영). providers/index.js 의 공통 인터페이스를 그대로 구현한다.
@@ -9,10 +8,9 @@ import MapNotice from '../MapNotice';
 // 정적으로 import 해도 OSM 사용자는 내려받지 않는다(빌드 청크 분리 실측).
 //
 // 지키는 것
-//   · 지도 로드 예산: <Map> 을 그리기 전에 planner_map_load_slot() 로 오늘 슬롯(사용자 60·전역 300)을 예약한다.
-//     승인 전에는 지도 트리를 아예 그리지 않는다 — Map 객체가 만들어지는 순간이 과금 단위다(codex 지적).
-//     재마운트는 새 Map = 새 과금이므로 승인도 다시 받는다(전역 캐시 없음).
-//   · 실패는 전부 안내문: 키 없음·슬롯 거부·RPC 오류·스크립트 로드 실패·키 거부(gm_authFailure). OSM 으로 내려가지 않는다
+//   · 호출 한도 없음(2026-09-05 쿠마님 결정): 사용자가 "지도 한도"에 막혀 떠나는 손실이 과금보다 크다. 예전에 있던
+//     지도 로드 슬롯(planner_map_load_slot)은 이 결정으로 제거했다. 남용 방어는 콘솔 쿼터(쿠마님 결정)로만 한다.
+//   · 실패는 전부 안내문: 키 없음·스크립트 로드 실패·키 거부(gm_authFailure). OSM 으로 내려가지 않는다
 //     (구글 장소가 이미 있는 상태에서 OSM 지도를 그리면 약관 3.2.4 위반).
 //   · clickableIcons=false: 구글 POI 를 눌러 뜨는 구글 정보창을 막는다. 우리 핀 흐름과 섞이지 않게.
 //   · gestureHandling=cooperative: 데스크톱에서 페이지 스크롤이 지도에 먹히지 않는다(OSM 의 scrollWheelZoom off 와 같은 목적).
@@ -194,32 +192,7 @@ export default function MapView({
     [pins]
   );
 
-  // 'pending' → 슬롯 RPC 결과에 따라 'ok' | 'denied' | 'error'. 키가 없으면 처음부터 'nokey'.
-  const [slot, setSlot] = useState(BROWSER_KEY ? 'pending' : 'nokey');
   const [loadError, setLoadError] = useState(false);
-
-  useEffect(() => {
-    if (!BROWSER_KEY) return undefined;
-    let alive = true;
-    supabase
-      .rpc('planner_map_load_slot')
-      .then(({ data, error }) => {
-        if (!alive) return;
-        if (error) {
-          console.error('지도 슬롯을 확인하지 못했습니다:', error);
-          setSlot('error');
-        } else {
-          setSlot(data === true ? 'ok' : 'denied');
-        }
-      })
-      .catch((err) => {
-        console.error('지도 슬롯을 확인하지 못했습니다:', err);
-        if (alive) setSlot('error');
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   // 키 거부·리퍼러 불일치·결제 문제는 스크립트가 전역 콜백으로만 알려 준다. 기존 값은 보존하고 되돌린다.
   useEffect(() => {
@@ -249,23 +222,11 @@ export default function MapView({
     longPressRef.current?.({ lat, lng });
   };
 
-  if (slot === 'nokey' || slot === 'error' || loadError) {
+  if (!BROWSER_KEY || loadError) {
     return (
       <MapNotice
         className={className}
         message="지도를 불러올 수 없습니다."
-        sub="아래 목록으로는 그대로 편집할 수 있습니다."
-      />
-    );
-  }
-  if (slot === 'pending') {
-    return <MapNotice className={className} message="지도를 불러오는 중입니다." />;
-  }
-  if (slot === 'denied') {
-    return (
-      <MapNotice
-        className={className}
-        message="오늘 지도 표시 한도에 도달했습니다."
         sub="아래 목록으로는 그대로 편집할 수 있습니다."
       />
     );

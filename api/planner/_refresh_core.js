@@ -5,30 +5,20 @@
 //     하루 한 번 Place Details 로 다시 받아 갱신한다(= 30일 안에 항상 새로 받은 값이 되게).
 // 어디서: api/planner/purge.js 의 ?task=refresh 분기가 부른다(Vercel Hobby 함수 12개 상한이 꽉 차서 별도 함수를 못 둔다).
 //         pg_cron 'planner-catalog-refresh' 가 매일 KST 03:50 에 그 경로를 호출한다.
-// 예산: google_place_details 100/일(Place Details Pro 월 5,000회 무료 안). 초과·RPC 오류·키 없음·플래그 off 는 모두
-//       구글을 부르지 않고 끝낸다(fail-closed).
+// 한도: 일일 예산은 두지 않는다(2026-09-05 쿠마님 결정). 한 번 실행에 최대 REFRESH_BATCH 행, 그리고 마감 시간만 지킨다.
+//       키 없음·플래그 off·due 조회 실패는 구글을 부르지 않고 끝낸다(fail-closed).
 // 결과: 갱신(refreshed) / 404·형식 불량이라 fetched_at 만 올림(touched) / 실패(failed) 를 보고서로 돌려준다.
 
-import { googleServerKey, reserveDaily } from './_common.js';
+import { googleServerKey } from './_common.js';
 import { placeDetailsGoogle } from './_google_places.js';
 
-export const REFRESH_BATCH = 40;
-export const DETAILS_DAILY_LIMIT = 100;
-export const DETAILS_BUDGET_KEY = 'google_place_details';
+export const REFRESH_BATCH = 100;
 
 export async function runCatalogRefresh(
   supabase,
-  {
-    key = googleServerKey(),
-    log = console,
-    deadlineMs = 200 * 1000,
-    batch = REFRESH_BATCH,
-    dailyLimit = DETAILS_DAILY_LIMIT,
-    fetchImpl,
-    now = Date.now,
-  } = {}
+  { key = googleServerKey(), log = console, deadlineMs = 200 * 1000, batch = REFRESH_BATCH, fetchImpl, now = Date.now } = {}
 ) {
-  const report = { enabled: false, due: 0, refreshed: 0, touched: 0, failed: 0, budget_stop: false, reason: null };
+  const report = { enabled: false, due: 0, refreshed: 0, touched: 0, failed: 0, reason: null };
   if (!key) {
     report.reason = 'no_key';
     return report;
@@ -55,11 +45,6 @@ export async function runCatalogRefresh(
   for (const row of list) {
     if (now() - started > deadlineMs) {
       report.reason = 'deadline';
-      break;
-    }
-    // 예산은 구글을 실제로 부르기 직전에 한 건씩 예약한다. 남은 행은 내일 잡이 이어서 본다.
-    if (!(await reserveDaily(supabase, DETAILS_BUDGET_KEY, dailyLimit))) {
-      report.budget_stop = true;
       break;
     }
 

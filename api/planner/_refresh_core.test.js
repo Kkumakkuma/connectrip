@@ -1,7 +1,7 @@
-// 구글 카탈로그 재조회 코어 테스트 (2026-09-05).
+// 구글 카탈로그 재조회 코어 테스트 (2026-09-05. 일일 예산은 쿠마님 결정으로 없음 — 배치 상한·마감만).
 import { describe, it, expect, vi } from 'vitest';
 import { DETAILS_FIELD_MASK } from './_google_places.js';
-import { runCatalogRefresh, DETAILS_BUDGET_KEY } from './_refresh_core.js';
+import { runCatalogRefresh, REFRESH_BATCH } from './_refresh_core.js';
 
 const gPlace = (i) => ({
   id: `ChIJ${i}`,
@@ -11,19 +11,14 @@ const gPlace = (i) => ({
 });
 const resp = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 
-function fakeSupabase({ enabled = true, flagError = null, due = [], dueError = null, budget = 100 } = {}) {
+function fakeSupabase({ enabled = true, flagError = null, due = [], dueError = null } = {}) {
   const calls = [];
-  let used = 0;
   return {
     calls,
     rpc: async (name, args) => {
       calls.push({ name, args });
       if (name === 'planner_google_enabled') return { data: enabled, error: flagError };
       if (name === 'planner_catalog_refresh_due') return { data: due, error: dueError };
-      if (name === 'planner_daily_reserve') {
-        used += 1;
-        return { data: used <= budget, error: null };
-      }
       if (name === 'planner_catalog_refresh_apply') return { data: null, error: null };
       return { data: null, error: null };
     },
@@ -32,7 +27,7 @@ function fakeSupabase({ enabled = true, flagError = null, due = [], dueError = n
 const applies = (sb) => sb.calls.filter((c) => c.name === 'planner_catalog_refresh_apply').map((c) => c.args);
 
 describe('runCatalogRefresh', () => {
-  it('정상·404·500 이 섞인 배치: 갱신 1 / touched 1 / 실패 1, apply 인자 검증', async () => {
+  it('정상·404·500 이 섞인 배치: 갱신 1 / touched 1 / 실패 1, apply 인자 검증, 예산 RPC 없음', async () => {
     const sb = fakeSupabase({ due: [{ id: 'a', provider_place_id: 'ChIJ1' }, { id: 'b', provider_place_id: 'gone' }, { id: 'c', provider_place_id: 'err' }] });
     const fetchImpl = vi.fn(async (url, init) => {
       expect(init.headers['X-Goog-FieldMask']).toBe(DETAILS_FIELD_MASK);
@@ -42,22 +37,14 @@ describe('runCatalogRefresh', () => {
     });
     const log = { error: vi.fn() };
     const report = await runCatalogRefresh(sb, { key: 'K', log, fetchImpl });
-    expect(report).toMatchObject({ enabled: true, due: 3, refreshed: 1, touched: 1, failed: 1, budget_stop: false });
+    expect(report).toMatchObject({ enabled: true, due: 3, refreshed: 1, touched: 1, failed: 1 });
     expect(applies(sb)).toEqual([
       { p_id: 'a', p_name: '새 이름 1', p_address: '새 주소 1', p_lat: 37.001, p_lng: 127.5 },
       { p_id: 'b', p_name: null, p_address: null, p_lat: null, p_lng: null },
     ]);
+    expect(sb.calls.some((c) => c.name === 'planner_daily_reserve' || c.name === 'planner_daily_hit')).toBe(false);
+    expect(sb.calls.find((c) => c.name === 'planner_catalog_refresh_due').args).toEqual({ p_limit: REFRESH_BATCH });
     expect(log.error).toHaveBeenCalledTimes(1);
-  });
-
-  it('예산이 다 차면 그 자리에서 멈춘다(구글 호출은 예약 성공 건수만큼만)', async () => {
-    const sb = fakeSupabase({ due: [1, 2, 3].map((i) => ({ id: String(i), provider_place_id: `ChIJ${i}` })), budget: 1 });
-    const fetchImpl = vi.fn(async () => resp(gPlace(1)));
-    const report = await runCatalogRefresh(sb, { key: 'K', log: { error: vi.fn() }, fetchImpl });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(report.refreshed).toBe(1);
-    expect(report.budget_stop).toBe(true);
-    expect(sb.calls.filter((c) => c.name === 'planner_daily_reserve').every((c) => c.args.p_key === DETAILS_BUDGET_KEY)).toBe(true);
   });
 
   it('플래그 off·플래그 조회 실패·키 없음은 구글은 물론 due 조회도 하지 않는다', async () => {

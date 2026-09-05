@@ -1,4 +1,4 @@
-// /api/planner/routes 핸들러 테스트 (2026-09-05, 구글 예산 직렬화 + fail-closed).
+// /api/planner/routes 핸들러 테스트 (2026-09-05, 구글 분기 fail-closed. 호출 한도는 쿠마님 결정으로 없음).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 function mockRes() {
@@ -16,14 +16,12 @@ function mockRes() {
 const leg = (i) => ({ from: { lat: 37.5 + i * 0.01, lng: 127 }, to: { lat: 37.51 + i * 0.01, lng: 127.01 } });
 const post = (legs, mode = 'WALK') => ({ method: 'POST', headers: {}, body: { legs, mode } });
 
-function fakeSupabase({ rateHits = 1, rateError = null, reserve = () => true, cacheError = null } = {}) {
+function fakeSupabase({ cacheError = null } = {}) {
   const calls = [];
   return {
     calls,
     rpc: async (name, args) => {
       calls.push({ type: 'rpc', name, args });
-      if (name === 'planner_rate_hit') return { data: rateHits, error: rateError };
-      if (name === 'planner_daily_reserve') return { data: reserve(args.p_key), error: null };
       return { data: null, error: null };
     },
     from: (table) => ({
@@ -67,79 +65,82 @@ afterEach(() => {
 const rpcNames = (sb) => sb.calls.filter((c) => c.type === 'rpc').map((c) => c.name);
 
 describe('구글 제공자', () => {
-  it('구간마다 사용자(rate_hit) → 전역(reserve) 순서로 직렬 예약 뒤 한 번 호출, 결과는 캐시에 저장', async () => {
+  it('구간마다 한도 RPC 없이 바로 호출, 결과는 캐시에 저장', async () => {
     const sb = fakeSupabase();
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
     await handler(post([leg(0), leg(1)]), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.legs.map((l) => l.source)).toEqual(['google', 'google']);
-    expect(rpcNames(sb)).toEqual(['planner_rate_hit', 'planner_daily_reserve', 'planner_rate_hit', 'planner_daily_reserve']);
-    expect(sb.calls.find((c) => c.type === 'rpc' && c.name === 'planner_daily_reserve').args).toEqual({ p_key: 'google_routes', p_limit: 300 });
+    expect(res.body.legs[0]).toMatchObject({ duration_s: 120, distance_m: 500 });
+    expect(rpcNames(sb)).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].headers['X-Goog-FieldMask']).toBe('routes.duration,routes.distanceMeters');
     expect(sb.calls.filter((c) => c.type === 'upsert' && c.table === 'planner_route_cache')).toHaveLength(2);
   });
 
-  it('캐시 조회 오류 구간은 예약도 호출도 없이 추정치(fail-closed)', async () => {
+  it('캐시 조회 오류 구간은 호출 없이 추정치(fail-closed)', async () => {
     const sb = fakeSupabase({ cacheError: { message: 'db down' } });
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
     await handler(post([leg(0)]), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.legs[0].source).toBe('estimate');
-    expect(rpcNames(sb)).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('사용자 카운터 RPC 오류 또는 초과: 전역 예약 없이 추정치', async () => {
-    let sb = fakeSupabase({ rateError: { message: 'x' } });
-    let handler = await load({ provider: 'google', supabase: sb });
-    let res = mockRes();
-    await handler(post([leg(0)]), res);
-    expect(res.body.legs[0].source).toBe('estimate');
-    expect(rpcNames(sb)).toEqual(['planner_rate_hit']);
-
-    sb = fakeSupabase({ rateHits: 201 });
-    handler = await load({ provider: 'google', supabase: sb });
-    res = mockRes();
-    await handler(post([leg(0)]), res);
-    expect(res.body.legs[0].source).toBe('estimate');
-    expect(rpcNames(sb)).toEqual(['planner_rate_hit']);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('전역 예산이 닫히면 남은 구간도 구글 없이 간다(예약 1회만)', async () => {
-    const sb = fakeSupabase({ reserve: () => false });
+  it('구글이 답을 못 주면(HTTP 오류) 추정치로 떨어지고 캐시하지 않는다', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({}) });
+    const sb = fakeSupabase();
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
-    await handler(post([leg(0), leg(1), leg(2)]), res);
-    expect(res.body.legs.map((l) => l.source)).toEqual(['estimate', 'estimate', 'estimate']);
-    expect(rpcNames(sb)).toEqual(['planner_rate_hit', 'planner_daily_reserve']);
-    expect(fetchMock).not.toHaveBeenCalled();
+    await handler(post([leg(0)]), res);
+    expect(res.body.legs[0].source).toBe('estimate');
+    expect(sb.calls.find((c) => c.type === 'upsert')).toBeUndefined();
   });
 
-  it('서버 키 없음: 카운터도 안 건드리고 추정치', async () => {
+  it('서버 키 없음: 호출 없이 추정치(OSM 으로 갈라지지 않고 provider 는 google 그대로)', async () => {
     delete process.env.GOOGLE_MAPS_SERVER_KEY;
     const sb = fakeSupabase();
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
     await handler(post([leg(0)]), res);
     expect(res.statusCode).toBe(200);
+    expect(res.body.provider).toBe('google');
     expect(res.body.legs[0].source).toBe('estimate');
-    expect(rpcNames(sb)).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('제공자 판정 실패(null)는 503', async () => {
-    const handler = await load({ provider: null, supabase: fakeSupabase() });
+  it('클라이언트가 끊었으면 남은 구간에 구글을 부르지 않는다', async () => {
+    const sb = fakeSupabase();
+    const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
+    const req = post([leg(0), leg(1)]);
+    fetchMock.mockImplementationOnce(async () => {
+      req.aborted = true; // 첫 구간 호출 도중 연결이 끊긴 상황
+      return { ok: true, status: 200, json: async () => ({ routes: [{ duration: '60s', distanceMeters: 100 }] }) };
+    });
+    await handler(req, res);
+    expect(res.body.legs.map((l) => l.source)).toEqual(['google', 'estimate']);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('좌표가 이상한 구간은 null 로 자리를 채우고, 제공자 판정 실패(null)는 503', async () => {
+    let handler = await load({ provider: 'google', supabase: fakeSupabase() });
+    let res = mockRes();
+    await handler(post([{ from: { lat: 'x' }, to: {} }, leg(1)]), res);
+    expect(res.body.legs[0]).toBeNull();
+    expect(res.body.legs[1].source).toBe('google');
+
+    handler = await load({ provider: null, supabase: fakeSupabase() });
+    res = mockRes();
     await handler(post([leg(0)]), res);
     expect(res.statusCode).toBe(503);
   });
 });
 
 describe('OSM 제공자(회귀)', () => {
-  it('구글 호출·예산 없이 추정치', async () => {
+  it('구글 호출 없이 추정치', async () => {
     const sb = fakeSupabase();
     const handler = await load({ provider: 'osm', supabase: sb });
     const res = mockRes();
