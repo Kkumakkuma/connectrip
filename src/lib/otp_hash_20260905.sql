@@ -89,7 +89,7 @@ CREATE OR REPLACE FUNCTION public.verify_otp_and_issue_token(
   p_kind TEXT, p_subject TEXT, p_code TEXT, p_token_hash TEXT,
   p_purpose TEXT DEFAULT 'generic', p_code_hash TEXT DEFAULT NULL
 ) RETURNS TEXT
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
 DECLARE
   v_id UUID; v_code TEXT; v_code_hash TEXT; v_attempts INT; v_updated UUID; v_match BOOLEAN;
 BEGIN
