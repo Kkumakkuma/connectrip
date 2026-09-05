@@ -67,6 +67,9 @@ export default function SignupEmail() {
   // 인증에 성공한 회사 이메일(정규화값)을 기록 — 늦은 응답 레이스/입력변경으로 잘못 통과되지 않게 canSubmit 에서 대조
   const [verifiedAirlineEmail, setVerifiedAirlineEmail] = useState('');
 
+  // 로그인 아이디(이메일) 인증 상태.
+  // 여행자는 개인 이메일 인증번호까지 확인하고, 승무원은 회사(항공사) 이메일 인증 하나로 갈음한다
+  // — 승무원이 이메일을 두 번 인증하지 않게 한다(쿠마님 2026-09-05).
   const [emailStatus, setEmailStatus] = useState(null); // 'checking' | 'available' | 'taken'
   const [emailCode, setEmailCode] = useState('');
   const [emailSent, setEmailSent] = useState(false);
@@ -74,6 +77,9 @@ export default function SignupEmail() {
   const [emailSending, setEmailSending] = useState(false);
   const [emailVerifying, setEmailVerifying] = useState(false);
   const [emailError, setEmailError] = useState('');
+  // 인증에 성공한 이메일(정규화값) — 늦은 응답 레이스/입력변경으로 잘못 통과되지 않게 canSubmit 에서 대조
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const needsEmailOtp = userType !== 'crew';
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -83,16 +89,12 @@ export default function SignupEmail() {
   const [nicknameStatus, setNicknameStatus] = useState(null);
   const [birthdate, setBirthdate] = useState('');
 
+  // 휴대폰번호는 PASS 본인확인 결과로만 채워진다(수동 입력·문자 인증번호 없음).
   const [phone, setPhone] = useState('');
-  const [phoneCode, setPhoneCode] = useState('');
-  const [phoneSent, setPhoneSent] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  // OTP 인증에 성공한 클라이언트만 가입을 완성할 수 있도록 서버가 준 일회성 소비 토큰
-  const [phoneOtpToken, setPhoneOtpToken] = useState('');
-  const [verifiedPhone, setVerifiedPhone] = useState('');
+  // 승무원 회사 이메일 인증에 성공한 클라이언트만 가입을 완성할 수 있도록 서버가 준 일회성 소비 토큰
   const [airlineOtpToken, setAirlineOtpToken] = useState('');
 
-  // 휴대폰 본인확인(PASS/SMS) 증빙 — 본인확인을 먼저 마쳐야 가입 폼이 열린다(IDENTITY_ENABLED 일 때).
+  // 휴대폰 본인확인(PASS) 증빙 — 본인확인을 먼저 마쳐야 가입 폼이 열린다(예외 없음).
   // 이름·생년월일·휴대폰은 본인확인 값으로 채우고 수정 불가. 가입 완료 RPC 는 토큰만 믿고 값은 서버 보관본을 쓴다.
   const [identityProof, setIdentityProof] = useState(() => (IDENTITY_ENABLED ? loadIdentityProof() : null));
   const [identityReturn, setIdentityReturn] = useState(null);
@@ -230,14 +232,12 @@ export default function SignupEmail() {
     }
   };
 
-  const [phoneSending, setPhoneSending] = useState(false);
-  const [phoneVerifying, setPhoneVerifying] = useState(false);
-
   // 이메일 값 바뀌면 인증 상태 리셋
   useEffect(() => {
     setEmailVerified(false);
     setEmailSent(false);
     setEmailCode('');
+    setVerifiedEmail('');
   }, [email]);
 
   // 회사(항공사) 이메일 값 바뀌면 회사 인증 상태 리셋 (발급받은 소비 토큰도 함께 버린다)
@@ -248,15 +248,6 @@ export default function SignupEmail() {
     setVerifiedAirlineEmail('');
     setAirlineOtpToken('');
   }, [airlineEmail]);
-
-  // 휴대폰 번호가 바뀌면 인증 상태·토큰 리셋 (인증 후 번호만 바꿔 제출하는 상태 불일치 방지)
-  useEffect(() => {
-    setPhoneVerified(false);
-    setPhoneSent(false);
-    setPhoneCode('');
-    setVerifiedPhone('');
-    setPhoneOtpToken('');
-  }, [phone]);
 
   // 모바일 본인확인 복귀(?flow=identity&…): 결과를 state 로 옮기고 URL 에서 복귀 파라미터만 지운다(type·ref 보존).
   useEffect(() => {
@@ -285,6 +276,7 @@ export default function SignupEmail() {
     setError('');
   };
 
+  // 로그인 아이디(개인 이메일) 인증번호 발송 — 여행자 전용(승무원은 회사 메일 인증만 거친다)
   const sendEmailCode = async () => {
     setError('');
     setEmailError('');
@@ -302,7 +294,8 @@ export default function SignupEmail() {
       const resp = await fetch(apiUrl('/api/send-email-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleaned }),
+        // purpose 는 가입용 개인 이메일 고정 — 서버가 이 값으로 도메인 제한과 검증 대상을 가른다.
+        body: JSON.stringify({ email: cleaned, purpose: 'signup' }),
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
@@ -330,7 +323,7 @@ export default function SignupEmail() {
       const resp = await fetch(apiUrl('/api/verify-email-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleaned, code: emailCode }),
+        body: JSON.stringify({ email: cleaned, code: emailCode, purpose: 'signup' }),
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
@@ -338,6 +331,7 @@ export default function SignupEmail() {
         return;
       }
       setEmailVerified(true);
+      setVerifiedEmail(cleaned); // 인증 성공한 정규화 이메일 기록
       setEmailError('');
     } catch (err) {
       setEmailError('네트워크 오류: ' + (err.message || '알 수 없음'));
@@ -360,7 +354,8 @@ export default function SignupEmail() {
       const resp = await fetch(apiUrl('/api/send-email-otp'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleaned }),
+        // purpose 는 승무원 회사 이메일 고정 — 서버가 이 값으로 발급·검증을 묶는다.
+        body: JSON.stringify({ email: cleaned, purpose: 'airline_email' }),
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
@@ -406,81 +401,18 @@ export default function SignupEmail() {
     }
   };
 
-  const sendPhoneCode = async () => {
-    setError('');
-    const cleaned = phone.replace(/[^0-9]/g, '');
-    if (cleaned.length < 10 || cleaned.length > 11) {
-      setError('휴대폰 번호를 정확히 입력해주세요. (10~11자리 숫자)');
-      return;
-    }
-    if (!/^01[016789]/.test(cleaned)) {
-      setError('올바른 휴대폰 번호 형식이 아닙니다.');
-      return;
-    }
-    setPhoneSending(true);
-    try {
-      const resp = await fetch(apiUrl('/api/send-otp'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleaned }),
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        setError(data.error || '인증번호 발송에 실패했습니다.');
-        return;
-      }
-      setPhoneSent(true);
-      setPhoneCode('');
-    } catch (err) {
-      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
-    } finally {
-      setPhoneSending(false);
-    }
-  };
-  const verifyPhoneCode = async () => {
-    if (!phoneCode || phoneCode.length !== 6 || !/^[0-9]+$/.test(phoneCode)) {
-      setError('인증번호 6자리 숫자를 입력해주세요.');
-      return;
-    }
-    setPhoneVerifying(true);
-    try {
-      const cleaned = phone.replace(/[^0-9]/g, '');
-      const resp = await fetch(apiUrl('/api/verify-otp'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleaned, code: phoneCode, purpose: 'signup_phone' }),
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) {
-        setError(data.error || '인증 실패');
-        return;
-      }
-      setPhoneVerified(true);
-      setVerifiedPhone(cleaned);
-      setPhoneOtpToken(data.verifyToken || '');
-      setError('');
-    } catch (err) {
-      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
-    } finally {
-      setPhoneVerifying(false);
-    }
-  };
-
   const canSubmit = () => {
     if (!email || emailStatus !== 'available') return false;
-    if (!emailVerified) return false;
+    // 여행자만 개인 이메일 인증번호 확인이 필요하다(승무원은 아래 회사 이메일 인증으로 갈음).
+    // 인증한 주소와 현재 입력값이 같아야 한다 — 인증 도중 주소를 바꿔 통과하는 레이스 차단(codex 지적).
+    if (needsEmailOtp && (!emailVerified || verifiedEmail !== email.trim().toLowerCase())) return false;
     if (!password || password.length < 6) return false;
     if (password !== passwordConfirm) return false;
     if (!name.trim()) return false;
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
     if (!birthdate || isUnder14(birthdate)) return false;
-    if (IDENTITY_ENABLED) {
-      // 본인확인 증빙 토큰이 휴대폰 OTP 를 대신한다(서버가 토큰 소비 + 값 재검증)
-      if (!identityProof?.token) return false;
-    } else {
-      if (!phoneVerified || !phoneOtpToken) return false;
-      if (verifiedPhone !== phone.replace(/[^0-9]/g, '')) return false;
-    }
+    // 본인확인(PASS) 증빙 토큰이 유일한 신원 확인 수단이다(서버가 토큰 소비 + 값 재검증)
+    if (!identityProof?.token) return false;
     if (!zipcode || !addressRoad) return false;
     if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified || !airlineOtpToken
         || verifiedAirlineEmail !== airlineEmail.trim().toLowerCase())) return false;
@@ -535,13 +467,14 @@ export default function SignupEmail() {
           p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
           p_referred_by: resolvedReferrer,
           p_birthdate: birthdate,
-          p_phone_otp_token: IDENTITY_ENABLED ? null : phoneOtpToken,
+          // 문자(SMS) OTP 경로는 폐지 — 휴대폰 확인은 아래 본인확인 증빙 하나로만 이뤄진다.
+          p_phone_otp_token: null,
           p_airline_otp_token: (userType === 'crew') ? airlineOtpToken : null,
           // 동의 시각 기록. 인자를 추가한 SQL 을 먼저 배포해야 한다(구버전 함수에는 이 인자가 없어 '함수 없음' 에러가 난다).
           p_terms_agreed_at: termsAgreedAt,
           p_privacy_agreed_at: privacyAgreedAt,
           // 휴대폰 본인확인 증빙(2026-09-02, identity_20260902.sql). 서버가 소비하며 이름·생년월일·휴대폰을 확정.
-          p_identity_token: IDENTITY_ENABLED ? (identityProof?.token || null) : null,
+          p_identity_token: identityProof?.token || null,
         });
         if (compErr) throw compErr;
         clearIdentityProof();
@@ -551,8 +484,6 @@ export default function SignupEmail() {
         // /signup/complete 에서 이어서 가입을 마칠 수 있도록 세션 스토리지로 넘긴다(서버 유효기간과 같은 1시간).
         try {
           sessionStorage.setItem('pendingOtpProof', JSON.stringify({
-            phone: verifiedPhone,
-            phoneToken: phoneOtpToken,
             airlineEmail: verifiedAirlineEmail,
             airlineToken: userType === 'crew' ? airlineOtpToken : '',
             // 주소는 메타데이터로 보내지 않으므로(평문 사본 방지) 여기로 넘겨 /signup/complete 가 프리필한다.
@@ -574,7 +505,13 @@ export default function SignupEmail() {
       } else if (err.message?.includes('IDENTITY_BLOCKED')) {
         setError('이용이 제한된 사용자입니다. 문의가 필요하면 고객센터로 연락해주세요.');
       } else if (err.message?.includes('OTP_PROOF')) {
-        setError('인증 확인 시간이 지났습니다. 페이지를 새로고침한 뒤 휴대폰·회사 이메일 인증을 다시 받아주세요.');
+        // 소비 토큰이 만료·사용됨. 인증 상태를 지워야 같은 죽은 토큰으로 계속 제출되지 않는다(codex 지적).
+        setAirlineEmailVerified(false);
+        setAirlineEmailSent(false);
+        setAirlineEmailCode('');
+        setVerifiedAirlineEmail('');
+        setAirlineOtpToken('');
+        setError('인증 확인 시간이 지났습니다. 페이지를 새로고침한 뒤 회사 이메일 인증을 다시 받아주세요.');
       } else if (err.message?.includes('PHONE_BLOCKED')) {
         setError('이용이 제한된 번호입니다. 문의가 필요하면 고객센터로 연락해주세요.');
       } else if (err.message?.includes('PHONE_ALREADY_CLAIMED')) {
@@ -627,13 +564,15 @@ export default function SignupEmail() {
           </p>
         )}
 
-        {IDENTITY_ENABLED && !identityProof ? (
+        {!identityProof ? (
           // 1단계: 휴대폰 본인확인. 마치기 전에는 가입 폼을 열지 않는다(본인확인 → 가입 순서).
+          // 포트원 키가 없으면(IDENTITY_ENABLED=false) 버튼을 잠가 가입 자체를 막는다 — 의도된 동작이다.
           <IdentityVerifyStep
             returnPath={location.pathname + stripIdentityParams(location.search)}
             returnResult={identityReturn}
             onVerified={(proof) => { setIdentityReturn(null); setIdentityProof(proof); }}
             accent={userType === 'crew' ? '#7c3aed' : '#2563eb'}
+            disabled={!IDENTITY_ENABLED}
           />
         ) : (
         <form onSubmit={handleSubmit} autoComplete="off" noValidate>
@@ -748,14 +687,17 @@ export default function SignupEmail() {
               emailVerified ? '이메일 인증 완료' :
               !email ? (userType === 'crew' ? '로그인에 쓸 개인 이메일을 입력하세요. (회사 이메일과 달라도 됩니다)' : null) :
               emailStatus === 'checking' ? '확인 중...' :
-              emailStatus === 'available' && !emailSent ? '사용 가능 — 오른쪽 "인증번호 받기" 버튼을 눌러 본인 확인하세요.' :
-              emailStatus === 'available' && emailSent ? '인증번호가 이메일로 발송됐습니다. 메일함(스팸함 포함)을 확인하고 6자리 입력해주세요.' :
-              emailStatus === 'taken' ? '이미 가입된 이메일' : null
+              emailStatus === 'taken' ? '이미 가입된 이메일' :
+              emailStatus === 'available'
+                ? (!needsEmailOtp ? '사용 가능 — 승무원은 위 회사 이메일 인증으로 확인합니다.'
+                  : !emailSent ? '사용 가능 — 오른쪽 "인증번호 받기" 버튼을 눌러 본인 확인하세요.'
+                  : '인증번호가 이메일로 발송됐습니다. 메일함(스팸함 포함)을 확인하고 6자리 입력해주세요.')
+                : null
             }
             helperColor={
               emailVerified ? '#16a34a' :
               emailStatus === 'taken' ? '#dc2626' :
-              emailStatus === 'available' ? '#2563eb' : '#64748b'
+              emailStatus === 'available' ? (needsEmailOtp ? '#2563eb' : '#16a34a') : '#64748b'
             }>
             <div style={{ display: 'flex', gap: 8 }}>
               <input type="email" value={email}
@@ -764,21 +706,23 @@ export default function SignupEmail() {
                 placeholder="example@email.com"
                 style={{ ...inputStyle, flex: 1, background: emailVerified ? '#f8fafc' : 'white', cursor: emailVerified ? 'not-allowed' : 'text' }}
                 autoComplete="off" required maxLength={100} />
-              <button type="button" onClick={sendEmailCode}
-                disabled={!email || emailStatus !== 'available' || emailVerified || emailSending}
-                style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                  background: emailVerified ? '#d1fae5' : emailSending ? '#94a3b8' : (!email || emailStatus !== 'available') ? '#cbd5e1' : '#2563eb',
-                  color: emailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
-                  cursor: emailVerified || emailSending || !email || emailStatus !== 'available' ? 'default' : 'pointer' }}>
-                {emailVerified ? '인증 완료' : emailSending ? '전송 중...' : emailSent ? '재전송' : '인증번호 받기'}
-              </button>
+              {needsEmailOtp && (
+                <button type="button" onClick={sendEmailCode}
+                  disabled={!email || emailStatus !== 'available' || emailVerified || emailSending}
+                  style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
+                    background: emailVerified ? '#d1fae5' : emailSending ? '#94a3b8' : (!email || emailStatus !== 'available') ? '#cbd5e1' : '#2563eb',
+                    color: emailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
+                    cursor: emailVerified || emailSending || !email || emailStatus !== 'available' ? 'default' : 'pointer' }}>
+                  {emailVerified ? '인증 완료' : emailSending ? '전송 중...' : emailSent ? '재전송' : '인증번호 받기'}
+                </button>
+              )}
             </div>
-            {emailError && (
+            {needsEmailOtp && emailError && (
               <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>
                 ⚠️ {emailError}
               </div>
             )}
-            {emailSent && !emailVerified && (
+            {needsEmailOtp && emailSent && !emailVerified && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <input type="text" value={emailCode}
                   onChange={(e) => setEmailCode(e.target.value.replace(/[^0-9]/g, ''))}
@@ -857,39 +801,10 @@ export default function SignupEmail() {
             )}
           </Field>
 
-          {identityProof ? (
-            <Field label="휴대폰 번호" icon={<Phone size={16} />} helper="본인확인으로 확인된 번호입니다." helperColor="#16a34a">
-              <input type="tel" value={phone} readOnly style={lockedInputStyle} />
-            </Field>
-          ) : (
-          <Field label="휴대폰 번호 (인증 필요)" icon={<Phone size={16} />}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input type="tel" value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="01012345678" style={{ ...inputStyle, flex: 1 }}
-                autoComplete="off" maxLength={11} disabled={phoneVerified} />
-              <button type="button" onClick={sendPhoneCode} disabled={phoneVerified || phoneSending}
-                style={{ padding: '0 14px', borderRadius: 10,
-                  background: phoneVerified ? '#d1fae5' : phoneSending ? '#94a3b8' : '#2563eb',
-                  color: phoneVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
-                  cursor: phoneVerified ? 'default' : 'pointer' }}>
-                {phoneVerified ? '인증 완료' : phoneSending ? '전송 중...' : phoneSent ? '재전송' : '인증번호 받기'}
-              </button>
-            </div>
-            {phoneSent && !phoneVerified && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <input type="text" value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="인증번호" style={{ ...inputStyle, flex: 1 }}
-                  autoComplete="off" maxLength={6} />
-                <button type="button" onClick={verifyPhoneCode} disabled={phoneVerifying}
-                  style={{ padding: '0 14px', borderRadius: 10, background: phoneVerifying ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', fontWeight: 600, cursor: phoneVerifying ? 'wait' : 'pointer' }}>
-                  {phoneVerifying ? '확인 중...' : '인증'}
-                </button>
-              </div>
-            )}
+          {/* 휴대폰 — 본인확인 값으로만 채워지는 읽기 전용 표시 */}
+          <Field label="휴대폰 번호" icon={<Phone size={16} />} helper="본인확인으로 확인된 번호입니다." helperColor="#16a34a">
+            <input type="tel" value={phone} readOnly style={lockedInputStyle} />
           </Field>
-          )}
 
           <Field label="주소" icon={<MapPin size={16} />}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
