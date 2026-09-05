@@ -7,7 +7,7 @@ import { safeNext, rememberNext, nextQuery } from '../lib/safeNext';
 // 단 이미 해당 페이지 위에 있거나, 관리자 페이지면 리다이렉트 안 함.
 // /reset-password: 복구 링크 세션은 로그인 상태라 게이트에 걸리면 비밀번호를 못 바꾸고
 // /signup/complete 로 튕김(codex 지적) — 재설정 흐름 2경로는 예외
-const EXEMPT_PATHS = ['/signup/complete', '/admin', '/reset-password', '/forgot-password'];
+const EXEMPT_PATHS = ['/signup/complete', '/admin', '/reset-password', '/forgot-password', '/find-id'];
 
 // 이 게이트를 지나는 순간 URL 의 next 가 한 번 끊긴다(신규 가입 → 확인 메일 → 프로필 완성 경로).
 // 아래 접두사로 들어온 경우에는 완성 직후 원래 화면으로 되돌린다.
