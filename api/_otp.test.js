@@ -120,9 +120,17 @@ describe('도메인 추출(extractDomain)', () => {
     expect(extractDomain('crew@koreanair..com')).toBe('');
     expect(extractDomain('crew@-bad.com')).toBe('');
     expect(extractDomain('crew@한글.com')).toBe('');
+    expect(extractDomain('crew@koreanair-com')).toBe(''); // 점 대신 다른 문자는 불가(정규식 이스케이프 회귀 방지)
+    expect(extractDomain('crew@koreanairxcom')).toBe('');
     expect(extractDomain('nope')).toBe('');
     // 서브도메인은 추출은 되지만 등록돼 있지 않으면 걸러진다(정확 일치)
     expect(extractDomain('x@crew.koreanair.com')).toBe('crew.koreanair.com');
+  });
+
+  it('운영 DB 의 항공사 도메인 11개(+구 하이픈 도메인)를 전부 통과시킨다', () => {
+    const domains = ['aerok.com', 'airbusan.com', 'airpremia.com', 'airzetacargo.com', 'flyairseoul.com', 'flyasiana.com',
+      'flyparata.com', 'jejuair.net', 'jinair.com', 'koreanair.com', 'trinityairways.com', 'air-incheon.com'];
+    for (const d of domains) expect(extractDomain(`crew@${d}`), d).toBe(d);
   });
 });
 
@@ -243,6 +251,16 @@ describe('⑦ 승무원 회사 메일 전용', () => {
     expect(res.body.code).toBe('SERVICE_UNAVAILABLE');
     expect(res.body.error).not.toContain('db down');
     expect(calls.inserts).toHaveLength(0);
+  });
+
+  it('검증 API 도 도메인 조회 실패면 503 이고 RPC 를 부르지 않는다', async () => {
+    const calls = newCalls();
+    const handler = await loadHandler('./verify-email-otp.js', fakeSupabase(calls, { domainError: { message: 'db down' } }));
+    const res = mockRes();
+    await handler(post({ email: CREW, code: '123456' }), res);
+    expect(res.statusCode).toBe(503);
+    expect(res.body.code).toBe('SERVICE_UNAVAILABLE');
+    expect(calls.rpcs.filter((r) => r.name === 'verify_otp_and_issue_token')).toHaveLength(0);
   });
 
   it('대소문자·공백이 섞인 항공사 주소도 소문자로 정규화해 통과한다', async () => {

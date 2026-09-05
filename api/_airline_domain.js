@@ -9,7 +9,9 @@
 // (서브도메인·endsWith 허용 안 함: evil-koreanair.com 류 우회 방지, DB RPC 와 같은 규칙).
 // 조회 오류(503)와 미등록(403)은 구분하되 둘 다 발송을 막는다(fail-closed).
 
-const DOMAIN_RE = /^(?!-)[a-z0-9-]+(?<!-)(\.(?!-)[a-z0-9-]+(?<!-))+$/;
+// 라벨 = 영숫자로 시작·끝(하이픈은 가운데만), 점으로 2개 이상 연결. lookbehind 없이 이식성 우선(codex 지적).
+const LABEL = '(?:[a-z0-9]|[a-z0-9][a-z0-9-]*[a-z0-9])';
+const DOMAIN_RE = new RegExp('^' + LABEL + '(?:[.]' + LABEL + ')+$'); // 점은 [.] 로 — 이스케이프 실수 방지
 
 /** 이메일에서 비교용 도메인을 뽑는다. 형식이 이상하면 ''. */
 export function extractDomain(email) {
