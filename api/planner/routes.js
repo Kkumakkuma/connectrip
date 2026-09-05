@@ -32,6 +32,28 @@ const MODES = ['WALK', 'DRIVE', 'TRANSIT'];
 const GOOGLE_ROUTES = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// 대중교통 출발 시각. "지금" 기준으로 물으면 서버 시각이 한밤일 때(한국 밤 = 일본·한국 막차 뒤) 구글이 경로를 못 주고
+// 추정치로 떨어진다(9/5 운영 실측: 도쿄 00시 → 없음, 같은 시각 파리·뉴욕·런던 낮 → 정상). 여행은 낮에 움직이는 게
+// 기본이므로 그 날짜의 현지 10시로 묻는다(시간대는 경도/15h 근사). 구글 허용 창(지금~100일 뒤) 밖이면 "다음 현지 10시".
+export function transitDepartureTime(dateStr, lng, nowMs = Date.now()) {
+  const HOUR = 3600 * 1000;
+  const DAY = 24 * HOUR;
+  const offsetH = Number.isFinite(lng) ? Math.round(lng / 15) : 0;
+  const min = nowMs + 5 * 60 * 1000;      // 전송 지연 여유(구글은 과거 시각을 거부)
+  const max = nowMs + 100 * DAY - HOUR;   // 구글 허용 상한 100일에서 한 시간 여유
+  let t = NaN;
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const base = Date.parse(`${dateStr}T00:00:00Z`);
+    if (Number.isFinite(base)) t = base + (10 - offsetH) * HOUR;
+  }
+  if (!Number.isFinite(t) || t < min || t > max) {
+    const localNow = nowMs + offsetH * HOUR;
+    t = Math.floor(localNow / DAY) * DAY + 10 * HOUR - offsetH * HOUR;
+    if (t < min) t += DAY;
+  }
+  return new Date(t).toISOString();
+}
+
 function estimate(from, to, mode) {
   // 화면과 **같은 함수**를 쓴다. 서버가 계산을 따로 들고 있으면 같은 구간이 화면마다
   // 다르게 보인다(실제로 대중교통 보정계수가 1.3 대 1.0 으로 갈려 있었다).
@@ -51,7 +73,7 @@ function validPoint(p) {
 }
 
 // 구글 Routes. 필드마스크를 최소로 잡아 과금 등급을 낮춘다.
-async function googleRoute(from, to, mode) {
+async function googleRoute(from, to, mode, departureTime = null) {
   const key = googleServerKey();
   if (!key) return null;
   try {
@@ -68,6 +90,7 @@ async function googleRoute(from, to, mode) {
         destination: { location: { latLng: { latitude: to.lat, longitude: to.lng } } },
         travelMode: mode,
         ...(mode === 'DRIVE' ? { routingPreference: 'TRAFFIC_UNAWARE' } : {}),
+        ...(mode === 'TRANSIT' && departureTime ? { departureTime } : {}),
       }),
     });
     if (!resp.ok) {
@@ -95,10 +118,13 @@ async function googleRoute(from, to, mode) {
 }
 
 // 한 구간: 캐시 → 구글(열려 있을 때) → 추정. 캐시 조회 오류는 미스가 아니라 추정치(fail-closed).
-async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, to, mode) {
+async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, to, mode, dateStr = null) {
   // 좌표를 소수점 5자리(약 1m)로 잘라 캐시 키를 만든다. 그 이상은 캐시 적중률만 떨어뜨린다.
   const k = (p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
-  const hash = sha256(`${provider}|${mode}|${k(from)}|${k(to)}`);
+  const departureTime = mode === 'TRANSIT' ? transitDepartureTime(dateStr, from.lng) : null;
+  // 대중교통은 평일/주말 운행이 달라 캐시 키를 나눈다(codex 9/5). 대표 시각(현지 10시) 설계라 날짜 자체는 키에 안 넣는다.
+  const dayClass = departureTime ? ([0, 6].includes(new Date(departureTime).getUTCDay()) ? 'we' : 'wd') : '';
+  const hash = sha256(`${provider}|${mode}${dayClass ? `|${dayClass}` : ''}|${k(from)}|${k(to)}`);
 
   const { data: cached, error: cacheErr } = await supabase
     .from('planner_route_cache')
@@ -110,7 +136,7 @@ async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, 
     return { mode: cached.mode, duration_s: cached.duration_s, distance_m: cached.distance_m, source: 'cache' };
   }
 
-  let leg = googleOpen && !clientGone() ? await googleRoute(from, to, mode) : null;
+  let leg = googleOpen && !clientGone() ? await googleRoute(from, to, mode, departureTime) : null;
   // 구글이 답을 못 주면(한국의 자동차·도보처럼) 추정으로 떨어진다. 결함이 아니다.
   if (!leg) leg = estimate(from, to, mode);
 
@@ -139,7 +165,7 @@ async function handleDay(req, res, supabase, ctx, provider, cfg, dayId, requeste
 
   const { data: day, error: dErr } = await supabase
     .from('planner_days')
-    .select('id, user_id')
+    .select('id, user_id, date')
     .eq('id', dayId)
     .maybeSingle();
   if (dErr) return fail(res, 503, 'SERVICE_UNAVAILABLE', '경로 계산을 준비 중입니다.');
@@ -167,7 +193,7 @@ async function handleDay(req, res, supabase, ctx, provider, cfg, dayId, requeste
     const mode = requestedMode || (from && to ? pickMode(haversineMeters(from, to)) : 'WALK');
     // DB 좌표는 CHECK 로 보장되지만, 혹시 비면 자리를 비우지 않고 0 추정치로 채운다(인덱스가 밀리면 화면이 어긋난다 — agy 지적).
     const leg = from && to
-      ? await computeLeg(supabase, cfg, from, to, mode)
+      ? await computeLeg(supabase, cfg, from, to, mode, typeof day.date === 'string' ? day.date : null)
       : { mode, duration_s: 0, distance_m: 0, source: 'estimate' };
     items.push({ from: i, to: i + 1, ...leg });
   }

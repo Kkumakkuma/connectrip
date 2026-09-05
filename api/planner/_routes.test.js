@@ -99,6 +99,8 @@ describe('날짜 모드(day_id)', () => {
     expect(res.body.legs.map((l) => [l.from, l.to, l.mode, l.source])).toEqual([[0, 1, 'WALK', 'google'], [1, 2, 'TRANSIT', 'google']]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).travelMode).toBe('TRANSIT');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).departureTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:00:00\.000Z$/); // 대중교통은 현지 10시 출발로 묻는다
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).departureTime).toBeUndefined(); // 도보·자동차는 없음
     expect(rpcCalls(sb, 'planner_day_places_fp')).toHaveLength(1);
     const save = rpcCalls(sb, 'planner_save_day_legs')[0].args;
     expect(save).toMatchObject({ p_day_id: DAY, p_user_id: 'u1', p_fp: 'fp1' });
@@ -269,5 +271,28 @@ describe('OSM 제공자(회귀)', () => {
     expect(res.body.legs[0].source).toBe('estimate');
     expect(rpcCalls(sb)).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('transitDepartureTime', () => {
+  const now = Date.parse('2026-09-05T15:00:00Z'); // 한국·일본 00:00
+  const fn = async () => (await import('./routes.js')).transitDepartureTime;
+  it('여행 날짜의 현지 10시(경도 근사)로 묻는다', async () => {
+    const f = await fn();
+    expect(f('2026-10-01', 139.77, now)).toBe('2026-10-01T01:00:00.000Z'); // 도쿄 +9
+    expect(f('2026-10-01', -73.98, now)).toBe('2026-10-01T15:00:00.000Z'); // 뉴욕 -5
+  });
+  it('날짜가 없거나 창 밖(지난 날·100일 뒤)이면 다음 현지 10시', async () => {
+    const f = await fn();
+    expect(f(null, 139.77, now)).toBe('2026-09-06T01:00:00.000Z');
+    expect(f('2026-01-01', 139.77, now)).toBe('2026-09-06T01:00:00.000Z');
+    expect(f('2027-06-01', 139.77, now)).toBe('2026-09-06T01:00:00.000Z');
+    expect(f('bad', 2.35, now)).toBe('2026-09-06T10:00:00.000Z'); // 파리 +0 근사(2.35/15=0)
+  });
+  it('현지 10시가 이미 지났으면 다음 날', async () => {
+    const f = await fn();
+    const noon = Date.parse('2026-09-05T03:00:00Z'); // 도쿄 12:00
+    expect(f(null, 139.77, noon)).toBe('2026-09-06T01:00:00.000Z');
   });
 });
