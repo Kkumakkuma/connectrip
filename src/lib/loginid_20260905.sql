@@ -403,6 +403,41 @@ GRANT EXECUTE ON FUNCTION public.revoke_user_sessions(UUID) TO service_role;
 -- 단순 보관 — 행이 작고 만료·소비 상태만 남는다. (다음 개정 때 privacy_scrub 에 흡수)
 
 -- ----------------------------------------------------------------------------------------
+-- 4a. 아이디 찾기 (마이그레이션 find_login_id_by_identity, 2026-09-05 적용): PASS 증빙(purpose 'find_id') 1회 소비 →
+--     같은 CI 로 가입된 계정의 아이디만 반환. service_role 전용(api/find-login-id.js).
+-- ----------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.find_login_id_by_identity(p_identity_token TEXT)
+RETURNS TABLE (login_id TEXT, user_type TEXT, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
+DECLARE v_idv_id UUID; v_ci TEXT;
+BEGIN
+  IF current_setting('request.jwt.claims', true)::jsonb->>'role' IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'service role required';
+  END IF;
+  IF COALESCE(btrim(p_identity_token), '') = '' THEN RAISE EXCEPTION 'IDENTITY_PROOF_INVALID'; END IF;
+  UPDATE public.identity_verifications
+     SET consumed_at = NOW()
+   WHERE consume_token_hash = encode(extensions.digest(p_identity_token, 'sha256'), 'hex')
+     AND purpose = 'find_id'
+     AND verified_at > NOW() - INTERVAL '1 hour'
+     AND consumed_at IS NULL
+  RETURNING id, ci_hash INTO v_idv_id, v_ci;
+  IF v_idv_id IS NULL OR v_ci IS NULL THEN RAISE EXCEPTION 'IDENTITY_PROOF_INVALID'; END IF;
+  UPDATE public.identity_verifications
+     SET name = NULL, birthdate = NULL, phone = NULL, gender = NULL, operator = NULL,
+         is_foreigner = NULL, ci_hash = NULL, ip_address = NULL
+   WHERE id = v_idv_id;
+  RETURN QUERY
+    SELECT p.login_id, p.user_type, p.created_at
+      FROM public.profiles_identity pi JOIN public.profiles p ON p.id = pi.user_id
+     WHERE pi.ci_hash = v_ci AND p.login_id IS NOT NULL AND p.deleted_at IS NULL
+     LIMIT 1;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.find_login_id_by_identity(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.find_login_id_by_identity(TEXT) TO service_role;
+
+-- ----------------------------------------------------------------------------------------
 -- 4b. 추천 승무원 찾기: 이메일 외에 아이디로도. profiles_guard: 시험 계정 하한은 user_id 로, login_id 는 보호 컬럼
 -- ----------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.find_crew_referrer(p_login_id TEXT)
