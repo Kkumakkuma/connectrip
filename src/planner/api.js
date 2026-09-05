@@ -496,10 +496,23 @@ async function callFunction(path, body) {
   return payload;
 }
 
-// 검색은 Enter 를 눌렀을 때만 부른다 — Nominatim 정책상 타이핑마다 부르면 안 된다.
+// 검색(엔터)은 OSM 제공자의 경로다 — Nominatim 정책상 타이핑마다 부르면 안 된다.
 export async function searchPlaces(q) {
   const out = await callFunction('/api/planner/places', { q });
   return { provider: out.provider, results: out.results || [] };
+}
+
+// 자동완성(구글 제공자 전용). session 은 화면이 만든 UUID(한 번 고를 때까지 같은 값), bias 는 여행 목적지 좌표.
+// 응답의 known=true 항목은 좌표까지 들어 있어 details 없이 바로 담을 수 있다(0원).
+export async function suggestPlaces(q, { session, bias } = {}) {
+  const out = await callFunction('/api/planner/places', { mode: 'suggest', q, session, bias: bias || null });
+  return { provider: out.provider, suggestions: out.suggestions || [] };
+}
+
+// 자동완성 후보 하나의 좌표·주소(구글 제공자 전용). 카탈로그에 있으면 구글을 부르지 않는다.
+export async function resolvePlace({ placeId, name, session }) {
+  const out = await callFunction('/api/planner/places', { mode: 'details', place_id: placeId, name, session });
+  return out.place;
 }
 
 export async function extractLinkPlaces(url) {

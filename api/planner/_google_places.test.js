@@ -2,13 +2,21 @@
 // 핵심은 필드마스크 완전일치 — 요금 등급(Pro)이 여기서 굳는다. 필드를 하나라도 늘리면 이 테스트가 먼저 막는다.
 import { describe, it, expect, vi } from 'vitest';
 import {
+  AUTOCOMPLETE_FIELD_MASK,
+  AUTOCOMPLETE_URL,
+  BIAS_RADIUS_M,
+  DETAILS_ESSENTIALS_FIELD_MASK,
   DETAILS_FIELD_MASK,
   MAX_RESULTS,
   PLACES_BASE,
   TEXT_SEARCH_FIELD_MASK,
   TEXT_SEARCH_URL,
+  autocompleteGoogle,
   normalizeGooglePlace,
+  normalizePrediction,
+  normalizeSessionToken,
   placeDetailsGoogle,
+  placeLocationGoogle,
   searchTextGoogle,
 } from './_google_places.js';
 
@@ -31,7 +39,82 @@ describe('필드마스크(요금 등급 고정)', () => {
     for (const b of banned) {
       expect(TEXT_SEARCH_FIELD_MASK).not.toContain(b);
       expect(DETAILS_FIELD_MASK).not.toContain(b);
+      expect(DETAILS_ESSENTIALS_FIELD_MASK).not.toContain(b);
     }
+  });
+  it('자동완성 마스크 고정, 상세 Essentials 는 displayName(Pro) 없이 3개 필드', () => {
+    expect(AUTOCOMPLETE_FIELD_MASK).toBe(
+      'suggestions.placePrediction.placeId,suggestions.placePrediction.text,suggestions.placePrediction.structuredFormat'
+    );
+    expect(DETAILS_ESSENTIALS_FIELD_MASK).toBe('id,location,formattedAddress');
+    expect(DETAILS_ESSENTIALS_FIELD_MASK).not.toContain('displayName');
+    expect(BIAS_RADIUS_M).toBe(50000);
+  });
+});
+
+describe('autocompleteGoogle', () => {
+  const pred = (i, extra = {}) => ({
+    placePrediction: {
+      placeId: `ChIJ${i}`,
+      text: { text: `예측 ${i}, 도쿄` },
+      structuredFormat: { mainText: { text: `예측 ${i}` }, secondaryText: { text: '도쿄, 일본' } },
+      ...extra,
+    },
+  });
+  it('요청 형식(세션·편향·ko·쿼리예측 제외) + 예측 정규화 + 불량 제거 + 8건 상한', async () => {
+    const calls = [];
+    const fetchImpl = vi.fn(async (url, init) => {
+      calls.push({ url, init });
+      return resp({ suggestions: [{ queryPrediction: { text: { text: 'q' } } }, { placePrediction: { placeId: 'x' } }, ...Array.from({ length: 10 }, (_, i) => pred(i))] });
+    });
+    const r = await autocompleteGoogle({ q: ' 도쿄타 ', key: 'K', session: '11111111-2222-3333-4444-555555555555', bias: { lat: 35.68, lng: 139.76 }, fetchImpl });
+    expect(r.ok).toBe(true);
+    expect(r.predictions).toHaveLength(MAX_RESULTS);
+    expect(r.predictions[0]).toEqual({ provider: 'google', provider_place_id: 'ChIJ0', name: '예측 0', secondary: '도쿄, 일본' });
+    expect(calls[0].url).toBe(AUTOCOMPLETE_URL);
+    expect(calls[0].init.headers).toEqual({ 'Content-Type': 'application/json', 'X-Goog-Api-Key': 'K', 'X-Goog-FieldMask': AUTOCOMPLETE_FIELD_MASK });
+    expect(JSON.parse(calls[0].init.body)).toEqual({
+      input: '도쿄타',
+      languageCode: 'ko',
+      includeQueryPredictions: false,
+      sessionToken: '11111111-2222-3333-4444-555555555555',
+      locationBias: { circle: { center: { latitude: 35.68, longitude: 139.76 }, radius: BIAS_RADIUS_M } },
+    });
+  });
+  it('세션 토큰이 이상하거나 편향이 없으면 본문에서 빠진다', async () => {
+    const calls = [];
+    await autocompleteGoogle({ q: 'x', key: 'K', session: 'bad token!', bias: { lat: 'a' }, fetchImpl: async (u, i) => { calls.push(i); return resp({ suggestions: [] }); } });
+    expect(JSON.parse(calls[0].body)).toEqual({ input: 'x', languageCode: 'ko', includeQueryPredictions: false });
+    expect(normalizeSessionToken('11111111-2222-3333-4444-555555555555')).toBe('11111111-2222-3333-4444-555555555555');
+    expect(normalizeSessionToken('short')).toBe('');
+    expect(normalizePrediction({ placeId: 'a', text: { text: '전체 텍스트' } })).toEqual({ provider: 'google', provider_place_id: 'a', name: '전체 텍스트', secondary: '' });
+  });
+  it('HTTP 오류·파싱 실패·네트워크 예외·키 없음은 ok:false', async () => {
+    expect((await autocompleteGoogle({ q: 'x', key: '', fetchImpl: vi.fn() })).ok).toBe(false);
+    expect(await autocompleteGoogle({ q: 'x', key: 'K', fetchImpl: async () => resp({}, 403) })).toEqual({ ok: false, reason: 'http', status: 403 });
+    expect(await autocompleteGoogle({ q: 'x', key: 'K', fetchImpl: async () => { throw new Error('t'); } })).toEqual({ ok: false, reason: 'network' });
+  });
+});
+
+describe('placeLocationGoogle (Details Essentials)', () => {
+  it('세션 토큰을 URL 에 싣고 Essentials 마스크로 부른다. 좌표·주소만 돌려준다', async () => {
+    const calls = [];
+    const fetchImpl = vi.fn(async (url, init) => {
+      calls.push({ url, init });
+      return resp({ id: 'ChIJ1', location: { latitude: 35.2, longitude: 139.8 }, formattedAddress: '새 주소' });
+    });
+    const r = await placeLocationGoogle({ placeId: 'ChIJ1', key: 'K', session: 'abcdefgh-1234', fetchImpl });
+    expect(r).toEqual({ ok: true, place: { provider_place_id: 'ChIJ1', address: '새 주소', lat: 35.2, lng: 139.8 } });
+    expect(calls[0].url).toBe(`${PLACES_BASE}/places/ChIJ1?languageCode=ko&sessionToken=abcdefgh-1234`);
+    expect(calls[0].init.headers).toEqual({ 'X-Goog-Api-Key': 'K', 'X-Goog-FieldMask': DETAILS_ESSENTIALS_FIELD_MASK, Accept: 'application/json' });
+  });
+  it('세션 없으면 파라미터 생략, 404 not_found, 좌표 없음 schema, 주소 없음 null', async () => {
+    const calls = [];
+    const r = await placeLocationGoogle({ placeId: 'ChIJ1', key: 'K', fetchImpl: async (u) => { calls.push(u); return resp({ location: { latitude: 1, longitude: 2 } }); } });
+    expect(calls[0]).toBe(`${PLACES_BASE}/places/ChIJ1?languageCode=ko`);
+    expect(r.place.address).toBeNull();
+    expect(await placeLocationGoogle({ placeId: 'x', key: 'K', fetchImpl: async () => resp({}, 404) })).toEqual({ ok: false, reason: 'not_found' });
+    expect(await placeLocationGoogle({ placeId: 'x', key: 'K', fetchImpl: async () => resp({ id: 'x' }) })).toEqual({ ok: false, reason: 'schema' });
   });
 });
 

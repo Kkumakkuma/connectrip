@@ -773,6 +773,13 @@ export default function TripBoard() {
           saving={busy}
           onClose={closeSheet}
           onPick={handlePickPlace}
+          // 구글 자동완성 편향(여행 목적지 반경 50km)과 정적 추천 명소 매칭에 쓴다. 목적지가 없으면 null.
+          bias={
+            Number.isFinite(Number(trip?.dest_lat)) && Number.isFinite(Number(trip?.dest_lng))
+              ? { lat: Number(trip.dest_lat), lng: Number(trip.dest_lng) }
+              : null
+          }
+          destId={trip?.dest_id || null}
         />
       )}
 

@@ -18,7 +18,20 @@ export async function runCatalogRefresh(
   supabase,
   { key = googleServerKey(), log = console, deadlineMs = 200 * 1000, batch = REFRESH_BATCH, fetchImpl, now = Date.now } = {}
 ) {
-  const report = { enabled: false, due: 0, refreshed: 0, touched: 0, failed: 0, reason: null };
+  const report = { enabled: false, due: 0, refreshed: 0, touched: 0, failed: 0, reason: null, cache_purged: false };
+
+  // 검색·자동완성 캐시는 24시간만 쓰고 이틀 지난 행은 지운다(구글 콘텐츠를 오래 쌓아 두지 않기 위해). 키·플래그와 무관.
+  try {
+    const { error: pErr } = await supabase
+      .from('planner_place_search_cache')
+      .delete()
+      .lt('fetched_at', new Date(now() - 2 * 24 * 60 * 60 * 1000).toISOString());
+    if (pErr) log.error('[planner/refresh] cache purge failed', pErr.code || pErr.message || '');
+    else report.cache_purged = true;
+  } catch (err) {
+    log.error('[planner/refresh] cache purge failed', err?.message || '');
+  }
+
   if (!key) {
     report.reason = 'no_key';
     return report;

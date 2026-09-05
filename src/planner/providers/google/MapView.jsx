@@ -248,6 +248,8 @@ export default function MapView({
       >
         <GoogleMap
           mapId={MAP_ID}
+          // 화면을 오갈 때(목록↔일정판) Map 객체를 다시 만들지 않고 재사용한다 — 지도 표시 과금은 Map 생성 단위다(2026-09-05 쿠마님 승인).
+          reuseMaps
           defaultCenter={initialCenter}
           defaultZoom={DEFAULT_ZOOM}
           style={{ width: '100%', height: '100%' }}

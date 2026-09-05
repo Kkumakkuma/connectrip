@@ -15,6 +15,14 @@ function fakeSupabase({ enabled = true, flagError = null, due = [], dueError = n
   const calls = [];
   return {
     calls,
+    from: (table) => ({
+      delete: () => ({
+        lt: async (col, val) => {
+          calls.push({ name: 'delete', table, col, val });
+          return { error: null };
+        },
+      }),
+    }),
     rpc: async (name, args) => {
       calls.push({ name, args });
       if (name === 'planner_google_enabled') return { data: enabled, error: flagError };
@@ -57,8 +65,11 @@ describe('runCatalogRefresh', () => {
     expect((await runCatalogRefresh(sb, { key: 'K', fetchImpl })).reason).toBe('flag_lookup_failed');
 
     sb = fakeSupabase();
-    expect((await runCatalogRefresh(sb, { key: '', fetchImpl })).reason).toBe('no_key');
-    expect(sb.calls).toEqual([]);
+    const r = await runCatalogRefresh(sb, { key: '', fetchImpl });
+    expect(r.reason).toBe('no_key');
+    // 키가 없어도 이틀 지난 검색 캐시 정리는 한다
+    expect(r.cache_purged).toBe(true);
+    expect(sb.calls).toEqual([{ name: 'delete', table: 'planner_place_search_cache', col: 'fetched_at', val: expect.any(String) }]);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
