@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
 import { clearIdentityProof } from './identity';
+import { isSyntheticEmail } from './loginId';
 
 const AuthContext = createContext({});
 
@@ -96,15 +97,18 @@ export const AuthProvider = ({ children }) => {
     // 대상 불일치(=그 사이 계정 전환)면 쓰지 않는다 — 다른 계정 정보가 섞이는 것 차단
     if (!authUser || authUser.id !== userId || !isCurrent()) return first;
     const meta = authUser.user_metadata || {};
+    // 아이디 기반 계정의 Auth 주소는 합성 주소(<login_id>@id.connecttrip.co.kr)라 연락처도 이름도 아니다.
+    // profiles.email 에 넣지 않고, 기본 이름으로도 쓰지 않는다(화면 노출 0건 원칙).
+    const contactEmail = isSyntheticEmail(authUser.email) ? null : (authUser.email || null);
     const defaultName = meta.full_name || meta.name
-      || (authUser.email ? authUser.email.split('@')[0] : '여행자');
+      || (contactEmail ? contactEmail.split('@')[0] : '여행자');
     // returning 제거: profiles SELECT 컬럼 잠금 후 .select() returning 이 깨지므로
     // upsert 후 get_my_profile 로 재조회한다.
     await supabase
       .from('profiles')
       .upsert({
         id: userId,
-        email: authUser.email,
+        email: contactEmail,
         name: defaultName,
         avatar_url: meta.avatar_url || null,
         provider: authUser.app_metadata?.provider || 'email',
@@ -272,17 +276,8 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email, password, userType = 'traveler') => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { user_type: userType } }
-    });
-    if (error) throw error;
-    // user_type 은 signUp metadata(options.data)로 전달되어 handle_new_user 트리거가 profiles 에 반영한다.
-    // (보호컬럼이라 클라 직접 update 는 profiles_guard 트리거가 차단하므로 제거)
-    return data;
-  };
+  // 가입 함수는 두지 않는다 — 계정 생성은 서버(POST /api/signup)가 증빙(PASS·이메일 OTP)을 검증한 뒤 한다.
+  // 브라우저에서 직접 Auth 계정을 만들 수 있으면 남의 아이디의 합성 주소를 선점할 수 있어서다(2026-09-05).
 
   const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -346,7 +341,6 @@ export const AuthProvider = ({ children }) => {
     profileLoading,
     // 프로필 조회 실패(네트워크/권한). true 면 '권한 없음'이 아니라 '확인 실패'로 다뤄야 한다.
     profileError,
-    signUp,
     signIn,
     signInWithProvider,
     signOut,

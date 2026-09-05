@@ -26,7 +26,11 @@ export default function ProfileCompleteGate() {
     if (loading) return;
     if (!isLoggedIn) return;
     if (!profile) return; // 아직 프로필 로드 안 됨
-    if (profile.profile_completed) return;
+    // 아이디 로그인 전환(2026-09-05): login_id 가 비어 있으면 완성으로 보지 않는다.
+    // 단 판정은 null 일 때만 — get_my_profile 이 아직 이 컬럼을 안 돌려주는 전환기(undefined)에
+    // 멀쩡한 기존 회원이 전부 /signup/complete 로 튕기는 사고를 막기 위해서다.
+    const loginIdMissing = profile.login_id === null;
+    if (profile.profile_completed && !loginIdMissing) return;
     if (EXEMPT_PATHS.some((p) => location.pathname.startsWith(p))) return;
 
     // 현재 URL 이 들고 온 next 를 우선하고, 없으면 플래너 경로 자신을 복귀 대상으로 삼는다.

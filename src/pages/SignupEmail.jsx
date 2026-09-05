@@ -8,6 +8,7 @@ import { getAirlineInfo, isAirlineEmail, getAirlineList } from '../lib/airlines'
 import AirlineLogo from '../components/AirlineLogo';
 import { isUnder14 } from '../lib/age';
 import { apiUrl } from '../lib/api';
+import { normalizeLoginId, isReservedLoginId, synthEmail, passwordWeak } from '../lib/loginId';
 import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
@@ -36,7 +37,7 @@ export default function SignupEmail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, signIn } = useAuth();
 
   const initialUserType = searchParams.get('type') === 'crew' ? 'crew' : 'traveler';
   const initialAirlineEmail = searchParams.get('airline') || '';
@@ -54,7 +55,13 @@ export default function SignupEmail() {
   const [airlineEmail, setAirlineEmail] = useState(initialAirlineEmail);
   const airlineInfo = isAirlineEmail(airlineEmail) ? getAirlineInfo(airlineEmail) : null;
 
-  // 로그인 아이디(이메일)는 개인 이메일로 자유롭게 사용. 회사(항공사) 이메일은 아래에서 별도 인증한다.
+  // 계정 식별자 = 아이디(login_id). 이메일은 연락처일 뿐 로그인에 쓰지 않는다(2026-09-05).
+  const [loginId, setLoginId] = useState('');
+  const [loginIdStatus, setLoginIdStatus] = useState(null); // 'invalid'|'reserved'|'checking'|'available'|'taken'
+  const loginIdRef = useRef(null);
+  const nicknameRef = useRef(null);
+
+  // 여행자만 입력하는 개인 연락 이메일. 승무원은 회사 이메일 하나만 받는다(연락 메일 겸용).
   const [email, setEmail] = useState('');
 
   // 회사(항공사) 이메일 별도 인증 상태 — 로그인 이메일과 완전 분리
@@ -67,7 +74,7 @@ export default function SignupEmail() {
   // 인증에 성공한 회사 이메일(정규화값)을 기록 — 늦은 응답 레이스/입력변경으로 잘못 통과되지 않게 canSubmit 에서 대조
   const [verifiedAirlineEmail, setVerifiedAirlineEmail] = useState('');
 
-  // 로그인 아이디(이메일) 인증 상태.
+  // 개인 연락 이메일 인증 상태.
   // 여행자는 개인 이메일 인증번호까지 확인하고, 승무원은 회사(항공사) 이메일 인증 하나로 갈음한다
   // — 승무원이 이메일을 두 번 인증하지 않게 한다(쿠마님 2026-09-05).
   const [emailStatus, setEmailStatus] = useState(null); // 'checking' | 'available' | 'taken'
@@ -79,6 +86,8 @@ export default function SignupEmail() {
   const [emailError, setEmailError] = useState('');
   // 인증에 성공한 이메일(정규화값) — 늦은 응답 레이스/입력변경으로 잘못 통과되지 않게 canSubmit 에서 대조
   const [verifiedEmail, setVerifiedEmail] = useState('');
+  // 개인 이메일 인증에 성공한 클라이언트만 가입을 완성할 수 있도록 서버가 준 일회성 소비 토큰
+  const [emailOtpToken, setEmailOtpToken] = useState('');
   const needsEmailOtp = userType !== 'crew';
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -110,7 +119,7 @@ export default function SignupEmail() {
   const referrerFromLink = !!searchParams.get('ref');
 
   // 개인정보보호법 제15조·제22조 — 개인정보를 수집하기 전에 필수 동의를 명시적으로 받는다.
-  // 이 페이지는 supabase.auth.signUp 메타데이터로 개인정보가 먼저 서버에 들어가므로,
+  // 이 페이지는 가입 API 로 개인정보를 서버에 넘기므로,
   // 동의를 canSubmit 에서 막아 '수집 전 동의' 요건을 만족시킨다.
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreePrivacy, setAgreePrivacy] = useState(false);
@@ -148,10 +157,31 @@ export default function SignupEmail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn, navigate]);
 
+  // 아이디 중복 확인 (500ms 디바운스). 형식·예약어는 서버를 부르기 전에 걸러낸다.
+  // 최종 판정은 서버(/api/signup)가 하고, 여기 표시는 안내일 뿐이다.
+  useEffect(() => {
+    if (!loginId) { setLoginIdStatus(null); return undefined; }
+    const id = normalizeLoginId(loginId);
+    if (!id) { setLoginIdStatus('invalid'); return undefined; }
+    if (isReservedLoginId(id)) { setLoginIdStatus('reserved'); return undefined; }
+    setLoginIdStatus('checking');
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const { data: taken, error: rpcError } = await supabase.rpc('check_login_id_taken', { p_login_id: id });
+      if (cancelled) return;
+      // 조회 실패는 '사용 가능'으로 단정하지 않는다 — 상태를 비워 제출을 막는다.
+      if (rpcError || taken === null || taken === undefined) { setLoginIdStatus(null); return; }
+      setLoginIdStatus(taken ? 'taken' : 'available');
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [loginId]);
+
   // 이메일 중복 체크 (profiles.email 조회)
   useEffect(() => {
+    if (!needsEmailOtp) { setEmailStatus(null); return; }
     if (!email || !email.includes('@')) { setEmailStatus(null); return; }
     setEmailStatus('checking');
+    let cancelled = false;
     const t = setTimeout(async () => {
       const cleaned = email.trim().toLowerCase();
       // check_email_taken RPC 우선 (profiles SELECT 컬럼 잠금 대비).
@@ -159,6 +189,7 @@ export default function SignupEmail() {
       try {
         const { data: taken, error: rpcError } = await supabase
           .rpc('check_email_taken', { p_email: cleaned });
+        if (cancelled) return;
         if (!rpcError && taken !== null && taken !== undefined) {
           setEmailStatus(taken ? 'taken' : 'available');
           return;
@@ -169,15 +200,18 @@ export default function SignupEmail() {
         .select('id')
         .eq('email', cleaned)
         .limit(1);
+      // 늦게 도착한 이전 입력의 응답이 현재 입력 상태를 덮지 않게 한다(codex 지적)
+      if (cancelled) return;
       setEmailStatus(data && data.length > 0 ? 'taken' : 'available');
     }, 400);
-    return () => clearTimeout(t);
-  }, [email]);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [email, needsEmailOtp]);
 
   // 닉네임 중복
   useEffect(() => {
     if (!nickname || nickname.length < 2) { setNicknameStatus(null); return; }
     setNicknameStatus('checking');
+    let cancelled = false;
     const t = setTimeout(async () => {
       const trimmed = nickname.trim();
       // check_nickname_taken RPC 우선 (profiles SELECT 컬럼 잠금 대비).
@@ -185,6 +219,7 @@ export default function SignupEmail() {
       try {
         const { data: taken, error: rpcError } = await supabase
           .rpc('check_nickname_taken', { p_nickname: trimmed });
+        if (cancelled) return;
         if (!rpcError && taken !== null && taken !== undefined) {
           setNicknameStatus(taken ? 'taken' : 'available');
           return;
@@ -195,12 +230,14 @@ export default function SignupEmail() {
         .select('id')
         .eq('nickname', trimmed)
         .limit(1);
+      // 늦게 도착한 이전 입력의 응답이 현재 입력 상태를 덮지 않게 한다(codex 지적)
+      if (cancelled) return;
       setNicknameStatus(data && data.length > 0 ? 'taken' : 'available');
     }, 300);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [nickname]);
 
-  // 추천 승무원 ID(로그인 이메일) 검증 — email 컬럼은 PII 잠금이라 RPC 로 확인
+  // 추천 승무원 아이디/추천코드 검증 — 입력값을 그대로 서버 RPC 에 넘겨 확인한다
   useEffect(() => {
     if (!referrerAccountId || referrerAccountId.trim().length < 5) {
       setReferrerStatus(null); setReferrerId(null); return;
@@ -232,12 +269,13 @@ export default function SignupEmail() {
     }
   };
 
-  // 이메일 값 바뀌면 인증 상태 리셋
+  // 이메일 값 바뀌면 인증 상태 리셋 (발급받은 소비 토큰도 함께 버린다)
   useEffect(() => {
     setEmailVerified(false);
     setEmailSent(false);
     setEmailCode('');
     setVerifiedEmail('');
+    setEmailOtpToken('');
   }, [email]);
 
   // 회사(항공사) 이메일 값 바뀌면 회사 인증 상태 리셋 (발급받은 소비 토큰도 함께 버린다)
@@ -276,7 +314,7 @@ export default function SignupEmail() {
     setError('');
   };
 
-  // 로그인 아이디(개인 이메일) 인증번호 발송 — 여행자 전용(승무원은 회사 메일 인증만 거친다)
+  // 개인 연락 이메일 인증번호 발송 — 여행자 전용(승무원은 회사 메일 인증만 거친다)
   const sendEmailCode = async () => {
     setError('');
     setEmailError('');
@@ -332,6 +370,7 @@ export default function SignupEmail() {
       }
       setEmailVerified(true);
       setVerifiedEmail(cleaned); // 인증 성공한 정규화 이메일 기록
+      setEmailOtpToken(data.verifyToken || ''); // 가입 API 가 요구하는 일회성 소비 토큰
       setEmailError('');
     } catch (err) {
       setEmailError('네트워크 오류: ' + (err.message || '알 수 없음'));
@@ -402,11 +441,13 @@ export default function SignupEmail() {
   };
 
   const canSubmit = () => {
-    if (!email || emailStatus !== 'available') return false;
-    // 여행자만 개인 이메일 인증번호 확인이 필요하다(승무원은 아래 회사 이메일 인증으로 갈음).
+    // 아이디는 형식·예약어·중복을 모두 통과해야 한다(최종 판정은 서버).
+    if (loginIdStatus !== 'available') return false;
+    // 여행자만 개인 연락 이메일과 인증번호가 필요하다(승무원은 회사 이메일 인증으로 갈음).
     // 인증한 주소와 현재 입력값이 같아야 한다 — 인증 도중 주소를 바꿔 통과하는 레이스 차단(codex 지적).
-    if (needsEmailOtp && (!emailVerified || verifiedEmail !== email.trim().toLowerCase())) return false;
-    if (!password || password.length < 6) return false;
+    if (needsEmailOtp && (!email || emailStatus !== 'available' || !emailVerified || !emailOtpToken
+        || verifiedEmail !== email.trim().toLowerCase())) return false;
+    if (passwordWeak(password)) return false;
     if (password !== passwordConfirm) return false;
     if (!name.trim()) return false;
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
@@ -416,21 +457,93 @@ export default function SignupEmail() {
     if (!zipcode || !addressRoad) return false;
     if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified || !airlineOtpToken
         || verifiedAirlineEmail !== airlineEmail.trim().toLowerCase())) return false;
-    // 필수 동의 3종을 모두 체크해야 제출 가능 (signUp 호출 자체를 막는 게 목적)
+    // 필수 동의 3종을 모두 체크해야 제출 가능 (가입 요청 자체를 막는 게 목적)
     if (!agreeTerms || !agreePrivacy || !agreeAge) return false;
     return true;
+  };
+
+  // 서버 응답 { ok:false, code, error } 처리.
+  // 문구는 서버가 준 것을 그대로 보여 주고, code 별로 해당 입력 상태만 되돌린다.
+  const applySignupFailure = (data) => {
+    const code = String(data?.code || '');
+    const message = data?.error || '가입 중 오류가 발생했습니다.';
+    if (code.startsWith('LOGIN_ID')) {
+      if (code === 'LOGIN_ID_TAKEN') setLoginIdStatus('taken');
+      else if (code === 'LOGIN_ID_RESERVED') setLoginIdStatus('reserved');
+      else setLoginIdStatus('invalid');
+      setError(message);
+      loginIdRef.current?.focus();
+      return;
+    }
+    if (code === 'NICKNAME_TAKEN') {
+      setNicknameStatus('taken');
+      setError(message);
+      nicknameRef.current?.focus();
+      return;
+    }
+    if (code === 'IDENTITY_PROOF_INVALID' || code === 'IDENTITY_REQUIRED') {
+      // 증빙이 만료(1시간)·이미 사용됨 → 본인확인 단계로 되돌린다
+      restartIdentity();
+      setError(message);
+      return;
+    }
+    if (code === 'EMAIL_ALREADY_CLAIMED' || code === 'EMAIL_INVALID') {
+      // 화면의 중복확인 결과와 서버 최종 판정이 어긋난 상태 — 이메일을 바꾸지 않으면
+      // 같은 요청이 계속 실패하므로 인증 상태까지 되돌린다(codex 지적).
+      setEmailStatus(code === 'EMAIL_ALREADY_CLAIMED' ? 'taken' : null);
+      setEmailVerified(false);
+      setEmailSent(false);
+      setEmailCode('');
+      setVerifiedEmail('');
+      setEmailOtpToken('');
+      setError(message);
+      return;
+    }
+    if (code === 'AIRLINE_EMAIL_ALREADY_CLAIMED' || code === 'AIRLINE_EMAIL_PREVIOUSLY_USED') {
+      // 그 회사 이메일로는 다시 가입할 수 없다 — 다른 주소로 인증을 다시 받아야 한다.
+      setAirlineEmailVerified(false);
+      setAirlineEmailSent(false);
+      setAirlineEmailCode('');
+      setVerifiedAirlineEmail('');
+      setAirlineOtpToken('');
+      setError(message);
+      return;
+    }
+    if (code === 'OTP_PROOF_INVALID_EMAIL' || code === 'OTP_PROOF_REQUIRED_EMAIL') {
+      // 소비 토큰이 만료·사용됨. 인증 상태를 지워야 같은 죽은 토큰으로 계속 제출되지 않는다(codex 지적).
+      setEmailVerified(false);
+      setEmailSent(false);
+      setEmailCode('');
+      setVerifiedEmail('');
+      setEmailOtpToken('');
+      setError(message);
+      return;
+    }
+    if (code === 'OTP_PROOF_INVALID_AIRLINE' || code === 'OTP_PROOF_REQUIRED_AIRLINE') {
+      setAirlineEmailVerified(false);
+      setAirlineEmailSent(false);
+      setAirlineEmailCode('');
+      setVerifiedAirlineEmail('');
+      setAirlineOtpToken('');
+      setError(message);
+      return;
+    }
+    setError(message);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(''); setSuccessMsg('');
     if (!canSubmit()) { setError('모든 필수 정보를 채워주세요.'); return; }
+    const id = normalizeLoginId(loginId);
+    if (!id) {
+      setLoginIdStatus('invalid');
+      setError('아이디는 영문 소문자·숫자·밑줄 4~20자입니다.');
+      loginIdRef.current?.focus();
+      return;
+    }
     setSubmitting(true);
     try {
-      // Supabase Auth 가입 + 메타데이터에 모든 필드 담기 (SQL 트리거가 profile 에 반영)
-      // identity_verified=false / verification_method='sms_otp_pending' — 통신사 본인인증 도입 시 기존 유저 강제 업그레이드용 플래그
-      // 보호컬럼(user_type/phone_verified/crew_verified 등)은 metadata 로 넣어도 서버 트리거가 무시한다.
-      // 일반 필드만 전달하고, 가입 직후 complete_signup_profile RPC 가 서버검증(휴대폰 재인증·승무원 도메인) 후 보호컬럼을 설정.
       // 추천인 최종 확정 — 디바운스 검증이 아직 안 끝났거나 ?ref= 자동입력 직후 빠른 제출에도
       // 보너스가 유실되지 않도록, 입력값이 있으면 제출 시점에 서버로 한 번 더 확정 해석한다.
       let resolvedReferrer = (referrerId && referrerStatus === 'valid') ? referrerId : null;
@@ -439,92 +552,58 @@ export default function SignupEmail() {
         if (rid) resolvedReferrer = rid;
       }
 
-      // 메타데이터는 가입 트리거(handle_new_user)가 프로필을 만들 때 한 번 읽는 값이다.
-      // 그런데 auth.users 에 그대로 남아 평문 사본이 된다(2026-09-05 재검토에서 확인).
-      // 그래서 트리거가 꼭 필요한 이름·닉네임·생년월일(14세 검사)만 넣고, 휴대폰·주소는 넣지 않는다.
-      // 휴대폰·주소는 가입 완료 RPC 가 받아 암호화해 저장한다(profiles_pii_sync 트리거).
-      // 이메일확인 ON 경로에서는 아래 pendingOtpProof 로 /signup/complete 에 넘긴다.
-      const metadata = {
-        name: name.trim(),
-        nickname: nickname.trim(),
-        birthdate,
-      };
-
-      const { data, error: signErr } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: { data: metadata, emailRedirectTo: window.location.origin },
+      // 계정 생성은 서버가 한다(POST /api/signup). 브라우저에서 직접 Auth 계정을 만들면
+      // 증빙 없이도 남의 아이디의 합성 주소를 선점할 수 있어 그 경로를 폐지했다(2026-09-05).
+      // 서버는 증빙(PASS·이메일 OTP)을 DB 가 검증한 뒤에만 계정을 남기고, 실패하면 계정을 지운다.
+      const resp = await fetch(apiUrl('/api/signup'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          login_id: id,
+          password,
+          user_type: userType,
+          identity_token: identityProof?.token || '',
+          // 여행자: 개인 연락 이메일 + OTP 소비 토큰 / 승무원: 회사 이메일 한 곳으로 갈음
+          ...(needsEmailOtp
+            ? { email: verifiedEmail || email.trim().toLowerCase(), email_otp_token: emailOtpToken }
+            : {}),
+          ...(userType === 'crew'
+            ? {
+              airline_email: verifiedAirlineEmail || airlineEmail.trim().toLowerCase(),
+              airline_name: airlineInfo?.name || '',
+              airline_otp_token: airlineOtpToken,
+            }
+            : {}),
+          name: name.trim(),
+          nickname: nickname.trim(),
+          birthdate,
+          phone,
+          zipcode,
+          road: addressRoad,
+          detail: addressDetail,
+          referred_by: resolvedReferrer,
+          terms_agreed_at: termsAgreedAt,
+          privacy_agreed_at: privacyAgreedAt,
+        }),
       });
-      if (signErr) throw signErr;
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        applySignupFailure(data);
+        return;
+      }
 
-      if (data.session) {
-        // 세션 즉시 발급(이메일확인 OFF) → 서버가 휴대폰 재검증·승무원 도메인검증·추천보너스 처리 후 프로필 완성
-        const { error: compErr } = await supabase.rpc('complete_signup_profile', {
-          p_name: name.trim(), p_nickname: nickname.trim(), p_phone: phone,
-          p_zipcode: zipcode, p_road: addressRoad, p_detail: addressDetail,
-          p_user_type: userType,
-          p_airline_email: (userType === 'crew' && airlineInfo) ? (verifiedAirlineEmail || airlineEmail.trim().toLowerCase()) : null,
-          p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
-          p_referred_by: resolvedReferrer,
-          p_birthdate: birthdate,
-          // 문자(SMS) OTP 경로는 폐지 — 휴대폰 확인은 아래 본인확인 증빙 하나로만 이뤄진다.
-          p_phone_otp_token: null,
-          p_airline_otp_token: (userType === 'crew') ? airlineOtpToken : null,
-          // 동의 시각 기록. 인자를 추가한 SQL 을 먼저 배포해야 한다(구버전 함수에는 이 인자가 없어 '함수 없음' 에러가 난다).
-          p_terms_agreed_at: termsAgreedAt,
-          p_privacy_agreed_at: privacyAgreedAt,
-          // 휴대폰 본인확인 증빙(2026-09-02, identity_20260902.sql). 서버가 소비하며 이름·생년월일·휴대폰을 확정.
-          p_identity_token: identityProof?.token || null,
-        });
-        if (compErr) throw compErr;
-        clearIdentityProof();
-        navigate(resolveNextTarget());
-      } else {
-        // 이메일 확인 ON: 여기서 페이지를 떠나므로 소비 토큰이 state 와 함께 사라진다.
-        // /signup/complete 에서 이어서 가입을 마칠 수 있도록 세션 스토리지로 넘긴다(서버 유효기간과 같은 1시간).
-        try {
-          sessionStorage.setItem('pendingOtpProof', JSON.stringify({
-            airlineEmail: verifiedAirlineEmail,
-            airlineToken: userType === 'crew' ? airlineOtpToken : '',
-            // 주소는 메타데이터로 보내지 않으므로(평문 사본 방지) 여기로 넘겨 /signup/complete 가 프리필한다.
-            zipcode, road: addressRoad, detail: addressDetail,
-            savedAt: Date.now(),
-          }));
-          // /signup 에서 고른 가입 유형을 /signup/complete 가 그대로 이어받는다(그 화면에서 다시 고르지 않음).
-          sessionStorage.setItem('pendingSignupType', JSON.stringify({ userType, savedAt: Date.now() }));
-        } catch { /* 스토리지 차단 환경이면 /signup/complete 에서 재인증 */ }
-        setSuccessMsg('가입 완료! 보낸 확인 메일을 눌러 로그인하면 서비스 이용 가능합니다.');
+      // 가입 완료 → 아이디로 바로 로그인(합성 주소는 화면에 보이지 않는다)
+      clearIdentityProof();
+      try {
+        await signIn(synthEmail(id), password);
+      } catch {
+        // 계정은 만들어졌다. 세션만 못 만든 상황이라 로그인 화면으로 안내한다.
+        setSuccessMsg('회원가입이 완료되었습니다. 방금 만든 아이디로 로그인해주세요.');
+        return;
       }
+      navigate(resolveNextTarget());
     } catch (err) {
-      if (err.message?.includes('IDENTITY_PROOF_INVALID') || err.message?.includes('IDENTITY_REQUIRED')) {
-        // 증빙이 만료(1시간)·이미 사용됨 → 본인확인 단계로 되돌린다
-        restartIdentity();
-        setError('본인확인 유효시간이 지났습니다. 본인확인을 다시 진행해주세요.');
-      } else if (err.message?.includes('IDENTITY_ALREADY_REGISTERED')) {
-        setError('이미 가입된 회원입니다. 로그인하거나 아이디·비밀번호 찾기를 이용해주세요.');
-      } else if (err.message?.includes('IDENTITY_BLOCKED')) {
-        setError('이용이 제한된 사용자입니다. 문의가 필요하면 고객센터로 연락해주세요.');
-      } else if (err.message?.includes('OTP_PROOF')) {
-        // 소비 토큰이 만료·사용됨. 인증 상태를 지워야 같은 죽은 토큰으로 계속 제출되지 않는다(codex 지적).
-        setAirlineEmailVerified(false);
-        setAirlineEmailSent(false);
-        setAirlineEmailCode('');
-        setVerifiedAirlineEmail('');
-        setAirlineOtpToken('');
-        setError('인증 확인 시간이 지났습니다. 페이지를 새로고침한 뒤 회사 이메일 인증을 다시 받아주세요.');
-      } else if (err.message?.includes('PHONE_BLOCKED')) {
-        setError('이용이 제한된 번호입니다. 문의가 필요하면 고객센터로 연락해주세요.');
-      } else if (err.message?.includes('PHONE_ALREADY_CLAIMED')) {
-        setError('이미 가입에 사용된 휴대폰 번호입니다. 번호 하나로 계정 하나만 만들 수 있습니다.');
-      } else if (err.message?.includes('AIRLINE_EMAIL_PREVIOUSLY_USED')) {
-        setError('이미 가입에 사용된 회사 이메일입니다. 다시 사용할 수 없습니다.');
-      } else if (err.message?.includes('AIRLINE_EMAIL_ALREADY_CLAIMED')) {
-        setError('이미 다른 계정에 등록된 회사 이메일입니다.');
-      } else if (err.message?.includes('already') || err.message?.includes('duplicate')) {
-        setError('이미 가입된 이메일입니다. 로그인을 시도해주세요.');
-      } else {
-        setError(err.message || '가입 중 오류가 발생했습니다.');
-      }
+      setError('네트워크 오류: ' + (err.message || '알 수 없음'));
     } finally {
       setSubmitting(false);
     }
@@ -547,7 +626,7 @@ export default function SignupEmail() {
   return (
     <div style={{ maxWidth: 560, margin: '120px auto 40px', padding: '0 20px' }}>
       <SEOHead
-        title="이메일로 회원가입 - ConnectTrip"
+        title="회원가입 - ConnectTrip"
         description="ConnectTrip 회원가입. 휴대폰 인증 기반 여행 동행 커뮤니티를 시작하세요."
         path="/signup/email"
         robots="noindex, follow"
@@ -555,13 +634,20 @@ export default function SignupEmail() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         style={{ background: 'white', borderRadius: 16, padding: 32, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <h1 style={{ fontSize: 22, marginBottom: 6, color: '#1a365d', fontWeight: 700 }}>
-          이메일로 회원가입 ({userType === 'crew' ? '승무원' : '일반 여행자'})
+          회원가입 ({userType === 'crew' ? '승무원' : '일반 여행자'})
         </h1>
         {userType === 'crew' && airlineInfo && (
           <p style={{ color: '#6d28d9', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <AirlineLogo airline={airlineInfo} height={16} />
             <span>{airlineInfo.name} 승무원 가입 (항공사 이메일: {airlineEmail})</span>
           </p>
+        )}
+
+        {/* 제출 중 증빙이 만료돼 본인확인 단계로 되돌아온 경우, 폼 안의 오류 문구가 함께 사라지지 않게 여기서도 보여준다. */}
+        {!identityProof && error && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 13, lineHeight: 1.5 }}>
+            {error}
+          </div>
         )}
 
         {!identityProof ? (
@@ -599,7 +685,7 @@ export default function SignupEmail() {
                 <strong style={{ color: '#6d28d9', fontSize: 14 }}>승무원 인증 · 회사 이메일</strong>
               </div>
               <p style={{ fontSize: 12, color: '#6b46c1', marginBottom: 10, lineHeight: 1.5 }}>
-                회사(항공사) 이메일로 인증번호를 받아 신원을 확인합니다. 로그인 아이디(이메일)와는 별개이며, 아래에는 개인 이메일로 자유롭게 가입할 수 있습니다.
+                회사(항공사) 이메일로 인증번호를 받아 승무원 신원을 확인합니다. 이 주소가 연락용 이메일로도 쓰이며, 로그인은 아래에서 만드는 아이디로 합니다.
               </p>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <div style={{ position: 'relative', flex: 1 }}>
@@ -682,22 +768,48 @@ export default function SignupEmail() {
             </div>
           )}
 
-          <Field label={userType === 'crew' ? '아이디 (이메일 · 개인 이메일 가능)' : '아이디 (이메일)'} icon={<Mail size={16} />}
+          <Field label="아이디" icon={<User size={16} />}
+            helper={
+              loginIdStatus === 'checking' ? '확인 중...' :
+              loginIdStatus === 'taken' ? '이미 사용 중인 아이디입니다.' :
+              loginIdStatus === 'reserved' ? '사용할 수 없는 아이디입니다.' :
+              loginIdStatus === 'invalid' ? '영문 소문자·숫자·밑줄(_) 4~20자로 입력해주세요.' :
+              loginIdStatus === 'available' ? '사용 가능한 아이디입니다.' :
+              '로그인에 쓸 아이디입니다. 영문 소문자·숫자·밑줄(_) 4~20자.'
+            }
+            helperColor={
+              loginIdStatus === 'available' ? '#16a34a' :
+              (loginIdStatus === 'taken' || loginIdStatus === 'reserved' || loginIdStatus === 'invalid') ? '#dc2626' : '#64748b'
+            }>
+            <input ref={loginIdRef} type="text" value={loginId}
+              onChange={(e) => {
+                const v = e.target.value.trim().toLowerCase();
+                setLoginId(v);
+                // 값이 바뀐 즉시 판정을 비운다 — effect 가 돌기 전 렌더에 이전 '사용 가능'이 남아
+                // 제출 버튼이 잠깐 열리는 것을 막는다(codex 지적).
+                setLoginIdStatus(v ? 'checking' : null);
+              }}
+              placeholder="예: traveler_kim"
+              style={inputStyle} autoComplete="username" inputMode="latin"
+              required minLength={4} maxLength={20} />
+          </Field>
+
+          {needsEmailOtp && (
+          <Field label="이메일 (연락용)" icon={<Mail size={16} />}
             helper={
               emailVerified ? '이메일 인증 완료' :
-              !email ? (userType === 'crew' ? '로그인에 쓸 개인 이메일을 입력하세요. (회사 이메일과 달라도 됩니다)' : null) :
+              !email ? '공지·문의 답변을 받을 이메일입니다. 로그인에는 쓰지 않습니다.' :
               emailStatus === 'checking' ? '확인 중...' :
-              emailStatus === 'taken' ? '이미 가입된 이메일' :
+              emailStatus === 'taken' ? '이미 가입에 사용된 이메일' :
               emailStatus === 'available'
-                ? (!needsEmailOtp ? '사용 가능 — 승무원은 위 회사 이메일 인증으로 확인합니다.'
-                  : !emailSent ? '사용 가능 — 오른쪽 "인증번호 받기" 버튼을 눌러 본인 확인하세요.'
+                ? (!emailSent ? '사용 가능 — 오른쪽 "인증번호 받기" 버튼을 눌러 본인 확인하세요.'
                   : '인증번호가 이메일로 발송됐습니다. 메일함(스팸함 포함)을 확인하고 6자리 입력해주세요.')
                 : null
             }
             helperColor={
               emailVerified ? '#16a34a' :
               emailStatus === 'taken' ? '#dc2626' :
-              emailStatus === 'available' ? (needsEmailOtp ? '#2563eb' : '#16a34a') : '#64748b'
+              emailStatus === 'available' ? '#2563eb' : '#64748b'
             }>
             <div style={{ display: 'flex', gap: 8 }}>
               <input type="email" value={email}
@@ -705,24 +817,22 @@ export default function SignupEmail() {
                 readOnly={emailVerified}
                 placeholder="example@email.com"
                 style={{ ...inputStyle, flex: 1, background: emailVerified ? '#f8fafc' : 'white', cursor: emailVerified ? 'not-allowed' : 'text' }}
-                autoComplete="off" required maxLength={100} />
-              {needsEmailOtp && (
-                <button type="button" onClick={sendEmailCode}
-                  disabled={!email || emailStatus !== 'available' || emailVerified || emailSending}
-                  style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                    background: emailVerified ? '#d1fae5' : emailSending ? '#94a3b8' : (!email || emailStatus !== 'available') ? '#cbd5e1' : '#2563eb',
-                    color: emailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
-                    cursor: emailVerified || emailSending || !email || emailStatus !== 'available' ? 'default' : 'pointer' }}>
-                  {emailVerified ? '인증 완료' : emailSending ? '전송 중...' : emailSent ? '재전송' : '인증번호 받기'}
-                </button>
-              )}
+                autoComplete="email" required maxLength={100} />
+              <button type="button" onClick={sendEmailCode}
+                disabled={!email || emailStatus !== 'available' || emailVerified || emailSending}
+                style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
+                  background: emailVerified ? '#d1fae5' : emailSending ? '#94a3b8' : (!email || emailStatus !== 'available') ? '#cbd5e1' : '#2563eb',
+                  color: emailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
+                  cursor: emailVerified || emailSending || !email || emailStatus !== 'available' ? 'default' : 'pointer' }}>
+                {emailVerified ? '인증 완료' : emailSending ? '전송 중...' : emailSent ? '재전송' : '인증번호 받기'}
+              </button>
             </div>
-            {needsEmailOtp && emailError && (
+            {emailError && (
               <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>
                 ⚠️ {emailError}
               </div>
             )}
-            {needsEmailOtp && emailSent && !emailVerified && (
+            {emailSent && !emailVerified && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <input type="text" value={emailCode}
                   onChange={(e) => setEmailCode(e.target.value.replace(/[^0-9]/g, ''))}
@@ -738,13 +848,16 @@ export default function SignupEmail() {
               </div>
             )}
           </Field>
+          )}
 
-          <Field label="비밀번호 (6자 이상)" icon={<Lock size={16} />}>
+          <Field label="비밀번호 (8자 이상, 영문+숫자)" icon={<Lock size={16} />}
+            helper={!password ? null : passwordWeak(password) ? '8자 이상, 영문과 숫자를 포함해주세요.' : '사용 가능한 비밀번호입니다.'}
+            helperColor={password && !passwordWeak(password) ? '#16a34a' : '#dc2626'}>
             <div style={{ position: 'relative' }}>
               <input type={showPassword ? 'text' : 'password'}
                 value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호" style={inputStyle} autoComplete="new-password"
-                required minLength={6} maxLength={72} />
+                required minLength={8} maxLength={72} />
               <button type="button" onClick={() => setShowPassword(!showPassword)}
                 style={{ position: 'absolute', right: 12, top: 11, background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -779,7 +892,7 @@ export default function SignupEmail() {
               nicknameStatus === 'available' ? '사용 가능' : null
             }
             helperColor={nicknameStatus === 'taken' ? '#dc2626' : nicknameStatus === 'available' ? '#16a34a' : '#64748b'}>
-            <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
+            <input ref={nicknameRef} type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
               placeholder="2~20자" style={inputStyle} autoComplete="off" required maxLength={20} />
           </Field>
 
@@ -832,7 +945,7 @@ export default function SignupEmail() {
             helperColor={referrerStatus === 'valid' ? '#16a34a' : referrerStatus === 'invalid' ? '#dc2626' : '#64748b'}>
             <input type="text" value={referrerAccountId}
               onChange={(e) => setReferrerAccountId(e.target.value)}
-              placeholder="추천 승무원의 아이디(이메일) 또는 추천코드"
+              placeholder="추천 승무원의 아이디 또는 추천코드"
               style={inputStyle} autoComplete="off" maxLength={80} />
           </Field>
 
@@ -922,7 +1035,7 @@ function ConsentBox({ idPrefix, agreeTerms, agreePrivacy, agreeAge,
       </div>
 
       <ul style={{ margin: '2px 0 6px 30px', padding: 0, listStyle: 'disc', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
-        <li>수집 항목: 이메일, 비밀번호, 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
+        <li>수집 항목: 아이디, 비밀번호, 이메일, 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
         <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, 승무원 칭찬매칭 운영, 포인트 적립·이용, 부정 이용 방지와 분쟁 조정·문의 대응.</li>
         <li>보유 기간: 회원 탈퇴 시 지체 없이 파기합니다. 관계 법령이 보존을 정한 결제·거래 기록은 법정 보존기간 동안 분리 보관한 뒤 파기합니다.</li>
       </ul>

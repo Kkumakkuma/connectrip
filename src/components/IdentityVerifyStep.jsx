@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, Loader2, Smartphone } from 'lucide-react';
-import { startIdentityVerification, confirmIdentity, IDENTITY_PG_NAME } from '../lib/identity';
+import { startIdentityVerification, confirmIdentity, IDENTITY_PG_NAME, IDENTITY_PURPOSE_SIGNUP } from '../lib/identity';
 
-// 가입 1단계 — 통신사 휴대폰 본인확인(PASS) 카드.
+// 통신사 휴대폰 본인확인(PASS) 카드. 가입 1단계와 비밀번호 찾기 2단계가 같이 쓴다.
 // · PC: 버튼 → 포트원 창 → 응답의 identityVerificationId 를 서버 검증 → onVerified(proof)
 // · 모바일/앱: 버튼 → 페이지 이동(REDIRECTION) → 복귀 시 부모가 URL 에서 읽은 returnResult 를 넘기면
 //   여기서 서버 검증을 이어서 처리한다.
-// · disabled: 포트원 키가 아직 없는 상태(오픈 전). 버튼을 잠가 가입이 진행되지 않게 한다.
-export default function IdentityVerifyStep({ returnPath, returnResult, onVerified, accent = '#2563eb', disabled = false }) {
+// · purpose: 증빙의 용도. 서버가 토큰을 그 용도로만 인정한다(가입용 증빙으로 비밀번호 변경 불가).
+// · disabled: 포트원 키가 아직 없는 상태(오픈 전). 버튼을 잠가 진행되지 않게 한다.
+export default function IdentityVerifyStep({
+  returnPath, returnResult, onVerified, accent = '#2563eb', disabled = false,
+  purpose = IDENTITY_PURPOSE_SIGNUP,
+  title = '1단계 · 휴대폰 본인확인',
+  description = '안전한 커뮤니티를 위해 가입 전에 본인 명의 휴대폰으로 본인확인을 진행합니다. PASS 앱으로 본인확인을 진행하면, 확인된 이름·생년월일·휴대폰번호는 가입 정보에 자동으로 채워집니다.',
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const confirmedRef = useRef('');
@@ -16,7 +22,7 @@ export default function IdentityVerifyStep({ returnPath, returnResult, onVerifie
     setBusy(true);
     setError('');
     try {
-      const proof = await confirmIdentity(id);
+      const proof = await confirmIdentity(id, purpose);
       onVerified?.(proof);
     } catch (err) {
       setError(err.message || '본인확인 결과를 확인하지 못했습니다.');
@@ -42,7 +48,7 @@ export default function IdentityVerifyStep({ returnPath, returnResult, onVerifie
     setBusy(true);
     setError('');
     try {
-      const id = await startIdentityVerification({ returnPath });
+      const id = await startIdentityVerification({ returnPath, purpose });
       if (!id) return; // REDIRECTION — 페이지 이동 중
       await finish(id);
     } catch (err) {
@@ -55,11 +61,10 @@ export default function IdentityVerifyStep({ returnPath, returnResult, onVerifie
     <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 14, padding: '20px 18px', marginBottom: 18, background: '#f8fafc' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <ShieldCheck size={20} color={accent} />
-        <strong style={{ fontSize: 16, color: '#1a365d' }}>1단계 · 휴대폰 본인확인</strong>
+        <strong style={{ fontSize: 16, color: '#1a365d' }}>{title}</strong>
       </div>
       <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 14px' }}>
-        안전한 커뮤니티를 위해 가입 전에 본인 명의 휴대폰으로 본인확인을 진행합니다.
-        PASS 앱으로 본인확인을 진행하면, 확인된 이름·생년월일·휴대폰번호는 가입 정보에 자동으로 채워집니다.
+        {description}
       </p>
       <button type="button" onClick={start} disabled={busy || disabled}
         style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none',

@@ -8,6 +8,7 @@ import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { isUnder14 } from '../lib/age';
 import { apiUrl } from '../lib/api';
+import { normalizeLoginId, isReservedLoginId, isSyntheticEmail } from '../lib/loginId';
 import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
@@ -51,6 +52,9 @@ export default function SignupComplete() {
   };
   const { user, profile, isLoggedIn, fetchProfile } = useAuth();
 
+  // 계정 식별자 = 아이디(login_id). 소셜 로그인으로 만들어진 계정도 여기서 아이디를 정한다(2026-09-05).
+  const [loginId, setLoginId] = useState('');
+  const [loginIdStatus, setLoginIdStatus] = useState(null); // 'invalid'|'reserved'|'checking'|'available'|'taken'
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [nicknameStatus, setNicknameStatus] = useState(null); // 'checking' | 'available' | 'taken' | null
@@ -130,9 +134,11 @@ export default function SignupComplete() {
     rememberNext(nextParam);
   }, [nextParam]);
 
-  // 이미 profile_completed=true 면 복귀 경로(없으면 홈)로
+  // 이미 profile_completed=true 면 복귀 경로(없으면 홈)로.
+  // 단 아이디가 비어 있으면(전환기 계정) 완성으로 보지 않는다 — ProfileCompleteGate 와 판정을 맞춰야
+  // 게이트가 여기로 보내고 이 화면이 되돌리는 무한 왕복이 생기지 않는다.
   useEffect(() => {
-    if (profile?.profile_completed) {
+    if (profile?.profile_completed && profile?.login_id !== null) {
       navigate(resolveNextTarget());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -251,7 +257,7 @@ export default function SignupComplete() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  // 추천 승무원 ID(로그인 이메일) 검증 (400ms debounce) — email 컬럼은 PII 잠금이라 RPC 로 확인
+  // 추천 승무원 아이디/추천코드 검증 (400ms debounce) — 입력값을 그대로 서버 RPC 에 넘겨 확인한다
   useEffect(() => {
     if (!referrerAccountId || referrerAccountId.trim().length < 5) {
       setReferrerStatus(null);
@@ -289,6 +295,24 @@ export default function SignupComplete() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [airlineEmail]);
 
+  // 아이디 중복 확인 (500ms 디바운스). 형식·예약어는 서버를 부르기 전에 걸러낸다.
+  useEffect(() => {
+    if (!loginId) { setLoginIdStatus(null); return undefined; }
+    const id = normalizeLoginId(loginId);
+    if (!id) { setLoginIdStatus('invalid'); return undefined; }
+    if (isReservedLoginId(id)) { setLoginIdStatus('reserved'); return undefined; }
+    setLoginIdStatus('checking');
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const { data: taken, error: rpcError } = await supabase.rpc('check_login_id_taken', { p_login_id: id });
+      if (cancelled) return;
+      // 조회 실패는 '사용 가능'으로 단정하지 않는다 — 상태를 비워 제출을 막는다.
+      if (rpcError || taken === null || taken === undefined) { setLoginIdStatus(null); return; }
+      setLoginIdStatus(taken ? 'taken' : 'available');
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [loginId]);
+
   // 닉네임 중복 체크 (300ms debounce)
   useEffect(() => {
     if (!nickname || nickname.length < 2) {
@@ -297,6 +321,7 @@ export default function SignupComplete() {
     }
     const current = nickname.trim();
     setNicknameStatus('checking');
+    let cancelled = false;
     const t = setTimeout(async () => {
       const { data, error: err } = await supabase
         .from('profiles')
@@ -304,13 +329,15 @@ export default function SignupComplete() {
         .eq('nickname', current)
         .neq('id', user?.id || '')
         .limit(1);
+      // 늦게 도착한 이전 입력의 응답이 현재 입력 상태를 덮지 않게 한다(codex 지적)
+      if (cancelled) return;
       if (err) {
         setNicknameStatus(null);
         return;
       }
       setNicknameStatus(data && data.length > 0 ? 'taken' : 'available');
     }, 300);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [nickname, user?.id]);
 
   const openPostcode = async () => {
@@ -390,6 +417,8 @@ export default function SignupComplete() {
   };
 
   const canSubmit = () => {
+    // 아이디는 형식·예약어·중복을 모두 통과해야 한다(최종 판정은 서버 RPC).
+    if (loginIdStatus !== 'available') return false;
     if (!name.trim()) return false;
     if (!nickname.trim() || nicknameStatus !== 'available') return false;
     if (!birthdate || isUnder14(birthdate)) return false;
@@ -414,6 +443,12 @@ export default function SignupComplete() {
       setError('모든 필수 정보를 채워주세요.');
       return;
     }
+    const id = normalizeLoginId(loginId);
+    if (!id) {
+      setLoginIdStatus('invalid');
+      setError('아이디는 영문 소문자·숫자·밑줄 4~20자입니다.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -425,7 +460,14 @@ export default function SignupComplete() {
       }
       // 보호컬럼(user_type/crew_verified/phone_verified)은 서버 RPC 가 검증 후 설정.
       // 휴대폰은 본인확인 증빙 토큰으로 재검증되고, 추천 보너스도 서버가 self-referral 차단 포함 처리.
+      // 이 화면에 오는 계정은 제공자(구글 등)가 검증한 주소를 가진 소셜 로그인 계정이다.
+      // 그 주소를 연락 이메일로 그대로 쓰고 OTP 토큰은 넘기지 않는다(서버가 제공자 검증 주소로 인정).
+      // 합성 주소(<login_id>@id.connecttrip.co.kr)는 연락처가 아니므로 절대 넘기지 않는다.
+      const contactEmail = user?.email && !isSyntheticEmail(user.email) ? user.email : null;
       const { error: upErr } = await supabase.rpc('complete_signup_profile', {
+        p_login_id: id,
+        p_email: contactEmail,
+        p_email_otp_token: null,
         p_name: name.trim(),
         p_nickname: nickname.trim(),
         p_phone: phone,
@@ -438,7 +480,6 @@ export default function SignupComplete() {
         p_referred_by: resolvedReferrer,
         p_birthdate: birthdate,
         // 문자(SMS) OTP 경로는 폐지 — 휴대폰 확인은 아래 본인확인 증빙 하나로만 이뤄진다.
-        p_phone_otp_token: null,
         p_airline_otp_token: (userType === 'crew') ? airlineOtpToken : null,
         // 동의 시각 기록. 인자를 추가한 SQL 을 먼저 배포해야 한다(구버전 함수에는 이 인자가 없어 '함수 없음' 에러가 난다).
         p_terms_agreed_at: termsAgreedAt,
@@ -461,7 +502,7 @@ export default function SignupComplete() {
       try {
         const { data: prof } = await supabase.rpc('get_my_profile');
         const row = Array.isArray(prof) ? prof[0] : prof;
-        if (row?.profile_completed) {
+        if (row?.profile_completed && row?.login_id !== null) {
           try {
             sessionStorage.removeItem('pendingCrew');
             sessionStorage.removeItem('pendingOtpProof');
@@ -500,6 +541,18 @@ export default function SignupComplete() {
         setError('이미 가입에 사용된 회사 이메일입니다. 다시 사용할 수 없습니다.');
       } else if (msg.includes('AIRLINE_EMAIL_ALREADY_CLAIMED')) {
         setError('이미 다른 계정에 등록된 회사 이메일입니다.');
+      } else if (msg.includes('LOGIN_ID_TAKEN')) {
+        setLoginIdStatus('taken');
+        setError('이미 사용 중인 아이디입니다.');
+      } else if (msg.includes('LOGIN_ID_RESERVED')) {
+        setLoginIdStatus('reserved');
+        setError('사용할 수 없는 아이디입니다.');
+      } else if (msg.includes('LOGIN_ID')) {
+        setLoginIdStatus('invalid');
+        setError('아이디 형식이 올바르지 않습니다.');
+      } else if (msg.includes('NICKNAME_TAKEN')) {
+        setNicknameStatus('taken');
+        setError('이미 사용 중인 닉네임입니다.');
       } else {
         setError(msg || '저장 중 오류가 발생했습니다.');
       }
@@ -639,6 +692,39 @@ export default function SignupComplete() {
             </Field>
           )}
 
+          {/* 아이디 — 로그인에 쓸 식별자 */}
+          <Field label="아이디" icon={<User size={16} />}
+            helper={
+              loginIdStatus === 'checking' ? '확인 중...' :
+              loginIdStatus === 'taken' ? '이미 사용 중인 아이디입니다.' :
+              loginIdStatus === 'reserved' ? '사용할 수 없는 아이디입니다.' :
+              loginIdStatus === 'invalid' ? '영문 소문자·숫자·밑줄(_) 4~20자로 입력해주세요.' :
+              loginIdStatus === 'available' ? '사용 가능한 아이디입니다.' :
+              '로그인에 쓸 아이디입니다. 영문 소문자·숫자·밑줄(_) 4~20자.'
+            }
+            helperColor={
+              loginIdStatus === 'available' ? '#16a34a' :
+              (loginIdStatus === 'taken' || loginIdStatus === 'reserved' || loginIdStatus === 'invalid') ? '#dc2626' : '#64748b'
+            }
+          >
+            <input
+              type="text"
+              value={loginId}
+              onChange={(e) => {
+                const v = e.target.value.trim().toLowerCase();
+                setLoginId(v);
+                setLoginIdStatus(v ? 'checking' : null);
+              }}
+              placeholder="예: traveler_kim"
+              style={inputStyle}
+              autoComplete="username"
+              inputMode="latin"
+              minLength={4}
+              maxLength={20}
+              required
+            />
+          </Field>
+
           {/* 이름 — 본인확인 값이면 잠금 */}
           <Field label="이름 (실명)" icon={<User size={16} />}
             helper={identityProof ? '본인확인으로 확인된 이름입니다.' : null} helperColor="#16a34a">
@@ -766,7 +852,7 @@ export default function SignupComplete() {
               type="text"
               value={referrerAccountId}
               onChange={(e) => setReferrerAccountId(e.target.value)}
-              placeholder="추천 승무원의 아이디(이메일) 또는 추천코드"
+              placeholder="추천 승무원의 아이디 또는 추천코드"
               style={inputStyle}
               maxLength={80}
             />
@@ -862,7 +948,7 @@ function ConsentBox({ idPrefix, agreeTerms, agreePrivacy, agreeAge,
       </div>
 
       <ul style={{ margin: '2px 0 6px 30px', padding: 0, listStyle: 'disc', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
-        <li>수집 항목: 이메일(로그인 계정), 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
+        <li>수집 항목: 아이디, 이메일(로그인 계정), 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
         <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, 승무원 칭찬매칭 운영, 포인트 적립·이용, 부정 이용 방지와 분쟁 조정·문의 대응.</li>
         <li>보유 기간: 회원 탈퇴 시 지체 없이 파기합니다. 관계 법령이 보존을 정한 결제·거래 기록은 법정 보존기간 동안 분리 보관한 뒤 파기합니다.</li>
       </ul>
