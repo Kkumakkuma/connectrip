@@ -6,6 +6,7 @@ import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import CrewBadge from './CrewBadge';
 import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
+import { crewVerificationStatus } from '../lib/crewVerification';
 import { useAuth } from '../lib/AuthContext';
 import { crewApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
@@ -157,6 +158,29 @@ const CrewOnly = () => {
                         >
                             다시 시도
                         </button>
+                    </div>
+                </div>
+            </section>
+        );
+    }
+
+    // 승무원 인증 만료(1년 갱신 정책, 2026-09-05): 승무원이어도 인증이 만료되면 잠근다(cron 반영 전 구간도 fail-closed)
+    if (isCrew && crewVerificationStatus(profile).state === 'expired') {
+        return (
+            <section id="crew-only" className="py-20 bg-primary-color/5">
+                <div className="container text-center">
+                    <div className="max-w-3xl mx-auto py-16 px-8 rounded-3xl bg-white shadow-xl border border-amber-500/20">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-500 text-white mb-8 shadow-lg">
+                            <Lock size={40} />
+                        </div>
+                        <h2 className="text-3xl font-bold mb-4 text-amber-700" style={{ wordBreak: 'keep-all' }}>승무원 인증이 만료되었습니다</h2>
+                        <p className="text-gray-600 mb-8 text-lg" style={{ wordBreak: 'keep-all' }}>
+                            승무원 인증은 회사 이메일 인증일로부터 1년간 유효합니다. 마이페이지에서 회사 이메일로 다시 인증하면 바로 이용할 수 있습니다.
+                        </p>
+                        <a href="/mypage#crew-renewal"
+                            className="inline-block px-8 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-full font-bold transition-colors">
+                            마이페이지에서 갱신하기
+                        </a>
                     </div>
                 </div>
             </section>

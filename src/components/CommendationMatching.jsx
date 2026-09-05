@@ -6,6 +6,7 @@ import {
   Ticket, UserCheck, Loader, Eye, EyeOff, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { crewVerificationStatus } from '../lib/crewVerification';
 import { commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import ImageUpload from './ImageUpload';
@@ -181,6 +182,17 @@ const CommendationMatching = ({ flights = [] }) => {
     }
     return { name: '승무원 (비행 후 공개)', avatar: null, hidden: true };
   };
+
+  // 승무원 인증 만료(1년 갱신 정책, 2026-09-05): 만료된 승무원은 매칭 기능 대신 갱신 안내만 본다(fail-closed)
+  if (isCrew && crewVerificationStatus(profile).state === 'expired') {
+    return (
+      <div className="bg-white rounded-2xl p-6 border border-amber-200 text-center" style={{ wordBreak: 'keep-all' }}>
+        <h4 className="text-lg font-bold text-amber-700 mb-2">승무원 인증이 만료되었습니다</h4>
+        <p className="text-sm text-gray-600 mb-4">칭찬매칭은 인증된 승무원만 이용할 수 있습니다. 마이페이지에서 회사 이메일로 다시 인증하면 바로 이용할 수 있습니다.</p>
+        <a href="/mypage#crew-renewal" className="inline-block px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-full text-sm font-bold">마이페이지에서 갱신하기</a>
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return (
