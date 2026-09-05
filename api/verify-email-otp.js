@@ -1,7 +1,7 @@
-// Vercel Serverless Function: 승무원 회사 이메일 OTP 검증
-// POST /api/verify-email-otp  body: { email, code }
-// purpose 는 클라이언트 값을 받지 않고 서버가 'airline_email' 로 고정한다 — 가입 완료 RPC 가
-// 이 purpose 의 소비 토큰만 승무원 증빙으로 인정한다(codex 지적: 발송·검증 양쪽 고정).
+// Vercel Serverless Function: 이메일 OTP 검증
+// POST /api/verify-email-otp  body: { email, code, purpose: 'signup' | 'airline_email' }
+// purpose 는 서버 허용값 둘로만 제한하고(자유 문자열 금지), 'airline_email' 은 항공사 도메인을 다시
+// 확인한다 — 가입 완료 RPC 가 purpose='airline_email' 소비 토큰만 승무원 증빙으로 인정한다.
 // 성공 시 일회성 소비 토큰(verifyToken)을 발급한다. 가입 완료 RPC 가 이 토큰을 요구하므로,
 // 실제로 인증을 통과한 그 클라이언트만 인증 결과를 사용할 수 있다.
 
@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { randomBytes, createHash } from 'node:crypto';
 import { applyCors } from './_cors.js';
 import { hashOtp, otpHashSecret } from './_otp_hash.js';
-import { checkAirlineDomain, airlineDomainFailure } from './_airline_domain.js';
+import { normalizePurpose, gateByPurpose } from './_airline_domain.js';
 
 // 실패 응답 규격(api/planner/_common.js 와 동일): 고정 code + 일반 문구.
 const fail = (res, status, code, error) => res.status(status).json({ ok: false, code, error });
@@ -23,6 +23,8 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const email = String(body.email || '').trim().toLowerCase();
     const code = String(body.code || '').replace(/[^0-9]/g, '');
+    const purpose = normalizePurpose(body.purpose);
+    if (!purpose) return fail(res, 400, 'BAD_PURPOSE', '인증 용도가 올바르지 않습니다.');
 
     // 아래 둘은 사용자가 고쳐야 알 수 있는 검증 오류라 문구를 유지한다.
     if (!/^[\w.+-]+@[\w.-]+\.[a-z]{2,}$/i.test(email)) {
@@ -40,8 +42,8 @@ export default async function handler(req, res) {
 
     const supabase = createClient(SUPA_URL, SUPA_KEY);
 
-    // 발송과 같은 규칙: 항공사 도메인이 아니면 검증도 하지 않는다.
-    const domainFail = airlineDomainFailure(await checkAirlineDomain(supabase, email));
+    // 발송과 같은 규칙: 'airline_email' 인데 항공사 도메인이 아니면 검증도 하지 않는다.
+    const domainFail = await gateByPurpose(supabase, email, purpose);
     if (domainFail) return fail(res, domainFail.status, domainFail.code, domainFail.error);
 
     // 발송 쪽과 같은 비밀이 있어야 해시 비교가 성립한다. 없으면 통과시키지 않는다(fail-closed).
@@ -65,7 +67,7 @@ export default async function handler(req, res) {
       p_code: code,
       p_code_hash: hashOtp(code, OTP_SECRET),
       p_token_hash: tokenHash,
-      p_purpose: 'airline_email', // 서버 고정 — 클라이언트 값 무시
+      p_purpose: purpose, // 서버가 허용값 둘 중 하나로 확정한 값
     });
 
     if (error) {

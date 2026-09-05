@@ -1,7 +1,9 @@
-// 승무원 회사 이메일 도메인 판정 (2026-09-05 가입 개편: 이메일 OTP 는 승무원 회사 메일 전용).
+// 이메일 OTP 의 purpose 판정 + 승무원 회사 이메일 도메인 판정 (2026-09-05 가입 개편).
 //
-// 가입 본인확인은 PASS(NHN KCP) 하나로 하고, 개인 이메일 OTP 는 폐지했다. 남은 이메일 OTP 는
-// 승무원의 회사 메일 소유 확인뿐이므로 발송·검증 API 모두 여기서 도메인을 먼저 거른다.
+// 가입 본인확인은 PASS(NHN KCP) 하나. 이메일 OTP 는 두 용도만 있다(쿠마님 확정):
+//   'signup'        여행자의 로그인·연락용 개인 이메일 소유 확인 — 도메인 제한 없음
+//   'airline_email' 승무원의 회사 메일 소유 확인(= 승무원 증빙) — airline_domains 에 있는 도메인만
+// purpose 는 서버가 이 둘로만 제한하고, 검증 RPC 에도 서버가 확정한 값만 넘긴다(클라이언트 자유 문자열 금지).
 // 최종 판정은 DB RPC complete_signup_profile 이 같은 표(airline_domains)로 다시 한다 — 여기는
 // "아무 주소로나 메일을 쏘는" 비용·남용을 막는 앞단 게이트다.
 //
@@ -47,4 +49,21 @@ export function airlineDomainFailure(check) {
     return { status: 503, code: 'SERVICE_UNAVAILABLE', error: '인증 서비스 준비 중입니다. 잠시 후 다시 시도해주세요.' };
   }
   return { status: 403, code: 'AIRLINE_DOMAIN_REQUIRED', error: '승무원 회사 이메일 주소만 인증할 수 있습니다. 지원 항공사 목록을 확인해주세요.' };
+}
+
+export const OTP_PURPOSES = ['signup', 'airline_email'];
+
+/** 클라이언트 purpose 를 서버 허용값으로 정규화. 허용 밖이면 ''. */
+export function normalizePurpose(raw) {
+  const v = String(raw || '').trim();
+  return OTP_PURPOSES.includes(v) ? v : '';
+}
+
+/**
+ * purpose 에 따라 도메인 게이트를 적용한다. 'signup' 은 통과, 'airline_email' 은 항공사 도메인만.
+ * @returns {{ status, code, error } | null}  실패 응답 또는 null(통과)
+ */
+export async function gateByPurpose(supabase, email, purpose) {
+  if (purpose === 'signup') return null;
+  return airlineDomainFailure(await checkAirlineDomain(supabase, email));
 }

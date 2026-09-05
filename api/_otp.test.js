@@ -8,8 +8,8 @@
 //   ⑤ DB 로 나가는 insert 에 6자리 원문(code)이 없고 HMAC 해시(code_hash)만 있어야 한다.
 //      해시는 "실제로 메일에 담긴 코드"의 HMAC 이어야 한다.
 //   ⑥ 실패 응답 본문에 내부 예외·외부 API 응답 원문이 한 조각도 없어야 한다.
-//   ⑦ airline_domains 에 없는 도메인은 발송·검증 모두 403, 조회 실패는 503(둘 다 DB 를 건드리지 않음).
-//      검증 RPC 의 p_purpose 는 클라이언트가 무엇을 보내든 'airline_email'.
+//   ⑦ purpose 는 'signup'(여행자 개인 메일, 도메인 제한 없음)·'airline_email'(승무원 회사 메일, airline_domains 만) 둘뿐.
+//      허용 밖은 400. 'airline_email' 미등록 도메인은 403, 조회 실패는 503(둘 다 DB 를 건드리지 않음).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'node:crypto';
@@ -141,7 +141,7 @@ describe('⑤ OTP 코드는 해시로만 저장된다', () => {
     const fetchFn = stubFetch({ ok: true, body: { id: 'em_1' } });
     const handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls));
     const res = mockRes();
-    await handler(post({ email: CREW }), res);
+    await handler(post({ email: CREW, purpose: 'airline_email' }), res);
 
     expect(res.statusCode).toBe(200);
     expect(calls.inserts).toHaveLength(1);
@@ -154,11 +154,11 @@ describe('⑤ OTP 코드는 해시로만 저장된다', () => {
     expect(row.code_hash).toBe(hmac(sent));
   });
 
-  it('verify-email-otp: RPC 에 p_code_hash 를 넘기고 p_purpose 는 무조건 airline_email', async () => {
+  it('verify-email-otp: RPC 에 p_code_hash 와 서버가 확정한 purpose 를 넘긴다', async () => {
     const calls = newCalls();
     const handler = await loadHandler('./verify-email-otp.js', fakeSupabase(calls, { rpcResult: 'ok' }));
     const res = mockRes();
-    await handler(post({ email: CREW, code: '654321', purpose: 'signup' }), res);
+    await handler(post({ email: CREW, code: '654321', purpose: 'airline_email' }), res);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.verifyToken).toMatch(/^[0-9a-f]{64}$/);
@@ -168,7 +168,7 @@ describe('⑤ OTP 코드는 해시로만 저장된다', () => {
   });
 
   it('비밀이 env·Vault 어디에도 없으면 두 핸들러 모두 503 으로 닫고 DB 를 건드리지 않는다', async () => {
-    for (const [path, body] of [['./send-email-otp.js', { email: CREW }], ['./verify-email-otp.js', { email: CREW, code: '123456' }]]) {
+    for (const [path, body] of [['./send-email-otp.js', { email: CREW, purpose: 'airline_email' }], ['./verify-email-otp.js', { email: CREW, code: '123456', purpose: 'airline_email' }]]) {
       delete process.env.OTP_HASH_SECRET;
       const calls = newCalls();
       stubFetch();
@@ -189,7 +189,7 @@ describe('⑤ OTP 코드는 해시로만 저장된다', () => {
     stubFetch();
     const handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls, { secretRpc: SECRET }));
     const res = mockRes();
-    await handler(post({ email: CREW }), res);
+    await handler(post({ email: CREW, purpose: 'airline_email' }), res);
     expect(res.statusCode).toBe(200);
     expect(calls.rpcs.filter((r) => r.name === 'otp_hash_secret')).toHaveLength(1);
     expect(calls.inserts[0].row.code_hash).toMatch(/^[0-9a-f]{64}$/);
@@ -214,8 +214,8 @@ describe('⑤ OTP 코드는 해시로만 저장된다', () => {
 
 // ============================================================================
 describe('⑦ 승무원 회사 메일 전용', () => {
-  it('등록되지 않은 도메인은 발송·검증 모두 403 이고 DB 에 아무것도 남기지 않는다', async () => {
-    for (const [path, body] of [['./send-email-otp.js', { email: 'me@gmail.com' }], ['./verify-email-otp.js', { email: 'me@gmail.com', code: '123456' }]]) {
+  it("'airline_email' 인데 등록되지 않은 도메인이면 발송·검증 모두 403 이고 DB 에 아무것도 남기지 않는다", async () => {
+    for (const [path, body] of [['./send-email-otp.js', { email: 'me@gmail.com', purpose: 'airline_email' }], ['./verify-email-otp.js', { email: 'me@gmail.com', code: '123456', purpose: 'airline_email' }]]) {
       const calls = newCalls();
       stubFetch();
       const handler = await loadHandler(path, fakeSupabase(calls));
@@ -229,13 +229,47 @@ describe('⑦ 승무원 회사 메일 전용', () => {
     }
   });
 
+  it("purpose 가 없거나 허용값 밖이면 400 BAD_PURPOSE (DB 접근 없음)", async () => {
+    for (const [path, body] of [['./send-email-otp.js', { email: CREW }], ['./send-email-otp.js', { email: CREW, purpose: 'generic' }], ['./verify-email-otp.js', { email: CREW, code: '123456', purpose: 'admin' }]]) {
+      const calls = newCalls();
+      stubFetch();
+      const handler = await loadHandler(path, fakeSupabase(calls));
+      const res = mockRes();
+      await handler(post(body), res);
+      expect(res.statusCode, JSON.stringify(body)).toBe(400);
+      expect(res.body.code, JSON.stringify(body)).toBe('BAD_PURPOSE');
+      expect(calls.inserts, path).toHaveLength(0);
+      expect(calls.domainLookups, path).toHaveLength(0);
+    }
+  });
+
+  it("'signup'(여행자 개인 메일)은 도메인 제한 없이 발송·검증되고 도메인 조회를 하지 않는다", async () => {
+    let calls = newCalls();
+    const fetchFn = stubFetch({ ok: true, body: { id: 'em_2' } });
+    let handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls));
+    let res = mockRes();
+    await handler(post({ email: 'me@gmail.com', purpose: 'signup' }), res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.domainLookups).toHaveLength(0);
+    expect(calls.inserts[0].row.email).toBe('me@gmail.com');
+    expect(JSON.parse(fetchFn.mock.calls[0][1].body).subject).not.toContain('승무원');
+
+    calls = newCalls();
+    handler = await loadHandler('./verify-email-otp.js', fakeSupabase(calls, { rpcResult: 'ok' }));
+    res = mockRes();
+    await handler(post({ email: 'me@gmail.com', code: '123456', purpose: 'signup' }), res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.domainLookups).toHaveLength(0);
+    expect(calls.rpcs.find((r) => r.name === 'verify_otp_and_issue_token').args.p_purpose).toBe('signup');
+  });
+
   it('서브도메인·유사 도메인은 정확 일치가 아니라 403', async () => {
     for (const email of ['x@crew.koreanair.com', 'x@evil-koreanair.com', 'x@koreanair.com.attacker.io']) {
       const calls = newCalls();
       stubFetch();
       const handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls));
       const res = mockRes();
-      await handler(post({ email }), res);
+      await handler(post({ email, purpose: 'airline_email' }), res);
       expect(res.statusCode, email).toBe(403);
       expect(calls.inserts, email).toHaveLength(0);
     }
@@ -246,7 +280,7 @@ describe('⑦ 승무원 회사 메일 전용', () => {
     stubFetch();
     const handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls, { domainError: { message: 'db down' } }));
     const res = mockRes();
-    await handler(post({ email: CREW }), res);
+    await handler(post({ email: CREW, purpose: 'airline_email' }), res);
     expect(res.statusCode).toBe(503);
     expect(res.body.code).toBe('SERVICE_UNAVAILABLE');
     expect(res.body.error).not.toContain('db down');
@@ -257,7 +291,7 @@ describe('⑦ 승무원 회사 메일 전용', () => {
     const calls = newCalls();
     const handler = await loadHandler('./verify-email-otp.js', fakeSupabase(calls, { domainError: { message: 'db down' } }));
     const res = mockRes();
-    await handler(post({ email: CREW, code: '123456' }), res);
+    await handler(post({ email: CREW, code: '123456', purpose: 'airline_email' }), res);
     expect(res.statusCode).toBe(503);
     expect(res.body.code).toBe('SERVICE_UNAVAILABLE');
     expect(calls.rpcs.filter((r) => r.name === 'verify_otp_and_issue_token')).toHaveLength(0);
@@ -268,7 +302,7 @@ describe('⑦ 승무원 회사 메일 전용', () => {
     stubFetch();
     const handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls));
     const res = mockRes();
-    await handler(post({ email: '  Crew@TrinityAirways.com ' }), res);
+    await handler(post({ email: '  Crew@TrinityAirways.com ', purpose: 'airline_email' }), res);
     expect(res.statusCode).toBe(200);
     expect(calls.domainLookups).toEqual(['trinityairways.com']);
     expect(calls.inserts[0].row.email).toBe('crew@trinityairways.com');
@@ -283,7 +317,7 @@ describe('⑥ 실패 응답에 내부 원문이 새지 않는다', () => {
     stubFetch({ ok: false, status: 403, body: { statusCode: 403, message: leak, name: 'validation_error' } });
     const handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls));
     const res = mockRes();
-    await handler(post({ email: CREW }), res);
+    await handler(post({ email: CREW, purpose: 'airline_email' }), res);
     expect(res.statusCode).toBe(502);
     expect(res.body.code).toBe('PROVIDER_ERROR');
     expect(JSON.stringify(res.body)).not.toContain('resend.dev');
@@ -295,7 +329,7 @@ describe('⑥ 실패 응답에 내부 원문이 새지 않는다', () => {
     const leak = 'function public.verify_otp_and_issue_token(text, text, text, text, text, text) does not exist';
     const handler = await loadHandler('./verify-email-otp.js', fakeSupabase(calls, { rpcError: { message: leak, code: 'PGRST202' } }));
     const res = mockRes();
-    await handler(post({ email: CREW, code: '123456' }), res);
+    await handler(post({ email: CREW, code: '123456', purpose: 'airline_email' }), res);
     expect(res.statusCode).toBe(500);
     expect(res.body.code).toBe('SERVER_ERROR');
     expect(JSON.stringify(res.body)).not.toContain('PGRST202');
@@ -304,7 +338,7 @@ describe('⑥ 실패 응답에 내부 원문이 새지 않는다', () => {
 
   it('두 핸들러 모두: 예기치 못한 예외 메시지를 응답에 싣지 않는다', async () => {
     const leak = 'ECONNREFUSED 10.0.0.7:5432 (internal host)';
-    for (const [path, body] of [['./send-email-otp.js', { email: CREW }], ['./verify-email-otp.js', { email: CREW, code: '123456' }]]) {
+    for (const [path, body] of [['./send-email-otp.js', { email: CREW, purpose: 'airline_email' }], ['./verify-email-otp.js', { email: CREW, code: '123456', purpose: 'airline_email' }]]) {
       stubFetch();
       const handler = await loadHandlerThrowing(path, leak);
       const res = mockRes();
@@ -318,11 +352,11 @@ describe('⑥ 실패 응답에 내부 원문이 새지 않는다', () => {
   it('사용자가 고쳐야 하는 검증 오류는 문구를 그대로 유지한다', async () => {
     const handler = await loadHandler('./verify-email-otp.js', fakeSupabase(newCalls()));
     let res = mockRes();
-    await handler(post({ email: 'not-an-email', code: '123456' }), res);
+    await handler(post({ email: 'not-an-email', code: '123456', purpose: 'signup' }), res);
     expect(res.statusCode).toBe(400);
     expect(res.body.code).toBe('BAD_EMAIL');
     res = mockRes();
-    await handler(post({ email: CREW, code: '12' }), res);
+    await handler(post({ email: CREW, code: '12', purpose: 'airline_email' }), res);
     expect(res.statusCode).toBe(400);
     expect(res.body.code).toBe('BAD_CODE');
   });
@@ -331,7 +365,7 @@ describe('⑥ 실패 응답에 내부 원문이 새지 않는다', () => {
     for (const result of ['not_found', 'mismatch']) {
       const handler = await loadHandler('./verify-email-otp.js', fakeSupabase(newCalls(), { rpcResult: result }));
       const res = mockRes();
-      await handler(post({ email: CREW, code: '123456' }), res);
+      await handler(post({ email: CREW, code: '123456', purpose: 'airline_email' }), res);
       expect(res.statusCode, result).toBe(400);
       expect(res.body.code, result).toBe('OTP_INVALID');
     }
