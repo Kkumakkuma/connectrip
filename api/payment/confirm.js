@@ -43,7 +43,8 @@ export default async function handler(req, res) {
     const r = await settleLoaded(supabase, order, { secret });
     return res.status(r.http).json(r.body);
   } catch (e) {
+    // 예외 원문은 서버 로그에만. 응답엔 고정 code + 일반 문구만 싣는다.
     console.error('[confirm] 예외', e);
-    return res.status(500).json({ ok: false, error: String(e.message || e) });
+    return res.status(500).json({ ok: false, code: 'SERVER_ERROR', error: 'server_error' });
   }
 }

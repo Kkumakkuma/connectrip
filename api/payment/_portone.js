@@ -45,7 +45,12 @@ export async function getPayment(secret, paymentId) {
     if (r.ok && j) return { ok: true, payment: j };
     if (r.status === 404) return { ok: false, code: 'not_found', retryable: true }; // 승인 직후 전파 지연 가능
     if (r.status === 401 || r.status === 403) return { ok: false, code: 'auth_' + r.status, retryable: false };
-    return { ok: false, code: String(j?.type || 'http_' + r.status), retryable: r.status >= 500 || r.status === 429 };
+    // 포트원 오류 type 은 코드형 토큰(예: PAYMENT_NOT_FOUND)일 때만 그대로 쓴다.
+    // 이 값은 응답 code 와 last_error 로 남는데, 제공자가 문장형 메시지를 넣어 보내면
+    // 외부 API 응답 원문이 그대로 클라이언트로 새 나간다.
+    const type = String(j?.type || '');
+    const code = /^[A-Za-z0-9_]{1,48}$/.test(type) ? type : 'http_' + r.status;
+    return { ok: false, code, retryable: r.status >= 500 || r.status === 429 };
   } catch (e) {
     return { ok: false, code: e?.name === 'AbortError' ? 'timeout' : 'network', retryable: true };
   } finally {
@@ -62,7 +67,9 @@ export function verifyPaid(order, p) {
   if (status !== 'PAID') {
     if (status === 'FAILED') return { ok: false, code: 'pg_failed', kind: 'failed' };
     if (status === 'CANCELLED' || status === 'PARTIAL_CANCELLED') return { ok: false, code: 'pg_' + status.toLowerCase(), kind: 'canceled' };
-    return { ok: false, code: 'not_paid_' + (status || 'unknown'), kind: 'transient' }; // READY / PENDING / VIRTUAL_ACCOUNT_ISSUED / PAY_PENDING
+    // 응답 code 로 나가는 값이라 제공자 문자열을 그대로 붙이지 않는다(문장형이 오면 외부 원문 노출).
+    const safe = /^[A-Z_]{1,32}$/.test(status) ? status : 'UNKNOWN';
+    return { ok: false, code: 'not_paid_' + safe, kind: 'transient' }; // READY / PENDING / VIRTUAL_ACCOUNT_ISSUED / PAY_PENDING
   }
   if (String(p.id || '') !== String(order.order_id)) return { ok: false, code: 'payment_id_mismatch', kind: 'review' };
   const total = p?.amount?.total;
@@ -147,5 +154,7 @@ export async function settleLoaded(supabase, order, { secret }) {
   if (st === 'test') return R(200, { ok: true, test: true, credited: 0 });
   console.error('[settle] charge non-ok', orderId, charge);
   await mine({ status: 'review', last_error: 'rpc_' + String(st || 'unknown') });
-  return R(200, { ok: false, error: 'credit_failed', code: st, message: REVIEW_MSG });
+  // RPC 가 예상 밖 값을 돌려줘도 코드형 토큰만 응답에 싣는다(내부 상태 문구 노출 차단).
+  const safeSt = /^[A-Za-z0-9_]{1,32}$/.test(String(st || '')) ? String(st) : 'unknown';
+  return R(200, { ok: false, error: 'credit_failed', code: safeSt, message: REVIEW_MSG });
 }
