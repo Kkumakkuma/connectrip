@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Plane, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { User, Plane, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { normalizeLoginId, synthEmail } from '../lib/loginId';
 import { resolveNext, rememberNext, nextQuery } from '../lib/safeNext';
 import SEOHead from '../components/SEOHead';
 
@@ -25,7 +26,8 @@ const Signup = () => {
         if (nextTargetRef.current === undefined) nextTargetRef.current = resolveNext(nextParam);
         return nextTargetRef.current;
     };
-    const [email, setEmail] = useState('');
+    // 로그인 식별자 = 아이디(login_id). Auth 에는 합성 주소로 넘긴다 — 화면에는 아이디만 보인다.
+    const [loginId, setLoginId] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -45,7 +47,7 @@ const Signup = () => {
 
     useEffect(() => {
         setError('');
-        setEmail('');
+        setLoginId('');
         setPassword('');
         setMode(searchParams.get('mode') === 'login' ? 'login' : 'signup');
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,19 +55,25 @@ const Signup = () => {
 
     const handleLogin = async (e) => {
         e?.preventDefault();
-        if (!email || !password) {
-            setError('이메일과 비밀번호를 입력해주세요.');
+        if (!loginId || !password) {
+            setError('아이디와 비밀번호를 입력해주세요.');
+            return;
+        }
+        const id = normalizeLoginId(loginId);
+        if (!id) {
+            setError('아이디 형식이 올바르지 않습니다.');
             return;
         }
         setLoading(true);
         setError('');
         try {
-            await signIn(email, password);
+            // Auth 는 아이디를 모른다 — 합성 주소로 로그인한다(화면에는 노출하지 않는다).
+            await signIn(synthEmail(id), password);
             navigate(resolveNextTarget());
             window.scrollTo(0, 0);
         } catch (err) {
             if (err.message.includes('Invalid login')) {
-                setError('이메일 또는 비밀번호가 올바르지 않습니다.');
+                setError('아이디 또는 비밀번호가 올바르지 않습니다.');
             } else {
                 setError(err.message);
             }
@@ -172,14 +180,16 @@ const Signup = () => {
                                     )}
                                     <form className="space-y-4" autoComplete="on" onSubmit={handleLogin}>
                                         <div className="relative">
-                                            <Mail size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                                            <User size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                                             <input
-                                                type="email"
-                                                name="email"
+                                                type="text"
+                                                name="login_id"
                                                 autoComplete="username"
-                                                placeholder="이메일"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
+                                                inputMode="latin"
+                                                placeholder="아이디"
+                                                value={loginId}
+                                                onChange={(e) => setLoginId(e.target.value.trim().toLowerCase())}
+                                                maxLength={20}
                                                 className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-800"
                                             />
                                         </div>

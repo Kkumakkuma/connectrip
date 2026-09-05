@@ -120,7 +120,12 @@ const isMobileUA = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent ||
 // 본인확인 창 띄우기. PC(팝업/iframe)는 응답 객체가 돌아오고, 모바일·앱(REDIRECTION)은 페이지가
 // 이동하므로 이 함수는 돌아오지 않는다 — 복귀는 parseIdentityReturn 으로 처리한다.
 // returnPath: 복귀할 경로(+기존 쿼리). 앱에서는 origin 이 https://localhost 라 WebView 안으로 돌아온다.
-export async function startIdentityVerification({ returnPath }) {
+// purpose: 이 본인확인을 어디에 쓸지(기본 가입). 서버가 증빙 토큰을 그 용도로만 인정한다
+//          — 가입용 증빙으로 남의 비밀번호를 바꾸는 것을 막기 위해서다(2026-09-05).
+export const IDENTITY_PURPOSE_SIGNUP = 'signup_identity';
+export const IDENTITY_PURPOSE_PASSWORD_RESET = 'password_reset';
+
+export async function startIdentityVerification({ returnPath, purpose = IDENTITY_PURPOSE_SIGNUP }) {
   if (!IDENTITY_ENABLED) {
     const e = new Error('본인확인 서비스가 아직 준비되지 않았습니다.');
     e.code = 'IDENTITY_DISABLED';
@@ -130,7 +135,7 @@ export async function startIdentityVerification({ returnPath }) {
   const PortOne = await import('@portone/browser-sdk/v2');
   const id = newIdentityId();
   const state = randomHex(16);
-  try { sessionStorage.setItem(START_KEY, JSON.stringify({ id, state, savedAt: Date.now() })); } catch { /* noop */ }
+  try { sessionStorage.setItem(START_KEY, JSON.stringify({ id, state, purpose, savedAt: Date.now() })); } catch { /* noop */ }
 
   const base = returnPath || (window.location.pathname + window.location.search);
   const [path, query = ''] = base.split('?');
@@ -166,11 +171,12 @@ export async function startIdentityVerification({ returnPath }) {
 }
 
 // 서버 검증 → 증빙 저장. 실패 시 Error(code, status) throw.
-export async function confirmIdentity(identityVerificationId) {
+// purpose 는 발급받을 증빙의 용도(가입/비밀번호 재설정) — 서버가 토큰에 함께 묶는다.
+export async function confirmIdentity(identityVerificationId, purpose = IDENTITY_PURPOSE_SIGNUP) {
   const resp = await fetch(apiUrl('/api/verify-identity'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ identityVerificationId }),
+    body: JSON.stringify({ identityVerificationId, purpose }),
   });
   let data = null;
   try { data = await resp.json(); } catch { /* 본문 없음 */ }
