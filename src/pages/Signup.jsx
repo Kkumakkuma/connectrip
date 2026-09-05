@@ -221,9 +221,13 @@ const Signup = () => {
                                         </button>
                                     </form>
 
-                                    <div className="mt-4 text-center">
-                                        <Link to="/forgot-password" className="text-sm text-gray-500 hover:text-blue-600 hover:underline">
+                                    <div className="mt-4 text-center text-sm text-gray-500">
+                                        <Link to="/forgot-password" className="hover:text-blue-600 hover:underline">
                                             비밀번호를 잊으셨나요?
+                                        </Link>
+                                        <span className="mx-2 text-gray-300" aria-hidden="true">·</span>
+                                        <Link to="/find-id" className="hover:text-blue-600 hover:underline">
+                                            아이디 찾기
                                         </Link>
                                     </div>
 

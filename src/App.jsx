@@ -22,6 +22,7 @@ import { Bell, X, Loader2 } from 'lucide-react';
 // 나머지 라우트 컴포넌트는 React.lazy 로 분리해 초기 번들 크기를 줄인다.
 const Signup = lazy(() => import('./pages/Signup'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const FindLoginId = lazy(() => import('./pages/FindLoginId'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const SignupEmail = lazy(() => import('./pages/SignupEmail'));
 const SignupComplete = lazy(() => import('./pages/SignupComplete'));
@@ -252,6 +253,7 @@ function App() {
               />
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/find-id" element={<FindLoginId />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/signup/email" element={<SignupEmail />} />
               <Route path="/signup/complete" element={<SignupComplete />} />
