@@ -599,10 +599,6 @@ export default function SignupComplete() {
             <div style={{ marginBottom: 16, padding: '10px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#065f46' }}>
               <CheckCircle size={16} color="#16a34a" />
               <span style={{ flex: 1, fontWeight: 600 }}>휴대폰 본인확인 완료 · {identityProof.name}</span>
-              <button type="button" onClick={restartIdentity}
-                style={{ background: 'none', border: 'none', color: '#047857', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
-                다시 인증
-              </button>
             </div>
           )}
 
