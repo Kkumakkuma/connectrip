@@ -507,17 +507,15 @@ export default function SignupEmail() {
         if (rid) resolvedReferrer = rid;
       }
 
+      // 메타데이터는 가입 트리거(handle_new_user)가 프로필을 만들 때 한 번 읽는 값이다.
+      // 그런데 auth.users 에 그대로 남아 평문 사본이 된다(2026-09-05 재검토에서 확인).
+      // 그래서 트리거가 꼭 필요한 이름·닉네임·생년월일(14세 검사)만 넣고, 휴대폰·주소는 넣지 않는다.
+      // 휴대폰·주소는 가입 완료 RPC 가 받아 암호화해 저장한다(profiles_pii_sync 트리거).
+      // 이메일확인 ON 경로에서는 아래 pendingOtpProof 로 /signup/complete 에 넘긴다.
       const metadata = {
         name: name.trim(),
         nickname: nickname.trim(),
-        // 본인확인 모드에서는 휴대폰을 메타데이터로 넣지 않는다 — 트리거가 인증 전 번호를 profiles.phone 에 미리
-        // 써 두면, 이메일확인 ON 경로에서 /signup/complete 가 본인확인을 다시 할 때 "이미 사용된 번호"로 오판한다.
-        // 번호는 가입 완료 RPC 가 본인확인 보관값으로 확정한다.
-        ...(IDENTITY_ENABLED ? {} : { phone }),
         birthdate,
-        address_zipcode: zipcode,
-        address_road: addressRoad,
-        address_detail: addressDetail,
       };
 
       const { data, error: signErr } = await supabase.auth.signUp({
@@ -557,6 +555,8 @@ export default function SignupEmail() {
             phoneToken: phoneOtpToken,
             airlineEmail: verifiedAirlineEmail,
             airlineToken: userType === 'crew' ? airlineOtpToken : '',
+            // 주소는 메타데이터로 보내지 않으므로(평문 사본 방지) 여기로 넘겨 /signup/complete 가 프리필한다.
+            zipcode, road: addressRoad, detail: addressDetail,
             savedAt: Date.now(),
           }));
           // /signup 에서 고른 가입 유형을 /signup/complete 가 그대로 이어받는다(그 화면에서 다시 고르지 않음).

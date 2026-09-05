@@ -816,6 +816,22 @@ const Admin = () => {
                                   </button>
                                 )}
                               </div>
+                              {/* 배송 주소. 서버가 승인 이후 상태에서만 암호문을 복호해 내려준다(admin_get_commendation_reviews). */}
+                              {(match.passenger?.road || match.passenger?.zipcode) && (
+                                <div className="flex flex-wrap items-center gap-3 mb-3 text-sm">
+                                  <span className="text-gray-600">
+                                    주소: <strong className="text-gray-900">
+                                      {[match.passenger?.zipcode && `(${match.passenger.zipcode})`, match.passenger?.road, match.passenger?.detail].filter(Boolean).join(' ')}
+                                    </strong>
+                                  </span>
+                                  <button
+                                    onClick={() => copyToClipboard([match.passenger?.zipcode, match.passenger?.road, match.passenger?.detail].filter(Boolean).join(' '))}
+                                    className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-600 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                                  >
+                                    주소 복사
+                                  </button>
+                                </div>
+                              )}
                               <button
                                 onClick={() => handleMarkRewardSent(match.id)}
                                 disabled={actionLoading === match.id}

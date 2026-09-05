@@ -187,6 +187,10 @@ export default function SignupComplete() {
         setPhoneOtpToken(p.phoneToken);
         setPhoneVerified(true);
       }
+      // 주소는 가입 메타데이터로 보내지 않게 됐으므로(평문 사본 방지, 2026-09-05) 앞 화면이 여기로 넘긴다.
+      if (p.zipcode) setZipcode(p.zipcode);
+      if (p.road) setAddressRoad(p.road);
+      if (p.detail) setAddressDetail(p.detail);
       if (p.airlineToken && p.airlineEmail) {
         setUserType('crew');
         setTypeLocked(true);
