@@ -240,6 +240,26 @@ describe('⑤ OTP 코드는 해시로만 저장된다', () => {
     process.env.OTP_HASH_SECRET = SECRET;
   });
 
+  it('Vault RPC 가 나중에 실패해도 이 인스턴스가 읽어 둔 비밀을 계속 쓴다(순단 완충)', async () => {
+    delete process.env.OTP_HASH_SECRET;
+    vi.resetModules();
+    const mod = await import('./_otp_hash.js');
+    const ok = { rpc: async () => ({ data: SECRET, error: null }) };
+    const down = { rpc: async () => ({ data: null, error: { message: 'connection reset' } }) };
+    expect(await mod.otpHashSecret(ok)).toBe(SECRET);
+    // 캐시 만료를 흉내 내기 위해 시계를 6분 앞으로
+    const realNow = Date.now;
+    Date.now = () => realNow() + 6 * 60 * 1000;
+    try {
+      expect(await mod.otpHashSecret(down)).toBe(SECRET);
+    } finally {
+      Date.now = realNow;
+    }
+    mod.resetOtpSecretCache();
+    expect(await mod.otpHashSecret(down)).toBe('');
+    process.env.OTP_HASH_SECRET = SECRET;
+  });
+
   it('Vault RPC 가 실패하면 503 (평문으로 되돌아가지 않는다)', async () => {
     delete process.env.OTP_HASH_SECRET;
     const calls = { inserts: [], rpcs: [] };

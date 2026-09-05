@@ -12,7 +12,8 @@
 //      (플래너 청소 토큰과 같은 방식. 환경변수를 새로 등록하지 않아도 fail-closed 가 성립한다.)
 //   둘 다 없으면 빈 문자열 → 호출부가 503 으로 닫는다(평문 저장으로 조용히 되돌아가지 않는다).
 // Vault 값은 인스턴스 메모리에 5분 캐시한다. OTP 수명(5분)과 같아서, 키를 바꾸면 최대 5분간
-// 옛 키로 발급된 코드가 검증 불가가 되는데 이는 키 회전 시 감수하는 창이다.
+// 옛 키로 발급된 코드가 검증 불가가 되는데 이는 키 회전 시 감수하는 창이다. 캐시가 만료된 뒤
+// RPC 가 실패하면 마지막 값을 그대로 쓴다(순단 완충). 처음부터 한 번도 못 읽었을 때만 503.
 //
 // 왜 SUPABASE_SERVICE_ROLE_KEY 에서 파생하지 않는가: 그 키를 돌리는 순간 발급 중인 OTP 가 전부
 // 죽고, 한쪽 유출이 곧 다른 쪽 유출이 된다.
@@ -38,15 +39,20 @@ export async function otpHashSecret(supabase) {
   const env = (process.env.OTP_HASH_SECRET || '').trim();
   if (env) return env;
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.value;
-  if (!supabase || typeof supabase.rpc !== 'function') return '';
+  if (!supabase || typeof supabase.rpc !== 'function') return cache ? cache.value : '';
   try {
     const { data, error } = await supabase.rpc('otp_hash_secret');
     const value = !error && typeof data === 'string' ? data.trim() : '';
-    if (value) cache = { value, at: Date.now() };
-    return value;
+    if (value) {
+      cache = { value, at: Date.now() };
+      return value;
+    }
   } catch {
-    return '';
+    // 아래 stale 폴백으로
   }
+  // RPC 가 잠깐 죽었을 때: 만료됐더라도 이 인스턴스가 마지막으로 읽은 값을 쓴다.
+  // 키는 회전 때만 바뀌므로, DB 순단 한 번에 인증 전체를 503 으로 닫지 않기 위한 완충이다(agy 지적 반영).
+  return cache ? cache.value : '';
 }
 
 /** OTP 원문 → HMAC-SHA256 hex(64자). 비밀이 없으면 null. */
