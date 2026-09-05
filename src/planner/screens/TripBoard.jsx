@@ -781,6 +781,7 @@ export default function TripBoard() {
           ) : (
             <PlaceList
               places={dayPlaces}
+              legs={legs}
               timeline={feasibility.timeline.rows}
               warningsByPlaceId={warnMap}
               currency={trip?.currency || 'KRW'}

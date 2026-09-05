@@ -166,6 +166,7 @@ function PlaceRow({
 // id 문자열을 넘긴다 — 객체는 갱신마다 참조가 바뀌어 드래그 도중 항목이 뒤엉킨다.
 export default function PlaceList({
   places = [],
+  legs: legsProp = null,
   timeline = [],
   warningsByPlaceId,
   currency = 'KRW',
@@ -176,7 +177,12 @@ export default function PlaceList({
 }) {
   const ids = useMemo(() => places.map((p) => p.id), [places]);
   const byId = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
-  const legs = useMemo(() => estimateLegs(places), [places]);
+  // 구간 값은 보드가 준다(DB 에 저장된 구글/캐시 경로가 있으면 그것, 아니면 추정치). 9/6 운영 실측: 여기서 추정치를 따로
+  // 다시 계산하는 바람에 서버가 구글 경로를 저장해도 "예상" 표기가 안 떨어졌다. 길이가 안 맞으면(핀 수 변화 중) 추정치.
+  const legs = useMemo(
+    () => (Array.isArray(legsProp) && legsProp.length === Math.max(0, places.length - 1) ? legsProp : estimateLegs(places)),
+    [legsProp, places],
+  );
 
   // 키보드·보조기술용 대안. 드래그와 같은 결과를 만든다(설계 §8).
   const move = (index, delta) => {
