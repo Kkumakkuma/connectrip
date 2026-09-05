@@ -7,6 +7,7 @@ import Card from '../kit/Card';
 import EmptyState from '../kit/EmptyState';
 import { ToastStack } from '../kit/Toast';
 import MapSurface from '../providers/MapSurface';
+import SourceAttribution from '../providers/SourceAttribution';
 import DayTabs, { UNASSIGNED_ID } from './board/DayTabs';
 import PlaceList from './board/PlaceList';
 import PlaceSheet from './board/PlaceSheet';
@@ -71,6 +72,8 @@ export default function TripBoard() {
   const [days, setDays] = useState([]);
   const [places, setPlaces] = useState([]);
   const [catalog, setCatalog] = useState(() => new Map());
+  // 카탈로그(핀 출처) 확보 상태. 첫 로드에서만 'loading' 으로 지도를 잠깐 보류하고, 이후 재조회는 'ready' 를 유지한다.
+  const [catalogStatus, setCatalogStatus] = useState('loading');
   const [sync, setSync] = useState({ published: false, stale: false });
 
   const [activeDayId, setActiveDayId] = useState(null);
@@ -137,12 +140,19 @@ export default function TripBoard() {
     const ids = rows.map((p) => p.catalog_id).filter(Boolean);
     if (ids.length === 0) {
       setCatalog(new Map());
-      return;
+      setCatalogStatus('ready');
+      return new Map();
     }
+    setCatalogStatus((s) => (s === 'ready' ? s : 'loading'));
     try {
-      setCatalog(await getCatalogEntries(ids));
+      const entries = await getCatalogEntries(ids);
+      setCatalog(entries);
+      setCatalogStatus('ready');
+      return entries;
     } catch (err) {
       // 영업시간을 못 읽으면 그 기준의 경고만 사라진다(설계 §6: 근거가 없으면 경고하지 않는다).
+      // 핀 출처도 못 읽은 것이라 OSM 지도는 그리지 않는다(MapSurface provenance='error').
+      setCatalogStatus('error');
       console.error('장소 정보를 불러오지 못했습니다:', err);
     }
   }, []);
@@ -159,11 +169,12 @@ export default function TripBoard() {
       setShareUrl('');
       setStatus('ready');
       setOfflineSnapshot(null);
-      loadCatalog(data.places);
+      // 카탈로그(제공자·영업시간)를 먼저 받아야 기기 사본에도 출처가 실린다. 실패하면 undefined — 표기만 빠진다.
+      const entries = await loadCatalog(data.places);
       loadSync();
       // 기기에 사본을 남긴다. 비행기 안이나 로밍을 끈 상태에서 일정만이라도 보이게 하는 용도다.
       // 실패해도 화면에는 영향이 없다(저장은 있으면 좋은 것이지 없으면 못 쓰는 게 아니다).
-      saveSnapshot(user?.id, tripId, buildLocalSnapshot(data), data.trip?.end_date).catch(() => {});
+      saveSnapshot(user?.id, tripId, buildLocalSnapshot(data, entries || null), data.trip?.end_date).catch(() => {});
     } catch (err) {
       // 네트워크가 죽었을 때 기기에 남은 사본으로 읽기 전용 화면을 띄운다.
       const cached = await readSnapshot(user?.id, tripId).catch(() => null);
@@ -251,8 +262,25 @@ export default function TripBoard() {
         name: p.name,
         label: i + 1,
         selected: p.id === selectedPlaceId,
+        // 출처(google/osm/null). MapSurface 의 역방향 가드가 본다 — OSM 지도 위에 구글 핀을 올리지 않기 위해.
+        provider: (p.catalog_id && catalog.get(p.catalog_id)?.provider) || null,
       })),
-    [dayPlaces, selectedPlaceId]
+    [dayPlaces, selectedPlaceId, catalog]
+  );
+
+  // 여행 전체(모든 날짜·보관함)에 구글 출처 핀이 있는지. MapSurface 의 역방향 가드가 본다.
+  const tripHasGoogle = useMemo(
+    () => places.some((p) => p.catalog_id && catalog.get(p.catalog_id)?.provider === 'google'),
+    [places, catalog]
+  );
+
+  // 목록 아래 출처 표기용. 구글 지도로 바뀐 뒤에도 OSM 출처 핀(추천 명소·예전 검색)이 섞일 수 있어 둘 다 센다.
+  const dayProviders = useMemo(
+    () =>
+      Array.from(
+        new Set(dayPlaces.map((p) => (p.catalog_id ? catalog.get(p.catalog_id)?.provider : null)).filter(Boolean))
+      ),
+    [dayPlaces, catalog]
   );
 
   const selectedPlace = useMemo(
@@ -603,6 +631,8 @@ export default function TripBoard() {
           <MapSurface
             className="h-[42dvh] w-full overflow-hidden rounded-md border border-hairline lg:h-[calc(100dvh-18rem)]"
             pins={pins}
+            hasGoogleData={tripHasGoogle}
+            provenance={catalogStatus}
             route
             onPinClick={openPlace}
             onLongPress={(coords) => {
@@ -685,6 +715,8 @@ export default function TripBoard() {
               onOpenWarning={openWarning}
             />
           )}
+          {/* 장소 데이터 출처. 지도가 안 뜬 상태(한도·오류)에서도 구글 장소를 보이면 로고가 정책상 필요하다. */}
+          <SourceAttribution providers={dayProviders} className="mt-2" />
 
           {/* 빈 화면을 그대로 두지 않는다. 그 도시 대표 명소를 눌러서 바로 담게 한다.
               목록 아래에 두어, 하나 담은 뒤에도 이어서 담을 수 있게 한다. */}

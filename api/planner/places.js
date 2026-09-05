@@ -1,25 +1,42 @@
 // POST /api/planner/places   body: { q }   header: Authorization: Bearer <supabase access_token>
 //
-// 장소 검색 (설계 §4). 구글 키가 없으면 OSM Nominatim 을 쓴다.
-// 자동완성은 하지 않는다 — Nominatim 이용 정책이 타이핑마다 때리는 것을 금지한다.
-// 화면은 Enter 를 눌렀을 때만 이 함수를 부른다.
+// 장소 검색 (설계 §4). 제공자는 DB 플래그(planner_google_enabled) 하나로 정한다 — 구글이면 Places API (New) 텍스트 검색,
+// 아니면 OSM Nominatim. 자동완성은 하지 않는다(Nominatim 정책이 타이핑마다 때리는 것을 금지하고, 구글은 호출당 과금
+// 등급이 있다). 화면은 Enter 를 눌렀을 때만 이 함수를 부른다.
 //
 // 지키는 것
-//   · 결과 24시간 캐시(planner_place_search_cache). 캐시 히트는 외부 호출을 아예 하지 않는다.
-//   · 외부 호출 전 DB 전역 게이트(planner_geo_slot)로 1초에 한 번을 앱 전체에서 보장한다.
-//   · User-Agent 에 연락처를 명시한다(Nominatim 정책 요구사항).
-//   · opening_hours 는 파싱하지 않고 원문을 unknown 표시와 함께 넘긴다(설계 §6 정규화 형식 v1).
-//     카탈로그에 한 번 들어가면 갱신되지 않으므로, 확실하지 않은 값을 확정된 척 넣지 않는다.
+//   · 결과 24시간 캐시(planner_place_search_cache, 해시에 provider 포함). 캐시 히트는 외부 호출도 예산 소비도 없다.
+//   · 캐시 조회가 실패하면 "미스"로 보지 않고 503 으로 닫는다 — 구글이면 예산이 새고, OSM 이면 정책 위반 방향이다.
+//   · OSM: 외부 호출 전 DB 전역 게이트(planner_geo_slot)로 1초에 한 번을 앱 전체에서 보장하고 UA 에 연락처를 쓴다.
+//   · 구글(2026-09-05): 서버 키가 없으면 503(조용한 OSM 강등 금지). 캐시 미스일 때만 사용자 30/일 → 전역 150/일 순서로
+//     직렬 예약(planner_daily_reserve)하고, 둘 다 통과해야 한 번 부른다. 예산·RPC 오류·HTTP·파싱 실패는 전부 fail-closed.
+//     150/일 × 31 = 4,650 < Text Search Pro 월 무료 5,000. 필드마스크는 _google_places.js 가 고정한다(영업시간 없음).
+//   · opening_hours 는 파싱하지 않는다(설계 §6 형식 v1). OSM 은 원문을 unknown 으로, 구글은 null.
 //
-// 응답: { ok: true, provider, results: [{ provider, provider_place_id, name, address, lat, lng, opening_hours }] }
+// 응답: { ok: true, provider, cached, results: [{ provider, provider_place_id, name, address, lat, lng, opening_hours }] }
 
-import { fail, fetchWithTimeout, gate, pickProvider, sha256, waitForSlot } from './_common.js';
+import {
+  fail,
+  fetchWithTimeout,
+  gate,
+  googleServerKey,
+  pickProvider,
+  reserveDaily,
+  sha256,
+  waitForSlot,
+} from './_common.js';
+import { searchTextGoogle } from './_google_places.js';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_RESULTS = 8;
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 // Nominatim 정책: 실제 연락 가능한 주소를 UA 에 넣어야 한다.
 const UA = 'ConnectTrip-Planner/1.0 (+https://www.connecttrip.co.kr; 200kgBrothers@gmail.com)';
+
+// 구글 일일 예산(코드 상한). 콘솔 쿼터가 최종 방어선이고 이 값은 그보다 먼저 걸리는 부드러운 상한이다.
+export const GOOGLE_PLACES_DAILY = 150;
+export const GOOGLE_PLACES_USER_DAILY = 30;
+export const GOOGLE_PLACES_BUDGET_KEY = 'google_places';
 
 function normalizeQuery(q) {
   return String(q || '').trim().replace(/\s+/g, ' ').slice(0, 120);
@@ -67,6 +84,21 @@ async function searchOsm(supabase, q) {
   return { results: normalizeOsm(rows) };
 }
 
+// 구글 분기. 예산은 사용자 축을 먼저 세서 한 사용자의 초과 요청이 전역 예산을 갉아먹지 않게 한다.
+async function searchGoogle(supabase, userId, q) {
+  const key = googleServerKey();
+  if (!key) return { unavailable: true, results: [] };
+  if (!(await reserveDaily(supabase, `${GOOGLE_PLACES_BUDGET_KEY}:user:${userId}`, GOOGLE_PLACES_USER_DAILY))) {
+    return { limited: true, results: [] };
+  }
+  if (!(await reserveDaily(supabase, GOOGLE_PLACES_BUDGET_KEY, GOOGLE_PLACES_DAILY))) {
+    return { limited: true, results: [] };
+  }
+  const r = await searchTextGoogle({ q, key });
+  if (!r.ok) return { failed: true, reason: r.reason, results: [] };
+  return { results: r.results };
+}
+
 export default async function handler(req, res) {
   const ctx = await gate(req, res, { methods: ['POST'], rateKey: 'places', rateLimit: 60 });
   if (!ctx) return;
@@ -78,14 +110,21 @@ export default async function handler(req, res) {
   }
 
   const provider = await pickProvider(supabase);
+  if (!provider) {
+    // 제공자 판정 실패는 OSM 강등이 아니라 503 — 프런트가 구글 지도를 그리고 있을 수 있다.
+    return fail(res, 503, 'SERVICE_UNAVAILABLE', '장소 검색을 준비 중입니다.');
+  }
   const hash = sha256(`${provider}|${q.toLowerCase()}|ko`);
 
-  // 1) 캐시
-  const { data: cached } = await supabase
+  // 1) 캐시. 조회 오류는 미스가 아니다(fail-closed).
+  const { data: cached, error: cacheErr } = await supabase
     .from('planner_place_search_cache')
     .select('result, fetched_at')
     .eq('query_hash', hash)
     .maybeSingle();
+  if (cacheErr) {
+    return fail(res, 503, 'SERVICE_UNAVAILABLE', '장소 검색을 준비 중입니다.');
+  }
   if (cached && Date.now() - Date.parse(cached.fetched_at) < CACHE_TTL_MS) {
     return res.status(200).json({ ok: true, provider, cached: true, results: cached.result || [] });
   }
@@ -93,28 +132,36 @@ export default async function handler(req, res) {
   // 2) 제공자 호출
   let results = [];
   try {
-    if (provider === 'osm') {
-      const r = await searchOsm(supabase, q);
-      if (r.limited) {
-        return fail(res, 429, 'BUSY', '검색이 몰리고 있습니다. 잠시 뒤에 다시 시도해 주세요.');
-      }
-      if (r.failed) {
-        return fail(res, 502, 'PROVIDER_ERROR', '장소를 찾지 못했습니다. 잠시 뒤에 다시 시도해 주세요.');
-      }
-      results = r.results;
-    } else {
-      // 구글 경로는 키가 도착한 뒤에 붙인다. 지금 여기로 오면 설정이 어긋난 것이라
-      // 조용히 빈 결과를 주지 않고 분명히 실패시킨다.
+    const r =
+      provider === 'google' ? await searchGoogle(supabase, ctx.user.id, q) : await searchOsm(supabase, q);
+    if (r.unavailable) {
       return fail(res, 503, 'SERVICE_UNAVAILABLE', '장소 검색을 준비 중입니다.');
     }
+    if (r.limited) {
+      return fail(
+        res,
+        429,
+        'BUSY',
+        provider === 'google'
+          ? '오늘 장소 검색 한도에 도달했습니다. 내일 다시 시도해 주세요.'
+          : '검색이 몰리고 있습니다. 잠시 뒤에 다시 시도해 주세요.'
+      );
+    }
+    if (r.failed) {
+      return fail(res, 502, 'PROVIDER_ERROR', '장소를 찾지 못했습니다. 잠시 뒤에 다시 시도해 주세요.');
+    }
+    results = r.results;
   } catch {
     return fail(res, 502, 'PROVIDER_ERROR', '장소를 찾지 못했습니다. 잠시 뒤에 다시 시도해 주세요.');
   }
 
-  // 3) 캐시 저장. 실패해도 응답은 그대로 준다.
-  await supabase
+  // 3) 캐시 저장. 실패해도 응답은 그대로 주되, 같은 검색이 반복 과금되는 원인이 되므로 로그는 남긴다(codex 권고).
+  const { error: saveErr } = await supabase
     .from('planner_place_search_cache')
     .upsert({ query_hash: hash, provider, result: results, fetched_at: new Date().toISOString() });
+  if (saveErr) {
+    console.error('[planner/places] cache save failed', provider, saveErr.code || saveErr.message || '');
+  }
 
   return res.status(200).json({ ok: true, provider, cached: false, results });
 }

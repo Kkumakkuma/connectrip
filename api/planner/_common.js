@@ -80,11 +80,32 @@ export async function gate(req, res, { methods = ['POST'], rateKey, rateLimit = 
 
 // 제공자 선택의 단일 근거는 DB 다 (설계 §4 agy-7).
 // 지도와 장소 데이터가 서로 다른 제공자로 갈라지면 구글 약관 3.2.4 위반이라 env 로 가르지 않는다.
+// 제공자 판정은 DB 플래그 하나만 본다(2026-09-05 교차검토 합의). 예전엔 서버 키가 없으면 조용히 'osm' 으로
+// 내려갔는데, 프런트는 같은 플래그로 이미 구글 지도를 그리고 있어서 그 위에 OSM 결과가 올라가면 제공자
+// 단일 출처가 깨진다. 키 없음은 각 함수가 fail-closed 로 닫는다(places 503 / routes 추정치).
+// 플래그 조회 자체가 실패하면 null — 호출자는 503 으로 닫는다(OSM 강등 금지).
 export async function pickProvider(supabase) {
-  const { data, error } = await supabase.rpc('planner_google_enabled');
-  const googleOn = !error && data === true;
-  const hasKey = Boolean((process.env.GOOGLE_MAPS_SERVER_KEY || '').trim());
-  return googleOn && hasKey ? 'google' : 'osm';
+  try {
+    const { data, error } = await supabase.rpc('planner_google_enabled');
+    if (error) return null;
+    return data === true ? 'google' : 'osm';
+  } catch {
+    return null;
+  }
+}
+
+export function googleServerKey() {
+  return (process.env.GOOGLE_MAPS_SERVER_KEY || '').trim();
+}
+
+// 일일 예산 예약(planner_daily_reserve, KST 일 버킷). 한도 안이면 true. RPC 오류·예외·이상값은 전부 false(fail-closed).
+export async function reserveDaily(supabase, key, limit) {
+  try {
+    const { data, error } = await supabase.rpc('planner_daily_reserve', { p_key: key, p_limit: limit });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
 }
 
 // 외부 제공자 호출 전 전역 게이트. 반환된 ms 만큼 기다린 뒤 딱 한 번 호출한다.

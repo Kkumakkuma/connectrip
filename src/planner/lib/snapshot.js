@@ -16,15 +16,19 @@ function num(value, fallback = null) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function placeEntry(place, order) {
+function placeEntry(place, order, catalog) {
+  // 출처(google/osm)는 핀이 아니라 카탈로그가 안다 — 핀의 source 는 search/longpress 같은 "담은 경로"라 다른 값이다.
+  // 카탈로그를 못 받았으면 null: 출처 표기만 빠지고 파일은 그대로 만들어진다.
+  const entry = place?.catalog_id && catalog && typeof catalog.get === 'function' ? catalog.get(place.catalog_id) : null;
   return {
     order,
     name: place?.name || '',
     address: place?.address || '',
     lat: num(place?.lat, 0),
     lng: num(place?.lng, 0),
-    provider: place?.source || null,
-    provider_place_id: place?.provider_place_id || '',
+    provider: entry?.provider || null,
+    // 제공자 식별자는 로컬 스냅샷(내보내기·기기 사본)에서 쓰는 곳이 없어 싣지 않는다(형식 호환용 빈 값).
+    provider_place_id: '',
     catalog_id: place?.catalog_id || null,
     planned_time: place?.planned_time ? String(place.planned_time).slice(0, 5) : null,
     stay_min: num(place?.stay_min, null),
@@ -34,7 +38,7 @@ function placeEntry(place, order) {
   };
 }
 
-export function buildLocalSnapshot({ trip, days = [], places = [] } = {}) {
+export function buildLocalSnapshot({ trip, days = [], places = [] } = {}, catalog = null) {
   if (!trip) return null;
 
   const byDay = new Map();
@@ -69,7 +73,7 @@ export function buildLocalSnapshot({ trip, days = [], places = [] } = {}) {
       return {
         index: num(day?.day_index, 0),
         date: day?.date || null,
-        places: pins.map(placeEntry),
+        places: pins.map((p, i) => placeEntry(p, i, catalog)),
         legs: day?.legs || null,
       };
     });
@@ -89,7 +93,7 @@ export function buildLocalSnapshot({ trip, days = [], places = [] } = {}) {
     country: trip.country || null,
     timezone: trip.timezone || null,
     days: dayEntries,
-    unassigned: spare.map(placeEntry),
+    unassigned: spare.map((p, i) => placeEntry(p, i, catalog)),
     summary: {
       days_count: dayEntries.length,
       places_count: placesCount,

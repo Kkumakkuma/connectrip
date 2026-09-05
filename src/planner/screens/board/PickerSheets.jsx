@@ -5,6 +5,7 @@ import EmptyState from '../../kit/EmptyState';
 import Input from '../../kit/Input';
 import Sheet from '../../kit/Sheet';
 import { extractLinkPlaces, searchPlaces } from '../../api';
+import SourceAttribution from '../../providers/SourceAttribution';
 
 // 장소를 담는 두 가지 경로 (설계 §1.1 의 ①검색 ③링크로 담기).
 // ②지도 롱프레스는 TripBoard 가 직접 처리한다.
@@ -102,11 +103,8 @@ export function PlaceSearchSheet({ open, targetLabel, saving, onClose, onPick })
         )}
       </div>
 
-      {rows !== null && rows.length > 0 && (
-        <p className="mt-3 text-xs text-muted">
-          {provider === 'osm' ? '장소 정보 © OpenStreetMap 기여자' : 'Google'}
-        </p>
-      )}
+      {/* 출처 표기. 구글이면 공식 로고(시트가 지도를 덮어 지도 내장 표기가 안 보이므로 정책상 필수), OSM 이면 ODbL 문구. */}
+      {rows !== null && rows.length > 0 && <SourceAttribution providers={[provider]} className="mt-3" />}
     </Sheet>
   );
 }

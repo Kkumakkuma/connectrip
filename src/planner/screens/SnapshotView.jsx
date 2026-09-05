@@ -4,6 +4,7 @@ import Card from '../kit/Card';
 import EmptyState from '../kit/EmptyState';
 import { formatDate, formatDateRange, formatDateWithWeekday, formatMoney, formatTripLength } from '../lib/format';
 import { formatDistance, formatDuration } from '../lib/travelTime';
+import SourceAttribution from '../providers/SourceAttribution';
 
 // 스냅샷(설계 §3) 하나를 읽기 전용으로 그린다.
 // 공유 보기와 내보내기 미리보기가 같은 그림을 써야 해서 화면이 아니라 컴포넌트로 뺐다.
@@ -110,6 +111,8 @@ function DayCard({ day, currency }) {
 export default function SnapshotView({ snapshot, headerExtra = null }) {
   const days = asArray(snapshot?.days);
   const unassigned = asArray(snapshot?.unassigned);
+  // 출처 표기(구글 로고·ODbL). 지도가 없는 화면이라 구글 장소가 하나라도 있으면 로고가 정책상 필수다.
+  const providers = [...days.flatMap((d) => asArray(d?.places)), ...unassigned].map((p) => p?.provider);
   const currency = snapshot?.currency || 'KRW';
   const summary = snapshot?.summary || {};
   const costTotal = Number(summary.cost_total);
@@ -171,6 +174,8 @@ export default function SnapshotView({ snapshot, headerExtra = null }) {
           </Card>
         </div>
       )}
+
+      <SourceAttribution providers={providers} className="mt-4" />
 
       <p className="mt-6 text-xs text-muted">
         {snapshot?.start_date ? `${formatDate(snapshot.start_date)} 기준 일정입니다. ` : ''}

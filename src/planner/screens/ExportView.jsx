@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarDays, FileJson, Loader2, Printer, TriangleAlert } fr
 import Button from '../kit/Button';
 import Card from '../kit/Card';
 import { ToastStack } from '../kit/Toast';
-import { getTrip } from '../api';
+import { getCatalogEntries, getTrip } from '../api';
 import { buildLocalSnapshot } from '../lib/snapshot';
 import { buildIcs, safeFileBase } from '../lib/ics';
 import SnapshotView from './SnapshotView';
@@ -45,7 +45,9 @@ export default function ExportView() {
     (async () => {
       try {
         const res = await getTrip(tripId);
-        if (alive) setData(res);
+        // 출처 표기(구글 로고·ODbL)를 위해 카탈로그 제공자도 읽는다. 실패해도 내보내기는 된다(표기만 빠진다).
+        const catalog = await getCatalogEntries((res?.places || []).map((p) => p.catalog_id)).catch(() => null);
+        if (alive) setData({ ...res, catalog });
       } catch (e) {
         if (alive) setError(e?.message || '여행을 불러오지 못했습니다.');
       }
@@ -55,7 +57,7 @@ export default function ExportView() {
     };
   }, [tripId]);
 
-  const snapshot = data ? buildLocalSnapshot(data) : null;
+  const snapshot = data ? buildLocalSnapshot(data, data.catalog || null) : null;
   const base = safeFileBase(snapshot?.title);
 
   const onJson = () => {

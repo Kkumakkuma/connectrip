@@ -16,6 +16,8 @@
 import { timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { runPurge } from './_purge_core.js';
+import { runCatalogRefresh } from './_refresh_core.js';
+import { googleServerKey } from './_common.js';
 
 const RATE_KEY = 'purge:cron';
 const RATE_LIMIT = 3; // 10분 창
@@ -67,14 +69,27 @@ export default async function handler(req, res) {
     return fail(res, 404, 'NOT_FOUND', 'Not found');
   }
 
-  // 전역 레이트리밋. 사용자 축이 아니라 경로 축 하나로 센다.
+  // ?task=refresh : 구글 장소 카탈로그 재조회(약관 3.2.3, _refresh_core.js). Vercel Hobby 함수 12개 상한이 꽉 차서
+  // 별도 함수 대신 같은 토큰·같은 관문 아래 작업만 갈라 탄다. pg_cron 'planner-catalog-refresh' 가 매일 부른다.
+  const task = String(req.query?.task || 'purge');
+  if (task !== 'purge' && task !== 'refresh') return fail(res, 400, 'BAD_TASK', '알 수 없는 작업입니다.');
+
+  // 전역 레이트리밋. 사용자 축이 아니라 경로 축으로 세되, 작업별로 버킷을 나눠 한 작업의 재시도가 다른 작업을 막지 않게 한다.
   const { data: hits, error: rErr } = await supabase.rpc('planner_rate_hit', {
-    p_key: RATE_KEY,
+    p_key: `${RATE_KEY}:${task}`,
     p_limit: RATE_LIMIT,
   });
   if (rErr) return fail(res, 503, 'SERVICE_UNAVAILABLE', '서비스 준비 중입니다.');
   if (Number(hits) > RATE_LIMIT) {
     return fail(res, 429, 'RATE_LIMITED', '요청이 너무 잦습니다. 잠시 뒤에 다시 시도해 주세요.');
+  }
+
+  if (task === 'refresh') {
+    const report = await runCatalogRefresh(supabase, { key: googleServerKey(), log: console, deadlineMs: DEADLINE_MS });
+    if (report.failed > 0) {
+      return res.status(500).json({ ok: false, code: 'REFRESH_FAILED', error: '일부 갱신이 실패했습니다.', report });
+    }
+    return res.status(200).json({ ok: true, task, report });
   }
 
   const dryRun = String(req.query?.dry || '') === '1';

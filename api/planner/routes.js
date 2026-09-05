@@ -15,7 +15,7 @@
 // 한국은 구글이 자동차·도보 경로를 제공하지 않는다. 키가 있어도 estimate 로 떨어질 수 있고,
 // 그건 결함이 아니라 예정된 동작이다.
 
-import { fail, fetchWithTimeout, gate, pickProvider, sha256 } from './_common.js';
+import { fail, fetchWithTimeout, gate, pickProvider, sha256, googleServerKey, reserveDaily } from './_common.js';
 // 화면과 같은 추정식을 쓰려고 그대로 가져온다. 브라우저 의존이 없는 순수 모듈이다.
 import { estimateLeg } from '../../src/planner/lib/travelTime.js';
 
@@ -86,24 +86,33 @@ export default async function handler(req, res) {
   }
 
   const provider = await pickProvider(supabase);
+  if (!provider) {
+    // 제공자 판정 실패는 OSM 강등이 아니라 503 — 프런트가 구글 지도를 그리고 있을 수 있다(교차검토 합의).
+    return fail(res, 503, 'SERVICE_UNAVAILABLE', '경로 계산을 준비 중입니다.');
+  }
   const out = [];
 
   // 구글 호출 예산(2026-09-05, codex 감사 ③): 한 요청이 최대 30구간이라 사용자 축 요청 제한(120/10분)만으론
-  // 30배 증폭된다. 캐시 미스로 실제 구글을 부르는 구간마다 두 예산을 함께 센다.
-  //   · 사용자 축: 10분 창 200구간(planner_rate_hit)   · 전역 일일: 300구간(planner_daily_hit, 월 무료 10,000회 안)
-  // 예산 초과·카운터 RPC 오류는 모두 fail-closed — 구글을 부르지 않고 추정치로 답한다(과금·약관 방향으로 새지 않게).
-  let googleBudgetOpen = provider === 'google';
+  // 30배 증폭된다. 캐시 미스로 실제 구글을 부르는 구간마다 두 예산을 직렬로 센다(사용자 → 전역).
+  //   · 사용자 축: 10분 창 200구간(planner_rate_hit)   · 전역 일일: 300구간(planner_daily_reserve, 월 무료 10,000회 안)
+  // 사용자 한도에 걸린 요청이 전역 예산을 갉아먹지 않도록 순서를 지킨다(교차검토 v2).
+  // 예산 초과·카운터 RPC 오류·서버 키 없음은 모두 fail-closed — 구글을 부르지 않고 추정치로 답한다.
+  let googleBudgetOpen = provider === 'google' && Boolean(googleServerKey());
   const spendGoogleBudget = async () => {
     if (!googleBudgetOpen) return false;
     // 클라이언트가 끊었으면 남은 구간에 예산·구글 호출을 쓰지 않는다(codex 지적)
     if (req.aborted || res.destroyed || res.writableEnded) { googleBudgetOpen = false; return false; }
     try {
-      const [{ data: uHits, error: uErr }, { data: dHits, error: dErr }] = await Promise.all([
-        supabase.rpc('planner_rate_hit', { p_key: `routes_legs:${ctx.user.id}`, p_limit: 200 }),
-        supabase.rpc('planner_daily_hit', { p_key: 'google_routes', p_limit: 300 }),
-      ]);
-      if (uErr || dErr || Number(uHits) > 200 || Number(dHits) > 300) {
+      const { data: uHits, error: uErr } = await supabase.rpc('planner_rate_hit', {
+        p_key: `routes_legs:${ctx.user.id}`,
+        p_limit: 200,
+      });
+      if (uErr || Number(uHits) > 200) {
         googleBudgetOpen = false; // 이번 요청의 남은 구간도 구글 없이 간다
+        return false;
+      }
+      if (!(await reserveDaily(supabase, 'google_routes', 300))) {
+        googleBudgetOpen = false;
         return false;
       }
       return true;
@@ -126,11 +135,16 @@ export default async function handler(req, res) {
     const k = (p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
     const hash = sha256(`${provider}|${mode}|${k(from)}|${k(to)}`);
 
-    const { data: cached } = await supabase
+    const { data: cached, error: cacheErr } = await supabase
       .from('planner_route_cache')
       .select('mode, duration_s, distance_m, fetched_at')
       .eq('key_hash', hash)
       .maybeSingle();
+    if (cacheErr) {
+      // 캐시 조회 오류는 미스가 아니다(fail-closed, 교차검토 v2): 이 구간은 구글 없이 추정치로 채운다.
+      out.push(estimate(from, to, mode));
+      continue;
+    }
     if (cached && Date.now() - Date.parse(cached.fetched_at) < CACHE_TTL_MS) {
       out.push({
         mode: cached.mode,
