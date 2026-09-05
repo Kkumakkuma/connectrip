@@ -95,15 +95,22 @@ export default async function handler(req, res) {
   let googleBudgetOpen = provider === 'google';
   const spendGoogleBudget = async () => {
     if (!googleBudgetOpen) return false;
-    const [{ data: uHits, error: uErr }, { data: dHits, error: dErr }] = await Promise.all([
-      supabase.rpc('planner_rate_hit', { p_key: `routes_legs:${ctx.user.id}`, p_limit: 200 }),
-      supabase.rpc('planner_daily_hit', { p_key: 'google_routes', p_limit: 300 }),
-    ]);
-    if (uErr || dErr || Number(uHits) > 200 || Number(dHits) > 300) {
-      googleBudgetOpen = false; // 이번 요청의 남은 구간도 구글 없이 간다
+    // 클라이언트가 끊었으면 남은 구간에 예산·구글 호출을 쓰지 않는다(codex 지적)
+    if (req.aborted || res.destroyed || res.writableEnded) { googleBudgetOpen = false; return false; }
+    try {
+      const [{ data: uHits, error: uErr }, { data: dHits, error: dErr }] = await Promise.all([
+        supabase.rpc('planner_rate_hit', { p_key: `routes_legs:${ctx.user.id}`, p_limit: 200 }),
+        supabase.rpc('planner_daily_hit', { p_key: 'google_routes', p_limit: 300 }),
+      ]);
+      if (uErr || dErr || Number(uHits) > 200 || Number(dHits) > 300) {
+        googleBudgetOpen = false; // 이번 요청의 남은 구간도 구글 없이 간다
+        return false;
+      }
+      return true;
+    } catch {
+      googleBudgetOpen = false; // 카운터 호출 자체가 던져도 fail-closed
       return false;
     }
-    return true;
   };
 
   for (const leg of rawLegs) {
