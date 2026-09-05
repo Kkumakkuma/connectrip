@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS public.airline_domains (
 ALTER TABLE public.airline_domains ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can read airline domains" ON public.airline_domains;
 CREATE POLICY "Anyone can read airline domains" ON public.airline_domains FOR SELECT USING (true);
--- 2026-09-05: 티웨이항공 → 트리니티항공(TRINITY AIRWAYS, trinityairways.com) 사명 변경 반영. twayair.com 행은 운영 DB 에서 삭제함.
+-- 2026-09-05: 티웨이항공 → 트리니티항공(TRINITY AIRWAYS, trinityairways.com) 사명 변경 반영.
+DELETE FROM public.airline_domains WHERE domain = 'twayair.com';
 INSERT INTO public.airline_domains (domain, name) VALUES
   ('koreanair.com', '대한항공'), ('flyasiana.com', '아시아나항공'), ('jinair.com', '진에어'),
   ('airbusan.com', '에어부산'), ('flyairseoul.com', '에어서울'), ('air-incheon.com', '에어인천'),
