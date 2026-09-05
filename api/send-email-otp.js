@@ -1,11 +1,15 @@
-// Vercel Serverless Function: 이메일 OTP 발송 (Resend 사용)
-// POST /api/send-email-otp  body: { email: "user@example.com" }
+// Vercel Serverless Function: 승무원 회사 이메일 OTP 발송 (Resend 사용)
+// POST /api/send-email-otp  body: { email: "crew@koreanair.com" }
+// 2026-09-05 가입 개편: 본인확인은 PASS 하나로 하고 개인 이메일 OTP 는 폐지했다. 이 API 는
+// airline_domains 에 등록된 항공사 도메인에만 발송한다(api/_airline_domain.js) — 아무 주소로나
+// 메일을 쏘는 비용·남용을 막고, 최종 판정은 DB RPC complete_signup_profile 이 같은 표로 다시 한다.
 // 코드 원문은 메일로만 나가고 DB 에는 HMAC 해시(code_hash)만 저장한다 — api/_otp_hash.js 참조.
 
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { applyCors } from './_cors.js';
 import { hashOtp, otpHashSecret } from './_otp_hash.js';
+import { checkAirlineDomain, airlineDomainFailure } from './_airline_domain.js';
 
 // 실패 응답 규격(api/planner/_common.js 와 동일): 고정 code + 일반 문구.
 const fail = (res, status, code, error) => res.status(status).json({ ok: false, code, error });
@@ -38,8 +42,13 @@ export default async function handler(req, res) {
       return fail(res, 500, 'SERVER_CONFIG', '서버 설정 오류');
     }
 
-    // OTP 해시 비밀이 없으면 발송하지 않는다(fail-closed). 평문 저장으로 되돌아가지 않는다.
     const supabase = createClient(SUPA_URL, SUPA_KEY);
+
+    // 승무원 회사 메일 도메인만 발송한다. 조회 실패는 503, 미등록은 403 — 둘 다 발송 안 함.
+    const domainFail = airlineDomainFailure(await checkAirlineDomain(supabase, email));
+    if (domainFail) return fail(res, domainFail.status, domainFail.code, domainFail.error);
+
+    // OTP 해시 비밀이 없으면 발송하지 않는다(fail-closed). 평문 저장으로 되돌아가지 않는다.
     const OTP_SECRET = await otpHashSecret(supabase);
     if (!OTP_SECRET) {
       console.error('[send-email-otp] OTP 해시 비밀 없음(env·Vault 모두) — 발송 중단');
@@ -98,10 +107,10 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: FROM,
         to: [email],
-        subject: '[ConnectTrip] 이메일 인증번호',
+        subject: '[ConnectTrip] 승무원 회사 이메일 인증번호',
         html: `<div style="font-family:'Noto Sans KR',sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#ffffff">
-  <h1 style="font-size:20px;color:#1e3a8a;margin-bottom:12px">ConnectTrip 이메일 인증</h1>
-  <p style="color:#334155;font-size:15px;line-height:1.6">아래 6자리 인증번호를 회원가입 화면에 입력해주세요.</p>
+  <h1 style="font-size:20px;color:#1e3a8a;margin-bottom:12px">ConnectTrip 승무원 회사 이메일 인증</h1>
+  <p style="color:#334155;font-size:15px;line-height:1.6">아래 6자리 인증번호를 회원가입 화면의 승무원 회사 이메일 인증 칸에 입력해주세요.</p>
   <div style="font-size:32px;font-weight:700;color:#2563eb;letter-spacing:8px;text-align:center;background:#eff6ff;padding:20px 0;border-radius:12px;margin:24px 0">${code}</div>
   <p style="color:#64748b;font-size:13px;line-height:1.6">이 인증번호는 5분간 유효합니다.<br>본인이 요청하지 않았다면 이 이메일을 무시하셔도 됩니다.</p>
   <hr style="border:0;border-top:1px solid #e5e7eb;margin:24px 0">
