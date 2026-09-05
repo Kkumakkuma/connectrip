@@ -64,7 +64,8 @@ export default async function handler(req, res) {
       customerId: userId,
       fullName: String(prof?.name || prof?.nickname || '').trim() || undefined,
       phoneNumber: String(prof?.phone || '').replace(/[^0-9+]/g, '') || undefined,
-      email: String(prof?.email || user.email || '').trim() || undefined,
+      // 연락 이메일은 profiles.email 만 쓴다. Auth 이메일은 아이디 합성 주소(<id>@id.connecttrip.co.kr)라 수신 불가(2026-09-05).
+      email: String(prof?.email || '').trim() || undefined,
     };
     const missing = ['fullName', 'phoneNumber', 'email'].filter((k) => !customer[k]);
     if (missing.length) {
