@@ -1,4 +1,4 @@
-// 통신사 휴대폰 본인확인(PASS 앱/SMS) — 포트원 V2 브라우저 SDK 래퍼 + 증빙(proof) 보관.
+// 통신사 휴대폰 본인확인(PASS) — 포트원 V2 브라우저 SDK 래퍼 + 증빙(proof) 보관.
 //
 // 가입 순서: 본인확인 먼저 → 가입 폼. 본인확인 성공 시 서버(/api/verify-identity)가 포트원에서
 // 결과를 직접 조회해 일회성 토큰을 발급하고, 우리는 {token, name, birthdate, phone} 을 세션 스토리지에
@@ -9,7 +9,7 @@
 // (스토리지가 유실됐거나 남이 만든 링크면 "다시 시작" 안내 — codex 지적 반영).
 //
 // 환경변수(VITE_PORTONE_STORE_ID / VITE_PORTONE_CHANNEL_KEY)가 없으면 IDENTITY_ENABLED=false 이고
-// 가입 화면은 기존 SMS OTP 흐름을 그대로 쓴다(PG 계약 전 기간 회귀 없음).
+// 가입 화면은 본인확인 카드를 "준비 중"으로 잠근다 — 대체 수단이 없으므로 가입이 막히는 게 정상이다.
 
 import { apiUrl } from './api';
 import { isNativeApp } from './native';

@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, Loader2, Smartphone } from 'lucide-react';
 import { startIdentityVerification, confirmIdentity, IDENTITY_PG_NAME } from '../lib/identity';
 
-// 가입 1단계 — 통신사 휴대폰 본인확인(PASS 앱/SMS) 카드.
+// 가입 1단계 — 통신사 휴대폰 본인확인(PASS) 카드.
 // · PC: 버튼 → 포트원 창 → 응답의 identityVerificationId 를 서버 검증 → onVerified(proof)
 // · 모바일/앱: 버튼 → 페이지 이동(REDIRECTION) → 복귀 시 부모가 URL 에서 읽은 returnResult 를 넘기면
 //   여기서 서버 검증을 이어서 처리한다.
-export default function IdentityVerifyStep({ returnPath, returnResult, onVerified, accent = '#2563eb' }) {
+// · disabled: 포트원 키가 아직 없는 상태(오픈 전). 버튼을 잠가 가입이 진행되지 않게 한다.
+export default function IdentityVerifyStep({ returnPath, returnResult, onVerified, accent = '#2563eb', disabled = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const confirmedRef = useRef('');
@@ -58,15 +59,20 @@ export default function IdentityVerifyStep({ returnPath, returnResult, onVerifie
       </div>
       <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 14px' }}>
         안전한 커뮤니티를 위해 가입 전에 본인 명의 휴대폰으로 본인확인을 진행합니다.
-        PASS 앱 또는 문자 인증번호 중 편한 방법을 고르면 되고, 확인된 이름·생년월일·휴대폰번호는 가입 정보에 자동으로 채워집니다.
+        PASS 앱으로 본인확인을 진행하면, 확인된 이름·생년월일·휴대폰번호는 가입 정보에 자동으로 채워집니다.
       </p>
-      <button type="button" onClick={start} disabled={busy}
+      <button type="button" onClick={start} disabled={busy || disabled}
         style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none',
-          background: busy ? '#94a3b8' : accent, color: 'white', fontWeight: 700, fontSize: 15,
-          cursor: busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          background: (busy || disabled) ? '#94a3b8' : accent, color: 'white', fontWeight: 700, fontSize: 15,
+          cursor: disabled ? 'not-allowed' : busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
         {busy ? <Loader2 size={16} className="spin" /> : <Smartphone size={16} />}
-        {busy ? '확인 중...' : 'PASS로 본인확인'}
+        {disabled ? '본인확인 준비 중' : busy ? '확인 중...' : 'PASS로 본인확인'}
       </button>
+      {disabled && (
+        <div style={{ marginTop: 10, padding: '8px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, color: '#92400e', fontSize: 12, lineHeight: 1.5 }}>
+          본인확인 서비스 준비 중입니다. 오픈 시 PASS 앱으로 본인확인이 진행됩니다.
+        </div>
+      )}
       {error && (
         <div style={{ marginTop: 10, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>
           ⚠️ {error}
