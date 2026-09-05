@@ -57,7 +57,16 @@ function mapRpcError(message) {
   return null;
 }
 
-const isoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+// 형식만이 아니라 실제 날짜인지(2026-02-31 거부)와 만 14세 이상인지도 본다(codex 지적). DB 가 최종 판정한다.
+function validBirthdate(v) {
+  const s = String(v || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const d = new Date(`${s}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) return '';
+  const min = new Date(); min.setUTCFullYear(min.getUTCFullYear() - 14);
+  if (d > min || s < '1900-01-01') return 'AGE';
+  return s;
+}
 const isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 const str = (v, max) => String(v ?? '').trim().slice(0, max);
 
@@ -82,7 +91,8 @@ export default async function handler(req, res) {
   if (!userType) return fail(res, 400, 'BAD_INPUT', '가입 유형이 올바르지 않습니다.');
   const identityToken = str(b.identity_token, 128);
   if (!identityToken) return fail(res, 401, 'IDENTITY_REQUIRED', '휴대폰 본인확인을 먼저 완료해주세요.');
-  const birthdate = isoDate(b.birthdate) ? String(b.birthdate) : '';
+  const birthdate = validBirthdate(b.birthdate);
+  if (birthdate === 'AGE') return fail(res, 403, 'AGE_UNDER_14', '만 14세 미만은 가입할 수 없습니다.');
   if (!birthdate) return fail(res, 400, 'BAD_INPUT', '생년월일을 확인해주세요.');
   if (!b.terms_agreed_at || !b.privacy_agreed_at) return fail(res, 400, 'CONSENT_REQUIRED', '필수 약관에 동의해주세요.');
   const email = userType === 'traveler' ? str(b.email, 254).toLowerCase() : '';

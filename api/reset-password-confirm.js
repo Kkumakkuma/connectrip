@@ -34,9 +34,14 @@ export default async function handler(req, res) {
     const supabase = createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || '';
+    // IP 축(10분 20회) + 아이디 축(10분 10회). 챌린지 자체의 5회 제한이 본 방어선, 이건 분산 IP 완충(codex 지적).
     if (ip) {
       const { data: hits, error: rErr } = await supabase.rpc('planner_rate_hit', { p_key: `pwconfirm:ip:${ip}`, p_limit: 20 });
       if (!rErr && Number(hits) > 20) return fail(res, 429, 'RATE_LIMITED', '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.');
+    }
+    {
+      const { data: hits, error: rErr } = await supabase.rpc('planner_rate_hit', { p_key: `pwconfirm:id:${loginId}`, p_limit: 10 });
+      if (!rErr && Number(hits) > 10) return fail(res, 429, 'RATE_LIMITED', '요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.');
     }
 
     const OTP_SECRET = await otpHashSecret(supabase);
@@ -64,16 +69,28 @@ export default async function handler(req, res) {
     if (result === 'too_many_attempts') return fail(res, 429, 'TOO_MANY_ATTEMPTS', '시도 횟수를 초과했습니다. 인증번호를 다시 요청해주세요.');
     if (result !== 'ok') return fail(res, 400, 'OTP_INVALID', '인증번호가 일치하지 않거나 만료되었습니다.');
 
+    // 2단계 소비(codex 지적): consume 은 코드를 '검증됨'으로 잠글 뿐이고, 비밀번호 변경이 성공해야 finalize 로
+    // 최종 소비한다. Auth 장애로 변경이 실패하면 release 로 잠금을 풀어 같은 코드로 재시도할 수 있다(만료·5회는 그대로).
     const { error: uErr } = await supabase.auth.admin.updateUserById(target.user_id, { password: newPassword });
     if (uErr) {
       console.error('[reset-confirm] updateUserById 오류', uErr);
+      const { error: relErr } = await supabase.rpc('password_reset_release', { p_user: target.user_id });
+      if (relErr) console.error('[reset-confirm] release 실패', relErr);
       return fail(res, 500, 'SERVER_ERROR', '비밀번호 변경에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
+    const { error: finErr } = await supabase.rpc('password_reset_finalize', { p_user: target.user_id });
+    if (finErr) console.error('[reset-confirm] finalize 실패(비밀번호는 변경됨)', finErr);
+
     // 기존 세션 전부 폐기. supabase-js admin.signOut 은 사용자 JWT 가 필요해 서버에서 쓸 수 없으므로
-    // auth.sessions/refresh_tokens 를 지우는 service_role 전용 RPC 를 쓴다(이미 발급된 access JWT 는 만료(≤1h)까지
-    // 유효 — codex 지적, 감수). 실패해도 비밀번호는 바뀌었으므로 로그만 남기고 성공으로 답한다.
-    const { error: sErr } = await supabase.rpc('revoke_user_sessions', { p_user: target.user_id });
-    if (sErr) console.error('[reset-confirm] 세션 폐기 실패', sErr);
+    // auth.sessions 를 지우는 service_role 전용 RPC(refresh_tokens 는 FK CASCADE). 이미 발급된 access JWT 는
+    // 만료(≤1h)까지 유효 — 감수. 실패하면 1회 재시도하고, 그래도 실패하면 경보 로그(비밀번호는 이미 바뀜).
+    let revoked = false;
+    for (let i = 0; i < 2 && !revoked; i += 1) {
+      const { error: sErr } = await supabase.rpc('revoke_user_sessions', { p_user: target.user_id });
+      if (!sErr) revoked = true;
+      else console.error(`[reset-confirm] 세션 폐기 실패(${i + 1}/2)`, sErr);
+    }
+    if (!revoked) console.error('[reset-confirm][ALERT] 세션 폐기 실패 — 수동 점검 필요', target.user_id);
 
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ ok: true });

@@ -24,9 +24,10 @@ export default async function handler(req, res) {
     return fail(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed');
   }
   const started = Date.now();
-  // 존재/미존재 경로의 응답 시간을 비슷하게 맞춘다(최소 400ms).
+  // 존재/미존재 경로의 응답 시간을 비슷하게 맞춘다: 최소 800ms + 0~300ms 지터(codex 지적 — 고정값만으론 구별 가능).
   const finishOk = async () => {
-    const wait = 400 - (Date.now() - started);
+    const floor = 800 + crypto.randomInt(0, 300);
+    const wait = floor - (Date.now() - started);
     if (wait > 0) await sleep(wait);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json(OK_MSG);
@@ -77,7 +78,12 @@ export default async function handler(req, res) {
       heading: 'ConnectTrip 비밀번호 재설정',
       lead: '아래 6자리 인증번호를 비밀번호 찾기 화면에 입력해주세요.',
     });
-    if (!sent.ok) console.error('[reset-request] 메일 발송 실패', sent.reason);
+    if (!sent.ok) {
+      // 사용자는 코드를 못 받았다. 방금 만든 챌린지를 지워 60초 쿨다운도 풀어 준다(재요청 가능).
+      console.error('[reset-request] 메일 발송 실패', sent.reason);
+      const { error: cancelErr } = await supabase.rpc('password_reset_cancel', { p_user: target.user_id });
+      if (cancelErr) console.error('[reset-request] 챌린지 취소 실패', cancelErr);
+    }
     return finishOk();
   } catch (e) {
     console.error('[reset-request] 예외', e);

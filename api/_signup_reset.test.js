@@ -36,7 +36,8 @@ function fakeSupabase(calls, opts = {}) {
       if (name === 'login_id_contact') return Promise.resolve({ data: contact === undefined ? [] : [contact], error: null });
       if (name === 'password_reset_issue') return Promise.resolve({ data: issue, error: null });
       if (name === 'password_reset_consume') return Promise.resolve({ data: consume, error: null });
-      if (name === 'revoke_user_sessions') return Promise.resolve({ data: 1, error: null });
+      if (name === 'revoke_user_sessions') return Promise.resolve({ data: 1, error: opts.revokeError || null });
+      if (name === 'password_reset_finalize' || name === 'password_reset_release' || name === 'password_reset_cancel') return Promise.resolve({ data: 1, error: null });
       if (rpcErrors[name]) return Promise.resolve({ data: null, error: { message: rpcErrors[name] } });
       return Promise.resolve({ data: null, error: null });
     },
@@ -169,6 +170,19 @@ describe('POST /api/signup', () => {
     }
   });
 
+  it('생년월일: 존재하지 않는 날짜는 400, 만 14세 미만은 403 (계정 생성 없음)', async () => {
+    const thisYear = new Date().getUTCFullYear();
+    for (const [bd, status, code] of [['2026-02-31', 400, 'BAD_INPUT'], [`${thisYear - 10}-01-01`, 403, 'AGE_UNDER_14']]) {
+      const calls = newCalls();
+      const handler = await load('./signup.js', fakeSupabase(calls));
+      const res = mockRes();
+      await handler(post({ ...TRAVELER, birthdate: bd }), res);
+      expect(res.statusCode, bd).toBe(status);
+      expect(res.body.code, bd).toBe(code);
+      expect(calls.created, bd).toHaveLength(0);
+    }
+  });
+
   it('이미 있는 아이디는 409 (선검사 또는 createUser 중복)', async () => {
     let calls = newCalls();
     let handler = await load('./signup.js', fakeSupabase(calls, { taken: true }));
@@ -220,6 +234,16 @@ describe('POST /api/reset-password-request', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('메일 발송이 실패하면 챌린지를 취소한다(쿨다운 해제), 응답은 200', async () => {
+    const calls = newCalls();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ message: 'provider down' }) })));
+    const handler = await load('./reset-password-request.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'me@gmail.com' } }));
+    const res = mockRes();
+    await handler(post({ login_id: 'kuma_01' }), res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.rpcs.find((r) => r.name === 'password_reset_cancel').args.p_user).toBe('u1');
+  });
+
   it('형식이 틀린 아이디는 400', async () => {
     const handler = await load('./reset-password-request.js', fakeSupabase(newCalls()));
     const res = mockRes();
@@ -239,6 +263,8 @@ describe('POST /api/reset-password-confirm', () => {
     expect(res.statusCode).toBe(200);
     expect(calls.updated).toEqual([{ id: 'u1', patch: { password: 'newpassw0rd' } }]);
     expect(calls.rpcs.find((r) => r.name === 'revoke_user_sessions').args.p_user).toBe('u1');
+    expect(calls.rpcs.find((r) => r.name === 'password_reset_finalize').args.p_user).toBe('u1');
+    expect(calls.rpcs.find((r) => r.name === 'password_reset_release')).toBeUndefined();
     const consume = calls.rpcs.find((r) => r.name === 'password_reset_consume');
     expect(consume.args.p_code_hash).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -258,6 +284,27 @@ describe('POST /api/reset-password-confirm', () => {
       expect(res.body.code, code).toBe(code);
       expect(calls.updated, code).toHaveLength(0);
     }
+  });
+
+  it('비밀번호 변경이 실패하면 release 로 잠금을 풀고 500 (finalize 없음)', async () => {
+    const calls = newCalls();
+    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, consume: 'ok', updateError: { message: 'auth down' } }));
+    const res = mockRes();
+    await handler(post(body), res);
+    expect(res.statusCode).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain('auth down');
+    expect(calls.rpcs.find((r) => r.name === 'password_reset_release').args.p_user).toBe('u1');
+    expect(calls.rpcs.find((r) => r.name === 'password_reset_finalize')).toBeUndefined();
+    expect(calls.rpcs.find((r) => r.name === 'revoke_user_sessions')).toBeUndefined();
+  });
+
+  it('세션 폐기가 실패하면 1회 재시도하고도 200 (비밀번호는 이미 변경)', async () => {
+    const calls = newCalls();
+    const handler = await load('./reset-password-confirm.js', fakeSupabase(calls, { contact: { user_id: 'u1', email: 'x@y.com' }, consume: 'ok', revokeError: { message: 'boom' } }));
+    const res = mockRes();
+    await handler(post(body), res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.rpcs.filter((r) => r.name === 'revoke_user_sessions')).toHaveLength(2);
   });
 
   it('약한 새 비밀번호는 400 PASSWORD_WEAK (RPC 호출 없음)', async () => {
