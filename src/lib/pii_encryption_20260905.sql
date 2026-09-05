@@ -113,3 +113,49 @@ notify pgrst, 'reload schema';
 
 -- ===== 4) privacy_scrub_auth_metadata_v2 ==============================================
 -- (본문은 운영 DB 와 동일 — raw_user_meta_data 에서 phone/address_* 키 제거, 프로필 있는 계정·가입 1시간 후)
+
+-- ===== 5) 재검토 반영 (같은 날 오전, codex 전수감사 + agy 사후검토) =================================
+-- · pii.enc 를 VOLATILE 로 (랜덤 IV 함수를 STABLE 로 두면 한 문장 안에서 결과가 재사용될 수 있다)
+--     alter function pii.enc(text, smallint) volatile;
+-- · profiles_pii_sync: pii_key_version NULL → 1 보정, 전화번호가 있는데 canon_phone 이 NULL 이면 PHONE_INVALID_FORMAT 거부
+-- · complete_signup_profile: 차단 번호 대조를 pii.phone_hash 로, unique_violation 매핑에 uq_profiles_phone_hash 추가
+-- · request_account_deletion: 차단 탈퇴자 번호 기록도 pii.phone_hash 로 (blocked_phone_claims 는 0행이라 전환 비용 없음)
+--
+-- 결제 가산 RPC 정의 보존 (codex 지적: 저장소에 없어 검증 불가). 운영 정의 그대로. 읽어 본 판단:
+--   주문별 advisory xact lock · credited/paid_test 멱등 · confirming/paid 만 진행 · 승인금액≠원장금액 거부 ·
+--   env<>'live' 면 절대 가산 안 함 · 가산+원장+상태 전이가 한 트랜잭션. 문제 없음.
+CREATE OR REPLACE FUNCTION public.ct_charge_points_by_payment(p_order_id text, p_paid_amount integer, p_pg_tid text, p_method text)
+ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_catalog', 'pg_temp'
+AS $function$
+declare v_order public.ct_payment_orders%rowtype;
+begin
+  perform pg_advisory_xact_lock(hashtext('ct_charge:' || coalesce(p_order_id, '')));
+  select * into v_order from public.ct_payment_orders where order_id = p_order_id;
+  if not found then return jsonb_build_object('status','not_found'); end if;
+  if v_order.status = 'credited'  then return jsonb_build_object('status','ok','credited', v_order.amount, 'reused', true); end if;
+  if v_order.status = 'paid_test' then return jsonb_build_object('status','test','credited', 0, 'reused', true); end if;
+  if v_order.status not in ('confirming','paid') then
+    return jsonb_build_object('status','not_payable','order_status', v_order.status);
+  end if;
+  if p_paid_amount is distinct from v_order.amount then
+    return jsonb_build_object('status','amount_mismatch');
+  end if;
+  if v_order.env <> 'live' then
+    update public.ct_payment_orders
+       set status='paid_test', pg_tid=p_pg_tid, paid_amount=p_paid_amount, method=p_method
+     where order_id = p_order_id;
+    return jsonb_build_object('status','test','credited',0);
+  end if;
+  perform set_config('app.allow_sensitive','on', true);
+  update public.profiles
+     set points_balance = coalesce(points_balance,0) + v_order.amount, updated_at = now()
+   where id = v_order.user_id;
+  if not found then return jsonb_build_object('status','user_not_found'); end if;
+  insert into public.point_transactions(user_id, amount, type, description)
+    values (v_order.user_id, v_order.amount, 'cash_charge', '포인트 충전(결제) ' || v_order.amount || 'P · 주문 ' || p_order_id);
+  update public.ct_payment_orders
+     set status='credited', pg_tid=p_pg_tid, paid_amount=p_paid_amount, method=p_method
+   where order_id = p_order_id;
+  return jsonb_build_object('status','ok','credited', v_order.amount, 'reused', false);
+end;
+$function$;
