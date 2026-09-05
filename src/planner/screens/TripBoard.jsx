@@ -46,6 +46,7 @@ import { checkDay, warningsByPlace } from '../lib/feasibility';
 import { resolveStale } from '../lib/boardSync';
 import { latestTimestamp } from '../lib/format';
 import { estimateLegs, totalDurationSeconds } from '../lib/travelTime';
+import { computeDayLegs } from '../api';
 import { readDayWindow, writeDayWindow } from '../lib/dayWindow';
 
 // /planner/t/:tripId — 일정판. 플래너의 중심 화면이다.
@@ -59,6 +60,15 @@ import { readDayWindow, writeDayWindow } from '../lib/dayWindow';
 //
 // 네트워크가 죽으면 기기에 남겨 둔 스냅샷으로 읽기 전용 화면을 띄운다(설계 §7.1).
 
+// 저장된 이동시간(items)이 현재 핀 개수(n = 핀 수 - 1)와 맞고 구간 인덱스가 0..n-1 순서대로 있는지.
+function legsValid(items, n) {
+  return (
+    Array.isArray(items) &&
+    items.length === n &&
+    items.every((it, i) => Number(it?.from) === i && Number(it?.to) === i + 1)
+  );
+}
+
 export default function TripBoard() {
   const { tripId } = useParams();
   const { user } = useAuth();
@@ -71,6 +81,10 @@ export default function TripBoard() {
   const [trip, setTrip] = useState(null);
   const [days, setDays] = useState([]);
   const [places, setPlaces] = useState([]);
+  // DB 에서 다시 읽을 때마다 +1. 이동시간 서버 계산은 이 값이 바뀔 때(=DB 확정 상태)만 부른다.
+  const [dbVersion, setDbVersion] = useState(0);
+  // 드래그 중(순서를 화면에서만 바꾼 상태)에는 서버 계산도, DB 에 저장된 이동시간도 쓰지 않는다.
+  const [orderDirty, setOrderDirty] = useState(false);
   const [catalog, setCatalog] = useState(() => new Map());
   // 카탈로그(핀 출처) 확보 상태. 첫 로드에서만 'loading' 으로 지도를 잠깐 보류하고, 이후 재조회는 'ready' 를 유지한다.
   const [catalogStatus, setCatalogStatus] = useState('loading');
@@ -102,6 +116,8 @@ export default function TripBoard() {
     setTrip(data.trip);
     setDays(data.days);
     setPlaces(data.places);
+    setOrderDirty(false);
+    setDbVersion((v) => v + 1);
     setActiveDayId((prev) => {
       const stillThere = prev === UNASSIGNED_ID || data.days.some((d) => d.id === prev);
       if (prev && stillThere) return prev;
@@ -213,10 +229,68 @@ export default function TripBoard() {
       activeDayId === UNASSIGNED_ID
         ? places.filter((p) => !p.day_id)
         : places.filter((p) => p.day_id === activeDayId);
-    return [...list].sort((a, b) => a.sort_order - b.sort_order);
+    // 서버(routes.js)와 같은 순서 규칙: sort_order → created_at → id. 같은 sort_order 가 겹쳐도 구간 인덱스가 어긋나지 않게.
+    return [...list].sort(
+      (a, b) =>
+        a.sort_order - b.sort_order ||
+        String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
+        String(a.id).localeCompare(String(b.id))
+    );
   }, [places, activeDayId]);
 
-  const legs = useMemo(() => estimateLegs(dayPlaces), [dayPlaces]);
+  // 이동시간 (2026-09-05): 화면 추정치를 먼저 보여 주고, DB 에 저장된 서버 계산(캐시·구글 경로·추정)이 있으면 그 값으로 바꾼다.
+  //   · 값의 주인은 DB(planner_days.legs)다. 핀이 바뀌면 트리거가 legs 를 NULL 로 만들고, 화면은 DB 를 다시 읽은
+  //     뒤(dbVersion 증가) legs 가 비어 있는 날짜만 서버에 계산·저장을 부탁한다. 화면 추정 상태로는 부르지 않는다
+  //     (드래그 프리뷰나 아직 저장 안 된 순서로 부르면 서버는 DB 옛 순서를 계산해 엉뚱한 구간에 붙는다 — 교차검토 지적).
+  //   · 서버가 저장했다고 답하면(saved) 그 날짜의 legs 를 화면 상태에도 넣는다. 그 사이 DB 를 또 읽었으면(dbVersion 변경) 버린다.
+  //   · 드래그 중(orderDirty)·보관함(날짜 없음)은 추정치만 쓴다. 실패하면 추정치 그대로 — 화면이 멈추지 않는다.
+  const estimatedLegs = useMemo(() => estimateLegs(dayPlaces), [dayPlaces]);
+  const pinCount = dayPlaces.length;
+  const dbVersionRef = useRef(0);
+  dbVersionRef.current = dbVersion;
+  useEffect(() => {
+    if (!activeDayId || activeDayId === UNASSIGNED_ID || orderDirty || pinCount < 2) return undefined;
+    if (legsValid(activeDay?.legs?.items, pinCount - 1)) return undefined; // DB 값이 있으면 부르지 않는다
+    const dayId = activeDayId;
+    const version = dbVersion;
+    let cancelled = false;
+    // 연속 저장(핀 여러 개 담기)을 한 번으로 모은다.
+    const timer = setTimeout(async () => {
+      try {
+        const out = await computeDayLegs(dayId);
+        if (cancelled || version !== dbVersionRef.current || !out.saved) return;
+        setDays((prev) =>
+          prev.map((d) =>
+            d.id === dayId ? { ...d, legs: { mode: out.mode, computed_at: out.computed_at, fp: out.fp, items: out.legs } } : d
+          )
+        );
+      } catch (err) {
+        // 추정치가 이미 보이고 있다. 서버 계산 실패는 조용히 넘긴다.
+        console.error('이동시간을 계산하지 못했습니다:', err);
+      }
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // activeDay 는 days 에서 파생되므로 days 갱신(저장 반영)에도 다시 판단한다.
+  }, [activeDayId, activeDay, dbVersion, orderDirty, pinCount]);
+
+  const legs = useMemo(() => {
+    if (orderDirty) return estimatedLegs;
+    const items = activeDay?.legs?.items;
+    if (!legsValid(items, estimatedLegs.length)) return estimatedLegs;
+    return estimatedLegs.map((est, i) => {
+      const it = items[i];
+      if (!Number.isFinite(Number(it?.duration_s))) return est;
+      return {
+        mode: it.mode || est?.mode || 'WALK',
+        duration_s: Number(it.duration_s),
+        distance_m: Number.isFinite(Number(it.distance_m)) ? Number(it.distance_m) : est?.distance_m ?? 0,
+        source: it.source || 'estimate',
+      };
+    });
+  }, [orderDirty, activeDay, estimatedLegs]);
   const travelSeconds = useMemo(() => totalDurationSeconds(legs), [legs]);
 
   const feasibility = useMemo(() => {
@@ -339,6 +413,7 @@ export default function TripBoard() {
   // 드래그 중에는 화면 순서만 바꾼다. 정렬 상태를 목록 컴포넌트가 따로 들고 있으면
   // 목록이 갱신될 때마다 되돌리는 처리가 필요해져서, 순서의 주인을 여기 하나로 둔다.
   const previewOrder = useCallback((ids) => {
+    setOrderDirty(true);
     setPlaces((prev) => {
       const rank = new Map(ids.map((id, i) => [id, i]));
       return prev.map((p) => (rank.has(p.id) ? { ...p, sort_order: rank.get(p.id) } : p));

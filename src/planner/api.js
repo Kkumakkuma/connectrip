@@ -509,6 +509,13 @@ export async function suggestPlaces(q, { session, bias } = {}) {
   return { provider: out.provider, suggestions: out.suggestions || [] };
 }
 
+// 그 날짜 핀 사이 이동시간을 서버가 계산해 planner_days.legs 에 저장하고 돌려준다.
+// 응답 legs = [{ from, to, mode, duration_s, distance_m, source }] (source: google|cache|estimate)
+export async function computeDayLegs(dayId, mode) {
+  const out = await callFunction('/api/planner/routes', mode ? { day_id: dayId, mode } : { day_id: dayId });
+  return { provider: out.provider, mode: out.mode, legs: out.legs || [], saved: Boolean(out.saved) };
+}
+
 // 자동완성 후보 하나의 좌표·주소(구글 제공자 전용). 카탈로그에 있으면 구글을 부르지 않는다.
 export async function resolvePlace({ placeId, name, session }) {
   const out = await callFunction('/api/planner/places', { mode: 'details', place_id: placeId, name, session });

@@ -1,4 +1,5 @@
-// /api/planner/routes 핸들러 테스트 (2026-09-05, 구글 분기 fail-closed. 호출 한도는 쿠마님 결정으로 없음).
+// /api/planner/routes 핸들러 테스트 (2026-09-05). 호출 한도는 쿠마님 결정으로 없음.
+//   날짜 모드(day_id): 핀을 DB 에서 읽어 계산하고 planner_save_day_legs(원자 저장, 지문 대조)로 저장. 좌표 쌍 모드: 옛 호환.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 function mockRes() {
@@ -14,23 +15,45 @@ function mockRes() {
   return res;
 }
 const leg = (i) => ({ from: { lat: 37.5 + i * 0.01, lng: 127 }, to: { lat: 37.51 + i * 0.01, lng: 127.01 } });
-const post = (legs, mode = 'WALK') => ({ method: 'POST', headers: {}, body: { legs, mode } });
+const post = (body) => ({ method: 'POST', headers: {}, body });
+const DAY = '11111111-2222-4333-8444-555555555555';
+// 서울 시청 근처 3개 핀: 1→2 는 약 0.8km(도보), 2→3 은 약 3km(대중교통)
+const PINS = [
+  { id: 'p1', lat: 37.5663, lng: 126.9779, sort_order: 0, created_at: '2026-09-05T00:00:00Z' },
+  { id: 'p2', lat: 37.5720, lng: 126.9830, sort_order: 1, created_at: '2026-09-05T00:00:01Z' },
+  { id: 'p3', lat: 37.5980, lng: 126.9850, sort_order: 2, created_at: '2026-09-05T00:00:02Z' },
+];
 
-function fakeSupabase({ cacheError = null } = {}) {
+function queryOf({ list = { data: [], error: null }, single = { data: null, error: null } }) {
+  const b = {};
+  for (const m of ['select', 'eq', 'order', 'limit']) b[m] = () => b;
+  b.maybeSingle = async () => single;
+  b.then = (onOk, onErr) => Promise.resolve(list).then(onOk, onErr);
+  return b;
+}
+
+function fakeSupabase({ cacheError = null, day = { id: DAY, user_id: 'u1' }, pins = PINS, fp = 'fp1', saveResult = true, saveError = null } = {}) {
   const calls = [];
   return {
     calls,
     rpc: async (name, args) => {
       calls.push({ type: 'rpc', name, args });
+      if (name === 'planner_day_places_fp') return fp === null ? { data: null, error: { message: 'x' } } : { data: fp, error: null };
+      if (name === 'planner_save_day_legs') return { data: saveError ? null : saveResult, error: saveError };
       return { data: null, error: null };
     },
-    from: (table) => ({
-      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: cacheError }) }) }),
-      upsert: async (row) => {
+    from: (table) => {
+      calls.push({ type: 'from', table });
+      let q;
+      if (table === 'planner_days') q = queryOf({ single: { data: day, error: null } });
+      else if (table === 'planner_places') q = queryOf({ list: { data: pins, error: null } });
+      else q = queryOf({ single: { data: null, error: cacheError } });
+      q.upsert = async (row) => {
         calls.push({ type: 'upsert', table, row });
         return { error: null };
-      },
-    }),
+      };
+      return q;
+    },
   };
 }
 
@@ -62,18 +85,109 @@ afterEach(() => {
   vi.resetModules();
 });
 
-const rpcNames = (sb) => sb.calls.filter((c) => c.type === 'rpc').map((c) => c.name);
+const rpcCalls = (sb, name) => sb.calls.filter((c) => c.type === 'rpc' && (!name || c.name === name));
 
-describe('구글 제공자', () => {
+describe('날짜 모드(day_id)', () => {
+  it('핀을 DB 순서로 읽어 구간별 수단(도보/대중교통)을 정하고 구글로 계산한 뒤 지문과 함께 원자 저장', async () => {
+    const sb = fakeSupabase();
+    const handler = await load({ provider: 'google', supabase: sb });
+    const res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ saved: true, mode: 'AUTO', fp: 'fp1' });
+    expect(typeof res.body.computed_at).toBe('string');
+    expect(res.body.legs.map((l) => [l.from, l.to, l.mode, l.source])).toEqual([[0, 1, 'WALK', 'google'], [1, 2, 'TRANSIT', 'google']]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).travelMode).toBe('TRANSIT');
+    expect(rpcCalls(sb, 'planner_day_places_fp')).toHaveLength(1);
+    const save = rpcCalls(sb, 'planner_save_day_legs')[0].args;
+    expect(save).toMatchObject({ p_day_id: DAY, p_user_id: 'u1', p_fp: 'fp1' });
+    expect(save.p_legs).toMatchObject({ mode: 'AUTO', fp: 'fp1' });
+    expect(save.p_legs.items).toHaveLength(2);
+    expect(save.p_legs.items[1]).toMatchObject({ from: 1, to: 2 });
+  });
+
+  it('mode 를 주면 전 구간 그 수단, DB 함수가 지문 불일치로 거부하면 saved:false', async () => {
+    const sb = fakeSupabase({ saveResult: false });
+    const handler = await load({ provider: 'google', supabase: sb });
+    const res = mockRes();
+    await handler(post({ day_id: DAY, mode: 'DRIVE' }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.saved).toBe(false);
+    expect(res.body.mode).toBe('DRIVE');
+    expect(res.body.legs.every((l) => l.mode === 'DRIVE')).toBe(true);
+    expect(rpcCalls(sb, 'planner_save_day_legs')[0].args.p_legs.mode).toBe('DRIVE');
+  });
+
+  it('저장 RPC 오류는 200 + saved:false 로 답한다(계산 결과는 화면에 쓰이게)', async () => {
+    const sb = fakeSupabase({ saveError: { message: 'boom' } });
+    const handler = await load({ provider: 'osm', supabase: sb });
+    const res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.saved).toBe(false);
+    expect(res.body.legs).toHaveLength(2);
+  });
+
+  it('OSM 제공자: 구글 없이 추정치를 계산해 저장(공유·스냅샷에 "예상"으로 보이게)', async () => {
+    const sb = fakeSupabase();
+    const handler = await load({ provider: 'osm', supabase: sb });
+    const res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.body.legs.map((l) => l.source)).toEqual(['estimate', 'estimate']);
+    expect(res.body.saved).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('남의 날짜·없는 날짜는 404, 잘못된 id 는 400, 지문 조회 실패는 503, 핀 1개는 빈 legs 저장', async () => {
+    let handler = await load({ provider: 'osm', supabase: fakeSupabase({ day: { id: DAY, user_id: 'someone-else' } }) });
+    let res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.statusCode).toBe(404);
+
+    handler = await load({ provider: 'osm', supabase: fakeSupabase({ day: null }) });
+    res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.statusCode).toBe(404);
+
+    handler = await load({ provider: 'osm', supabase: fakeSupabase() });
+    res = mockRes();
+    await handler(post({ day_id: 'not-a-uuid' }), res);
+    expect(res.statusCode).toBe(400);
+
+    handler = await load({ provider: 'osm', supabase: fakeSupabase({ fp: null }) });
+    res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.statusCode).toBe(503);
+
+    const sb = fakeSupabase({ pins: [PINS[0]] });
+    handler = await load({ provider: 'osm', supabase: sb });
+    res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.legs).toEqual([]);
+    expect(rpcCalls(sb, 'planner_save_day_legs')[0].args.p_legs.items).toEqual([]);
+  });
+
+  it('좌표가 빈 핀이 있어도 구간 인덱스를 비우지 않는다(0 추정치로 채움)', async () => {
+    const sb = fakeSupabase({ pins: [PINS[0], { ...PINS[1], lat: null }, PINS[2]] });
+    const handler = await load({ provider: 'osm', supabase: sb });
+    const res = mockRes();
+    await handler(post({ day_id: DAY }), res);
+    expect(res.body.legs.map((l) => [l.from, l.to, l.duration_s])).toEqual([[0, 1, 0], [1, 2, 0]]);
+  });
+});
+
+describe('좌표 쌍 모드(옛 호환) — 구글 제공자', () => {
   it('구간마다 한도 RPC 없이 바로 호출, 결과는 캐시에 저장', async () => {
     const sb = fakeSupabase();
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
-    await handler(post([leg(0), leg(1)]), res);
+    await handler(post({ legs: [leg(0), leg(1)], mode: 'WALK' }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.legs.map((l) => l.source)).toEqual(['google', 'google']);
     expect(res.body.legs[0]).toMatchObject({ duration_s: 120, distance_m: 500 });
-    expect(rpcNames(sb)).toEqual([]);
+    expect(rpcCalls(sb)).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][1].headers['X-Goog-FieldMask']).toBe('routes.duration,routes.distanceMeters');
     expect(sb.calls.filter((c) => c.type === 'upsert' && c.table === 'planner_route_cache')).toHaveLength(2);
@@ -83,7 +197,7 @@ describe('구글 제공자', () => {
     const sb = fakeSupabase({ cacheError: { message: 'db down' } });
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
-    await handler(post([leg(0)]), res);
+    await handler(post({ legs: [leg(0)], mode: 'WALK' }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.legs[0].source).toBe('estimate');
     expect(fetchMock).not.toHaveBeenCalled();
@@ -94,7 +208,7 @@ describe('구글 제공자', () => {
     const sb = fakeSupabase();
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
-    await handler(post([leg(0)]), res);
+    await handler(post({ legs: [leg(0)], mode: 'WALK' }), res);
     expect(res.body.legs[0].source).toBe('estimate');
     expect(sb.calls.find((c) => c.type === 'upsert')).toBeUndefined();
   });
@@ -104,7 +218,7 @@ describe('구글 제공자', () => {
     const sb = fakeSupabase();
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
-    await handler(post([leg(0)]), res);
+    await handler(post({ legs: [leg(0)], mode: 'WALK' }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.provider).toBe('google');
     expect(res.body.legs[0].source).toBe('estimate');
@@ -115,7 +229,7 @@ describe('구글 제공자', () => {
     const sb = fakeSupabase();
     const handler = await load({ provider: 'google', supabase: sb });
     const res = mockRes();
-    const req = post([leg(0), leg(1)]);
+    const req = post({ legs: [leg(0), leg(1)], mode: 'WALK' });
     fetchMock.mockImplementationOnce(async () => {
       req.aborted = true; // 첫 구간 호출 도중 연결이 끊긴 상황
       return { ok: true, status: 200, json: async () => ({ routes: [{ duration: '60s', distanceMeters: 100 }] }) };
@@ -125,30 +239,35 @@ describe('구글 제공자', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('좌표가 이상한 구간은 null 로 자리를 채우고, 제공자 판정 실패(null)는 503', async () => {
+  it('좌표가 이상한 구간은 null 로 자리를 채우고, 제공자 판정 실패(null)는 503, 빈 요청은 400', async () => {
     let handler = await load({ provider: 'google', supabase: fakeSupabase() });
     let res = mockRes();
-    await handler(post([{ from: { lat: 'x' }, to: {} }, leg(1)]), res);
+    await handler(post({ legs: [{ from: { lat: 'x' }, to: {} }, leg(1)], mode: 'WALK' }), res);
     expect(res.body.legs[0]).toBeNull();
     expect(res.body.legs[1].source).toBe('google');
 
     handler = await load({ provider: null, supabase: fakeSupabase() });
     res = mockRes();
-    await handler(post([leg(0)]), res);
+    await handler(post({ legs: [leg(0)] }), res);
     expect(res.statusCode).toBe(503);
+
+    handler = await load({ provider: 'osm', supabase: fakeSupabase() });
+    res = mockRes();
+    await handler(post({}), res);
+    expect(res.statusCode).toBe(400);
   });
 });
 
 describe('OSM 제공자(회귀)', () => {
-  it('구글 호출 없이 추정치', async () => {
+  it('좌표 쌍 모드: 구글 호출 없이 추정치', async () => {
     const sb = fakeSupabase();
     const handler = await load({ provider: 'osm', supabase: sb });
     const res = mockRes();
-    await handler(post([leg(0)]), res);
+    await handler(post({ legs: [leg(0)], mode: 'WALK' }), res);
     expect(res.statusCode).toBe(200);
     expect(res.body.provider).toBe('osm');
     expect(res.body.legs[0].source).toBe('estimate');
-    expect(rpcNames(sb)).toEqual([]);
+    expect(rpcCalls(sb)).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

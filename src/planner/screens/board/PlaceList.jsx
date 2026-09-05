@@ -51,13 +51,16 @@ function PlaceRow({
       {index > 0 && (
         <div className="flex items-center gap-1.5 py-1.5 pl-4 text-xs text-muted">
           <MoveRight size={12} aria-hidden="true" />
+          <span className="sr-only">앞 장소에서 이동: </span>
           {incomingLeg ? (
             <span>
-              {TRAVEL_ASSUMPTIONS[incomingLeg.mode]?.label || '이동'} 예상{' '}
+              {/* 서버가 실제 경로(google/cache)로 준 값은 "예상"을 떼고, 추정치만 "예상"으로 표시한다. */}
+              {TRAVEL_ASSUMPTIONS[incomingLeg.mode]?.label || '이동'}
+              {!incomingLeg.source || incomingLeg.source === 'estimate' ? ' 예상' : ''}{' '}
               {formatDuration(incomingLeg.duration_s)} · 약 {formatDistance(incomingLeg.distance_m)}
             </span>
           ) : (
-            <span>이동시간을 계산할 좌표가 없습니다.</span>
+            <span>위치 정보가 없어 이동시간을 계산할 수 없습니다.</span>
           )}
         </div>
       )}
