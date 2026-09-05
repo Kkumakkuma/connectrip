@@ -111,3 +111,19 @@ $function$;
 -- [agy] "DELETE 정책에도 글쓰기 기간을 걸었는지 확인하라" — 확인했고 걸지 않는 게 맞다.
 --   flight_posts/flight_post_comments 의 DELETE 는 본인 또는 관리자다. 기간이 지난 자기 글을
 --   지우는 건 막을 이유가 없다. UPDATE 정책은 아예 없어 수정 자체가 차단돼 있다.
+
+-- ===========================================================================
+-- 3차 (2026-09-05 오전, 재검토 중 성능 점검 결과 반영). execute_sql 로 한 문장씩 트랜잭션 밖에서 적용.
+-- ===========================================================================
+-- 외래키에 인덱스가 없던 8곳. 지금은 행이 적어 체감 없지만, 삭제 캐스케이드·소유자 조회가 전부 순차 스캔이 된다.
+-- 적용 후 pg_index.indisvalid 전부 true 확인.
+create index concurrently if not exists idx_flight_post_comments_user_id  on public.flight_post_comments (user_id);
+create index concurrently if not exists idx_flight_posts_user_id          on public.flight_posts (user_id);
+create index concurrently if not exists idx_itinerary_posts_region_id     on public.itinerary_posts (region_id);
+create index concurrently if not exists idx_planner_days_user_id          on public.planner_days (user_id);
+create index concurrently if not exists idx_planner_place_reviews_user_id on public.planner_place_reviews (user_id);
+create index concurrently if not exists idx_planner_places_day_id         on public.planner_places (day_id);
+create index concurrently if not exists idx_planner_shares_user_id        on public.planner_shares (user_id);
+create index concurrently if not exists idx_planner_tickets_place_id      on public.planner_tickets (place_id);
+-- 남긴 것(별도 검토 후): RLS 정책 76곳이 auth.uid() 를 행마다 호출한다 → (select auth.uid()) 로 감싸면 한 번만 평가.
+--   모든 정책을 건드리므로 등급3 검토 후 한 번에. multiple_permissive_policies 15건(profiles/reports/reviews)도 같이.
