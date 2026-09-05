@@ -88,6 +88,24 @@ export default async function handler(req, res) {
   const provider = await pickProvider(supabase);
   const out = [];
 
+  // 구글 호출 예산(2026-09-05, codex 감사 ③): 한 요청이 최대 30구간이라 사용자 축 요청 제한(120/10분)만으론
+  // 30배 증폭된다. 캐시 미스로 실제 구글을 부르는 구간마다 두 예산을 함께 센다.
+  //   · 사용자 축: 10분 창 200구간(planner_rate_hit)   · 전역 일일: 300구간(planner_daily_hit, 월 무료 10,000회 안)
+  // 예산 초과·카운터 RPC 오류는 모두 fail-closed — 구글을 부르지 않고 추정치로 답한다(과금·약관 방향으로 새지 않게).
+  let googleBudgetOpen = provider === 'google';
+  const spendGoogleBudget = async () => {
+    if (!googleBudgetOpen) return false;
+    const [{ data: uHits, error: uErr }, { data: dHits, error: dErr }] = await Promise.all([
+      supabase.rpc('planner_rate_hit', { p_key: `routes_legs:${ctx.user.id}`, p_limit: 200 }),
+      supabase.rpc('planner_daily_hit', { p_key: 'google_routes', p_limit: 300 }),
+    ]);
+    if (uErr || dErr || Number(uHits) > 200 || Number(dHits) > 300) {
+      googleBudgetOpen = false; // 이번 요청의 남은 구간도 구글 없이 간다
+      return false;
+    }
+    return true;
+  };
+
   for (const leg of rawLegs) {
     const from = validPoint(leg?.from);
     const to = validPoint(leg?.to);
@@ -116,7 +134,7 @@ export default async function handler(req, res) {
       continue;
     }
 
-    let leg1 = provider === 'google' ? await googleRoute(from, to, mode) : null;
+    let leg1 = (provider === 'google' && await spendGoogleBudget()) ? await googleRoute(from, to, mode) : null;
     // 구글이 답을 못 주면(한국의 자동차·도보처럼) 추정으로 떨어진다. 결함이 아니다.
     if (!leg1) leg1 = estimate(from, to, mode);
 
