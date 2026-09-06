@@ -9,12 +9,9 @@ import ReportButton from '../components/ReportButton';
 import ShareButtons from '../components/ShareButtons';
 import AuthorActions from '../components/AuthorActions';
 import MarketListingForm from '../components/MarketListingForm';
+import ContinentBadge from '../components/board/ContinentBadge';
 import SEOHead from '../components/SEOHead';
 
-const REGIONS = [
-    { id: 'europe', name: '유럽', icon: '🏰' }, { id: 'americas', name: '미주', icon: '🗽' }, { id: 'africa', name: '아프리카', icon: '🦁' },
-    { id: 'southeast-asia', name: '동남아', icon: '🏝️' }, { id: 'asia', name: '아시아', icon: '🐅' }, { id: 'oceania', name: '오세아니아', icon: '🦘' },
-];
 
 // 매물 상세(당근식). 판매자: 상태 변경·끌어올리기·수정·삭제. 구매자: 찜·채팅하기. 결제는 없다(2026-09-07 쿠마님 지시로 포인트 결제 폐지).
 const MarketDetail = () => {
@@ -195,7 +192,7 @@ const MarketDetail = () => {
                     <div className="px-4 py-4">
                         <h1 className="text-lg font-extrabold text-gray-900">{isShare && item.country ? `[${item.country}] ` : ''}{item.title}</h1>
                         <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1 flex-wrap">
-                            {isShare && item.region_id && <span>{REGIONS.find((r) => r.id === item.region_id)?.name || item.region_id} ·</span>}
+                            {isShare && item.region_id && <span className="inline-flex items-center gap-1"><ContinentBadge regionId={item.region_id} /> ·</span>}
                             {!isShare && item.transaction_type && <span>{item.transaction_type === 'delivery' ? '택배거래' : '직거래'} ·</span>}
                             {item.location && <span className="flex items-center gap-0.5"><MapPin size={10} />{item.location} ·</span>}
                             <span>{timeAgo(item.created_at)}</span>
@@ -245,7 +242,6 @@ const MarketDetail = () => {
                         </div>
                         <MarketListingForm
                             mode={item.type}
-                            regions={REGIONS}
                             initial={item}
                             onDone={(updated) => { setItem(updated); setIdx(0); setEditing(false); }}
                             onCancel={() => setEditing(false)}

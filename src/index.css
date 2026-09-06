@@ -208,3 +208,32 @@ a {
 /* 가로 칩 목록 등: 스크롤은 되되 막대는 숨김 (2026-09-06 장터 지역 칩) */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* 게시판 공용 버튼(에어비앤비 톤, 2026-09-07). 색은 tailwind.config 의 rausch/ink/hairline 과 같은 값. */
+.btn-air-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  background-color: #FF385C; color: #fff; font-weight: 700; font-size: 14px;
+  padding: 0.65rem 1.1rem; border-radius: 8px; transition: background-color .15s ease, transform .1s ease;
+  white-space: nowrap;
+}
+.btn-air-primary:hover { background-color: #E00B41; }
+.btn-air-primary:active { transform: scale(0.98); }
+.btn-air-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-air-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  background-color: #fff; color: #222; font-weight: 700; font-size: 14px;
+  padding: 0.6rem 1.1rem; border-radius: 8px; border: 1px solid #222; transition: background-color .15s ease;
+  white-space: nowrap;
+}
+.btn-air-secondary:hover { background-color: #f7f7f7; }
+.btn-air-secondary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-air-link { font-weight: 700; font-size: 14px; color: #222; text-decoration: underline; text-underline-offset: 3px; padding: 0.5rem 0.25rem; border-radius: 6px; }
+.btn-air-link:hover { background-color: #f7f7f7; }
+.input-air {
+  width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px; border: 1px solid #dddddd; background: #fff; color: #222;
+  font-size: 15px; outline: none; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input-air:focus { border-color: #222; box-shadow: 0 0 0 1px #222; }
+.input-air::placeholder { color: #929292; }
+.card-air { background: #fff; border: 1px solid #ebebeb; border-radius: 14px; transition: box-shadow .15s ease, transform .15s ease; }
+.card-air:hover { box-shadow: rgba(0,0,0,0.02) 0 0 0 1px, rgba(0,0,0,0.04) 0 2px 6px 0, rgba(0,0,0,0.1) 0 4px 8px 0; }

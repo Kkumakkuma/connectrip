@@ -1,101 +1,78 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const Pagination = ({ currentPage, totalPages, onPageChange, color = 'blue' }) => {
+// 페이지 번호(에어비앤비 톤, 2026-09-07): 활성은 ink 채움, 나머지는 텍스트. color 는 호환용으로 남긴다.
+const Pagination = ({ currentPage, totalPages, onPageChange, color = 'ink' }) => {
     const getPageNumbers = () => {
         const pages = [];
         const maxVisible = 5;
 
         if (totalPages <= maxVisible) {
-            for (let i = 1; i <= totalPages; i++) {
-                pages.push(i);
-            }
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else if (currentPage <= 3) {
+            for (let i = 1; i <= 4; i++) pages.push(i);
+            pages.push('...');
+            pages.push(totalPages);
+        } else if (currentPage >= totalPages - 2) {
+            pages.push(1);
+            pages.push('...');
+            for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
         } else {
-            if (currentPage <= 3) {
-                for (let i = 1; i <= 4; i++) pages.push(i);
-                pages.push('...');
-                pages.push(totalPages);
-            } else if (currentPage >= totalPages - 2) {
-                pages.push(1);
-                pages.push('...');
-                for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
-            } else {
-                pages.push(1);
-                pages.push('...');
-                for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
-                pages.push('...');
-                pages.push(totalPages);
-            }
+            pages.push(1);
+            pages.push('...');
+            for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+            pages.push('...');
+            pages.push(totalPages);
         }
-
         return pages;
     };
 
-    const colorClasses = {
-        blue: {
-            active: 'bg-blue-600 text-white',
-            hover: 'hover:bg-blue-50 hover:text-blue-600',
-            border: 'border-blue-600'
-        },
-        green: {
-            active: 'bg-green-600 text-white',
-            hover: 'hover:bg-green-50 hover:text-green-600',
-            border: 'border-green-600'
-        },
-        pink: {
-            active: 'bg-pink-500 text-white',
-            hover: 'hover:bg-pink-50 hover:text-pink-500',
-            border: 'border-pink-500'
-        }
-    };
+    const active = {
+        ink: 'bg-ink text-white',
+        blue: 'bg-blue-600 text-white',
+        green: 'bg-green-600 text-white',
+        pink: 'bg-pink-500 text-white',
+    }[color] || 'bg-ink text-white';
 
-    const colors = colorClasses[color] || colorClasses.blue;
+    if (!totalPages || totalPages <= 1) return null;
 
     return (
-        <div className="flex items-center justify-center gap-2 mt-8">
-            {/* Previous Button */}
+        <nav aria-label="페이지" className="flex items-center justify-center gap-1 mt-8">
             <button
+                type="button"
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className={`p-2 rounded-lg border transition-all ${currentPage === 1
-                        ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                        : `border-gray-300 text-gray-700 ${colors.hover}`
-                    }`}
+                aria-label="이전 페이지"
+                className="p-2 rounded-full text-ink hover:bg-surface-soft disabled:text-muted-soft disabled:hover:bg-transparent disabled:cursor-not-allowed"
             >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={18} />
             </button>
 
-            {/* Page Numbers */}
             {getPageNumbers().map((page, index) => (
                 page === '...' ? (
-                    <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-400">
-                        ...
-                    </span>
+                    <span key={`ellipsis-${index}`} className="px-2 text-muted">…</span>
                 ) : (
                     <button
                         key={page}
+                        type="button"
                         onClick={() => onPageChange(page)}
-                        className={`min-w-[40px] px-3 py-2 rounded-lg font-semibold transition-all ${currentPage === page
-                                ? `${colors.active} shadow-md`
-                                : `border border-gray-300 text-gray-700 ${colors.hover}`
-                            }`}
+                        aria-current={currentPage === page ? 'page' : undefined}
+                        className={`min-w-[36px] h-9 px-2 rounded-full text-[14px] font-semibold transition-colors ${currentPage === page ? active : 'text-ink hover:bg-surface-soft'}`}
                     >
                         {page}
                     </button>
                 )
             ))}
 
-            {/* Next Button */}
             <button
+                type="button"
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className={`p-2 rounded-lg border transition-all ${currentPage === totalPages
-                        ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                        : `border-gray-300 text-gray-700 ${colors.hover}`
-                    }`}
+                aria-label="다음 페이지"
+                className="p-2 rounded-full text-ink hover:bg-surface-soft disabled:text-muted-soft disabled:hover:bg-transparent disabled:cursor-not-allowed"
             >
-                <ChevronRight size={20} />
+                <ChevronRight size={18} />
             </button>
-        </div>
+        </nav>
     );
 };
 

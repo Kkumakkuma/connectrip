@@ -32,14 +32,8 @@ const Navbar = () => {
   };
 
   const navLinks = [
-    { name: '여행 동행자 모집', to: '/companion', sub: [
-      { name: '🏰 유럽', to: '/companion/europe' },
-      { name: '🗽 미주', to: '/companion/americas' },
-      { name: '🦁 아프리카', to: '/companion/africa' },
-      { name: '🏝️ 동남아', to: '/companion/southeast-asia' },
-      { name: '🐅 아시아', to: '/companion/asia' },
-      { name: '🦘 오세아니아', to: '/companion/oceania' },
-    ]},
+    // 대륙 하위 메뉴는 2026-09-07 통합 게시판(말머리 필터)으로 흡수 — 직접 링크만 둔다.
+    { name: '여행 동행자 모집', to: '/companion' },
     { name: '여행후기 및 Q&A', to: '/qna', sub: [
       { name: '📝 여행 후기', to: '/qna?tab=review' },
       { name: '❓ Q&A 게시판', to: '/qna?tab=qna' },
@@ -55,14 +49,7 @@ const Navbar = () => {
       { name: '📢 홍보 게시판', to: '/reviews?tab=promo' },
       { name: '💬 후기 게시판', to: '/reviews?tab=review' },
     ]}] : []),
-    { name: '승무원 추천지', to: '/recommend', sub: [
-      { name: '🏰 유럽', to: '/recommend/europe' },
-      { name: '🗽 미주', to: '/recommend/americas' },
-      { name: '🦁 아프리카', to: '/recommend/africa' },
-      { name: '🏝️ 동남아', to: '/recommend/southeast-asia' },
-      { name: '🐅 아시아', to: '/recommend/asia' },
-      { name: '🦘 오세아니아', to: '/recommend/oceania' },
-    ]},
+    { name: '승무원 추천지', to: '/recommend' },
     // 여행 플래너. 네비바만 얹어 놓고 들어갈 길을 안 내면 주소를 직접 쳐야 한다 —
     // 그건 아무도 안 쓴다. 웹·앱 모두 같은 메뉴로 앱 안에서 바로 연다(2026-09-04).
     //
@@ -98,7 +85,7 @@ const Navbar = () => {
 
   return (
     <nav
-      className="fixed top-0 left-0 w-full z-50 bg-white/95 backdrop-blur-md shadow-md transition-all duration-300"
+      className="fixed top-0 left-0 w-full z-50 bg-white/95 backdrop-blur-md border-b border-hairline-soft transition-all duration-300"
       style={{
         padding: isScrolled ? '0.6rem 0' : '0.85rem 0',
       }}
@@ -130,7 +117,7 @@ const Navbar = () => {
         </a>
 
         {/* Section 2: Navigation Menu - Center (1280px 미만은 햄버거 — 겹침 방지) */}
-        <div className="hidden xl:flex items-center gap-4 2xl:gap-8 flex-1 justify-center min-w-0">
+        <div className="hidden xl:flex items-center gap-3 2xl:gap-8 flex-1 justify-center min-w-0 px-2">
           {navLinks.map((link, idx) => (
             <div
               key={link.name}
@@ -150,7 +137,7 @@ const Navbar = () => {
                   href={link.external}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[15px] 2xl:text-[16px] text-gray-700 hover:text-blue-600 font-semibold transition-colors cursor-pointer whitespace-nowrap py-2"
+                  className="text-[14px] 2xl:text-[16px] text-ink hover:text-muted font-semibold transition-colors cursor-pointer whitespace-nowrap py-2"
                 >
                   {link.name}
                 </a>
@@ -163,14 +150,14 @@ const Navbar = () => {
                 }}
                 aria-haspopup={link.sub ? 'true' : undefined}
                 aria-expanded={link.sub ? hoveredMenu === idx : undefined}
-                className="text-[15px] 2xl:text-[16px] text-gray-700 hover:text-blue-600 font-semibold transition-colors cursor-pointer whitespace-nowrap py-2"
+                className="text-[14px] 2xl:text-[16px] text-ink hover:text-muted font-semibold transition-colors cursor-pointer whitespace-nowrap py-2"
               >
                 {link.name}
               </Link>
               )}
               {link.sub && hoveredMenu === idx && (
                 <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
-                  <div className="bg-white rounded-xl shadow-xl border border-gray-100 py-2 min-w-[180px]">
+                  <div className="bg-white rounded-md shadow-card border border-hairline-soft py-2 min-w-[180px]">
                     {link.sub.map((sub) => (
                       <Link
                         key={sub.name}
@@ -179,7 +166,7 @@ const Navbar = () => {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                           setHoveredMenu(null);
                         }}
-                        className="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 font-medium transition-colors whitespace-nowrap"
+                        className="block w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-surface-soft font-medium transition-colors whitespace-nowrap"
                       >
                         {sub.name}
                       </Link>
@@ -198,13 +185,13 @@ const Navbar = () => {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => { navigate('/signup'); window.scrollTo(0, 0); }}
-                className="text-[15px] text-gray-700 hover:text-blue-600 font-semibold transition-colors whitespace-nowrap"
+                className="text-[15px] text-ink hover:text-muted font-semibold transition-colors whitespace-nowrap"
               >
                 회원가입
               </button>
               <button
                 onClick={() => { navigate('/signup?mode=login'); window.scrollTo(0, 0); }}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full text-[15px] font-semibold transition-all hover:scale-105 shadow-md whitespace-nowrap"
+                className="flex items-center gap-2 bg-rausch hover:bg-rausch-dark text-white px-5 py-2.5 rounded-full text-[15px] font-semibold transition-colors whitespace-nowrap"
               >
                 <User size={17} />
                 로그인
@@ -219,14 +206,14 @@ const Navbar = () => {
               )}
               <button
                 onClick={() => navigate('/mypage')}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-full text-[14px] font-semibold transition-all hover:scale-105 shadow-md whitespace-nowrap"
+                className="flex items-center gap-2 bg-white text-ink border border-hairline hover:shadow-card px-4 py-2 rounded-full text-[14px] font-semibold transition-shadow whitespace-nowrap"
               >
                 <User size={16} />
                 {profile?.name || '마이페이지'}
               </button>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 text-[14px] font-medium transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 text-muted hover:text-ink text-[14px] font-medium transition-colors whitespace-nowrap"
               >
                 <LogOut size={16} />
                 로그아웃
@@ -271,7 +258,7 @@ const Navbar = () => {
                     setIsMobileMenuOpen(false);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="text-lg font-semibold text-gray-700 hover:text-blue-600 cursor-pointer bg-transparent border-none w-full"
+                  className="text-lg font-semibold text-ink hover:text-muted cursor-pointer bg-transparent border-none w-full"
                 >
                   {link.name}
                 </button>
@@ -288,7 +275,7 @@ const Navbar = () => {
                       setIsMobileMenuOpen(false);
                       window.scrollTo(0, 0);
                     }}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-md"
+                    className="w-full flex items-center justify-center gap-2 bg-rausch hover:bg-rausch-dark text-white px-5 py-3 rounded-lg font-semibold transition-colors"
                   >
                     <User size={18} />
                     마이페이지
@@ -301,7 +288,7 @@ const Navbar = () => {
                         setIsMobileMenuOpen(false);
                         window.scrollTo(0, 0);
                       }}
-                      className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold transition-all shadow-md"
+                      className="w-full flex items-center justify-center gap-2 bg-rausch hover:bg-rausch-dark text-white px-5 py-3 rounded-lg font-semibold transition-colors"
                     >
                       <User size={18} />
                       로그인
@@ -312,7 +299,7 @@ const Navbar = () => {
                         setIsMobileMenuOpen(false);
                         window.scrollTo(0, 0);
                       }}
-                      className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-5 py-3 rounded-xl font-semibold transition-all"
+                      className="w-full flex items-center justify-center gap-2 bg-white border border-ink text-ink hover:bg-surface-soft px-5 py-3 rounded-lg font-semibold transition-colors"
                     >
                       회원가입
                     </button>

@@ -10,6 +10,16 @@
       ],
       "destination": "https://www.connecttrip.co.kr/:path*",
       "permanent": true
+    },
+    {
+      "source": "/companion/:regionId",
+      "destination": "/companion?region=:regionId",
+      "permanent": true
+    },
+    {
+      "source": "/recommend/:regionId",
+      "destination": "/recommend?region=:regionId",
+      "permanent": true
     }
   ],
   "rewrites": [

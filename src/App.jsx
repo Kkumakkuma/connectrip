@@ -37,7 +37,7 @@ const CrewOnly = lazy(() => import('./components/CrewOnly'));
 // 여행상품 홍보 및 후기 — 초창기라 숨김(2026-09-06 쿠마님). 플래그가 꺼지면 청크도 만들지 않는다(PLANNER 와 같은 방식).
 const Promotions = PROMO_REVIEWS_ENABLED ? lazy(() => import('./components/Promotions')) : null;
 const CompanionBoard = lazy(() => import('./components/CompanionBoard'));
-const RegionalBoard = lazy(() => import('./components/RegionalBoard'));
+import RegionRedirect from './components/board/RegionRedirect';
 // 여행 일정 게시판. 플래너와 달리 앱에도 실린다(앱은 게시판 + 가져오기만 갖는다).
 const ItineraryBoard = lazy(() => import('./components/ItineraryBoard'));
 const ItineraryPost = lazy(() => import('./components/ItineraryPost'));
@@ -263,24 +263,25 @@ function App() {
               <Route path="/signup/email" element={<SignupEmail />} />
               <Route path="/signup/complete" element={<SignupComplete />} />
               <Route path="/companion" element={<RequireLogin><CompanionBoard /></RequireLogin>} />
-              <Route path="/companion/:regionId" element={<RequireLogin><RegionalBoard /></RequireLogin>} />
+              {/* 옛 대륙 경로 → 통합 게시판 ?region= (2026-09-07). 로그인 검사 바깥, 쿼리 보존. 서버 301 은 vercel.json */}
+              <Route path="/companion/:regionId" element={<RegionRedirect basePath="/companion" />} />
               {ITINERARY_ENABLED && (
                 <Route path="/itinerary" element={<RequireLogin><ItineraryBoard /></RequireLogin>} />
               )}
               {ITINERARY_ENABLED && (
                 <Route path="/itinerary/:postId" element={<RequireLogin><ItineraryPost /></RequireLogin>} />
               )}
-              <Route path="/qna" element={<RequireLogin><div className="py-20"><TravelQnA /></div></RequireLogin>} />
-              <Route path="/market" element={<RequireLogin><div className="py-20"><MarketBoard /></div></RequireLogin>} />
+              <Route path="/qna" element={<RequireLogin><TravelQnA /></RequireLogin>} />
+              <Route path="/market" element={<RequireLogin><MarketBoard /></RequireLogin>} />
               <Route path="/market/:id" element={<RequireLogin><MarketDetail /></RequireLogin>} />
               <Route path="/chat" element={<RequireLogin><ChatList /></RequireLogin>} />
               <Route path="/chat/:roomId" element={<RequireLogin><ChatRoom /></RequireLogin>} />
               <Route path="/messages" element={<RequireLogin><Messages /></RequireLogin>} />
-              <Route path="/crew" element={<RequireLogin><div className="py-20"><CrewOnly /></div></RequireLogin>} />
+              <Route path="/crew" element={<RequireLogin><CrewOnly /></RequireLogin>} />
               <Route path="/search" element={<RequireLogin><Search /></RequireLogin>} />
               <Route path="/admin" element={<Admin />} />
-              <Route path="/recommend" element={<RequireLogin><div className="py-20"><Destinations /></div></RequireLogin>} />
-              <Route path="/recommend/:regionId" element={<RequireLogin><div className="py-20"><Destinations /></div></RequireLogin>} />
+              <Route path="/recommend" element={<RequireLogin><Destinations /></RequireLogin>} />
+              <Route path="/recommend/:regionId" element={<RegionRedirect basePath="/recommend" />} />
               {PROMO_REVIEWS_ENABLED && (
                 <Route path="/reviews" element={<RequireLogin><div className="py-20"><Promotions /></div></RequireLogin>} />
               )}

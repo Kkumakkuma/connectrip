@@ -13,8 +13,7 @@
 // 그대로 옮긴 것이다. 화면 쪽 문구를 고칠 때는 이 파일도 함께 고쳐야 정적 HTML 과
 // 클라이언트가 선언하는 값이 갈라지지 않는다.
 //   /                    src/pages/Home.jsx
-//   /companion           src/components/CompanionBoard.jsx
-//   /companion/:regionId src/components/RegionalBoard.jsx (regions 배열 + 문구 템플릿)
+//   /companion           src/components/CompanionBoard.jsx (2026-09-07 통합 — 대륙별 경로 없음, ?region= 필터)
 //   /qna                 src/components/TravelQnA.jsx
 //   /market              src/components/MarketBoard.jsx
 //   /reviews             src/components/Promotions.jsx
@@ -24,28 +23,6 @@
 //   /signup              src/pages/Signup.jsx (기본 mode = 'signup')
 
 export const BASE_URL = 'https://www.connecttrip.co.kr';
-
-// RegionalBoard.jsx 의 regions 배열과 같은 값(id·name). 순서까지 동일하게 맞춰 둔다.
-export const COMPANION_REGIONS = [
-  { id: 'europe', name: '유럽' },
-  { id: 'americas', name: '미주' },
-  { id: 'africa', name: '아프리카' },
-  { id: 'southeast-asia', name: '동남아' },
-  { id: 'asia', name: '아시아' },
-  { id: 'oceania', name: '오세아니아' },
-];
-
-// RegionalBoard 는 지역 6개가 한 컴포넌트를 공유하므로 문구도 같은 템플릿으로 만든다.
-// 문자열을 6번 손으로 적으면 나중에 한 곳만 고쳐져 갈라진다.
-const regionalRouteMeta = Object.fromEntries(
-  COMPANION_REGIONS.map(({ id, name }) => [
-    `/companion/${id}`,
-    {
-      title: `${name} 동행자 모집 - ConnectTrip`,
-      description: `${name} 지역을 함께 여행할 동행자를 ConnectTrip에서 찾아보세요.`,
-    },
-  ])
-);
 
 // robots 는 화면이 SEOHead 에 명시적으로 넘긴 경우에만 적는다. 없으면 index.html 기본값
 // (index, follow)을 그대로 둔다.
@@ -59,7 +36,6 @@ export const ROUTE_META = {
     title: '여행 동행자 모집 - ConnectTrip',
     description: '함께 여행할 동행자를 찾아보세요. 지역별 여행 동행 모집 게시판.',
   },
-  ...regionalRouteMeta,
   '/qna': {
     title: '여행후기 및 Q&A - ConnectTrip',
     description: '여행 후기를 공유하고, 여행 관련 질문과 답변을 나누세요.',

@@ -34,6 +34,12 @@ export default {
                     DEFAULT: '#6a6a6a',
                     soft: '#929292',
                 },
+                // 게시판 에어비앤비 톤 액센트(2026-09-07). 주 버튼·활성 하트 등에만 쓴다.
+                rausch: {
+                    DEFAULT: '#FF385C',
+                    dark: '#E00B41',
+                    soft: '#FFF1F3',
+                },
                 'on-primary': '#ffffff',
                 success: '#1A8754',
                 warning: '#B45309',

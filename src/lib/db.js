@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { searchTerm } from './continents';
 import { ITINERARY_ENABLED, PROMO_REVIEWS_ENABLED } from './featureFlags';
 
 // ============================================================
@@ -20,17 +21,22 @@ const LIST_FETCH_LIMIT = 300;
 // ============================================================
 
 export const companionApi = {
-  async getByRegion(regionId) {
-    const { data, error } = await supabase
+  // 통합 게시판(2026-09-07): 대륙(region_id)·검색어를 서버에서 거르고 페이지 단위로 받는다. 반환 { data, count }.
+  // 클라이언트에서 전체를 받아 거르면 인기 대륙이 상한(300)을 채워 다른 대륙 글이 사라진다(agy 지적).
+  async getAll({ regionId = null, q = '', page = 1, limit = 20 } = {}) {
+    let query = supabase
       .from('companion_posts')
-      .select('*, profiles(user_type, crew_verified)')
-      .eq('region_id', regionId)
+      .select('*, profiles(user_type, crew_verified)', { count: 'exact' })
       .order('created_at', { ascending: false })
-      // id 2차 정렬 = 정렬값이 같을 때 상한 경계에서 뽑히는 행이 매번 달라지지 않게 고정
+      // id 2차 정렬 = 정렬값이 같을 때 페이지 경계에서 뽑히는 행이 매번 달라지지 않게 고정
       .order('id', { ascending: false })
-      .limit(LIST_FETCH_LIMIT);
+      .range((page - 1) * limit, page * limit - 1);
+    if (regionId) query = query.eq('region_id', regionId);
+    const term = searchTerm(q);
+    if (term) query = query.or(`title.ilike.%${term}%,country.ilike.%${term}%,content.ilike.%${term}%`);
+    const { data, count, error } = await query;
     if (error) throw error;
-    return data;
+    return { data: data || [], count: count || 0 };
   },
 
   async create(post) {
@@ -340,18 +346,21 @@ export const reviewsApi = {
 // ============================================================
 
 export const destinationsApi = {
-  async getAll(regionId = null) {
+  // 통합 게시판(2026-09-07): 대륙·검색어 서버 필터 + 페이지. 반환 { data, count }.
+  async getAll({ regionId = null, q = '', page = 1, limit = 24 } = {}) {
     // likes_count 는 같은 값이 흔하고 실시간으로 변한다. id 2차 정렬이 없으면
     // 같은 좋아요 수끼리 순서가 조회할 때마다 뒤바뀐다.
     let query = supabase.from('destinations')
-      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .select('*, profiles(name, user_type, crew_verified, avatar_url)', { count: 'exact' })
       .order('likes_count', { ascending: false })
       .order('id', { ascending: false })
-      .limit(LIST_FETCH_LIMIT);
+      .range((page - 1) * limit, page * limit - 1);
     if (regionId) query = query.eq('region_id', regionId);
-    const { data, error } = await query;
+    const term = searchTerm(q);
+    if (term) query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%`);
+    const { data, count, error } = await query;
     if (error) throw error;
-    return data;
+    return { data: data || [], count: count || 0 };
   },
 
   async create(dest) {
