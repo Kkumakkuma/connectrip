@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
 import { ChevronDown, ChevronUp, Clock, GripVertical, MoveRight, TriangleAlert } from 'lucide-react';
+import { hasMoreSteps, transferCount, transitStepsText } from '../../lib/transitText';
 import Badge from '../../kit/Badge';
 import { formatMoney } from '../../lib/format';
 import { formatClock } from '../../lib/feasibility';
@@ -21,6 +22,40 @@ import { warningLabel } from './warningText';
 function timeText(value) {
   if (typeof value !== 'string') return '';
   return value.slice(0, 5);
+}
+
+// 구간 줄. 대중교통 요약(steps)이 있으면 눌러서 노선·정류장·환승을 펼친다(2026-09-06 쿠마님: "실시간 시각은 아니어도 경로는").
+// 출발 시각은 대표 시각(현지 10시) 기준 참고 경로라 화면에 시각을 적지 않는다.
+function LegLine({ leg }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const steps = useMemo(() => transitStepsText(leg?.steps), [leg]);
+  const transfers = transferCount(leg?.steps);
+  const more = hasMoreSteps(leg?.steps);   // 12단계 넘어 잘린 경로 — 환승 수는 '이상'으로(agy 9/6)
+  const label = `${TRAVEL_ASSUMPTIONS[leg.mode]?.label || '이동'}${!leg.source || leg.source === 'estimate' ? ' 예상' : ''} ${formatDuration(leg.duration_s)} · 약 ${formatDistance(leg.distance_m)}`;
+  if (steps.length === 0) return <span>{label}</span>;
+  return (
+    <div className="min-w-0 flex-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex max-w-full items-center gap-1 text-left text-xs text-muted"
+      >
+        <span className="truncate">{label}{transfers > 0 ? ` · 환승 ${transfers}회${more ? ' 이상' : ''}` : ''}</span>
+        {open ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />}
+        <span className="sr-only">{open ? '경로 접기' : '경로 보기'}</span>
+      </button>
+      {open && (
+        <ol id={listId} className="mt-1 space-y-0.5 border-l border-hairline pl-2 text-xs text-ink">
+          {steps.map((text, i) => (
+            <li key={i} className="break-words">{text}</li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
 }
 
 function PlaceRow({
@@ -49,16 +84,12 @@ function PlaceRow({
       className="list-none"
     >
       {index > 0 && (
-        <div className="flex items-center gap-1.5 py-1.5 pl-4 text-xs text-muted">
-          <MoveRight size={12} aria-hidden="true" />
+        <div className="flex items-start gap-1.5 py-1.5 pl-4 text-xs text-muted">
+          <MoveRight size={12} aria-hidden="true" className="mt-0.5 shrink-0" />
           <span className="sr-only">앞 장소에서 이동: </span>
           {incomingLeg ? (
-            <span>
-              {/* 서버가 실제 경로(google/cache)로 준 값은 "예상"을 떼고, 추정치만 "예상"으로 표시한다. */}
-              {TRAVEL_ASSUMPTIONS[incomingLeg.mode]?.label || '이동'}
-              {!incomingLeg.source || incomingLeg.source === 'estimate' ? ' 예상' : ''}{' '}
-              {formatDuration(incomingLeg.duration_s)} · 약 {formatDistance(incomingLeg.distance_m)}
-            </span>
+            /* 서버가 실제 경로(google/cache)로 준 값은 "예상"을 떼고, 추정치만 "예상"으로 표시한다. 대중교통 요약이 있으면 펼침. */
+            <LegLine leg={incomingLeg} />
           ) : (
             <span>위치 정보가 없어 이동시간을 계산할 수 없습니다.</span>
           )}

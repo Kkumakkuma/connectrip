@@ -21,6 +21,7 @@ import SuggestedPlaces from './board/SuggestedPlaces';
 import DestinationSheet from './board/DestinationSheet';
 import SnapshotView from './SnapshotView';
 import { buildLocalSnapshot } from '../lib/snapshot';
+import { legsCurrent, legsValid } from '../lib/legs';
 import { readSnapshot, saveSnapshot } from '../lib/offlineStore';
 import {
   AddPlaceSheet,
@@ -63,14 +64,7 @@ import { readDayWindow, writeDayWindow } from '../lib/dayWindow';
 //
 // 네트워크가 죽으면 기기에 남겨 둔 스냅샷으로 읽기 전용 화면을 띄운다(설계 §7.1).
 
-// 저장된 이동시간(items)이 현재 핀 개수(n = 핀 수 - 1)와 맞고 구간 인덱스가 0..n-1 순서대로 있는지.
-function legsValid(items, n) {
-  return (
-    Array.isArray(items) &&
-    items.length === n &&
-    items.every((it, i) => Number(it?.from) === i && Number(it?.to) === i + 1)
-  );
-}
+// 저장된 이동시간 검증(legsValid)·형식 버전(legsCurrent)은 lib/legs 에 있다 — 스냅샷 화면과 같은 규칙(2026-09-06).
 
 export default function TripBoard() {
   const { tripId } = useParams();
@@ -257,11 +251,15 @@ export default function TripBoard() {
   const pinCount = dayPlaces.length;
   const dbVersionRef = useRef(0);
   dbVersionRef.current = dbVersion;
+  const legsTriedRef = useRef(new Set());   // `${dayId}:${dbVersion}` — 저장 거부(saved:false)·실패가 렌더마다 재호출로 번지지 않게(agy 9/6)
   useEffect(() => {
     if (!activeDayId || activeDayId === UNASSIGNED_ID || orderDirty || pinCount < 2) return undefined;
-    if (legsValid(activeDay?.legs?.items, pinCount - 1)) return undefined; // DB 값이 있으면 부르지 않는다
+    if (legsValid(activeDay?.legs?.items, pinCount - 1) && legsCurrent(activeDay?.legs)) return undefined; // DB 값이 있으면 부르지 않는다(구버전 legs 는 한 번 재계산)
     const dayId = activeDayId;
     const version = dbVersion;
+    const tryKey = `${dayId}:${version}`;
+    if (legsTriedRef.current.has(tryKey)) return undefined;   // 이 DB 상태에서는 이미 한 번 시도했다
+    legsTriedRef.current.add(tryKey);
     let cancelled = false;
     // 연속 저장(핀 여러 개 담기)을 한 번으로 모은다.
     const timer = setTimeout(async () => {
@@ -270,7 +268,7 @@ export default function TripBoard() {
         if (cancelled || version !== dbVersionRef.current || !out.saved) return;
         setDays((prev) =>
           prev.map((d) =>
-            d.id === dayId ? { ...d, legs: { mode: out.mode, computed_at: out.computed_at, fp: out.fp, items: out.legs } } : d
+            d.id === dayId ? { ...d, legs: { v: out.v, mode: out.mode, computed_at: out.computed_at, fp: out.fp, items: out.legs } } : d
           )
         );
       } catch (err) {
@@ -297,6 +295,7 @@ export default function TripBoard() {
         duration_s: Number(it.duration_s),
         distance_m: Number.isFinite(Number(it.distance_m)) ? Number(it.distance_m) : est?.distance_m ?? 0,
         source: it.source || 'estimate',
+        ...(Array.isArray(it.steps) ? { steps: it.steps } : {}),   // 대중교통 요약(2026-09-06) — 화면까지 전달(codex)
       };
     });
   }, [orderDirty, activeDay, estimatedLegs]);

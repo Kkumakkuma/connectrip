@@ -511,10 +511,19 @@ export async function suggestPlaces(q, { session, bias } = {}) {
 }
 
 // 그 날짜 핀 사이 이동시간을 서버가 계산해 planner_days.legs 에 저장하고 돌려준다.
-// 응답 legs = [{ from, to, mode, duration_s, distance_m, source }] (source: google|cache|estimate)
+// 응답 legs = [{ from, to, mode, duration_s, distance_m, source, steps? }] (source: google|cache|estimate, steps = 대중교통 요약 2026-09-06)
 export async function computeDayLegs(dayId, mode) {
   const out = await callFunction('/api/planner/routes', mode ? { day_id: dayId, mode } : { day_id: dayId });
-  return { provider: out.provider, mode: out.mode, legs: out.legs || [], saved: Boolean(out.saved) };
+  return {
+    provider: out.provider,
+    mode: out.mode,
+    legs: out.legs || [],
+    saved: Boolean(out.saved),
+    // 봉투 버전·지문·계산 시각을 화면 상태까지 보존한다(빠지면 화면이 구버전으로 판정해 다시 계산한다 — codex 9/6)
+    v: Number.isFinite(Number(out.v)) ? Number(out.v) : 1,
+    fp: typeof out.fp === 'string' ? out.fp : null,
+    computed_at: typeof out.computed_at === 'string' ? out.computed_at : null,
+  };
 }
 
 // 자동완성 후보 하나의 좌표·주소(구글 제공자 전용). 카탈로그에 있으면 구글을 부르지 않는다.

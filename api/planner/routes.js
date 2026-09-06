@@ -24,6 +24,8 @@
 import { fail, fetchWithTimeout, gate, pickProvider, sha256, googleServerKey } from './_common.js';
 // 화면과 같은 추정식을 쓰려고 그대로 가져온다. 브라우저 의존이 없는 순수 모듈이다.
 import { estimateLeg, haversineMeters, pickMode } from '../../src/planner/lib/travelTime.js';
+import { TRANSIT_FIELD_MASK, summarizeTransitSteps } from './_transit.js';
+import { LEGS_VERSION } from '../../src/planner/lib/legs.js';   // 2 = 대중교통 구간에 steps(노선·정류장 요약) 포함(2026-09-06)
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_LEGS = 30; // 좌표 쌍 모드 상한
@@ -73,6 +75,7 @@ function validPoint(p) {
 }
 
 // 구글 Routes. 필드마스크를 최소로 잡아 과금 등급을 낮춘다.
+// TRANSIT 은 단계 요약(노선·정류장·환승)을 함께 받는다 — 같은 Essentials SKU(대중교통·상세 필드는 상위 SKU 조건이 아님, 9/6 문서 확인).
 async function googleRoute(from, to, mode, departureTime = null) {
   const key = googleServerKey();
   if (!key) return null;
@@ -83,7 +86,7 @@ async function googleRoute(from, to, mode, departureTime = null) {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': key,
-        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters',
+        'X-Goog-FieldMask': mode === 'TRANSIT' ? TRANSIT_FIELD_MASK : 'routes.duration,routes.distanceMeters',
       },
       body: JSON.stringify({
         origin: { location: { latLng: { latitude: from.lat, longitude: from.lng } } },
@@ -110,7 +113,12 @@ async function googleRoute(from, to, mode, departureTime = null) {
     const seconds = Number(String(route.duration || '').replace(/s$/, ''));
     const meters = Number(route.distanceMeters);
     if (!Number.isFinite(seconds) || !Number.isFinite(meters)) return null;
-    return { mode, duration_s: Math.round(seconds), distance_m: Math.round(meters), source: 'google' };
+    const leg = { mode, duration_s: Math.round(seconds), distance_m: Math.round(meters), source: 'google' };
+    if (mode === 'TRANSIT') {
+      const steps = summarizeTransitSteps(route);
+      if (steps) leg.steps = steps;   // 도보만인 경로(구글이 대중교통 없이 답한 경우)는 요약 없음
+    }
+    return leg;
   } catch (e) {
     console.error('[planner/routes] google fetch failed', mode, e?.name || '', String(e?.message || '').slice(0, 120));
     return null;
@@ -128,15 +136,24 @@ async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, 
 
   const { data: cached, error: cacheErr } = await supabase
     .from('planner_route_cache')
-    .select('mode, duration_s, distance_m, fetched_at')
+    .select('mode, duration_s, distance_m, steps, fetched_at')
     .eq('key_hash', hash)
     .maybeSingle();
   if (cacheErr) return estimate(from, to, mode);
-  if (cached && Date.now() - Date.parse(cached.fetched_at) < CACHE_TTL_MS) {
-    return { mode: cached.mode, duration_s: cached.duration_s, distance_m: cached.distance_m, source: 'cache' };
-  }
+  // 대중교통인데 요약(steps)이 NULL 인 옛 캐시는 미스로 본다 — 한 번만 구글을 다시 불러 요약을 채운다.
+  // 새 조회에서 대중교통 단계가 없던 구간은 [] 로 저장돼 있어 다시 부르지 않는다(codex 9/6: 옛 것과 "없음 확정" 구분).
+  const cacheFresh = Boolean(cached) && Date.now() - Date.parse(cached.fetched_at) < CACHE_TTL_MS;
+  const cacheLeg = () => {
+    const leg = { mode: cached.mode, duration_s: cached.duration_s, distance_m: cached.distance_m, source: 'cache' };
+    if (Array.isArray(cached.steps)) leg.steps = cached.steps;   // [] 도 그대로("대중교통 없음 확정", agy 9/6)
+    return leg;
+  };
+  const legacyTransit = mode === 'TRANSIT' && cacheFresh && cached.steps == null && googleOpen;
+  if (cacheFresh && !legacyTransit) return cacheLeg();
 
   let leg = googleOpen && !clientGone() ? await googleRoute(from, to, mode, departureTime) : null;
+  // 옛 캐시(요약 없음)를 채우려던 재조회가 실패하면 유효한 캐시값으로 돌아간다 — 추정치로 낮추거나 매번 재조회하지 않는다(agy 9/6)
+  if (!leg && legacyTransit) return cacheLeg();
   // 구글이 답을 못 주면(한국의 자동차·도보처럼) 추정으로 떨어진다. 결함이 아니다.
   if (!leg) leg = estimate(from, to, mode);
 
@@ -147,6 +164,8 @@ async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, 
       mode: leg.mode,
       duration_s: leg.duration_s,
       distance_m: leg.distance_m,
+      // 대중교통 요약. 구글이 도보만 답한 구간은 빈 배열로 남겨 "요약 없음이 확정" 임을 표시(옛 캐시 NULL 과 구분 → 재조회 안 함)
+      steps: leg.mode === 'TRANSIT' ? (leg.steps || []) : null,
       fetched_at: new Date().toISOString(),
     });
   }
@@ -201,7 +220,7 @@ async function handleDay(req, res, supabase, ctx, provider, cfg, dayId, requeste
   // 저장은 DB 함수가 원자적으로 한다: 날짜 행을 잠그고 지문을 다시 읽어 계산 시작 때와 같을 때만 쓴다.
   // (지문 확인과 UPDATE 를 따로 하면 그 사이 핀이 바뀌었을 때 옛 legs 가 트리거의 NULL 을 덮어쓴다 — codex·agy 지적)
   const computedAt = new Date().toISOString();
-  const envelope = { mode: requestedMode || 'AUTO', computed_at: computedAt, fp: fpBefore, items };
+  const envelope = { v: LEGS_VERSION, mode: requestedMode || 'AUTO', computed_at: computedAt, fp: fpBefore, items };
   const { data: savedRow, error: sErr } = await supabase.rpc('planner_save_day_legs', {
     p_day_id: dayId,
     p_user_id: ctx.user.id,
@@ -210,7 +229,7 @@ async function handleDay(req, res, supabase, ctx, provider, cfg, dayId, requeste
   });
   if (sErr) console.error('[planner/routes] legs save failed', sErr.code || sErr.message || '');
   const saved = !sErr && savedRow === true;
-  return res.status(200).json({ ok: true, provider, mode: envelope.mode, legs: items, saved, fp: fpBefore, computed_at: computedAt });
+  return res.status(200).json({ ok: true, v: LEGS_VERSION, provider, mode: envelope.mode, legs: items, saved, fp: fpBefore, computed_at: computedAt });
 }
 
 export default async function handler(req, res) {

@@ -4,6 +4,8 @@ import Card from '../kit/Card';
 import EmptyState from '../kit/EmptyState';
 import { formatDate, formatDateRange, formatDateWithWeekday, formatMoney, formatTripLength } from '../lib/format';
 import { formatDistance, formatDuration } from '../lib/travelTime';
+import { transitStepsText } from '../lib/transitText';
+import { legsUseGoogle, normalizeLegs } from '../lib/legs';
 import SourceAttribution from '../providers/SourceAttribution';
 
 // 스냅샷(설계 §3) 하나를 읽기 전용으로 그린다.
@@ -22,18 +24,15 @@ function asArray(value) {
 // 그대로 보여 주면 안 된다(설계 §3 codex-10). 공유 스냅샷은 서버가 같은 시점에 만든 것이라
 // 보통 일치하지만, 게시글처럼 과거에 굳은 스냅샷은 어긋날 수 있다.
 function legsFor(day) {
-  const legs = day?.legs;
-  if (!legs || typeof legs !== 'object') return { items: [], stale: false };
-  const items = asArray(legs.items);
-  const places = asArray(day.places);
-  // items 는 핀 사이 구간이라 핀 수보다 하나 적다. 개수가 안 맞으면 신뢰하지 않는다.
-  const stale = items.length > 0 && items.length !== Math.max(places.length - 1, 0);
-  return { items, stale };
+  // 서버 스냅샷은 legs 가 items 배열, 로컬 스냅샷은 {v, items} 봉투 — 둘 다 받는다. 개수·연속성이 안 맞으면 stale(2026-09-06 lib/legs).
+  return normalizeLegs(day?.legs, asArray(day?.places).length);
 }
 
 function PlaceRow({ place, leg, legStale, currency }) {
   const cost = Number(place?.cost);
   const stay = Number(place?.stay_min);
+  // 대중교통 요약. 역 이름 안의 '→' 와 겹치지 않게 단계는 ' · ' 로 잇는다(agy 9/6)
+  const stepText = leg && !legStale ? transitStepsText(leg.steps).join(' · ') : '';
   return (
     <li className="border-t border-hairline first:border-t-0">
       <div className="flex gap-3 py-3">
@@ -65,13 +64,16 @@ function PlaceRow({ place, leg, legStale, currency }) {
         </div>
       </div>
       {leg && (
-        <p className="pb-3 pl-9 text-xs text-muted">
-          {legStale
-            ? '이동시간 재계산 필요'
-            : `${MODE_LABEL[leg.mode] || '이동'} ${formatDuration(leg.duration_s)}${
-                Number(leg.distance_m) > 0 ? ` · ${formatDistance(leg.distance_m)}` : ''
-              }${leg.source === 'estimate' ? ' (예상)' : ''}`}
-        </p>
+        <div className="pb-3 pl-9 text-xs text-muted">
+          <p>
+            {legStale
+              ? '이동시간 재계산 필요'
+              : `${MODE_LABEL[leg.mode] || '이동'} ${formatDuration(leg.duration_s)}${
+                  Number(leg.distance_m) > 0 ? ` · ${formatDistance(leg.distance_m)}` : ''
+                }${leg.source === 'estimate' ? ' (예상)' : ''}`}
+          </p>
+          {stepText && <p className="mt-0.5 break-words">{stepText}</p>}
+        </div>
       )}
     </li>
   );
@@ -113,6 +115,8 @@ export default function SnapshotView({ snapshot, headerExtra = null }) {
   const unassigned = asArray(snapshot?.unassigned);
   // 출처 표기(구글 로고·ODbL). 지도가 없는 화면이라 구글 장소가 하나라도 있으면 로고가 정책상 필수다.
   const providers = [...days.flatMap((d) => asArray(d?.places)), ...unassigned].map((p) => p?.provider);
+  // 수동 핀 사이라도 구글이 준 경로(이동시간·대중교통 요약)가 있으면 지도 없는 화면에도 구글 출처를 적는다(Routes 정책, codex 9/6)
+  if (days.some((d) => legsUseGoogle(d?.legs))) providers.push('google');
   const currency = snapshot?.currency || 'KRW';
   const summary = snapshot?.summary || {};
   const costTotal = Number(summary.cost_total);
