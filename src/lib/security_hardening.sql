@@ -1248,8 +1248,8 @@ CREATE TABLE IF NOT EXISTS public.flight_post_comments (
 );
 CREATE INDEX IF NOT EXISTS idx_flight_post_comments_post ON public.flight_post_comments (post_id, created_at);
 
--- 이용 자격: 그 편에 내 스케줄 등록 + 회원유형 일치 + 미차단 + 만 19세 이상
--- ★ 2026-09-06 익명 게시판 개편(flight_board_anon_20260906.sql): 공개(is_public) 조건 삭제 — 등록하면 자동 참여.
+-- 이용 자격: 그 편에 내 스케줄 등록 + "게시판 참여" 스위치 켬 + 열린 기간(출발 14일 전~출발일) + 회원유형 일치 + 미차단 + 만 19세 이상
+-- ★ 2026-09-06 익명 게시판 개편(flight_board_anon_20260906.sql): is_public 폐기, board_joined 스위치로 선택 참여.
 --   회원유형은 본인 스케줄 행의 user_type 으로 판정한다(flight_board_member_type).
 CREATE OR REPLACE FUNCTION public.flight_board_member_type(p_user uuid, p_flight text, p_date date)
 RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_temp AS $$
@@ -1259,11 +1259,13 @@ RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_t
     JOIN public.profiles_private pp ON pp.user_id = fs.user_id
    WHERE p_user IS NOT NULL AND fs.user_id = p_user
      AND fs.flight_number = p_flight AND fs.flight_date = p_date
+     AND COALESCE(fs.board_joined, FALSE) = TRUE
+     AND public.flight_board_writable(p_date)
      AND fs.user_type IN ('passenger','crew')
      AND COALESCE(pr.is_banned, FALSE) = FALSE
      AND pp.birthdate IS NOT NULL
-     AND pp.birthdate <= (CURRENT_DATE - INTERVAL '19 years')
-   ORDER BY fs.created_at
+     AND pp.birthdate <= (((now() AT TIME ZONE 'Asia/Seoul')::date) - INTERVAL '19 years')   -- 만 19세 판정도 KST
+   ORDER BY fs.created_at DESC, fs.id
    LIMIT 1;
 $$;
 REVOKE ALL ON FUNCTION public.flight_board_member_type(uuid, text, date) FROM PUBLIC, anon, authenticated;
@@ -1277,7 +1279,8 @@ GRANT EXECUTE ON FUNCTION public.can_use_flight_board(TEXT,DATE,TEXT) TO authent
 -- ★ 2026-09-06 개편: 출발 14일 전~출발일(KST), STABLE(security_20260905.sql 정정) — 본체는 flight_board_anon_20260906.sql
 CREATE OR REPLACE FUNCTION public.flight_board_writable(p_date DATE)
 RETURNS BOOLEAN LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
-  SELECT ((now() AT TIME ZONE 'Asia/Seoul')::date) >= (p_date - 14)
+  SELECT p_date IS NOT NULL
+     AND ((now() AT TIME ZONE 'Asia/Seoul')::date) >= (p_date - 14)
      AND ((now() AT TIME ZONE 'Asia/Seoul')::date) <= p_date;
 $$;
 GRANT EXECUTE ON FUNCTION public.flight_board_writable(DATE) TO authenticated;

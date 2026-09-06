@@ -167,15 +167,30 @@ CREATE OR REPLACE FUNCTION public.trg_notify_same_flight() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE r record;
 BEGIN
-  IF NOT COALESCE(NEW.board_joined, FALSE) THEN RETURN NEW; END IF;
-  IF TG_OP = 'UPDATE' AND COALESCE(OLD.board_joined, FALSE) THEN RETURN NEW; END IF;
+  IF NOT COALESCE(NEW.board_joined, FALSE) OR NEW.user_type NOT IN ('passenger','crew') THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND COALESCE(OLD.board_joined, FALSE)
+     AND OLD.flight_number IS NOT DISTINCT FROM NEW.flight_number AND OLD.flight_date IS NOT DISTINCT FROM NEW.flight_date THEN
+    RETURN NEW;
+  END IF;
+  IF NOT public.flight_board_writable(NEW.flight_date) THEN RETURN NEW; END IF;
   FOR r IN
-    SELECT DISTINCT fs.user_id FROM public.flight_schedules fs
+    SELECT fs.user_id
+      FROM public.flight_schedules fs
+      JOIN public.profiles pr ON pr.id = fs.user_id
      WHERE fs.flight_number = NEW.flight_number AND fs.flight_date = NEW.flight_date
        AND fs.user_type = NEW.user_type AND fs.user_id <> NEW.user_id
        AND COALESCE(fs.board_joined, FALSE) = TRUE
+       AND COALESCE(pr.is_banned, FALSE) = FALSE
+       AND NOT EXISTS (SELECT 1 FROM public.flight_board_join_notices jn
+                        WHERE jn.schedule_id = NEW.id AND jn.flight_number = NEW.flight_number
+                          AND jn.flight_date = NEW.flight_date AND jn.receiver_id = fs.user_id)
+     GROUP BY fs.user_id
+     ORDER BY MIN(fs.created_at)
      LIMIT 50
   LOOP
+    INSERT INTO public.flight_board_join_notices (schedule_id, flight_number, flight_date, receiver_id)
+    VALUES (NEW.id, NEW.flight_number, NEW.flight_date, r.user_id)
+    ON CONFLICT DO NOTHING;
     PERFORM public.notify_user(r.user_id, 'flight', 'flight',
       CASE WHEN NEW.user_type = 'crew' THEN '같은 듀티 게시판에 승무원이 새로 들어왔습니다 (' ELSE '같은 편 게시판에 탑승객이 새로 들어왔습니다 (' END
         || NEW.flight_number || ')',
@@ -188,7 +203,8 @@ EXCEPTION WHEN OTHERS THEN
 END; $$;
 REVOKE ALL ON FUNCTION public.trg_notify_same_flight() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_same_flight ON public.flight_schedules;
-CREATE TRIGGER trg_notify_same_flight AFTER INSERT OR UPDATE OF board_joined ON public.flight_schedules FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
+CREATE TRIGGER trg_notify_same_flight AFTER INSERT OR UPDATE OF board_joined, flight_number, flight_date ON public.flight_schedules
+  FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
 
 -- 4-6 내가 글 올린 지역의 새 동행 글(최근 90일)
 CREATE OR REPLACE FUNCTION public.trg_notify_companion_region() RETURNS trigger

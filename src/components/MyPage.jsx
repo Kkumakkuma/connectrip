@@ -11,6 +11,7 @@ import KeywordSettings from './KeywordSettings';
 import CrewVerification from './CrewVerification';
 import CommendationMatching from './CommendationMatching';
 import FlightCompanions from './FlightCompanions';
+import { kstDateString } from '../lib/flightBoard';
 import BlockedUsers from './BlockedUsers';
 import SEOHead from './SEOHead';
 import { useAuth } from '../lib/AuthContext';
@@ -213,19 +214,20 @@ const MyPage = () => {
         setActiveTab('companions');
     };
 
-    // "게시판 참여" 스위치: 켜면 그 편 게시판에 들어가고(익명 번호 배정), 끄면 나온다
-    const [boardBusyId, setBoardBusyId] = useState(null);
+    // "게시판 참여" 스위치: 켜면 그 편 게시판에 들어가고(익명 번호 배정), 끄면 나온다.
+    // 서버가 돌려준 행으로 그 줄만 바꾼다(전체 재조회를 하면 목록이 로딩 화면으로 바뀌어 초점이 사라진다).
+    const [boardBusyIds, setBoardBusyIds] = useState(() => new Set());
     const handleToggleBoard = async (flight) => {
-        if (boardBusyId) return;
-        setBoardBusyId(flight.id);
+        if (boardBusyIds.has(flight.id)) return;
+        setBoardBusyIds((prev) => new Set(prev).add(flight.id));
         try {
-            await flightApi.setBoardJoined(flight.id, !flight.board_joined);
-            await fetchFlights();
+            const row = await flightApi.setBoardJoined(flight.id, !flight.board_joined);
+            setMyFlights((prev) => prev.map((f) => (f.id === flight.id ? { ...f, ...row } : f)));
         } catch (err) {
             console.error('게시판 참여 변경 실패:', err);
             alert('게시판 참여 설정을 바꾸지 못했습니다. 다시 시도해 주세요.');
         } finally {
-            setBoardBusyId(null);
+            setBoardBusyIds((prev) => { const next = new Set(prev); next.delete(flight.id); return next; });
         }
     };
 
@@ -969,19 +971,22 @@ const MyPage = () => {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                {String(flight.flight_date).slice(0, 10) < kstDateString() ? (
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: '600', color: '#9ca3af' }}>게시판 닫힘</span>
+                                                ) : (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     <button
                                                         type="button"
                                                         role="switch"
                                                         aria-checked={!!flight.board_joined}
-                                                        aria-label="같은 편 게시판 참여"
-                                                        disabled={boardBusyId === flight.id}
+                                                        aria-label={`같은 편 게시판 참여 ${flight.flight_number} ${flight.flight_date}`}
+                                                        disabled={boardBusyIds.has(flight.id)}
                                                         onClick={() => handleToggleBoard(flight)}
                                                         style={{
                                                             position: 'relative', display: 'inline-flex', height: '24px', width: '44px',
                                                             alignItems: 'center', borderRadius: '12px', border: 'none',
                                                             background: flight.board_joined ? '#22c55e' : '#d1d5db',
-                                                            cursor: boardBusyId === flight.id ? 'wait' : 'pointer', transition: 'background 0.2s', padding: 0
+                                                            cursor: boardBusyIds.has(flight.id) ? 'wait' : 'pointer', transition: 'background 0.2s', padding: 0
                                                         }}
                                                         title={flight.board_joined ? '끄면 게시판에서 나갑니다' : '켜면 같은 편 게시판에 들어갑니다'}
                                                     >
@@ -994,7 +999,8 @@ const MyPage = () => {
                                                         게시판 참여
                                                     </span>
                                                 </div>
-                                                {flight.board_joined && (
+                                                )}
+                                                {flight.board_joined && String(flight.flight_date).slice(0, 10) >= kstDateString() && (
                                                     <button
                                                         type="button"
                                                         onClick={() => openBoard(flight.id)}

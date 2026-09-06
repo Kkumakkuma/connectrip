@@ -347,7 +347,7 @@ ALTER TABLE public.account_deletion_archive ENABLE ROW LEVEL SECURITY;
 --   CASCADE 파기(자식): companion_posts/market_listings/qna_posts/qna_comments/crew_posts/reviews/
 --                destinations/flight_schedules/user_keywords/notifications/point_transactions/post_likes/
 --                profiles_private(=생년월일).
---                flight_board_aliases/flight_board_mutes(익명 게시판 번호·숨김, 2026-09-06 추가 — FK ON DELETE CASCADE).
+--                flight_board_aliases/flight_board_mutes/flight_board_join_notices(익명 게시판 번호·숨김·참여 알림 기록, 2026-09-06 추가 — FK ON DELETE CASCADE).
 --   ON DELETE SET NULL(익명화): reports.reporter_id/reported_user_id,
 --                messages.sender_id/receiver_id, commendation_matches.crew_user_id/passenger_user_id,
 --                market_listings.buyer_id.

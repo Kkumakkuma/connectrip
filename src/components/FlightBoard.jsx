@@ -48,6 +48,7 @@ const FlightBoard = ({ flight }) => {
 
     const status = boardStatus(flight.flight_date, kstDateString());
     const locked = status === 'locked';
+    const closed = status === 'closed';
     const memberType = data.member_type || flight.user_type || 'passenger';
     const writable = data.eligible && data.writable;
 
@@ -64,7 +65,7 @@ const FlightBoard = ({ flight }) => {
         }
     }, [flight.flight_number, flight.flight_date]);
 
-    useEffect(() => { if (!locked) fetchBoard(); else setLoading(false); }, [fetchBoard, locked]);
+    useEffect(() => { if (!locked && !closed) fetchBoard(); else setLoading(false); }, [fetchBoard, locked, closed]);
 
     const resetCommentForm = () => { setCommentText(''); setCommentPrivate(false); setReplyTo(null); };
 
@@ -151,11 +152,13 @@ const FlightBoard = ({ flight }) => {
         }
     };
 
-    if (locked) {
+    if (locked || closed) {
         return (
             <div className="mt-4 p-4 bg-gray-50 rounded-xl text-center">
                 <Lock size={18} className="mx-auto text-gray-300 mb-1.5" />
-                <p className="text-xs text-gray-500">출발 2주 전부터 {boardTitle(memberType)}이 열립니다.</p>
+                <p className="text-xs text-gray-500">
+                    {closed ? `출발일이 지나 ${boardTitle(memberType)}이 닫혔습니다.` : `출발 2주 전부터 ${boardTitle(memberType)}이 열립니다.`}
+                </p>
             </div>
         );
     }
