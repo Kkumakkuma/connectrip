@@ -120,6 +120,9 @@ CREATE TABLE public.qna_comments (
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   author_name TEXT,
   content TEXT NOT NULL,
+  is_private BOOLEAN NOT NULL DEFAULT FALSE,                                   -- 2026-09-06 비밀댓글
+  parent_id UUID REFERENCES public.qna_comments(id) ON DELETE SET NULL,        -- 2026-09-06 답글
+  reply_to_user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,     -- 2026-09-06 답글 대상(트리거가 채움)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -263,7 +266,9 @@ CREATE POLICY "Users can delete own qna" ON public.qna_posts FOR DELETE USING (a
 
 -- QnA comments
 ALTER TABLE public.qna_comments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Anyone can read comments" ON public.qna_comments FOR SELECT USING (true);
+-- ★ 2026-09-06 비밀댓글: SELECT 정책 "Read comments unless private" 는 판정 함수 qna_comment_visible 과 함께
+--   flight_board_anon_20260906.sql 에서 만든다(이 파일만 새 DB 에 적용하면 댓글 SELECT 정책이 없어 아무도 못 읽는다 — 후속 파일 필수).
+-- CREATE POLICY "Anyone can read comments" ON public.qna_comments FOR SELECT USING (true);   -- 폐기
 CREATE POLICY "Auth users can create comments" ON public.qna_comments FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete own comments" ON public.qna_comments FOR DELETE USING (auth.uid() = user_id);
 
@@ -289,8 +294,10 @@ CREATE POLICY "Auth users can create destinations" ON public.destinations FOR IN
 ALTER TABLE public.flight_schedules ENABLE ROW LEVEL SECURITY;
 -- ⚠ 비행 스케줄은 "누가 언제 어디 있는지"를 특정하는 정보다. USING(true) 로 두면
 --   비공개로 설정한 일정까지 비로그인 상태에서 이름과 함께 조회된다(2026-08-07 실측·수정).
-CREATE POLICY "Read own or public flights" ON public.flight_schedules FOR SELECT
-  USING (auth.uid() = user_id OR (COALESCE(is_public, FALSE) = TRUE AND auth.uid() IS NOT NULL));
+-- ★ 2026-09-06 익명 게시판 개편: 명단 차단 — 스케줄은 본인만 읽는다(정책 본체는 flight_board_anon_20260906.sql).
+-- CREATE POLICY "Read own or public flights" ON public.flight_schedules FOR SELECT
+--   USING (auth.uid() = user_id OR (COALESCE(is_public, FALSE) = TRUE AND auth.uid() IS NOT NULL));   -- 폐기
+CREATE POLICY "Read own flights" ON public.flight_schedules FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can create own flights" ON public.flight_schedules FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own flights" ON public.flight_schedules FOR UPDATE USING (auth.uid() = user_id);
 

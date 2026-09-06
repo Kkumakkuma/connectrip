@@ -6,7 +6,7 @@ import { POINT_PACKAGES } from '../lib/products';
 import { PAYMENTS_ENABLED } from '../lib/featureFlags';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Eye, EyeOff, Trash2, Settings, Gift, Copy, Share2, UserX } from 'lucide-react';
+import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Trash2, Settings, Gift, Copy, Share2, UserX, MessageSquare } from 'lucide-react';
 import KeywordSettings from './KeywordSettings';
 import CrewVerification from './CrewVerification';
 import CommendationMatching from './CommendationMatching';
@@ -67,7 +67,7 @@ const MyPage = () => {
     // Flight registration state
     const [flightDate, setFlightDate] = useState('');
     const [flightNumber, setFlightNumber] = useState('');
-    const [isPublic, setIsPublic] = useState(false);
+    const [boardFocus, setBoardFocus] = useState(null); // { id, at } — 스케줄 목록의 '게시판' 버튼 → 같은 편 게시판 탭
     const [registering, setRegistering] = useState(false);
     const [myFlights, setMyFlights] = useState([]);
     const [flightsLoading, setFlightsLoading] = useState(true);
@@ -194,11 +194,9 @@ const MyPage = () => {
                 flight_number: flightNumber.toUpperCase(),
                 flight_date: flightDate,
                 user_type: isCrew ? 'crew' : 'passenger',
-                is_public: isPublic,
             });
             setFlightDate('');
             setFlightNumber('');
-            setIsPublic(false);
             await fetchFlights();
             alert('비행 스케줄이 등록되었습니다.');
         } catch (err) {
@@ -209,19 +207,15 @@ const MyPage = () => {
         }
     };
 
-    // Toggle flight visibility
-    const handleToggleVisibility = async (flightId, currentPublic) => {
-        try {
-            await flightApi.toggleVisibility(flightId, !currentPublic);
-            await fetchFlights();
-        } catch (err) {
-            console.error('공개 설정 변경 실패:', err);
-        }
+    // 스케줄 목록의 "게시판" 버튼: 같은 편 게시판 탭으로 옮기고 그 편을 펼친다
+    const openBoard = (flightId) => {
+        setBoardFocus({ id: flightId, at: Date.now() });
+        setActiveTab('companions');
     };
 
     // Delete flight + 연관된 칭찬매칭/동행 데이터도 삭제
     const handleDeleteFlight = async (flightId) => {
-        if (!window.confirm('이 스케줄을 삭제하시겠습니까?\n관련 칭찬매칭 및 동행 데이터도 함께 삭제됩니다.')) return;
+        if (!window.confirm('이 스케줄을 삭제하시겠습니까?\n관련 칭찬매칭은 취소되고 그 편 게시판에는 더 들어갈 수 없습니다.')) return;
         try {
             // 해당 항공편 정보 가져오기
             const flight = myFlights.find(f => f.id === flightId);
@@ -508,7 +502,7 @@ const MyPage = () => {
 
     const tabs = [
         { id: 'commendation', label: '칭찬매칭', icon: Heart },
-        { id: 'companions', label: isCrew ? '듀티 동행' : '같은편 동행', icon: Users },
+        { id: 'companions', label: isCrew ? '듀티 게시판' : '같은 편 게시판', icon: Users },
         { id: 'keywords', label: '키워드 알림', icon: Bell },
         { id: 'blocks', label: '차단 목록', icon: UserX },
     ];
@@ -959,40 +953,20 @@ const MyPage = () => {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleToggleVisibility(flight.id, flight.is_public)}
-                                                        style={{
-                                                            position: 'relative',
-                                                            display: 'inline-flex',
-                                                            height: '24px',
-                                                            width: '44px',
-                                                            alignItems: 'center',
-                                                            borderRadius: '12px',
-                                                            border: 'none',
-                                                            background: flight.is_public ? '#22c55e' : '#d1d5db',
-                                                            cursor: 'pointer',
-                                                            transition: 'background 0.2s',
-                                                            padding: 0
-                                                        }}
-                                                        title={flight.is_public ? '클릭하면 비공개' : '클릭하면 공개'}
-                                                    >
-                                                        <span style={{
-                                                            display: 'inline-block',
-                                                            height: '16px',
-                                                            width: '16px',
-                                                            borderRadius: '50%',
-                                                            background: 'white',
-                                                            transition: 'transform 0.2s',
-                                                            transform: flight.is_public ? 'translateX(24px)' : 'translateX(4px)'
-                                                        }} />
-                                                    </button>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: '600', color: flight.is_public ? '#16a34a' : '#9ca3af', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                        {flight.is_public ? <Eye size={12} /> : <EyeOff size={12} />}
-                                                        {flight.is_public ? '공개' : '비공개'}
-                                                    </span>
-                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openBoard(flight.id)}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                        padding: '4px 10px', borderRadius: '8px', border: 'none',
+                                                        fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
+                                                        background: '#ecfdf5', color: '#059669', transition: 'all 0.2s'
+                                                    }}
+                                                    title="같은 편 게시판 열기"
+                                                >
+                                                    <MessageSquare size={12} />
+                                                    게시판
+                                                </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditingFlight({ id: flight.id, flight_number: flight.flight_number, flight_date: flight.flight_date })}
@@ -1046,7 +1020,7 @@ const MyPage = () => {
                                 return (
                                     <button
                                         key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
+                                        onClick={() => { setActiveTab(tab.id); setBoardFocus(null); }}
                                         style={{
                                             flex: 1,
                                             padding: '0.75rem 0.5rem',
@@ -1079,7 +1053,7 @@ const MyPage = () => {
                             background: 'white'
                         }}>
                             {activeTab === 'commendation' && <CommendationMatching flights={myFlights} onFlightsChange={fetchFlights} />}
-                            {activeTab === 'companions' && <FlightCompanions flights={myFlights} onFlightsChange={fetchFlights} />}
+                            {activeTab === 'companions' && <FlightCompanions flights={myFlights} focus={boardFocus} />}
                             {activeTab === 'keywords' && <KeywordSettings />}
                             {activeTab === 'blocks' && <BlockedUsers />}
                         </div>
@@ -1269,7 +1243,7 @@ const MyPage = () => {
                                     <li>보유 포인트·매칭신청권(환급되지 않습니다)</li>
                                 </ul>
                                 <p className="text-gray-500">
-                                    다만 다른 이용자와 주고받은 <strong>쪽지·칭찬매칭 기록</strong>은 상대방의 이용기록 보호를 위해
+                                    다만 다른 이용자와 주고받은 <strong>게시판 댓글·칭찬매칭 기록</strong>은 상대방의 이용기록 보호를 위해
                                     삭제하지 않고, 회원님을 식별할 수 없도록 익명 처리(‘탈퇴한 사용자’로 표시)합니다.
                                 </p>
                                 <p className="text-gray-500">

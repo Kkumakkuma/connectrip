@@ -3,14 +3,8 @@ import { Flag, X, CheckCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 import { reportApi } from '../lib/db';
+import { REPORT_REASONS } from '../lib/reportReasons';
 
-const REPORT_REASONS = [
-  '스팸',
-  '부적절한 콘텐츠',
-  '사기/허위',
-  '개인정보 노출',
-  '기타',
-];
 
 const ReportButton = ({ postId, boardType, reportedUserId }) => {
   const { user, isLoggedIn } = useAuth();

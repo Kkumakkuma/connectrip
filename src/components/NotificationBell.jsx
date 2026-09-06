@@ -17,11 +17,11 @@ const timeAgo = (dateStr) => {
   return date.toLocaleDateString('ko-KR');
 };
 
-// 설정 화면의 토글 5개. 쪽지는 스위치가 없다(항상 알림).
+// 설정 화면의 토글 5개.
 const PREF_ROWS = [
   { key: 'comments', label: '댓글·답변' },
   { key: 'commendation', label: '칭찬매칭' },
-  { key: 'flight', label: '같은 편 동행' },
+  { key: 'flight', label: '같은 편 게시판', desc: '내 항공편 게시판에 새로 등록한 사람' },
   { key: 'companion', label: '동행 모집', desc: '내가 글을 올린 지역의 새 동행 글' },
   { key: 'keywords', label: '키워드 알림', desc: '등록한 키워드가 포함된 새 글' },
 ];
@@ -381,8 +381,6 @@ const NotificationBell = () => {
                       {prefsError && (
                         <p className="text-xs text-red-500 pt-2">{prefsError}</p>
                       )}
-
-                      <p className="text-xs text-gray-400 pt-3">쪽지는 항상 알립니다.</p>
 
                       <div className="pt-2 pb-3">
                         <button

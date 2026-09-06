@@ -1,264 +1,79 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Users, Plane, Calendar, Send, MessageCircle, X, ChevronDown, ChevronUp, Inbox, Eye, EyeOff
-} from 'lucide-react';
+import { Users, Plane, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { flightApi, flightCompanionsApi, messagesApi, userBlockApi } from '../lib/db';
-import ReportButton from './ReportButton';
 import FlightBoard from './FlightBoard';
+import { kstDateString, dayDiff, boardFlights, boardStatus } from '../lib/flightBoard';
 
-// flight_date 는 'YYYY-MM-DD' 문자열이다. new Date(문자열) 은 UTC 자정으로 파싱되므로
-// 현재 시각과 직접 비교하면 비행 당일 09:00 KST 를 넘긴 항공편이 과거로 취급돼 목록에서 사라진다.
-// KST 기준 날짜 문자열끼리 비교해 당일까지 포함시킨다.
-const kstDateString = (offsetDays = 0) =>
-  new Date(Date.now() + 9 * 60 * 60 * 1000 + offsetDays * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-
-const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
-  const { user, isLoggedIn, isCrew } = useAuth();
-
-  const [myFlights, setMyFlights] = useState([]);
-  const [companions, setCompanions] = useState({});
-  const [loading, setLoading] = useState(true);
+// 내가 등록한 항공편마다 붙는 "같은 편 게시판" 목록. (2026-09-06 개편)
+// 같은 편 탑승자 명단은 개인정보라 누구에게도 보이지 않고, 쪽지도 없다.
+// 게시판 안에서는 서버가 배정한 익명 번호로만 글·댓글을 쓴다. 출발 3주 전부터 출발일까지 쓸 수 있고, 지난 편은 30일 동안 읽기 전용으로 남는다.
+// focus = { id, at } : 마이페이지 스케줄 목록의 "게시판" 버튼이 넘겨 주면 그 편을 펼치고 화면을 옮긴다.
+const FlightCompanions = ({ flights = [], focus = null }) => {
+  const { isLoggedIn, isCrew } = useAuth();
   const [expandedFlight, setExpandedFlight] = useState(null);
-
-  // Messaging
-  const [showMessageModal, setShowMessageModal] = useState(null); // { receiverId, receiverName, flightNumber }
-  const [messageContent, setMessageContent] = useState('');
-  const [sending, setSending] = useState(false);
-
-  // Inbox
-  const [showInbox, setShowInbox] = useState(false);
-  const [myMessages, setMyMessages] = useState([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [replyTo, setReplyTo] = useState(null); // { senderId, senderName }
-  const [replyContent, setReplyContent] = useState('');
-
-  // 쪽지 알림 딥링크(?inbox=1) 자동 열기 — 처리한 진입 기록
-  const location = useLocation();
-  const inboxAutoOpenedRef = useRef('');
-
-  const fetchData = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      // Use flights from props, filter within 21 days (KST 날짜 문자열 비교 — 당일 포함)
-      const today = kstDateString();
-      const cutoff = kstDateString(21);
-      const upcomingFlights = (propFlights || []).filter((f) => {
-        const fDate = String(f.flight_date || '').slice(0, 10);
-        return fDate >= today && fDate <= cutoff;
-      });
-      setMyFlights(upcomingFlights);
-
-      // 예전에는 항공편 수만큼 조회를 직렬로 돌렸다(N+1). 등록 항공편이 10개면 왕복 10번.
-      // 편명·날짜를 묶어 한 번에 받고 클라이언트에서 나눈다.
-      const companionData = {};
-      upcomingFlights.forEach((f) => {
-        companionData[`${f.flight_number}_${f.flight_date}`] = [];
-      });
-      // 비공개 항공편은 애초에 동행을 보여주지 않으므로 조회 대상에서 뺀다
-      const publicFlights = upcomingFlights.filter((f) => f.is_public);
-      if (publicFlights.length > 0) {
-        try {
-          const grouped = await flightCompanionsApi.getCompanionsForFlights(publicFlights, user.id);
-          Object.keys(grouped).forEach((key) => {
-            companionData[key] = grouped[key] || [];
-          });
-        } catch {
-          // 동행 목록은 보조 정보라 실패해도 내 항공편 목록은 그대로 보여준다
-        }
-      }
-      setCompanions(companionData);
-    } catch (err) {
-      console.error('동행 데이터 로드 실패:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, propFlights]);
-
-  useEffect(() => {
-    if (isLoggedIn) fetchData();
-  }, [isLoggedIn, fetchData]);
-
-  const fetchMessages = useCallback(async () => {
-    if (!user) return;
-    setLoadingMessages(true);
-    try {
-      const msgs = await messagesApi.getMyMessages(user.id);
-      // 차단한 상대의 쪽지는 목록에서 감춘다(서버는 새 발송을 이미 막지만, 이전 쪽지는 남아 있다)
-      let blocked = [];
-      try { blocked = await userBlockApi.getMyBlockedIds(); } catch { /* 조회 실패 시 필터 없이 표시 */ }
-      const hidden = new Set(blocked);
-      setMyMessages((msgs || []).filter((m) => !hidden.has(m.sender_id) && !hidden.has(m.receiver_id)));
-    } catch (err) {
-      console.error('쪽지 로드 실패:', err);
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, [user]);
-
-  const handleBlockUser = async (userId, displayName) => {
-    if (!userId) return;
-    if (!window.confirm(`${displayName || '이 사용자'}님을 차단할까요?\n서로 쪽지를 주고받을 수 없고, 이 사람의 글과 쪽지가 보이지 않습니다.\n(마이페이지에서 해제할 수 있습니다)`)) return;
-    try {
-      await userBlockApi.block(userId);
-      await fetchMessages();
-      alert('차단했습니다.');
-    } catch (err) {
-      console.error('차단 실패:', err);
-      alert('차단에 실패했습니다. 다시 시도해주세요.');
-    }
-  };
-
-  const handleOpenInbox = async () => {
-    setShowInbox(true);
-    await fetchMessages();
-  };
-
-  // 쪽지 알림 링크(/mypage?tab=companions&inbox=1)로 들어오면 받은편지함을 바로 연다.
-  // 같은 진입에서 두 번 열지 않도록 처리한 location 을 기억해 둔다.
-  useEffect(() => {
-    if (!user) return;
-    if (new URLSearchParams(location.search).get('inbox') !== '1') return;
-    // 계정 전환(A→B) 후에도 같은 URL 이면 B 에게 다시 열어줘야 하므로 사용자까지 키에 넣는다
-    const entry = `${user.id}|${location.key || ''}|${location.search}`;
-    if (inboxAutoOpenedRef.current === entry) return;
-    inboxAutoOpenedRef.current = entry;
-    setShowInbox(true);
-    fetchMessages();
-  }, [location, user, fetchMessages]);
-
-  const handleSendMessage = async () => {
-    if (!showMessageModal || !messageContent.trim()) return;
-    setSending(true);
-    try {
-      await messagesApi.send(
-        user.id,
-        showMessageModal.receiverId,
-        messageContent.trim(),
-        showMessageModal.flightNumber
-      );
-      setShowMessageModal(null);
-      setMessageContent('');
-      alert('쪽지가 전송되었습니다!');
-    } catch (err) {
-      console.error('쪽지 전송 실패:', err);
-      // 차단 관계면 서버 정책이 거부한다(42501). 누가 차단했는지는 알리지 않는다.
-      alert(err?.code === '42501'
-        ? '이 상대에게는 쪽지를 보낼 수 없습니다.'
-        : '쪽지 전송에 실패했습니다.');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleSendReply = async () => {
-    if (!replyTo || !replyContent.trim()) return;
-    setSending(true);
-    try {
-      await messagesApi.send(user.id, replyTo.senderId, replyContent.trim());
-      setReplyTo(null);
-      setReplyContent('');
-      await fetchMessages();
-      alert('답장이 전송되었습니다!');
-    } catch (err) {
-      console.error('답장 실패:', err);
-      alert(err?.code === '42501'
-        ? '이 상대에게는 쪽지를 보낼 수 없습니다.'
-        : '답장 전송에 실패했습니다.');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const getCompanionKey = (flight) => `${flight.flight_number}_${flight.flight_date}`;
+  const [consumedFocus, setConsumedFocus] = useState(null); // 사용자가 직접 접었다 편 뒤에는 focus 를 더 따르지 않는다
+  const rootRef = useRef(null);
 
   const todayKst = kstDateString();
+  const myFlights = boardFlights(flights, todayKst);
+  const expanded = focus?.id && focus !== consumedFocus ? focus.id : expandedFlight;
+  const toggle = (id) => {
+    setConsumedFocus(focus);
+    setExpandedFlight(expanded === id ? null : id);
+  };
 
-  const unreadCount = myMessages.filter(
-    (m) => m.receiver_id === user?.id && !m.read_at
-  ).length;
+  useEffect(() => {
+    if (focus?.id) rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focus]);
 
   if (!isLoggedIn) {
     return (
       <div className="text-center py-12 text-gray-500">
         <Users size={48} className="mx-auto mb-4 opacity-40" />
         <p className="text-lg font-semibold">로그인이 필요합니다</p>
-        <p className="text-sm mt-1">동행 서비스를 이용하려면 로그인해주세요.</p>
+        <p className="text-sm mt-1">같은 편 게시판을 이용하려면 로그인해 주세요.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl text-white">
-            <Users size={24} />
-          </div>
-          <div>
-            <h4 className="text-xl font-extrabold text-gray-800">{isCrew ? '듀티 동행' : '같은편 동행'}</h4>
-            <p className="text-sm text-gray-500">{isCrew ? '같은 듀티 승무원과 소통하세요' : '같은 비행편 탑승객과 소통하세요'}</p>
-          </div>
+    <div ref={rootRef} className="space-y-6 scroll-mt-24">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 bg-gradient-to-br from-green-500 to-teal-500 rounded-xl text-white">
+          <Users size={24} />
         </div>
-        <button
-          onClick={handleOpenInbox}
-          className="relative flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-bold text-sm transition-colors whitespace-nowrap shrink-0"
-        >
-          <Inbox size={18} />
-          받은 쪽지
-          {unreadCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-              {unreadCount}
-            </span>
-          )}
-        </button>
+        <div>
+          <h4 className="text-xl font-extrabold text-gray-800">{isCrew ? '듀티 게시판' : '같은 편 게시판'}</h4>
+          <p className="text-sm text-gray-500">{isCrew ? '같은 듀티 승무원끼리 익명으로 이야기하는 곳' : '같은 비행기를 타는 사람끼리 익명으로 이야기하는 곳'}</p>
+        </div>
       </div>
 
-      {/* Info */}
       <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-2xl p-4 border border-green-100">
-        <p className="text-xs text-gray-600">
-          {isCrew
-            ? <>출발일 <strong>3주(21일) 전</strong>부터 같은 듀티 승무원 목록이 표시됩니다. 레이오버 투어 모집, 맛집 공유, 동행 계획 등을 쪽지로 나눠보세요!</>
-            : <>출발일 <strong>3주(21일) 전</strong>부터 같은 항공편 탑승객 목록이 표시됩니다. 택시 공유, 숙소, 동행 여행 등을 위해 쪽지를 보내보세요!</>
-          }
+        <p className="text-xs text-gray-600 leading-relaxed">
+          비행 스케줄을 등록하면 그 편의 게시판이 자동으로 생깁니다. 이름은 누구에게도 보이지 않고, 각자 <strong>익명 번호</strong>로 글과 댓글을 씁니다.
+          출발 <strong>3주 전</strong>부터 출발일까지 쓸 수 있습니다. 연락처처럼 남에게 보이면 안 되는 내용은 <strong>비밀댓글</strong>로 남겨 주세요.
         </p>
       </div>
 
-      {/* Upcoming Flights with Companions */}
-      {loading ? (
-        <div className="text-center py-8">
-          <div className="animate-spin w-8 h-8 border-3 border-green-500 border-t-transparent rounded-full mx-auto" />
-          <p className="text-sm text-gray-400 mt-3">로딩 중...</p>
-        </div>
-      ) : myFlights.length === 0 ? (
+      {myFlights.length === 0 ? (
         <div className="text-center py-10 text-gray-400">
           <Plane size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-semibold">3주 이내 출발 스케줄이 없습니다</p>
-          <p className="text-sm mt-1">{isCrew ? '비행 스케줄을 등록하면 같은 듀티 승무원을 확인할 수 있습니다.' : '비행 스케줄을 등록하면 같은편 탑승객을 확인할 수 있습니다.'}</p>
+          <p className="font-semibold">등록된 항공편이 없습니다</p>
+          <p className="text-sm mt-1">위에서 비행 스케줄을 등록하면 그 편의 게시판이 여기에 생깁니다.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {myFlights.map((flight) => {
-            const key = getCompanionKey(flight);
-            const flightCompanions = companions[key] || [];
-            const isExpanded = expandedFlight === flight.id;
-            // 두 날짜 모두 KST 기준 'YYYY-MM-DD' 라 같은 방식(UTC 자정)으로 파싱해야 오차가 없다
-            const daysUntil = Math.round(
-              (Date.parse(`${String(flight.flight_date).slice(0, 10)}T00:00:00Z`) - Date.parse(`${todayKst}T00:00:00Z`))
-              / (1000 * 60 * 60 * 24)
-            );
-
+            const isExpanded = expanded === flight.id;
+            const daysUntil = dayDiff(flight.flight_date, todayKst);
+            const status = boardStatus(flight.flight_date, todayKst);
             return (
               <div key={flight.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <button
-                  onClick={() => setExpandedFlight(isExpanded ? null : flight.id)}
+                  onClick={() => toggle(flight.id)}
                   className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  aria-expanded={isExpanded}
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-green-50 rounded-lg">
@@ -270,47 +85,19 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                         <span className="text-sm text-gray-500">{flight.flight_date}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-green-600 font-semibold">
-                          D-{daysUntil}
+                        <span className={`text-xs font-semibold ${status === 'closed' ? 'text-gray-400' : 'text-green-600'}`}>
+                          {daysUntil === 0 ? '오늘 출발' : daysUntil > 0 ? `D-${daysUntil}` : '지난 항공편'}
                         </span>
+                        {status === 'locked' && (
+                          <span className="text-[11px] text-gray-400 flex items-center gap-1"><Lock size={10} />출발 3주 전에 열림</span>
+                        )}
+                        {status === 'closed' && (
+                          <span className="text-[11px] text-gray-400">읽기 전용</span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            await flightApi.toggleVisibility(flight.id, !flight.is_public);
-                            if (onFlightsChange) await onFlightsChange();
-                            await fetchData();
-                          } catch (err) {
-                            console.error('공개 설정 변경 실패:', err);
-                          }
-                        }}
-                        className="relative inline-flex h-6 w-11 items-center rounded-full border-none cursor-pointer transition-colors duration-200"
-                        style={{ background: flight.is_public ? '#22c55e' : '#d1d5db', padding: 0 }}
-                        title={flight.is_public ? '클릭하면 비공개' : '클릭하면 공개'}
-                      >
-                        <span
-                          className="inline-block h-4 w-4 rounded-full bg-white transition-transform duration-200"
-                          style={{ transform: flight.is_public ? 'translateX(24px)' : 'translateX(4px)' }}
-                        />
-                      </button>
-                      <span className={`text-xs font-semibold flex items-center gap-1 ${flight.is_public ? 'text-green-600' : 'text-gray-400'}`}>
-                        {flight.is_public ? <Eye size={11} /> : <EyeOff size={11} />}
-                        {flight.is_public ? '공개' : '비공개'}
-                      </span>
-                    </div>
-                    {flightCompanions.length > 0 && (
-                      <span className="w-6 h-6 bg-green-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                        {flightCompanions.length}
-                      </span>
-                    )}
-                    {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-                  </div>
+                  {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
                 </button>
 
                 <AnimatePresence>
@@ -322,67 +109,7 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
                       className="overflow-hidden"
                     >
                       <div className="px-4 pb-4 border-t border-gray-100">
-                        {flightCompanions.length === 0 ? (
-                          <p className="text-center py-6 text-sm text-gray-400">
-                            {isCrew ? '아직 같은 듀티 승무원이 없습니다.' : '아직 같은 편 탑승객이 없습니다.'}
-                          </p>
-                        ) : (
-                          <div className="space-y-2 mt-3">
-                            {flightCompanions.map((companion) => (
-                              <div
-                                key={companion.id}
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-xl"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-400 to-teal-400 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-                                    {companion.profiles?.avatar_url ? (
-                                      <img src={companion.profiles.avatar_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                                    ) : (
-                                      (companion.profiles?.name || '?').charAt(0)
-                                    )}
-                                  </div>
-                                  <div>
-                                    <p className="font-bold text-gray-800 text-sm">
-                                      {companion.profiles?.name || '익명'}
-                                    </p>
-                                    <p className="text-xs text-gray-400">
-                                      {companion.profiles?.user_type === 'crew' ? '승무원' : '탑승객'}
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => setShowMessageModal({
-                                    receiverId: companion.user_id,
-                                    receiverName: companion.profiles?.name || '익명',
-                                    flightNumber: flight.flight_number,
-                                  })}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold transition-colors"
-                                >
-                                  <MessageCircle size={12} />
-                                  쪽지 보내기
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* 같은 편 미니 게시판 — 일반/승무원은 서버에서 분리된다.
-                            비공개 스케줄은 서버(RLS)가 글쓰기를 거부하므로 게시판 대신 안내만 둔다 */}
-                        {flight.is_public ? (
-                          <FlightBoard
-                            flight={flight}
-                            memberType={isCrew ? 'crew' : 'passenger'}
-                            onSendMessage={(receiverId, receiverName) => setShowMessageModal({
-                              receiverId,
-                              receiverName: receiverName || '익명',
-                              flightNumber: flight.flight_number,
-                            })}
-                          />
-                        ) : (
-                          <p className="mt-3 text-center text-sm text-gray-400">
-                            스케줄을 공개로 설정해야 같은편 게시판을 쓸 수 있습니다
-                          </p>
-                        )}
+                        <FlightBoard flight={flight} />
                       </div>
                     </motion.div>
                   )}
@@ -392,198 +119,6 @@ const FlightCompanions = ({ flights: propFlights = [], onFlightsChange }) => {
           })}
         </div>
       )}
-
-      {/* Send Message Modal */}
-      <AnimatePresence>
-        {showMessageModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4"
-            onClick={(e) => e.target === e.currentTarget && setShowMessageModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-md relative"
-            >
-              <button
-                onClick={() => setShowMessageModal(null)}
-                className="absolute top-4 right-4 p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X size={18} className="text-gray-400" />
-              </button>
-
-              <div className="text-center mb-4">
-                <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <MessageCircle size={28} className="text-blue-600" />
-                </div>
-                <h3 className="text-lg font-extrabold text-gray-800">쪽지 보내기</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  <strong>{showMessageModal.receiverName}</strong>님에게
-                  {showMessageModal.flightNumber && ` (${showMessageModal.flightNumber})`}
-                </p>
-              </div>
-
-              <textarea
-                value={messageContent}
-                onChange={(e) => setMessageContent(e.target.value)}
-                placeholder="메시지를 입력하세요... (예: 택시 같이 타실 분 계신가요?)"
-                rows={4}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm resize-none mb-4"
-              />
-
-              <button
-                onClick={handleSendMessage}
-                disabled={!messageContent.trim() || sending}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {sending ? (
-                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                ) : (
-                  <Send size={16} />
-                )}
-                보내기
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Inbox Modal */}
-      <AnimatePresence>
-        {showInbox && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4"
-            onClick={(e) => e.target === e.currentTarget && setShowInbox(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto relative"
-            >
-              <button
-                onClick={() => { setShowInbox(false); setReplyTo(null); }}
-                className="absolute top-4 right-4 p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X size={18} className="text-gray-400" />
-              </button>
-
-              <div className="text-center mb-4">
-                <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Inbox size={28} className="text-blue-600" />
-                </div>
-                <h3 className="text-lg font-extrabold text-gray-800">받은 쪽지함</h3>
-              </div>
-
-              {/* Reply area */}
-              {replyTo && (
-                <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                  <p className="text-sm font-bold text-blue-700 mb-2">
-                    {replyTo.senderName}님에게 답장
-                  </p>
-                  <textarea
-                    value={replyContent}
-                    onChange={(e) => setReplyContent(e.target.value)}
-                    placeholder="답장 내용을 입력하세요..."
-                    rows={3}
-                    className="w-full px-3 py-2 rounded-lg border border-blue-200 focus:border-blue-400 outline-none text-sm resize-none mb-2"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSendReply}
-                      disabled={!replyContent.trim() || sending}
-                      className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
-                    >
-                      <Send size={12} />
-                      답장 보내기
-                    </button>
-                    <button
-                      onClick={() => { setReplyTo(null); setReplyContent(''); }}
-                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg font-bold text-xs transition-colors"
-                    >
-                      취소
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {loadingMessages ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full mx-auto" />
-                </div>
-              ) : myMessages.length === 0 ? (
-                <p className="text-center py-8 text-sm text-gray-400">받은 쪽지가 없습니다.</p>
-              ) : (
-                <div className="space-y-2">
-                  {myMessages.map((msg) => {
-                    const isSent = msg.sender_id === user.id;
-                    const otherPerson = isSent ? msg.receiver : msg.sender;
-                    const isUnread = !isSent && !msg.read_at;
-
-                    return (
-                      <div
-                        key={msg.id}
-                        className={`p-3 rounded-xl border ${isUnread ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'}`}
-                        onClick={async () => {
-                          if (isUnread) {
-                            try {
-                              await messagesApi.markAsRead(msg.id);
-                              fetchMessages();
-                            } catch { /* ignore */ }
-                          }
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs font-bold ${isSent ? 'text-green-600' : 'text-blue-600'}`}>
-                              {isSent ? '보냄' : '받음'}
-                            </span>
-                            <span className="text-sm font-bold text-gray-800">
-                              {otherPerson?.name || '(탈퇴한 사용자)'}
-                            </span>
-                            {msg.flight_number && (
-                              <span className="text-xs text-gray-400">({msg.flight_number})</span>
-                            )}
-                          </div>
-                          <span className="text-xs text-gray-400">
-                            {new Date(msg.created_at).toLocaleDateString('ko-KR')}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700">{msg.content}</p>
-                        {!isSent && msg.sender && (
-                          <div className="mt-2 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => setReplyTo({ senderId: msg.sender_id, senderName: msg.sender?.name || '(탈퇴한 사용자)' })}
-                              className="text-xs font-bold text-blue-600 hover:text-blue-700"
-                            >
-                              답장하기
-                            </button>
-                            {/* 쪽지는 1:1 이라 문제가 생겨도 남이 못 본다 — 신고·차단 수단을 여기 둔다 */}
-                            <ReportButton postId={msg.id} boardType="message" reportedUserId={msg.sender_id} />
-                            <button
-                              onClick={() => handleBlockUser(msg.sender_id, msg.sender?.name)}
-                              className="text-xs font-bold text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              차단
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

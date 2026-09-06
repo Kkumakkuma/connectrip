@@ -87,13 +87,16 @@ $$;
 REVOKE ALL ON FUNCTION public.notify_user(uuid, text, text, text, text, uuid, uuid) FROM PUBLIC, anon, authenticated;
 
 -- 4) 트리거 ------------------------------------------------------------------
--- 4-1 Q&A 답변
+-- 4-1 Q&A 답변 — ★ 2026-09-06 답글 대상(reply_to_user_id) 알림 추가(flight_board_anon_20260906.sql 과 동일 본문)
 CREATE OR REPLACE FUNCTION public.trg_notify_qna_comment() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v_owner uuid;
 BEGIN
   SELECT user_id INTO v_owner FROM public.qna_posts WHERE id = NEW.post_id;
   PERFORM public.notify_user(v_owner, 'comments', 'comment', '내 질문에 새 답변이 달렸습니다', '/qna', NEW.post_id, NEW.user_id);
+  IF NEW.reply_to_user_id IS NOT NULL AND (v_owner IS NULL OR NEW.reply_to_user_id <> v_owner) THEN
+    PERFORM public.notify_user(NEW.reply_to_user_id, 'comments', 'comment', '내 답변에 답글이 달렸습니다', '/qna', NEW.post_id, NEW.user_id);
+  END IF;
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'notify trigger skipped: %', SQLERRM;
@@ -103,13 +106,20 @@ REVOKE ALL ON FUNCTION public.trg_notify_qna_comment() FROM PUBLIC, anon, authen
 DROP TRIGGER IF EXISTS trg_notify_qna_comment ON public.qna_comments;
 CREATE TRIGGER trg_notify_qna_comment AFTER INSERT ON public.qna_comments FOR EACH ROW EXECUTE FUNCTION public.trg_notify_qna_comment();
 
--- 4-2 같은편 게시판 댓글
+-- 4-2 같은편 게시판 댓글 — ★ 2026-09-06 답글 대상 알림·게시판 숨김 반영(flight_board_anon_20260906.sql 과 동일 본문)
 CREATE OR REPLACE FUNCTION public.trg_notify_flight_post_comment() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE v_owner uuid;
+DECLARE v_post public.flight_posts%ROWTYPE;
 BEGIN
-  SELECT user_id INTO v_owner FROM public.flight_posts WHERE id = NEW.post_id;
-  PERFORM public.notify_user(v_owner, 'comments', 'comment', '같은편 게시판 내 글에 댓글이 달렸습니다', '/mypage?tab=companions', NEW.post_id, NEW.user_id);
+  SELECT * INTO v_post FROM public.flight_posts WHERE id = NEW.post_id;
+  IF v_post.id IS NULL THEN RETURN NEW; END IF;
+  IF NOT public.flight_board_hidden(v_post.user_id, NEW.user_id, v_post.flight_number, v_post.flight_date) THEN
+    PERFORM public.notify_user(v_post.user_id, 'comments', 'comment', '같은편 게시판 내 글에 댓글이 달렸습니다', '/mypage?tab=companions', NEW.post_id, NEW.user_id);
+  END IF;
+  IF NEW.reply_to_user_id IS NOT NULL AND NEW.reply_to_user_id <> v_post.user_id
+     AND NOT public.flight_board_hidden(NEW.reply_to_user_id, NEW.user_id, v_post.flight_number, v_post.flight_date) THEN
+    PERFORM public.notify_user(NEW.reply_to_user_id, 'comments', 'comment', '같은편 게시판 내 댓글에 답글이 달렸습니다', '/mypage?tab=companions', NEW.post_id, NEW.user_id);
+  END IF;
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'notify trigger skipped: %', SQLERRM;
@@ -119,19 +129,8 @@ REVOKE ALL ON FUNCTION public.trg_notify_flight_post_comment() FROM PUBLIC, anon
 DROP TRIGGER IF EXISTS trg_notify_flight_post_comment ON public.flight_post_comments;
 CREATE TRIGGER trg_notify_flight_post_comment AFTER INSERT ON public.flight_post_comments FOR EACH ROW EXECUTE FUNCTION public.trg_notify_flight_post_comment();
 
--- 4-3 쪽지(항상)
-CREATE OR REPLACE FUNCTION public.trg_notify_message() RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-BEGIN
-  PERFORM public.notify_user(NEW.receiver_id, 'message', 'message', '새 쪽지가 도착했습니다', '/mypage?tab=companions&inbox=1', NEW.id, NEW.sender_id);
-  RETURN NEW;
-EXCEPTION WHEN OTHERS THEN
-  RAISE WARNING 'notify trigger skipped: %', SQLERRM;
-  RETURN NEW;
-END; $$;
-REVOKE ALL ON FUNCTION public.trg_notify_message() FROM PUBLIC, anon, authenticated;
+-- 4-3 쪽지(항상) — ★ 2026-09-06 쪽지 기능 중단(flight_board_anon_20260906.sql): 트리거 제거, messages INSERT 권한 회수.
 DROP TRIGGER IF EXISTS trg_notify_message ON public.messages;
-CREATE TRIGGER trg_notify_message AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION public.trg_notify_message();
 
 -- 4-4 칭찬매칭 상태
 CREATE OR REPLACE FUNCTION public.trg_notify_commendation() RETURNS trigger
@@ -162,20 +161,23 @@ REVOKE ALL ON FUNCTION public.trg_notify_commendation() FROM PUBLIC, anon, authe
 DROP TRIGGER IF EXISTS trg_notify_commendation ON public.commendation_matches;
 CREATE TRIGGER trg_notify_commendation AFTER INSERT OR UPDATE OF status ON public.commendation_matches FOR EACH ROW EXECUTE FUNCTION public.trg_notify_commendation();
 
--- 4-5 같은 항공편 동행 새 등록(공개 스케줄)
+-- 4-5 같은 항공편 게시판 새 등록 — ★ 2026-09-06 개편: 공개 여부와 무관하게 등록(INSERT) 때만, 이름 없이.
+--     (본체는 flight_board_anon_20260906.sql 9). actor 는 차단 관계 판정에만 쓰이고 저장되지 않는다)
 CREATE OR REPLACE FUNCTION public.trg_notify_same_flight() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE r record;
 BEGIN
-  IF COALESCE(NEW.is_public, false) = false THEN RETURN NEW; END IF;
-  IF TG_OP = 'UPDATE' AND COALESCE(OLD.is_public, false) = true THEN RETURN NEW; END IF;
+  IF TG_OP <> 'INSERT' THEN RETURN NEW; END IF;
   FOR r IN
     SELECT DISTINCT fs.user_id FROM public.flight_schedules fs
      WHERE fs.flight_number = NEW.flight_number AND fs.flight_date = NEW.flight_date
-       AND COALESCE(fs.is_public, false) = true AND fs.user_id <> NEW.user_id
+       AND fs.user_type = NEW.user_type AND fs.user_id <> NEW.user_id
      LIMIT 50
   LOOP
-    PERFORM public.notify_user(r.user_id, 'flight', 'flight', '같은 항공편 동행이 새로 등록됐습니다 (' || NEW.flight_number || ')', '/mypage?tab=companions', NEW.id, NEW.user_id);
+    PERFORM public.notify_user(r.user_id, 'flight', 'flight',
+      CASE WHEN NEW.user_type = 'crew' THEN '같은 듀티 게시판에 승무원이 새로 등록됐습니다 (' ELSE '같은 편 게시판에 탑승객이 새로 등록됐습니다 (' END
+        || NEW.flight_number || ')',
+      '/mypage?tab=companions', NEW.id, NEW.user_id);
   END LOOP;
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
@@ -184,7 +186,7 @@ EXCEPTION WHEN OTHERS THEN
 END; $$;
 REVOKE ALL ON FUNCTION public.trg_notify_same_flight() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_same_flight ON public.flight_schedules;
-CREATE TRIGGER trg_notify_same_flight AFTER INSERT OR UPDATE OF is_public ON public.flight_schedules FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
+CREATE TRIGGER trg_notify_same_flight AFTER INSERT ON public.flight_schedules FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
 
 -- 4-6 내가 글 올린 지역의 새 동행 글(최근 90일)
 CREATE OR REPLACE FUNCTION public.trg_notify_companion_region() RETURNS trigger

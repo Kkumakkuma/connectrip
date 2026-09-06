@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useId } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MessageSquare, HelpCircle, Plus, X, Search, BookOpen, Trash2, User, Heart } from 'lucide-react';
+import { MessageSquare, HelpCircle, Plus, X, Search, BookOpen, Trash2, User, Heart, Lock, CornerDownRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
@@ -9,6 +9,7 @@ import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
 import { qnaApi, reviewsApi, postLikeApi } from '../lib/db';
 import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
+import { replyTargetLabel } from '../lib/flightBoard';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
@@ -60,6 +61,8 @@ const TravelQnA = () => {
     const [expandedId, setExpandedId] = useState(null);
     const [commentText, setCommentText] = useState('');
     const [commentBusy, setCommentBusy] = useState(false);
+    const [commentPrivate, setCommentPrivate] = useState(false); // 비밀댓글: 글쓴이·나·답글 대상만 본다(서버 정책)
+    const [replyTo, setReplyTo] = useState(null);                  // { id, name } 답글 대상 댓글
     // 댓글은 목록 조회에 딸려오지 않고, 카드를 펼칠 때 그 글 것만 따로 받아온다.
     const [comments, setComments] = useState({}); // { [postId]: 댓글 배열 }
     const [commentsLoading, setCommentsLoading] = useState(false);
@@ -136,6 +139,8 @@ const TravelQnA = () => {
     // 카드를 펼칠 때 그 글의 댓글만 조회한다. 한 번 받아온 글은 다시 부르지 않는다.
     const handleToggleComments = async (postId) => {
         setCommentText('');
+        setCommentPrivate(false);
+        setReplyTo(null);
         if (expandedId === postId) { setExpandedId(null); return; }
         setExpandedId(postId);
         if (comments[postId]) return;
@@ -167,7 +172,7 @@ const TravelQnA = () => {
     const handleAddComment = async (postId) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         const text = commentText.trim();
-        if (!text) return;
+        if (!text || commentBusy) return;
         try {
             setCommentBusy(true);
             const newComment = await qnaApi.addComment({
@@ -175,6 +180,8 @@ const TravelQnA = () => {
                 user_id: user.id,
                 author_name: profile?.name || '익명',
                 content: text,
+                is_private: commentPrivate || !!replyTo?.isPrivate,
+                parent_id: replyTo?.id || null,
             });
             setComments((prev) => ({ ...prev, [postId]: [...(prev[postId] || []), newComment] }));
             // 목록 카드에 보이는 댓글 수도 같이 올린다(목록은 comment_count 만 들고 있다).
@@ -182,6 +189,8 @@ const TravelQnA = () => {
                 ? { ...p, comment_count: (p.comment_count || 0) + 1 }
                 : p));
             setCommentText('');
+            setCommentPrivate(false);
+            setReplyTo(null);
         } catch (err) {
             console.error('댓글 등록 실패:', err);
         } finally {
@@ -392,26 +401,48 @@ const TravelQnA = () => {
                                                             <p className="text-sm text-gray-400 text-center py-2">댓글을 불러오는 중...</p>
                                                         ) : (comments[post.id] || []).length > 0 ? (
                                                             [...comments[post.id]].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((c) => (
-                                                                <div key={c.id} className="bg-gray-50 rounded-xl p-3">
+                                                                <div key={c.id} className={`rounded-xl p-3 ${c.is_private ? 'bg-amber-50' : 'bg-gray-50'}`}>
                                                                     <div className="flex items-center justify-between mb-1 gap-2">
                                                                         <span className="flex items-center gap-1 min-w-0 text-xs font-bold text-gray-700">
                                                                             <span className="truncate">{c.author_name || '익명'}</span>
                                                                             <CrewBadge profile={c.profiles} />
+                                                                            {c.is_private && <Lock size={11} className="text-amber-500 flex-shrink-0" aria-label="비밀댓글" />}
                                                                         </span>
-                                                                        <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">{new Date(c.created_at).toLocaleDateString('ko-KR')}</span>
+                                                                        <span className="flex items-center gap-2 text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+                                                                            {new Date(c.created_at).toLocaleDateString('ko-KR')}
+                                                                            {isLoggedIn && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => { setReplyTo({ id: c.id, name: c.author_name || '익명', isPrivate: !!c.is_private }); if (c.is_private) setCommentPrivate(true); }}
+                                                                                    className="font-bold text-blue-500 hover:text-blue-600"
+                                                                                >답글</button>
+                                                                            )}
+                                                                        </span>
                                                                     </div>
+                                                                    {replyTargetLabel(c, comments[post.id]) && (
+                                                                        <p className="text-[11px] text-gray-400 mb-0.5 flex items-center gap-1">
+                                                                            <CornerDownRight size={11} />{replyTargetLabel(c, comments[post.id])}에게
+                                                                        </p>
+                                                                    )}
                                                                     <p className="text-sm text-gray-600 whitespace-pre-wrap">{c.content}</p>
                                                                 </div>
                                                             ))
                                                         ) : (
                                                             <p className="text-sm text-gray-400 text-center py-2">첫 댓글을 남겨보세요.</p>
                                                         )}
+                                                        {replyTo && (
+                                                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                                <CornerDownRight size={12} />
+                                                                <span><strong>{replyTo.name}</strong>에게 답글</span>
+                                                                <button type="button" onClick={() => setReplyTo(null)} className="text-gray-400 hover:text-gray-600" aria-label="답글 취소"><X size={12} /></button>
+                                                            </div>
+                                                        )}
                                                         <div className="flex gap-2">
                                                             <input
                                                                 type="text"
                                                                 value={expandedId === post.id ? commentText : ''}
                                                                 onChange={(e) => setCommentText(e.target.value)}
-                                                                onKeyDown={(e) => { if (e.key === 'Enter') handleAddComment(post.id); }}
+                                                                onKeyDown={(e) => { if (e.key !== 'Enter' || e.nativeEvent?.isComposing) return; e.preventDefault(); handleAddComment(post.id); }}
                                                                 placeholder="댓글을 입력하세요"
                                                                 className="flex-1 px-3 py-2 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
                                                             />
@@ -421,6 +452,11 @@ const TravelQnA = () => {
                                                                 className="px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors flex-shrink-0"
                                                             >등록</button>
                                                         </div>
+                                                        <label className="flex items-center gap-1.5 text-xs text-gray-500 select-none cursor-pointer">
+                                                            <input type="checkbox" checked={commentPrivate || !!replyTo?.isPrivate} disabled={!!replyTo?.isPrivate} onChange={(e) => setCommentPrivate(e.target.checked)} />
+                                                            <Lock size={11} className="text-amber-500" />
+                                                            {replyTo?.isPrivate ? '비밀댓글에 다는 답글은 비밀댓글로 남습니다' : '비밀댓글 (글쓴이와 나, 답글 대상만 볼 수 있습니다)'}
+                                                        </label>
                                                     </div>
                                                 )}
                                             </div>

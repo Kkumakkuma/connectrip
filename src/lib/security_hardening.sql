@@ -989,9 +989,12 @@ ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Auth users can create reports" ON public.reports;
 CREATE POLICY "Auth users can create reports" ON public.reports
   FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+-- ★ 2026-09-06 익명 게시판 개편: 신고 열람은 관리자만(신고자가 reported_user_id 로 익명 작성자를 되짚지 못하게).
 DROP POLICY IF EXISTS "Reporters or admin can read reports" ON public.reports;
-CREATE POLICY "Reporters or admin can read reports" ON public.reports
-  FOR SELECT USING (auth.uid() = reporter_id OR public.is_admin());
+DROP POLICY IF EXISTS "Users read own reports" ON public.reports;
+DROP POLICY IF EXISTS "Admin reads reports" ON public.reports;
+CREATE POLICY "Admin reads reports" ON public.reports
+  FOR SELECT USING (COALESCE(public.is_admin(), FALSE));
 DROP POLICY IF EXISTS "Admin can update reports" ON public.reports;
 CREATE POLICY "Admin can update reports" ON public.reports
   FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
@@ -1245,21 +1248,28 @@ CREATE TABLE IF NOT EXISTS public.flight_post_comments (
 );
 CREATE INDEX IF NOT EXISTS idx_flight_post_comments_post ON public.flight_post_comments (post_id, created_at);
 
--- 이용 자격: 그 편에 내 스케줄이 공개 등록 + 회원유형 일치 + 미차단 + 만 19세 이상
-CREATE OR REPLACE FUNCTION public.can_use_flight_board(p_flight TEXT, p_date DATE, p_member_type TEXT)
-RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.flight_schedules fs
+-- 이용 자격: 그 편에 내 스케줄 등록 + 회원유형 일치 + 미차단 + 만 19세 이상
+-- ★ 2026-09-06 익명 게시판 개편(flight_board_anon_20260906.sql): 공개(is_public) 조건 삭제 — 등록하면 자동 참여.
+--   회원유형은 본인 스케줄 행의 user_type 으로 판정한다(flight_board_member_type).
+CREATE OR REPLACE FUNCTION public.flight_board_member_type(p_user uuid, p_flight text, p_date date)
+RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_temp AS $$
+  SELECT fs.user_type
+    FROM public.flight_schedules fs
     JOIN public.profiles pr ON pr.id = fs.user_id
     JOIN public.profiles_private pp ON pp.user_id = fs.user_id
-    WHERE fs.user_id = auth.uid()
-      AND fs.flight_number = p_flight AND fs.flight_date = p_date
-      AND COALESCE(fs.is_public, FALSE) = TRUE
-      AND fs.user_type = p_member_type
-      AND COALESCE(pr.is_banned, FALSE) = FALSE
-      AND pp.birthdate IS NOT NULL
-      AND pp.birthdate <= (CURRENT_DATE - INTERVAL '19 years')
-  );
+   WHERE p_user IS NOT NULL AND fs.user_id = p_user
+     AND fs.flight_number = p_flight AND fs.flight_date = p_date
+     AND fs.user_type IN ('passenger','crew')
+     AND COALESCE(pr.is_banned, FALSE) = FALSE
+     AND pp.birthdate IS NOT NULL
+     AND pp.birthdate <= (CURRENT_DATE - INTERVAL '19 years')
+   ORDER BY fs.created_at
+   LIMIT 1;
+$$;
+REVOKE ALL ON FUNCTION public.flight_board_member_type(uuid, text, date) FROM PUBLIC, anon, authenticated;
+CREATE OR REPLACE FUNCTION public.can_use_flight_board(p_flight TEXT, p_date DATE, p_member_type TEXT)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_temp AS $$
+  SELECT COALESCE(public.flight_board_member_type(auth.uid(), p_flight, p_date) = p_member_type, FALSE);
 $$;
 REVOKE ALL ON FUNCTION public.can_use_flight_board(TEXT,DATE,TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.can_use_flight_board(TEXT,DATE,TEXT) TO authenticated;
@@ -1295,8 +1305,9 @@ CREATE POLICY "Write flight comments" ON public.flight_post_comments FOR INSERT
 DROP POLICY IF EXISTS "Delete own flight comment" ON public.flight_post_comments;
 CREATE POLICY "Delete own flight comment" ON public.flight_post_comments FOR DELETE
   USING (auth.uid() = user_id OR COALESCE(public.is_admin(), FALSE));
-GRANT SELECT, INSERT, DELETE ON public.flight_posts TO authenticated;
-GRANT SELECT, INSERT, DELETE ON public.flight_post_comments TO authenticated;
+-- ★ 2026-09-06 익명 게시판 개편: 클라이언트 직접 접근 차단(user_id·author_name 비노출). 읽기·쓰기는 flight_board_* RPC 전용.
+REVOKE ALL ON public.flight_posts FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON public.flight_post_comments FROM PUBLIC, anon, authenticated;
 
 -- 공개 게시판이라 연락처가 올라가면 그 편 등록자 전원에게 노출된다.
 -- 1:1 쪽지는 서로 합의한 자리이므로 막지 않는다(쿠마님 확정).

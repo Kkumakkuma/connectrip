@@ -348,29 +348,6 @@ export const flightApi = {
       .eq('id', id);
     if (error) throw error;
   },
-
-  async toggleVisibility(id, isPublic) {
-    const { data, error } = await supabase
-      .from('flight_schedules')
-      .update({ is_public: isPublic })
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  async findMatches(flightNumber, flightDate, userId) {
-    const { data, error } = await supabase
-      .from('flight_schedules')
-      .select('*, profiles(name, user_type, avatar_url)')
-      .eq('flight_number', flightNumber)
-      .eq('flight_date', flightDate)
-      .eq('is_public', true)
-      .neq('user_id', userId);
-    if (error) throw error;
-    return data;
-  },
 };
 
 // ============================================================
@@ -385,17 +362,6 @@ export const commendationApi = {
     const { data, error } = await supabase.rpc('get_my_commendation_matches');
     if (error) throw error;
     return data || [];
-  },
-
-  async findMatch(flightNumber, flightDate) {
-    const { data, error } = await supabase
-      .from('flight_schedules')
-      .select('*, profiles(id, name, user_type, avatar_url, airline_name)')
-      .eq('flight_number', flightNumber)
-      .eq('flight_date', flightDate)
-      .eq('is_public', true);
-    if (error) throw error;
-    return data;
   },
 
   // 제출 상태·스크린샷 URL 은 commendation_guard 가 보호한다(클라이언트 직접 UPDATE 는 거부).
@@ -698,131 +664,38 @@ export const postLikeApi = {
 };
 
 // ============================================================
-// Messages (같은편 동행 쪽지)
+// Flight Board (같은 편 익명 게시판) — 2026-09-06 개편
+//   스케줄을 등록한 사람만 그 편 게시판에 들어가고, 글·댓글은 서버가 배정한 익명 번호로만 표시된다.
+//   입장 자격·작성 기간·비밀댓글 가시성·차단은 전부 서버 RPC 가 판정한다. 응답에 작성자 id·실명은 없다.
+//   쪽지(messages)·동행 명단 조회는 이 개편으로 없어졌다(명단은 개인정보라 누구도 볼 수 없다).
 // ============================================================
 
-export const messagesApi = {
-  async send(senderId, receiverId, content, flightNumber = null) {
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({ sender_id: senderId, receiver_id: receiverId, content, flight_number: flightNumber })
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
-  },
-
-  async getConversation(userId, otherUserId) {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*, sender:profiles!messages_sender_id_fkey(id, name, avatar_url), receiver:profiles!messages_receiver_id_fkey(id, name, avatar_url)')
-      .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return data;
-  },
-
-  async getMyMessages(userId) {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*, sender:profiles!messages_sender_id_fkey(id, name, avatar_url), receiver:profiles!messages_receiver_id_fkey(id, name, avatar_url)')
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data;
-  },
-
-  async markAsRead(messageId) {
-    const { error } = await supabase
-      .from('messages')
-      .update({ read_at: new Date().toISOString() })
-      .eq('id', messageId);
-    if (error) throw error;
-  },
+const rpc = async (fn, args) => {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) throw error;
+  return data;
 };
-
-// ============================================================
-// Flight Companions (같은편 동행)
-// ============================================================
-
-// ============================================================
-// Flight Board (같은 편 미니 게시판)
-//   입장 자격·작성 기간·연락처 차단은 서버(RLS/트리거)가 판정한다.
-//   자격이 없으면 조회 결과가 빈 배열로 나오고, 작성은 예외로 거부된다.
-// ============================================================
 
 export const flightBoardApi = {
-  async getPosts(flightNumber, flightDate, memberType) {
-    const { data, error } = await supabase
-      .from('flight_posts')
-      .select('*, flight_post_comments(*)')
-      .eq('flight_number', flightNumber)
-      .eq('flight_date', flightDate)
-      .eq('member_type', memberType)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
+  // → { eligible, writable, member_type, my_alias, posts: [{ id, alias, content, created_at, mine, deletable, comments: [...] }] }
+  async list(flightNumber, flightDate) {
+    const data = await rpc('flight_board_list', { p_flight: flightNumber, p_date: flightDate });
+    return data || { eligible: false, writable: false, member_type: null, my_alias: null, posts: [] };
   },
-
-  async createPost(post) {
-    const { data, error } = await supabase.from('flight_posts').insert(post).select().single();
-    if (error) throw error;
-    return data;
+  async createPost(flightNumber, flightDate, content) {
+    return rpc('flight_board_post', { p_flight: flightNumber, p_date: flightDate, p_content: content });
   },
-
-  async createComment(comment) {
-    const { data, error } = await supabase.from('flight_post_comments').insert(comment).select().single();
-    if (error) throw error;
-    return data;
+  async createComment(postId, content, { isPrivate = false, parentId = null } = {}) {
+    return rpc('flight_board_comment', { p_post_id: postId, p_content: content, p_private: !!isPrivate, p_parent_id: parentId });
   },
-
-  async deletePost(id) {
-    const { error } = await supabase.from('flight_posts').delete().eq('id', id);
-    if (error) throw error;
+  async deletePost(id) { return rpc('flight_board_delete_post', { p_id: id }); },
+  async deleteComment(id) { return rpc('flight_board_delete_comment', { p_id: id }); },
+  // 신고·숨김 대상은 글/댓글 id 로만 지정한다. 상대 회원 id 는 서버가 찾고 클라이언트에는 오지 않는다.
+  async report({ postId = null, commentId = null, reason }) {
+    return rpc('flight_board_report', { p_post_id: postId, p_comment_id: commentId, p_reason: reason });
   },
-};
-
-export const flightCompanionsApi = {
-  async getCompanions(flightNumber, flightDate, userId) {
-    const { data, error } = await supabase
-      .from('flight_schedules')
-      .select('*, profiles(id, name, avatar_url, user_type)')
-      .eq('flight_number', flightNumber)
-      .eq('flight_date', flightDate)
-      .eq('is_public', true)
-      .neq('user_id', userId);
-    if (error) throw error;
-    return data;
-  },
-
-  // 여러 항공편의 동행을 한 번에 조회 → { '편명_날짜': [동행...] }
-  // 호출부가 항공편마다 getCompanions 를 await 하면 왕복이 편수만큼 직렬로 쌓인다.
-  // 편명·날짜를 각각 .in() 으로 묶어 왕복 1회로 줄이고, 응답은 편명과 날짜가 '둘 다'
-  // 일치하는 것만 담는다(편명 A/날짜 1, 편명 B/날짜 2 를 함께 물으면 A-2 조합도
-  // 함께 내려오기 때문). 요청한 키는 결과가 없어도 빈 배열로 채워 준다.
-  async getCompanionsForFlights(flights, userId) {
-    const list = (flights || []).filter((f) => f && f.flight_number && f.flight_date);
-    const grouped = {};
-    list.forEach((f) => { grouped[`${f.flight_number}_${f.flight_date}`] = []; });
-    if (list.length === 0) return grouped;
-
-    const numbers = [...new Set(list.map((f) => f.flight_number))];
-    const dates = [...new Set(list.map((f) => f.flight_date))];
-    const { data, error } = await supabase
-      .from('flight_schedules')
-      .select('*, profiles(id, name, avatar_url, user_type)')
-      .in('flight_number', numbers)
-      .in('flight_date', dates)
-      .eq('is_public', true)
-      .neq('user_id', userId);
-    if (error) throw error;
-
-    (data || []).forEach((row) => {
-      const key = `${row.flight_number}_${row.flight_date}`;
-      // 요청하지 않은 편명×날짜 교차 조합은 버린다
-      if (grouped[key]) grouped[key].push(row);
-    });
-    return grouped;
+  async mute({ postId = null, commentId = null }) {
+    return rpc('flight_board_mute', { p_post_id: postId, p_comment_id: commentId });
   },
 };
 
@@ -866,14 +739,11 @@ export const storageApi = {
 // ============================================================
 
 export const reportApi = {
+  // 신고 행 열람은 관리자만 가능하므로(2026-09-06) 반환행을 요구하지 않는다.
   async create(report) {
-    const { data, error } = await supabase
-      .from('reports')
-      .insert(report)
-      .select()
-      .single();
+    const { error } = await supabase.from('reports').insert(report);
     if (error) throw error;
-    return data;
+    return true;
   },
 
   async getAll() {
@@ -926,7 +796,7 @@ export const blockApi = {
 
 // ============================================================
 // User Blocks (회원 간 차단) — 관리자 제재(is_banned)와 별개.
-// 차단하면 서버 정책이 양쪽 쪽지 발송을 막고, 목록에서는 상대 글이 숨겨진다.
+// 차단하면 서로의 글·댓글이 목록에서 숨겨지고 알림도 오가지 않는다.
 // ============================================================
 
 export const userBlockApi = {
