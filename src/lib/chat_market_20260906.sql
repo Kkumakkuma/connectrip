@@ -393,15 +393,15 @@ GRANT EXECUTE ON FUNCTION public.market_listing_stats(uuid[]) TO authenticated;
 -- 포인트로 결제된 매물(paid_at)은 거래완료로 고정(재판매 반복 결제 방지). 수동 거래완료는 되돌릴 수 있다.
 CREATE OR REPLACE FUNCTION public.market_set_status(p_listing uuid, p_status text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE v_n int; v_paid timestamptz;
+DECLARE v_n int;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
   IF p_status IS NULL OR p_status NOT IN ('active','reserved','sold') THEN RAISE EXCEPTION 'BAD_REQUEST'; END IF;
-  SELECT paid_at INTO v_paid FROM public.market_listings WHERE id = p_listing AND user_id = auth.uid() FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
-  IF v_paid IS NOT NULL AND p_status <> 'sold' THEN RAISE EXCEPTION 'PAID_FINAL'; END IF;
+  -- 상태는 본인 글이면 언제든 서로 되돌릴 수 있다(예약 취소·반품). 포인트 결제 폐지(9/7)로 PAID_FINAL 가드 제거(v5).
   UPDATE public.market_listings SET status = p_status, updated_at = now() WHERE id = p_listing AND user_id = auth.uid();
-  GET DIAGNOSTICS v_n = ROW_COUNT; RETURN v_n > 0;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  IF v_n = 0 THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
+  RETURN TRUE;
 END $$;
 REVOKE ALL ON FUNCTION public.market_set_status(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.market_set_status(uuid, text) TO authenticated;
@@ -475,15 +475,10 @@ CREATE OR REPLACE FUNCTION public.trg_market_listing_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 BEGIN
   IF current_user IN ('authenticated', 'anon') THEN
-    IF TG_OP = 'DELETE' THEN
-      IF OLD.paid_at IS NOT NULL THEN RAISE EXCEPTION 'PAID_FINAL'; END IF;   -- 결제 끝난 매물은 지울 수 없다(v4)
-      RETURN OLD;
-    END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
     IF TG_OP = 'INSERT' THEN
       NEW.status := 'active'; NEW.buyer_id := NULL; NEW.paid_at := NULL; NEW.view_count := 0; NEW.refreshed_at := now(); NEW.bumped_at := NULL;
       NEW.created_at := now();   -- 끌어올리기 대기 기준(v4)
-    ELSIF OLD.paid_at IS NOT NULL THEN   -- 포인트 결제가 끝난 매물은 내용도 못 바꾼다(v3)
-      RAISE EXCEPTION 'PAID_FINAL';
     ELSIF NEW.status IS DISTINCT FROM OLD.status OR NEW.buyer_id IS DISTINCT FROM OLD.buyer_id OR NEW.paid_at IS DISTINCT FROM OLD.paid_at
        OR NEW.view_count IS DISTINCT FROM OLD.view_count OR NEW.refreshed_at IS DISTINCT FROM OLD.refreshed_at OR NEW.bumped_at IS DISTINCT FROM OLD.bumped_at
        OR NEW.user_id IS DISTINCT FROM OLD.user_id OR NEW.type IS DISTINCT FROM OLD.type OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN

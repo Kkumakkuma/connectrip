@@ -169,7 +169,8 @@ grant  execute on function public.complete_signup_profile(text, text, text, text
 revoke execute on function public.convert_likes_to_points(integer) from public, anon;
 grant  execute on function public.convert_likes_to_points(integer) to authenticated;
 revoke execute on function public.market_purchase(uuid, integer) from public, anon;
-grant  execute on function public.market_purchase(uuid, integer) to authenticated;
+-- grant  execute on function public.market_purchase(uuid, integer) to authenticated;   -- 2026-09-07 장터 포인트 결제 폐지로 회수(chat_market_20260906.sql)
+REVOKE ALL ON FUNCTION public.market_purchase(uuid, integer) FROM PUBLIC, anon, authenticated;
 revoke execute on function public.purchase_voucher(integer) from public, anon;
 grant  execute on function public.purchase_voucher(integer) to authenticated;
 revoke execute on function public.use_voucher(integer) from public, anon;
