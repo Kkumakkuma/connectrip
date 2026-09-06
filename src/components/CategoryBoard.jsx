@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
+import { PROMO_REVIEWS_ENABLED } from '../lib/featureFlags';
 
 // 카드 자체를 앵커(<a href>)로 만든다 — 크롤러가 따라갈 내부 링크가 생기고
 // 별도 tabIndex 없이도 키보드 포커스·Enter 이동이 된다.
@@ -63,6 +64,7 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
     ];
 
     const filteredCategories = categories.filter(cat => {
+        if (cat.id === 'reviews' && !PROMO_REVIEWS_ENABLED) return false;   // 여행상품 홍보 및 후기 — 초창기 숨김(2026-09-06)
         if (cat.id === 'crew') {
             return isLoggedIn && isCrew;
         }

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell';
 import SearchBar from './SearchBar';
-import { ITINERARY_ENABLED, PLANNER_ENABLED } from '../lib/featureFlags';
+import { ITINERARY_ENABLED, PLANNER_ENABLED, PROMO_REVIEWS_ENABLED } from '../lib/featureFlags';
 
 
 const Navbar = () => {
@@ -49,10 +49,11 @@ const Navbar = () => {
       { name: '💝 무료 나눔', to: '/market?tab=share' },
       { name: '👥 공동구매', to: '/market?tab=groupbuy' },
     ]},
-    { name: '여행상품 홍보 및 후기', to: '/reviews', sub: [
+    // 여행상품 홍보 및 후기 — 초창기라 숨김(2026-09-06 쿠마님). featureFlags.PROMO_REVIEWS_ENABLED 로 켠다.
+    ...(PROMO_REVIEWS_ENABLED ? [{ name: '여행상품 홍보 및 후기', to: '/reviews', sub: [
       { name: '📢 홍보 게시판', to: '/reviews?tab=promo' },
       { name: '💬 후기 게시판', to: '/reviews?tab=review' },
-    ]},
+    ]}] : []),
     { name: '승무원 추천지', to: '/recommend', sub: [
       { name: '🏰 유럽', to: '/recommend/europe' },
       { name: '🗽 미주', to: '/recommend/americas' },

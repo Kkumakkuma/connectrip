@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import PayTest from './pages/PayTest'; // 빌드플래그 false 시 트리셰이킹으로 프로덕션 번들에서 제거됨
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from './lib/AuthContext';
-import { PAYMENTS_ENABLED, PLANNER_ENABLED, ITINERARY_ENABLED } from './lib/featureFlags';
+import { PAYMENTS_ENABLED, PLANNER_ENABLED, ITINERARY_ENABLED, PROMO_REVIEWS_ENABLED } from './lib/featureFlags';
 import RequireLogin from './components/RequireLogin';
 import { keywordsApi, keywordAlertsApi, notificationPrefsApi } from './lib/db';
 import { supabase } from './lib/supabase';
@@ -30,7 +30,8 @@ const Destinations = lazy(() => import('./components/Destinations'));
 const TravelQnA = lazy(() => import('./components/TravelQnA'));
 const MarketBoard = lazy(() => import('./components/MarketBoard'));
 const CrewOnly = lazy(() => import('./components/CrewOnly'));
-const Promotions = lazy(() => import('./components/Promotions'));
+// 여행상품 홍보 및 후기 — 초창기라 숨김(2026-09-06 쿠마님). 플래그가 꺼지면 청크도 만들지 않는다(PLANNER 와 같은 방식).
+const Promotions = PROMO_REVIEWS_ENABLED ? lazy(() => import('./components/Promotions')) : null;
 const CompanionBoard = lazy(() => import('./components/CompanionBoard'));
 const RegionalBoard = lazy(() => import('./components/RegionalBoard'));
 // 여행 일정 게시판. 플래너와 달리 앱에도 실린다(앱은 게시판 + 가져오기만 갖는다).
@@ -272,8 +273,14 @@ function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="/recommend" element={<RequireLogin><div className="py-20"><Destinations /></div></RequireLogin>} />
               <Route path="/recommend/:regionId" element={<RequireLogin><div className="py-20"><Destinations /></div></RequireLogin>} />
-              <Route path="/reviews" element={<RequireLogin><div className="py-20"><Promotions /></div></RequireLogin>} />
-              <Route path="/reviews/:regionId" element={<RequireLogin><div className="py-20"><Promotions /></div></RequireLogin>} />
+              {PROMO_REVIEWS_ENABLED && (
+                <Route path="/reviews" element={<RequireLogin><div className="py-20"><Promotions /></div></RequireLogin>} />
+              )}
+              {PROMO_REVIEWS_ENABLED && (
+                <Route path="/reviews/:regionId" element={<RequireLogin><div className="py-20"><Promotions /></div></RequireLogin>} />
+              )}
+              {/* 숨김 동안 옛 링크·알림의 /reviews 는 같은 reviews 테이블을 보여 주는 여행 후기 탭으로 보낸다(NotFound 대신) */}
+              {!PROMO_REVIEWS_ENABLED && <Route path="/reviews/*" element={<Navigate to="/qna?tab=review" replace />} />}
               <Route
                 path="/mypage"
                 element={

@@ -34,3 +34,10 @@ export const ITINERARY_ENABLED = import.meta.env.VITE_ITINERARY_ENABLED === 'tru
 //   아직 다 구현된 상태가 아니라 지금 링크를 걸면 방문자가 미완성 화면을 보게 된다.
 //   나머지 사이트가 완성되면 이 값을 true 로 바꾸면 그대로 돌아온다(링크 목록은 Footer 에 그대로 둔다).
 export const FAMILY_SITES_ENABLED = false;
+
+// PROMO_REVIEWS_ENABLED — 상단 메뉴 "여행상품 홍보 및 후기"(/reviews, /reviews/:regionId, Promotions.jsx: 홍보·후기 게시판).
+//   2026-09-06 쿠마님 지시: 초창기라 업체가 홍보할 상황이 아니니 일반회원·승무원 모두에게 숨긴다. 회원이 늘어 알려지면 다시 켠다.
+//   끄면 네비 메뉴·첫 화면 카드·라우트(주소 직접 입력도 NotFound)·키워드 알림 대상에서 빠진다. 코드·DB(reviews 테이블)는 그대로다.
+//   "여행후기 및 Q&A" 메뉴의 여행 후기 탭(TravelQnA, 같은 reviews 테이블의 type=review)은 이 플래그와 무관하게 유지된다.
+//   켤 때: 이 값을 true 로 바꾸고 재배포(라우트·메뉴·카드·알림이 한 번에 돌아온다).
+export const PROMO_REVIEWS_ENABLED = false;
