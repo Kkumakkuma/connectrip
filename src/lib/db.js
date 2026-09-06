@@ -815,20 +815,6 @@ export const chatApi = {
   async unreadCount() { return (await rpc('chat_unread_count')) || 0; },
 };
 
-// ============================================================
-// Market Transactions (포인트 결제)
-// ============================================================
-
-export const marketTransactionApi = {
-  async purchaseWithPoints(listingId, expectedPrice) {
-    // 서버 RPC 가 listing 가격 전액을 포인트로 결제(판매자/금액 위조 불가). 부분·현금 결제는 PG 연동 후.
-    // expectedPrice = 구매자가 화면에서 확인한 가격. 서버가격과 다르면(결제 직전 인상) 거부된다.
-    const { error } = await supabase.rpc('market_purchase', {
-      p_listing_id: listingId, p_expected_price: expectedPrice,
-    });
-    if (error) throw error;
-  },
-};
 
 // ============================================================
 // Storage (이미지 업로드)

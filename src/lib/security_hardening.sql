@@ -897,7 +897,8 @@ REVOKE ALL ON FUNCTION public.grant_referral_bonus(UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.purchase_voucher(INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.use_voucher(INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.convert_likes_to_points(INT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.market_purchase(UUID, INT) TO authenticated;
+-- GRANT EXECUTE ON FUNCTION public.market_purchase(UUID, INT) TO authenticated;   -- 2026-09-07 장터 포인트 결제 폐지로 회수(chat_market_20260906.sql 참조)
+REVOKE ALL ON FUNCTION public.market_purchase(UUID, INT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.send_commendation_gift(UUID, INT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.complete_signup_profile(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,DATE,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ) TO authenticated;
 DROP FUNCTION IF EXISTS public.apply_commendation_match(TEXT, DATE, UUID, TEXT, TEXT);

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, MessageCircle, Eye, MapPin, ChevronLeft, ChevronRight, Coins, X } from 'lucide-react';
+import { ArrowLeft, Heart, MessageCircle, Eye, MapPin, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-import { marketApi, marketTransactionApi, chatApi } from '../lib/db';
+import { marketApi, chatApi } from '../lib/db';
 import { timeAgo, priceLabel, statusLabel, chatErrorMessage } from '../lib/chat';
 import CrewBadge from '../components/CrewBadge';
 import ReportButton from '../components/ReportButton';
@@ -16,11 +16,11 @@ const REGIONS = [
     { id: 'southeast-asia', name: '동남아', icon: '🏝️' }, { id: 'asia', name: '아시아', icon: '🐅' }, { id: 'oceania', name: '오세아니아', icon: '🦘' },
 ];
 
-// 매물 상세(당근식). 판매자: 상태 변경·끌어올리기·수정·삭제. 구매자: 찜·채팅하기·(가격 있으면) 포인트 결제.
+// 매물 상세(당근식). 판매자: 상태 변경·끌어올리기·수정·삭제. 구매자: 찜·채팅하기. 결제는 없다(2026-09-07 쿠마님 지시로 포인트 결제 폐지).
 const MarketDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { user, profile, isLoggedIn, fetchProfile } = useAuth();
+    const { user, isLoggedIn } = useAuth();
     const [item, setItem] = useState(null);
     const [stats, setStats] = useState({ favorites: 0, chats: 0, mine_fav: false });
     const [loading, setLoading] = useState(true);
@@ -28,7 +28,6 @@ const MarketDetail = () => {
     const [idx, setIdx] = useState(0);
     const [busy, setBusy] = useState(false);
     const [editing, setEditing] = useState(false);
-    const [paying, setPaying] = useState(false);
     const loadSeqRef = useRef(0);   // id 가 바뀐 뒤 도착한 이전 응답은 버린다
     const viewSentRef = useRef(null);
 
@@ -129,7 +128,7 @@ const MarketDetail = () => {
     };
 
     const remove = async () => {
-        if (!current() || item.paid_at) return;
+        if (!current()) return;
         if (!window.confirm('이 글을 삭제할까요?')) return;
         try {
             await marketApi.delete(id);
@@ -140,26 +139,6 @@ const MarketDetail = () => {
         }
     };
 
-    const pay = async () => {
-        if (!current()) return;
-        const total = Number(item?.price) || 0;
-        const myPoints = profile?.points_balance || 0;
-        if (total <= 0) return;
-        if (myPoints < total) { alert(`포인트가 부족합니다. 필요 ${total.toLocaleString()}P / 보유 ${myPoints.toLocaleString()}P`); return; }
-        if (!window.confirm(`${total.toLocaleString()}P로 결제할까요?`)) return;
-        setPaying(true);
-        try {
-            await marketTransactionApi.purchaseWithPoints(id, total);
-            if (user?.id) fetchProfile?.(user.id);
-            alert('결제 완료');
-            await load();
-        } catch (err) {
-            console.error('결제 실패:', err);
-            alert('결제에 실패했습니다.');
-        } finally {
-            setPaying(false);
-        }
-    };
 
     if (loading) return <section className="py-24 text-center text-sm text-gray-400">불러오는 중...</section>;
     if (error || !item) return <section className="py-24 text-center text-sm text-gray-500">{error || '없는 글입니다.'}</section>;
@@ -205,7 +184,7 @@ const MarketDetail = () => {
                             {!isOwner && <AuthorActions userId={item.user_id} name={sellerName} />}
                         </span>
                         {isOwner && (
-                            <select value={item.status} onChange={(e) => setStatus(e.target.value)} disabled={busy || !!item.paid_at} className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 bg-white" aria-label="상태">
+                            <select value={item.status} onChange={(e) => setStatus(e.target.value)} disabled={busy} className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 bg-white" aria-label="상태">
                                 <option value="active">{isShare ? '나눔중' : '판매중'}</option>
                                 <option value="reserved">예약중</option>
                                 <option value="sold">{isShare ? '나눔완료' : '거래완료'}</option>
@@ -237,12 +216,8 @@ const MarketDetail = () => {
                     {isOwner ? (
                         <>
                             <button type="button" onClick={bump} disabled={busy || item.status === 'sold'} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50">끌어올리기</button>
-                            {!item.paid_at && (
                             <button type="button" onClick={() => setEditing(true)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">수정</button>
-                            )}
-                            {!item.paid_at && (
                             <button type="button" onClick={remove} className="px-3 py-2.5 rounded-xl border border-red-200 text-sm font-bold text-red-600">삭제</button>
-                            )}
                             <Link to={`/market?tab=${isShare ? 'share' : 'sell'}`} className="ml-auto text-xs font-bold text-gray-400">목록</Link>
                         </>
                     ) : (
@@ -252,11 +227,6 @@ const MarketDetail = () => {
                             </button>
                             <span className={`text-base font-extrabold ${isShare ? 'text-pink-600' : 'text-gray-900'}`}>{priceLabel(item)}</span>
                             <span className="ml-auto flex items-center gap-2">
-                                {!isShare && Number(item.price) > 0 && item.status === 'active' && (
-                                    <button type="button" onClick={pay} disabled={paying || !isLoggedIn} className="flex items-center gap-1 px-3 py-2.5 rounded-xl border border-blue-200 text-blue-700 text-sm font-bold bg-blue-50 disabled:opacity-50">
-                                        <Coins size={14} /> {paying ? '결제 중...' : '포인트 결제'}
-                                    </button>
-                                )}
                                 <button type="button" onClick={openChat} disabled={busy || !isLoggedIn || item.status === 'sold'} className={`flex items-center gap-1 px-4 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 ${isShare ? 'bg-pink-500' : 'bg-blue-600'}`}>
                                     <MessageCircle size={16} /> 채팅하기
                                 </button>

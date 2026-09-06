@@ -466,6 +466,9 @@ BEGIN
 END;
 $$;
 
+-- 2026-09-07 쿠마님 지시: 장터 포인트 결제 폐지 → 실행 권한 회수(함수 정의는 보존, 클라이언트 호출 없음)
+REVOKE ALL ON FUNCTION public.market_purchase(UUID, INT) FROM PUBLIC, anon, authenticated;
+
 -- 보호 컬럼(status·buyer_id·paid_at·view_count·refreshed_at·bumped_at)은 클라이언트 직접 UPDATE 로 못 바꾼다(RPC 만).
 -- SECURITY DEFINER RPC 는 함수 소유자(postgres)로 실행되므로 current_user 가 authenticated 가 아니다.
 CREATE OR REPLACE FUNCTION public.trg_market_listing_guard() RETURNS trigger
