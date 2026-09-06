@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { apiUrl } from '../lib/api';
+import { TICKET_MAX_BYTES, TICKET_MIME, validateTicketFile } from './lib/ticketFile';
 
 // 플래너 Supabase 데이터 레이어.
 // 운영 DB(src/lib/planner_20260904.sql)에 이미 적용된 RPC 만 호출한다. 스키마는 여기서 바꾸지 않는다.
@@ -539,8 +540,8 @@ export async function extractLinkPlaces(url) {
 const TICKET_COLUMNS =
   'id, trip_id, user_id, place_id, storage_path, mime, size_bytes, title, kind, event_date, event_time, event_at, barcode_text, barcode_format, created_at, updated_at';
 
-export const TICKET_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-export const TICKET_MAX_BYTES = 15 * 1024 * 1024;
+// 파일 규칙(mime·크기·검증 문구)의 정본은 lib/ticketFile 이다. 예전 import 경로를 위해 다시 내보낸다.
+export { TICKET_MIME, TICKET_MAX_BYTES };
 
 // 파일명은 우리가 만든다. 사용자 파일명을 그대로 쓰면 한글·공백·경로문자가 섞여
 // 스토리지 키가 깨지고, 같은 이름이 겹치면 UNIQUE 제약에 걸린다.
@@ -571,12 +572,12 @@ export async function listTickets(tripId) {
  * 파일을 올리고 티켓 행을 만든다. 날짜는 아직 넣지 않는다 —
  * 확인 시트를 거친 뒤 updateTicket 으로 채운다(설계 §5.1: 판독 결과 자동 저장 금지).
  */
-export async function uploadTicket({ tripId, userId, file }) {
-  if (!TICKET_MIME.includes(file?.type)) {
-    throw new PlannerError('사진(JPG·PNG·WebP)이나 PDF만 올릴 수 있습니다.', 'bad mime');
-  }
-  if (!(file.size > 0 && file.size <= TICKET_MAX_BYTES)) {
-    throw new PlannerError('15MB 이하 파일만 올릴 수 있습니다.', 'too large');
+export async function uploadTicket({ tripId, userId, file, placeId = null }) {
+  // placeId(2026-09-06): 장소 시트에서 올리면 그 장소에 붙인다. 같은 여행의 장소인지는 DB 트리거가 다시 확인한다.
+  const invalid = validateTicketFile(file);
+  if (invalid) {
+    const code = !TICKET_MIME.includes(file?.type) ? 'bad mime' : !(file.size > 0) ? 'empty' : 'too large';
+    throw new PlannerError(invalid, code);
   }
 
   const path = `${userId}/${tripId}/${storageName(file)}`;
@@ -595,6 +596,7 @@ export async function uploadTicket({ tripId, userId, file }) {
       mime: file.type,
       size_bytes: file.size,
       title: null,
+      place_id: placeId || null,
     })
     .select(TICKET_COLUMNS)
     .single();

@@ -11,6 +11,9 @@ import SourceAttribution from '../providers/SourceAttribution';
 import DayTabs, { UNASSIGNED_ID } from './board/DayTabs';
 import PlaceList from './board/PlaceList';
 import PlaceSheet from './board/PlaceSheet';
+import usePlaceTickets from './board/usePlaceTickets';
+import TicketDateConfirm from '../tickets/TicketDateConfirm';
+import FullScreenTicket from '../tickets/FullScreenTicket';
 import TripHeader from './board/TripHeader';
 import ActionBar from './board/ActionBar';
 import { LinkImportSheet, PlaceSearchSheet } from './board/PickerSheets';
@@ -103,6 +106,12 @@ export default function TripBoard() {
   const pushToast = useCallback((tone, message) => {
     setToasts((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, tone, message }]);
   }, []);
+
+  // 장소에 붙이는 티켓(2026-09-06 쿠마님). 목록·업로드·확인 시트·전체화면 상태는 이 훅이 들고, 장소 시트가 닫혀도 흐름은 이어진다.
+  // 티켓은 getTrip 결과에 섞지 않는다 — 그 결과가 기기 사본(buildLocalSnapshot)·내보내기로 흐른다.
+  const tk = usePlaceTickets({ tripId, userId: user?.id, trip, places, pushToast });
+  // 티켓 확인 시트·전체화면이 떠 있는 동안은 보드의 다른 시트를 전부 내려(open=false, 마운트 유지) 모달이 한 겹만 있게 한다(codex 9/6)
+  const ticketModal = Boolean(tk.pending || tk.viewing);
 
   // ---------------------------------------------------------------------
   // 불러오기
@@ -537,6 +546,11 @@ export default function TripBoard() {
       async () => {
         await deletePlace(target.id);
         await refresh();
+        try {
+          await tk.refresh();   // 장소가 사라진 티켓(place_id NULL)이 목록에서 빠지게. 실패해도 삭제 성공 토스트는 그대로
+        } catch {
+          // 티켓 목록은 다음 조작에서 다시 읽힌다
+        }
         setSheet(null);
         setSelectedPlaceId(null);
       },
@@ -820,7 +834,7 @@ export default function TripBoard() {
           (effect 안에서 setState 로 되돌리는 방식은 쓰지 않는다.) */}
       {sheet === 'place' && selectedPlace && (
         <PlaceSheet
-          open
+          open={!ticketModal}   // 티켓 확인 시트·전체화면 동안은 마운트만 유지하고 DOM 은 내린다(폼 입력 보존, 모달 한 겹)
           place={selectedPlace}
           days={days}
           currency={trip?.currency || 'KRW'}
@@ -828,12 +842,33 @@ export default function TripBoard() {
           onClose={closeSheet}
           onSave={handleSavePlace}
           onDelete={handleDeletePlace}
+          tickets={tk.byPlace.get(selectedPlace.id) || []}
+          ticketsError={tk.ticketsError}
+          ticketBusy={tk.busy}
+          onUploadTicket={(file) => tk.upload(file, selectedPlace.id)}
+          onOpenTicket={(t) => (t.event_date ? tk.open(t) : tk.reconfirm(t))}
         />
       )}
 
+      {/* 티켓 확인 시트·전체화면은 sheet==='place' 조건 밖 — 업로드 중 시트를 닫아도 확인 시트가 뜨고, 저장 뒤 돌아갈 시트가 없으면 그냥 끝난다 */}
+      {tk.pending && (
+        <TicketDateConfirm
+          key={tk.pending.row.id}
+          open
+          detection={tk.pending.detection}
+          bcbp={tk.pending.bcbp}
+          tripZone={tk.pending.tripZone}
+          viewerZone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+          saving={tk.busy}
+          onClose={tk.dismiss}
+          onSubmit={tk.confirm}
+        />
+      )}
+      {tk.viewing && <FullScreenTicket ticket={tk.viewing.ticket} url={tk.viewing.url} onClose={tk.closeViewer} />}
+
       {sheet === 'add' && (
         <AddPlaceSheet
-          open
+          open={!ticketModal}
           initial={addSeed}
           targetLabel={activeLabel}
           saving={busy}
@@ -844,7 +879,7 @@ export default function TripBoard() {
 
       {sheet === 'search' && (
         <PlaceSearchSheet
-          open
+          open={!ticketModal}
           targetLabel={activeLabel}
           saving={busy}
           onClose={closeSheet}
@@ -861,7 +896,7 @@ export default function TripBoard() {
 
       {sheet === 'link' && (
         <LinkImportSheet
-          open
+          open={!ticketModal}
           targetLabel={activeLabel}
           saving={busy}
           onClose={closeSheet}
@@ -871,7 +906,7 @@ export default function TripBoard() {
 
       {sheet === 'dest' && (
         <DestinationSheet
-          open
+          open={!ticketModal}
           current={trip?.dest_name || ''}
           saving={busy}
           onClose={closeSheet}
@@ -881,7 +916,7 @@ export default function TripBoard() {
 
       {sheet === 'dates' && (
         <DatesSheet
-          open
+          open={!ticketModal}
           startDate={trip?.start_date}
           endDate={trip?.end_date}
           saving={busy}
@@ -892,7 +927,7 @@ export default function TripBoard() {
 
       {sheet === 'assumptions' && (
         <AssumptionsSheet
-          open
+          open={!ticketModal}
           value={dayWindow}
           onClose={closeSheet}
           onSubmit={handleAssumptions}
@@ -901,7 +936,7 @@ export default function TripBoard() {
 
       {sheet === 'warning' && (
         <WarningSheet
-          open
+          open={!ticketModal}
           warning={activeWarning}
           placeName={warningPlaceName}
           onClose={closeSheet}

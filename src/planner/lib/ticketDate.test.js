@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findDateCandidates, parseBcbp, pickTicketDate } from './ticketDate';
+import { findDateCandidates, mergeBcbpCandidate, parseBcbp, pickTicketDate } from './ticketDate';
 
 const TRIP = { start_date: '2026-10-01', end_date: '2026-10-08' };
 
@@ -121,5 +121,24 @@ describe('parseBcbp', () => {
     const got = parseBcbp(payload, {});
     expect(got).not.toBeNull();
     expect(got.date).toBeNull();
+  });
+});
+
+describe('mergeBcbpCandidate', () => {
+  const det = () => ({ candidates: [{ date: '2026-10-05', score: 3, hits: 2, ambiguous: false, evidence: 'x' }], best: null, ambiguous: true });
+  it('후보에 없으면 맨 앞 + best 교체 + ambiguous=false, 입력은 불변', () => {
+    const input = det();
+    const out = mergeBcbpCandidate(input, { date: '2026-10-03', flight: 'KE901' });
+    expect(out.candidates[0]).toMatchObject({ date: '2026-10-03', score: 5, hits: 1, ambiguous: false, evidence: '탑승권 KE901' });
+    expect(out.best.date).toBe('2026-10-03');
+    expect(out.ambiguous).toBe(false);
+    expect(input.candidates).toHaveLength(1);
+    expect(input.ambiguous).toBe(true);
+  });
+  it('이미 있으면 원본 그대로, bcbp 없으면 같은 참조', () => {
+    const input = det();
+    expect(mergeBcbpCandidate(input, { date: '2026-10-05', flight: 'KE1' })).toBe(input);
+    expect(mergeBcbpCandidate(input, null)).toBe(input);
+    expect(mergeBcbpCandidate(null, { date: '2026-10-05' })).toBeNull();
   });
 });

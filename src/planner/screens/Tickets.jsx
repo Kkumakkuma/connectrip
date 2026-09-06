@@ -1,28 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileText, Image as ImageIcon, Loader2, Plus, Ticket, Trash2, X } from 'lucide-react';
+import { ArrowLeft, FileText, Image as ImageIcon, Loader2, MapPin, Plus, Ticket, Trash2 } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import Badge from '../kit/Badge';
 import Button from '../kit/Button';
 import Card from '../kit/Card';
 import EmptyState from '../kit/EmptyState';
 import { ToastStack } from '../kit/Toast';
-import {
-  deleteTicket,
-  getTrip,
-  listTickets,
-  TICKET_MAX_BYTES,
-  TICKET_MIME,
-  ticketUrl,
-  updateTicket,
-  uploadTicket,
-} from '../api';
+import { deleteTicket, getTrip, listTickets, updateTicket } from '../api';
 import Switch from '../kit/Switch';
 import { formatDateWithWeekday, todayISO } from '../lib/format';
-import { purgeTicket, readTicket, saveTicket, ticketBytes } from '../lib/offlineStore';
-import { pickTicketDate, parseBcbp } from '../lib/ticketDate';
+import { purgeTicket, saveTicket, ticketBytes } from '../lib/offlineStore';
+import { KIND_LABEL, ticketLabel } from '../lib/ticketFile';
 import { resolveTripZoneAsync, timeZoneGapText } from '../lib/timezone';
 import TicketDateConfirm from '../tickets/TicketDateConfirm';
+import FullScreenTicket from '../tickets/FullScreenTicket';
+import { resolveTicketView, uploadAndDetect } from '../tickets/intake';
 
 // /planner/t/:tripId/tickets — 티켓 지갑 (설계 §5)
 //
@@ -32,16 +25,9 @@ import TicketDateConfirm from '../tickets/TicketDateConfirm';
 //   3. 전체화면은 언제나 원본을 보여 준다. 바코드를 다시 그리지 않는다 —
 //      탑승권이 게이트에서 안 읽히면 그 자리에서 탑승이 막힌다.
 
-const KIND_LABEL = {
-  flight: '항공권',
-  train: '기차',
-  bus: '버스',
-  ticket: '입장권',
-  hotel: '숙소',
-  other: '기타',
-};
+// 파일 규칙·종류 라벨·업로드/열기 I/O 는 lib/ticketFile · tickets/intake 로 옮겨 장소 시트(PlaceSheet)와 함께 쓴다(2026-09-06).
 
-function TicketRow({ ticket, onOpen, onDelete, busy }) {
+function TicketRow({ ticket, placeName, onOpen, onDelete, busy }) {
   const isPdf = ticket.mime === 'application/pdf';
   return (
     <li className="border-t border-hairline first:border-t-0">
@@ -59,11 +45,17 @@ function TicketRow({ ticket, onOpen, onDelete, busy }) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-ink">
-              {ticket.title || (isPdf ? 'PDF 티켓' : '사진 티켓')}
+              {ticketLabel(ticket)}
             </span>
             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
               {ticket.kind && <span>{KIND_LABEL[ticket.kind] || ticket.kind}</span>}
               {ticket.event_time && <span>{String(ticket.event_time).slice(0, 5)}</span>}
+              {placeName && (
+                <span className="inline-flex min-w-0 items-center gap-1">
+                  <MapPin size={11} aria-hidden="true" />
+                  <span className="truncate">{placeName}</span>
+                </span>
+              )}
               {!ticket.event_date && <span className="text-warning">날짜 미확인</span>}
             </span>
           </span>
@@ -82,50 +74,13 @@ function TicketRow({ ticket, onOpen, onDelete, busy }) {
   );
 }
 
-// 전체화면 보기. 흰 배경 + 원본 그대로.
-function FullScreenTicket({ ticket, url, onClose }) {
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    // 화면을 켜 둔다. 게이트 앞에서 화면이 꺼지면 곤란하다. 지원하지 않는 브라우저는 그냥 넘어간다.
-    let lock = null;
-    navigator.wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => {});
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      lock?.release?.().catch(() => {});
-    };
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[90] flex flex-col bg-white">
-      <div className="flex items-center justify-between px-3 py-2">
-        <span className="truncate text-sm font-semibold text-gray-900">{ticket.title || '티켓'}</span>
-        <button type="button" onClick={onClose} aria-label="닫기" className="rounded-sm p-2 text-gray-500">
-          <X size={18} aria-hidden="true" />
-        </button>
-      </div>
-      <div className="flex flex-1 items-center justify-center overflow-auto p-2">
-        {url ? (
-          <img src={url} alt="" className="max-h-full max-w-full object-contain" />
-        ) : (
-          <Loader2 size={22} className="animate-spin text-gray-400" aria-hidden="true" />
-        )}
-      </div>
-      <p className="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-1 text-center text-xs text-gray-500">
-        화면 밝기를 최대로 올리면 잘 읽힙니다. 손가락으로 벌리면 확대됩니다.
-      </p>
-    </div>
-  );
-}
-
 export default function Tickets() {
   const { tripId } = useParams();
   const { user } = useAuth();
   const fileRef = useRef(null);
 
   const [trip, setTrip] = useState(null);
+  const [places, setPlaces] = useState([]);     // 티켓 행에 붙은 장소 이름 표시용(2026-09-06)
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -133,6 +88,11 @@ export default function Tickets() {
   const [pending, setPending] = useState(null);   // 업로드 직후 확인 대기 중인 티켓
   const [viewing, setViewing] = useState(null);
   const [viewUrl, setViewUrl] = useState(null);
+  const viewRevokeRef = useRef(null);          // 기기 사본으로 만든 object URL 은 닫을 때·화면을 떠날 때 해제한다
+  useEffect(() => () => {
+    viewRevokeRef.current?.();
+    viewRevokeRef.current = null;
+  }, []);
   // 티켓 원본을 기기에 남길지. **여행별 opt-in, 기본 꺼짐**(설계 §5.4).
   // 탑승권 바코드는 성 + 예약번호 조합이라 항공사 예약 조회가 되는 자격증명이다.
   const [offlineOn, setOfflineOn] = useState(() => {
@@ -187,7 +147,7 @@ export default function Tickets() {
       }
       setOfflineBytes(await ticketBytes(user?.id).catch(() => 0));
       if (blocked === 'quota' || blocked === 'no-room') {
-        pushToast('warning', '저장 공간이 부족해 일부만 저장했습니다.');
+        pushToast('error', '저장 공간이 부족해 일부만 저장했습니다.');
       } else {
         pushToast('success', `티켓 ${saved}장을 기기에 저장했습니다.`);
       }
@@ -203,11 +163,12 @@ export default function Tickets() {
         const [tripData, rows] = await Promise.all([getTrip(tripId), listTickets(tripId)]);
         if (!alive) return;
         setTrip(tripData.trip);
+        setPlaces(tripData.places || []);
         setTickets(rows);
         const zone = await resolveTripZoneAsync(tripData.trip, tripData.places);
         if (alive) setTripZone(zone);
       } catch (e) {
-        if (alive) pushToast('warning', e?.message || '티켓을 불러오지 못했습니다.');
+        if (alive) pushToast('error', e?.message || '티켓을 불러오지 못했습니다.');
       } finally {
         if (alive) setLoading(false);
       }
@@ -218,63 +179,38 @@ export default function Tickets() {
   }, [tripId, pushToast]);
 
   const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const placeById = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';           // 같은 파일을 다시 골라도 이벤트가 오게 비운다
     if (!file) return;
-    if (!TICKET_MIME.includes(file.type)) {
-      pushToast('warning', '사진(JPG·PNG·WebP)이나 PDF만 올릴 수 있습니다.');
-      return;
-    }
-    if (file.size > TICKET_MAX_BYTES) {
-      pushToast('warning', '15MB 이하 파일만 올릴 수 있습니다.');
-      return;
-    }
 
     setBusy(true);
     try {
-      const row = await uploadTicket({ tripId, userId: user?.id, file });
-      // 여기서부터는 파일도 행도 이미 서버에 있다. 뒤 단계가 실패해도 "올리지 못했습니다"로
-      // 말하면 안 된다 — 사용자가 다시 올려 사본이 둘 생긴다(교차검토 지적).
-      try {
-        await refresh();
-      } catch {
-        pushToast('warning', '올리기는 끝났는데 목록을 새로 못 읽었습니다. 화면을 새로고침해 주세요.');
+      // 검증 → 업로드 → 목록 갱신 → 판독(실패는 빈 후보로 흡수) — 장소 시트와 같은 경로(tickets/intake)
+      let listFailed = false;
+      const result = await uploadAndDetect({
+        tripId,
+        userId: user?.id,
+        file,
+        trip,
+        placeId: null,
+        onUploaded: async () => {
+          try {
+            await refresh();
+          } catch {
+            listFailed = true;
+          }
+        },
+      });
+      if (listFailed) {
+        // 파일도 행도 이미 서버에 있다. "올리지 못했습니다"로 말하면 사용자가 다시 올려 사본이 둘 생긴다(교차검토 지적).
+        pushToast('info', '올리기는 끝났는데 목록을 새로 못 읽었습니다. 화면을 새로고침해 주세요.');
       }
-
-      // 판독은 여기서부터. 실패해도 업로드는 이미 끝났으니 화면을 막지 않는다.
-      let text = '';
-      let bcbp = null;
-      let barcode = null;
-      if (file.type === 'application/pdf') {
-        const { extractPdfText } = await import('../lib/pdfText');
-        text = await extractPdfText(file);
-      } else {
-        const { readBarcodeFromImage } = await import('../lib/barcode');
-        barcode = await readBarcodeFromImage(file);
-        if (barcode?.text) {
-          text = barcode.text;
-          bcbp = parseBcbp(barcode.text, trip);
-        }
-      }
-
-      const detection = pickTicketDate(text, trip);
-      // 탑승권에서 날짜를 읽었으면 후보 맨 앞에 올린다. 그래도 확인은 받는다.
-      if (bcbp?.date && !detection.candidates.some((c) => c.date === bcbp.date)) {
-        detection.candidates.unshift({
-          date: bcbp.date,
-          score: 5,
-          hits: 1,
-          ambiguous: false,
-          evidence: `탑승권 ${bcbp.flight}`,
-        });
-        detection.best = detection.candidates[0];
-        detection.ambiguous = false;
-      }
-      setPending({ row, detection, bcbp, barcode });
+      setPending(result);
     } catch (err) {
-      pushToast('warning', err?.message || '올리지 못했습니다.');
+      pushToast('error', err?.message || '올리지 못했습니다.');
     } finally {
       setBusy(false);
     }
@@ -302,7 +238,7 @@ export default function Tickets() {
       setPending(null);
       pushToast('success', '티켓을 저장했습니다.');
     } catch (err) {
-      pushToast('warning', err?.message || '저장하지 못했습니다.');
+      pushToast('error', err?.message || '저장하지 못했습니다.');
     } finally {
       setBusy(false);
     }
@@ -317,7 +253,7 @@ export default function Tickets() {
       await refresh();
       pushToast('success', '티켓을 지웠습니다.');
     } catch (err) {
-      pushToast('warning', err?.message || '지우지 못했습니다.');
+      pushToast('error', err?.message || '지우지 못했습니다.');
     } finally {
       setBusy(false);
     }
@@ -333,27 +269,26 @@ export default function Tickets() {
     setViewing(ticket);
     setViewUrl(null);
     try {
-      if (ticket.mime === 'application/pdf') {
-        const { downloadTicket } = await import('../api');
-        const { renderPdfFirstPage } = await import('../lib/pdfText');
-        const blob = await downloadTicket(ticket.storage_path);
-        const rendered = await renderPdfFirstPage(blob);
-        if (!rendered) {
-          // null 을 성공으로 치면 전체화면이 영원히 로딩만 돈다.
-          pushToast('warning', 'PDF 를 화면에 그리지 못했습니다.');
-          setViewing(null);
-          return;
-        }
-        setViewUrl(rendered);
-      } else {
-        // 기기에 사본이 있으면 그걸 먼저 쓴다. 오프라인에서 티켓을 여는 게 이 기능의 목적이다.
-        const local = await readTicket(user?.id, ticket.id).catch(() => null);
-        setViewUrl(local ? URL.createObjectURL(local) : await ticketUrl(ticket.storage_path));
+      const view = await resolveTicketView(ticket, user?.id);
+      if (!view) {
+        // null 을 성공으로 치면 전체화면이 영원히 로딩만 돈다.
+        pushToast('error', ticket.mime === 'application/pdf' ? 'PDF 를 화면에 그리지 못했습니다.' : '티켓을 열지 못했습니다.');
+        setViewing(null);
+        return;
       }
+      viewRevokeRef.current = view.revoke;
+      setViewUrl(view.url);
     } catch {
-      pushToast('warning', '티켓을 열지 못했습니다.');
+      pushToast('error', '티켓을 열지 못했습니다.');
       setViewing(null);
     }
+  };
+
+  const closeViewer = () => {
+    viewRevokeRef.current?.();
+    viewRevokeRef.current = null;
+    setViewing(null);
+    setViewUrl(null);
   };
 
   const today = todayISO();
@@ -413,7 +348,7 @@ export default function Tickets() {
               <Card className="px-4">
                 <ul>
                   {todayTickets.map((t) => (
-                    <TicketRow key={`today-${t.id}`} ticket={t} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
+                    <TicketRow key={`today-${t.id}`} ticket={t} placeName={placeById.get(t.place_id)?.name || ''} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
                   ))}
                 </ul>
               </Card>
@@ -429,7 +364,7 @@ export default function Tickets() {
                 <Card className="px-4">
                   <ul>
                     {grouped[key].map((t) => (
-                      <TicketRow key={t.id} ticket={t} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
+                      <TicketRow key={t.id} ticket={t} placeName={placeById.get(t.place_id)?.name || ''} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
                     ))}
                   </ul>
                 </Card>
@@ -479,16 +414,7 @@ export default function Tickets() {
         />
       )}
 
-      {viewing && (
-        <FullScreenTicket
-          ticket={viewing}
-          url={viewUrl}
-          onClose={() => {
-            setViewing(null);
-            setViewUrl(null);
-          }}
-        />
-      )}
+      {viewing && <FullScreenTicket ticket={viewing} url={viewUrl} onClose={closeViewer} />}
 
       <ToastStack items={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
     </section>

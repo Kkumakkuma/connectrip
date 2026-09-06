@@ -225,3 +225,16 @@ export function parseBcbp(text, trip) {
     date,
   };
 }
+
+
+/**
+ * 탑승권(BCBP)에서 읽은 날짜를 후보 맨 앞에 올린다. 그래도 확인은 받는다(자동 저장 금지).
+ * 후보에 이미 있거나 bcbp 가 없으면 입력을 그대로 돌려준다. 입력 객체는 바꾸지 않는다.
+ */
+export function mergeBcbpCandidate(detection, bcbp) {
+  if (!detection || !bcbp?.date) return detection;
+  const candidates = detection.candidates || [];
+  if (candidates.some((c) => c.date === bcbp.date)) return detection;
+  const first = { date: bcbp.date, score: 5, hits: 1, ambiguous: false, evidence: `탑승권 ${bcbp.flight || ''}`.trim() };
+  return { ...detection, candidates: [first, ...candidates], best: first, ambiguous: false };
+}
