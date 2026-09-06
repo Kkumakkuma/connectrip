@@ -6,9 +6,9 @@ import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
+import AuthorActions from './AuthorActions';
 import { useAuth } from '../lib/AuthContext';
 import { qnaApi, reviewsApi, postLikeApi } from '../lib/db';
-import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { replyTargetLabel } from '../lib/flightBoard';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
@@ -37,7 +37,6 @@ const keyActivate = (fn) => (e) => {
 
 const TravelQnA = () => {
     const { user, profile, isLoggedIn } = useAuth();
-    const blockedIds = useBlockedIds();
     const [mode, setMode] = useState('main'); // 'main' | 'review' | 'qna'
     const location = useLocation();
 
@@ -268,7 +267,7 @@ const TravelQnA = () => {
         return title.toLowerCase().includes(q) || content.toLowerCase().includes(q);
     });
 
-    const visiblePosts = filterBlocked(filteredPosts, blockedIds);
+    const visiblePosts = filteredPosts;
     const totalPages = Math.ceil(visiblePosts.length / itemsPerPage);
     const paginatedPosts = visiblePosts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -380,6 +379,7 @@ const TravelQnA = () => {
                                                         <div className="flex items-center gap-1 text-xs text-gray-400 min-w-0 mb-1.5">
                                                             <User size={12} className="flex-shrink-0" />
                                                             <span className="truncate">{post.author_name || post.profiles?.name || '익명'}</span>
+                                                            <AuthorActions userId={post.user_id} name={post.author_name || post.profiles?.name || ''} size={12} />
                                                             <CrewBadge profile={post.profiles} />
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-gray-400 flex-nowrap overflow-hidden">

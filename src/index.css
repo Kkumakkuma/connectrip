@@ -204,3 +204,7 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-color);
 }
+
+/* 가로 칩 목록 등: 스크롤은 되되 막대는 숨김 (2026-09-06 장터 지역 칩) */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

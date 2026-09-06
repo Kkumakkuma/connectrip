@@ -6,6 +6,7 @@ import {
 import SEOHead from './SEOHead';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
+import AuthorActions from './AuthorActions';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import LoginPrompt from './LoginPrompt';
@@ -200,6 +201,7 @@ const ItineraryPost = () => {
               <span className="inline-flex items-center gap-1 min-w-0">
                 <strong className="text-gray-900 truncate">{post.author_name || '익명'}</strong>
                 <CrewBadge profile={post.profiles} />
+                <AuthorActions userId={post.user_id} name={post.author_name || ''} size={13} />
               </span>
               <span className="inline-flex items-center gap-1.5 text-gray-400">
                 <Eye size={16} aria-hidden="true" />

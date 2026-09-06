@@ -58,6 +58,7 @@ export const marketApi = {
     // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
     let query = supabase.from('market_listings')
       .select('*, profiles!market_listings_user_id_fkey(user_type, crew_verified)')
+      .order('refreshed_at', { ascending: false })
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
@@ -80,6 +81,58 @@ export const marketApi = {
   async delete(id) {
     const { error } = await supabase.from('market_listings').delete().eq('id', id);
     if (error) throw error;
+  },
+
+  // ---- 당근식 장터(2026-09-06) ----
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('market_listings')
+      .select('*, profiles!market_listings_user_id_fkey(id, name, nickname, avatar_url, user_type, crew_verified)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async update(id, patch) {
+    const { data, error } = await supabase
+      .from('market_listings')
+      .update(patch)
+      .eq('id', id)
+      .select('*, profiles!market_listings_user_id_fkey(id, name, nickname, avatar_url, user_type, crew_verified)')
+      .single();
+    if (error) throw error;
+    return data;
+  },
+  // { [id]: { favorites, chats, mine_fav } }
+  async stats(ids) {
+    if (!ids || ids.length === 0) return {};
+    const { data, error } = await supabase.rpc('market_listing_stats', { p_ids: ids });
+    if (error) throw error;
+    return data || {};
+  },
+  async setStatus(id, status) {
+    const { error } = await supabase.rpc('market_set_status', { p_listing: id, p_status: status });
+    if (error) throw error;
+  },
+  async bump(id) {
+    const { error } = await supabase.rpc('market_bump', { p_listing: id });
+    if (error) throw error;
+  },
+  async bumpView(id) {
+    const { error } = await supabase.rpc('market_bump_view', { p_listing: id });
+    if (error) throw error;
+  },
+  async setFavorite(id, on) {
+    if (on) {
+      const { data: auth } = await supabase.auth.getUser();
+      const me = auth?.user?.id;
+      if (!me) throw new Error('AUTH_REQUIRED');
+      const { error } = await supabase.from('market_favorites').insert({ user_id: me, listing_id: id });
+      if (error && error.code !== '23505') throw error;
+    } else {
+      const { error } = await supabase.from('market_favorites').delete().eq('listing_id', id);
+      if (error) throw error;
+    }
   },
 };
 
@@ -709,6 +762,45 @@ export const flightBoardApi = {
   async mute({ postId = null, commentId = null }) {
     return rpc('flight_board_mute', { p_post_id: postId, p_comment_id: commentId });
   },
+};
+
+// ============================================================
+// 쪽지(네이버 카페식 메일함) — 2026-09-06. 전부 RPC. 차단 관계면 서버가 BLOCKED 로 거부한다.
+// ============================================================
+export const messageApi = {
+  async send(toUserId, content) { return rpc('message_send', { p_to: toUserId, p_content: content }); },
+  // kind: 'in' 받은 쪽지 | 'out' 보낸 쪽지
+  async box(kind = 'in', limit = 100) { return (await rpc('message_box', { p_box: kind, p_limit: limit })) || []; },
+  async markRead(id) { return rpc('message_mark_read', { p_id: id }); },
+  async remove(id) { return rpc('message_delete', { p_id: id }); },
+  async unreadCount() { return (await rpc('message_unread_count')) || 0; },
+};
+
+// ============================================================
+// 1:1 대화(대화방) — 2026-09-06. 방 열기·보내기·읽음은 RPC, 메시지 조회는 RLS(참여자만).
+//   listingId 를 주면 그 매물의 구매자·판매자 방, 없으면 두 사람 사이 1:1 대화방.
+// ============================================================
+export const chatApi = {
+  async open(userId, listingId = null) { return rpc('chat_open', { p_user: userId, p_listing: listingId }); },
+  async rooms() { return (await rpc('chat_rooms_list')) || []; },
+  async roomInfo(roomId) { return rpc('chat_room_info', { p_room: roomId }); },
+  // sinceAt 이후(같은 시각 포함)만 받아 호출부가 id 로 중복을 걸러 붙인다.
+  async messages(roomId, { sinceAt = null, limit = 300 } = {}) {
+    let q = supabase
+      .from('chat_messages')
+      .select('id, room_id, sender_id, content, created_at')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(limit);
+    if (sinceAt) q = q.gte('created_at', sinceAt);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+  },
+  async send(roomId, content) { return rpc('chat_send', { p_room: roomId, p_content: content }); },
+  async markRead(roomId) { return rpc('chat_mark_read', { p_room: roomId }); },
+  async unreadCount() { return (await rpc('chat_unread_count')) || 0; },
 };
 
 // ============================================================

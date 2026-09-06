@@ -12,7 +12,6 @@ import ItineraryImportNotice from './ItineraryImportNotice';
 import { useScrollRestore } from './RouteResetGuard';
 import { itineraryApi, postLikeApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
-import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { useItineraryImport } from '../lib/useItineraryImport';
 import { formatRange } from '../lib/itineraryDate';
 
@@ -26,7 +25,6 @@ const SEO_DESC = '여행자들이 직접 짠 날짜별 여행 일정을 살펴�
 
 const ItineraryBoard = () => {
   const { user, isLoggedIn } = useAuth();
-  const blockedIds = useBlockedIds();
   const [posts, setPosts] = useState([]);
   const [likes, setLikes] = useState({});
   const [loading, setLoading] = useState(true);
@@ -72,7 +70,7 @@ const ItineraryBoard = () => {
     }
   };
 
-  const visible = filterBlocked(posts, blockedIds);
+  const visible = posts;
   const isEmpty = !loading && !error && visible.length === 0;
 
   // 글을 열었다가 뒤로 돌아왔을 때 보던 위치로 되돌린다.

@@ -29,6 +29,10 @@ const SignupComplete = lazy(() => import('./pages/SignupComplete'));
 const Destinations = lazy(() => import('./components/Destinations'));
 const TravelQnA = lazy(() => import('./components/TravelQnA'));
 const MarketBoard = lazy(() => import('./components/MarketBoard'));
+const MarketDetail = lazy(() => import('./pages/MarketDetail'));
+const ChatList = lazy(() => import('./pages/ChatList'));
+const ChatRoom = lazy(() => import('./pages/ChatRoom'));
+const Messages = lazy(() => import('./pages/Messages'));
 const CrewOnly = lazy(() => import('./components/CrewOnly'));
 // 여행상품 홍보 및 후기 — 초창기라 숨김(2026-09-06 쿠마님). 플래그가 꺼지면 청크도 만들지 않는다(PLANNER 와 같은 방식).
 const Promotions = PROMO_REVIEWS_ENABLED ? lazy(() => import('./components/Promotions')) : null;
@@ -268,6 +272,10 @@ function App() {
               )}
               <Route path="/qna" element={<RequireLogin><div className="py-20"><TravelQnA /></div></RequireLogin>} />
               <Route path="/market" element={<RequireLogin><div className="py-20"><MarketBoard /></div></RequireLogin>} />
+              <Route path="/market/:id" element={<RequireLogin><MarketDetail /></RequireLogin>} />
+              <Route path="/chat" element={<RequireLogin><ChatList /></RequireLogin>} />
+              <Route path="/chat/:roomId" element={<RequireLogin><ChatRoom /></RequireLogin>} />
+              <Route path="/messages" element={<RequireLogin><Messages /></RequireLogin>} />
               <Route path="/crew" element={<RequireLogin><div className="py-20"><CrewOnly /></div></RequireLogin>} />
               <Route path="/search" element={<RequireLogin><Search /></RequireLogin>} />
               <Route path="/admin" element={<Admin />} />

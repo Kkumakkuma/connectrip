@@ -6,7 +6,7 @@ import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
-import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
+import AuthorActions from './AuthorActions';
 import { useAuth } from '../lib/AuthContext';
 import { companionApi, postLikeApi } from '../lib/db';
 import LoginPrompt from './LoginPrompt';
@@ -25,7 +25,6 @@ const regions = [
 
 const RegionalBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
-    const blockedIds = useBlockedIds();
     const { regionId } = useParams();
     const location = useLocation();
     const region = regions.find(r => r.id === regionId);
@@ -93,7 +92,7 @@ const RegionalBoard = () => {
         }
     };
 
-    const filtered = filterBlocked(posts, blockedIds).filter(p =>
+    const filtered = posts.filter(p =>
         !searchQuery ||
         [p.title, p.country, p.author_name, p.content].some(v =>
             (v || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -234,7 +233,7 @@ const RegionalBoard = () => {
                                                             </div>
                                                             <div className="flex items-center gap-2 text-gray-600">
                                                                 <MapPin size={16} className="text-blue-500" />
-                                                                <span className="flex items-center gap-1 min-w-0">작성자: <strong className="text-gray-900 truncate">{post.author_name}</strong><CrewBadge profile={post.profiles} /></span>
+                                                                <span className="flex items-center gap-1 min-w-0">작성자: <strong className="text-gray-900 truncate">{post.author_name}</strong><CrewBadge profile={post.profiles} /><AuthorActions userId={post.user_id} name={post.author_name || ''} size={12} /></span>
                                                             </div>
                                                         </div>
 

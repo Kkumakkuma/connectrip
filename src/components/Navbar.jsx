@@ -4,6 +4,7 @@ import { Menu, X, User, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell';
+import ChatBadge from './ChatBadge';
 import SearchBar from './SearchBar';
 import { ITINERARY_ENABLED, PLANNER_ENABLED, PROMO_REVIEWS_ENABLED } from '../lib/featureFlags';
 
@@ -211,6 +212,7 @@ const Navbar = () => {
             </div>
           ) : (
             <div className="flex items-center gap-3">
+              <ChatBadge />
               <NotificationBell />
               {isCrew && (
                 <span className="text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full font-bold">CREW</span>

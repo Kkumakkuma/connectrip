@@ -2,14 +2,14 @@ import { useState, useEffect, useId } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag, Heart, ArrowLeft, Gift, MapPin, Plus, X, Search, Users } from 'lucide-react';
+import MarketFeed from './MarketFeed';
+import MarketListingForm from './MarketListingForm';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
-import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { useAuth } from '../lib/AuthContext';
-import { marketApi, marketTransactionApi } from '../lib/db';
-import { Coins } from 'lucide-react';
+import { marketApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
@@ -70,8 +70,7 @@ const keyActivate = (fn) => (e) => {
 };
 
 const MarketBoard = () => {
-    const blockedIds = useBlockedIds();
-    const { user, profile, isLoggedIn, fetchProfile } = useAuth();
+    const { user, profile, isLoggedIn } = useAuth();
     const location = useLocation();
     // mode: 'main' | 'sell' | 'share' | 'buy' | 'groupbuy'
     const [mode, setMode] = useState('main');
@@ -80,12 +79,12 @@ const MarketBoard = () => {
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ title: '', country: '', price: '', location: '', content: '', transactionType: 'direct', image_url: '' });
     const [searchQuery, setSearchQuery] = useState('');
-    const [currentPageSell, setCurrentPageSell] = useState(1);
     const [currentPageBuy, setCurrentPageBuy] = useState(1);
     const [sellingItems, setSellingItems] = useState([]);
     const [sharingItems, setSharingItems] = useState([]);
     const [buyingRequests, setBuyingRequests] = useState([]);
     const [groupbuyItems, setGroupbuyItems] = useState([]);
+    const [stats, setStats] = useState({}); // { [id]: { favorites, chats } } — 판매·나눔 목록용
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -103,6 +102,9 @@ const MarketBoard = () => {
             // 차단 필터는 여기서 걸지 않는다 — blockedIds 는 마운트 후 비동기로 도착하므로
             // fetch 시점에 한 번 거르면 늦게 온 차단 목록이 반영되지 않는다. 렌더 시점에 건다.
             const data = await marketApi.getAll(typeMap[mode]) || [];
+            if (mode === 'sell' || mode === 'share') {
+                marketApi.stats(data.map((d) => d.id)).then(setStats).catch(() => setStats({}));
+            }
             if (mode === 'sell') setSellingItems(data);
             else if (mode === 'buy') setBuyingRequests(data);
             else if (mode === 'share') setSharingItems(data);
@@ -180,46 +182,6 @@ const MarketBoard = () => {
         }
     };
 
-    // 포인트 전액 결제 모달 상태
-    const [paymentModal, setPaymentModal] = useState(null); // 선택된 아이템
-    const [paymentLoading, setPaymentLoading] = useState(false);
-
-    const openPaymentModal = (item) => {
-        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (item.user_id === user.id) { alert('자신의 물품은 구매할 수 없습니다.'); return; }
-        const totalPrice = parseInt(String(item.price).replace(/[^0-9]/g, '')) || 0;
-        if (totalPrice <= 0) { alert('가격이 설정되지 않은 물품입니다. 판매자에게 직접 문의해주세요.'); return; }
-        setPaymentModal(item);
-    };
-
-    const handlePayment = async () => {
-        if (!paymentModal) return;
-        const totalPrice = parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')) || 0;
-        const myPoints = profile?.points_balance || 0;
-
-        if (myPoints < totalPrice) {
-            alert(`포인트가 부족합니다.\n필요: ${totalPrice.toLocaleString()}P / 보유: ${myPoints.toLocaleString()}P`);
-            return;
-        }
-
-        if (!window.confirm(`${totalPrice.toLocaleString()}P로 구매하시겠습니까?`)) return;
-
-        setPaymentLoading(true);
-        try {
-            await marketTransactionApi.purchaseWithPoints(paymentModal.id, totalPrice);
-            setSellingItems(prev => prev.filter(i => i.id !== paymentModal.id));
-            // 결제 후 포인트 잔액 표시 갱신
-            if (user?.id) fetchProfile?.(user.id);
-            alert('결제 완료!');
-            setPaymentModal(null);
-        } catch (err) {
-            console.error('결제 실패:', err);
-            alert('결제에 실패했습니다.');
-        } finally {
-            setPaymentLoading(false);
-        }
-    };
-
     const resetView = () => {
         setMode('main');
         setShareRegion(null);
@@ -241,21 +203,14 @@ const MarketBoard = () => {
         window.scrollTo(0, 0);
     }, [shareRegion]);
 
-    // 차단 필터는 렌더 시점에 건다 — blockedIds 가 늦게 도착해도 목록에 바로 반영된다.
-    // 빈 상태 가드와 목록·페이지 수가 모두 같은 배열을 봐야 "전부 차단된 경우"에도
-    // 빈 그리드가 아니라 안내 화면이 뜬다.
-    const visibleSell = filterBlocked(sellingItems, blockedIds);
-    const visibleBuy = filterBlocked(buyingRequests, blockedIds);
-    // 공동구매·나눔은 가드와 목록이 같은 필터 체인을 두 번 돌던 자리라 배열 하나로 합쳤다.
+    // 차단은 쪽지·대화만 막는다(2026-09-06) — 게시글은 숨기지 않는다.
+    const visibleBuy = buyingRequests;
     const groupbuyQuery = searchQuery.toLowerCase();
-    const visibleGroupbuy = filterBlocked(groupbuyItems, blockedIds).filter(i =>
+    const visibleGroupbuy = groupbuyItems.filter(i =>
         !groupbuyQuery
         || (i.title || '').toLowerCase().includes(groupbuyQuery)
         || (i.content || '').toLowerCase().includes(groupbuyQuery)
     );
-    const visibleShare = shareRegion
-        ? filterBlocked(sharingItems, blockedIds).filter(item => item.region_id === shareRegion.id)
-        : [];
 
     return (
         <section id="market" className="py-20 bg-gray-50 min-h-[80vh]">
@@ -371,129 +326,25 @@ const MarketBoard = () => {
                     )}
 
                     {mode === 'sell' && (
-                        <motion.div
-                            key="sell-market"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 20 }}
-                        >
-                            <div className="max-w-6xl mx-auto">
-                                <button
-                                    onClick={resetView}
-                                    className="flex items-center gap-2 text-gray-600 hover:text-blue-600 font-semibold mb-8 transition-colors"
-                                >
+                        <motion.div key="sell-market" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+                            <div className="max-w-3xl mx-auto">
+                                <button onClick={resetView} className="flex items-center gap-2 text-gray-600 hover:text-blue-600 font-semibold mb-4 transition-colors">
                                     <ArrowLeft size={20} /> 메인으로 돌아가기
                                 </button>
-
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-blue-100 rounded-xl text-blue-600 flex-shrink-0">
-                                            <ShoppingBag size={32} />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">물품팔아요</h2>
-                                            <p className="text-gray-500 text-sm sm:text-base">여행자·승무원 회원들과 직접 거래해보세요.</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-                                            setShowModal(true);
-                                        }}
-                                        className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors w-full sm:w-auto justify-center flex-shrink-0"
-                                    >
-                                        <Plus size={20} /> 글쓰기
-                                    </button>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2.5 bg-blue-100 rounded-xl text-blue-600 flex-shrink-0"><ShoppingBag size={24} /></div>
+                                    <h2 className="text-2xl font-bold text-gray-900">물품팔아요</h2>
                                 </div>
-
-                                {loading || error ? (
-                                    <ListState loading={loading} error={error} onRetry={fetchListings} color="blue" />
-                                ) : visibleSell.length > 0 ? (
-                                    <>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                            {visibleSell
-                                                .slice((currentPageSell - 1) * itemsPerPage, currentPageSell * itemsPerPage)
-                                                .map((item) => (
-                                                    <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100 group flex flex-col">
-                                                        <div className="relative aspect-square overflow-hidden bg-gray-100">
-                                                            {item.image_url && <img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />}
-                                                            <div className="absolute top-3 right-3">
-                                                                <ReportButton postId={item.id} boardType="market" reportedUserId={item.user_id} />
-                                                            </div>
-                                                            <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
-                                                                <MapPin size={10} /> {item.location}
-                                                            </div>
-                                                        </div>
-                                                        <div className="p-5 flex-1 flex flex-col">
-                                                            <h3 className="font-bold text-gray-900 mb-1 line-clamp-1 group-hover:text-blue-600 transition-colors">{item.title}</h3>
-                                                            <div className="flex items-center gap-2 mb-4">
-                                                                <p className="text-lg font-black text-blue-600">{item.price != null ? Number(item.price).toLocaleString() + '원' : '가격 미정'}</p>
-                                                                {item.price && parseInt(String(item.price).replace(/[^0-9]/g, '')) > 0 && (
-                                                                    <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
-                                                                        {parseInt(String(item.price).replace(/[^0-9]/g, '')).toLocaleString()}P
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <div className="mt-auto">
-                                                                {item.status === 'sold' ? (
-                                                                    <div className="py-2 bg-gray-200 text-gray-500 rounded-xl text-sm font-bold text-center">판매완료</div>
-                                                                ) : (item.price == null || item.price <= 0) ? (
-                                                                    <div className="py-2 bg-gray-100 text-gray-400 rounded-xl text-sm font-bold text-center cursor-not-allowed">가격 문의</div>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); openPaymentModal(item); }}
-                                                                        className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                                                                    >
-                                                                        <Coins size={14} />
-                                                                        구매하기
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                                                                <span className="flex items-center gap-1 min-w-0 text-xs text-gray-400">
-                                                                    <span className="truncate">{item.author}</span>
-                                                                    <CrewBadge profile={item.profiles} />
-                                                                </span>
-                                                                <ShareButtons title={item.title} description={item.content} />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                        </div>
-
-                                        {/* 페이지네이션 */}
-                                        <Pagination
-                                            currentPage={currentPageSell}
-                                            totalPages={Math.ceil(visibleSell.length / itemsPerPage)}
-                                            onPageChange={setCurrentPageSell}
-                                            color="blue"
-                                        />
-
-                                        {/* 검색 바 */}
-                                        <div className="mt-8">
-                                            <div className="relative max-w-2xl mx-auto">
-                                                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                                                <input
-                                                    type="text"
-                                                    value={searchQuery}
-                                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                                    placeholder="물품명, 위치 등으로 검색하세요..."
-                                                    className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-700 font-medium"
-                                                />
-                                            </div>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
-                                        <ShoppingBag size={48} className="mx-auto text-gray-300 mb-4" />
-                                        <p className="text-gray-500 text-lg">등록된 판매 물품이 없습니다.</p>
-                                        {isLoggedIn && (
-                                            <button onClick={() => setShowModal(true)} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
-                                                <Plus size={18} /> 판매 물품 등록
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
+                                <MarketFeed
+                                    type="sell"
+                                    items={sellingItems}
+                                    stats={stats}
+                                    loading={loading}
+                                    error={error}
+                                    onRetry={fetchListings}
+                                    isLoggedIn={isLoggedIn}
+                                    onWrite={() => { if (!isLoggedIn) { setShowLoginPrompt(true); return; } setShowModal(true); }}
+                                />
                             </div>
                         </motion.div>
                     )}
@@ -684,163 +535,29 @@ const MarketBoard = () => {
                         </motion.div>
                     )}
 
-                    {mode === 'share' && !shareRegion && (
-                        <motion.div
-                            key="share-region-select"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                        >
-                            <div className="max-w-6xl mx-auto">
-                                <button
-                                    onClick={resetView}
-                                    className="flex items-center gap-2 text-gray-600 hover:text-pink-500 font-semibold mb-8 transition-colors"
-                                >
+                    {mode === 'share' && (
+                        <motion.div key="share-market" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+                            <div className="max-w-3xl mx-auto">
+                                <button onClick={resetView} className="flex items-center gap-2 text-gray-600 hover:text-pink-500 font-semibold mb-4 transition-colors">
                                     <ArrowLeft size={20} /> 메인으로 돌아가기
                                 </button>
-
-                                <div className="text-center mb-12">
-                                    <div className="inline-flex p-3 bg-pink-100 rounded-xl text-pink-500 mb-4">
-                                        <Heart size={32} />
-                                    </div>
-                                    <h2 className="text-3xl font-bold mb-2">지역별 무료 나눔</h2>
-                                    <p className="text-gray-500">어느 지역의 나눔 물품을 찾으시나요?</p>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="p-2.5 bg-pink-100 rounded-xl text-pink-500 flex-shrink-0"><Heart size={24} /></div>
+                                    <h2 className="text-2xl font-bold text-gray-900">무료 나눔</h2>
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {regions.map((region) => (
-                                        <motion.div
-                                            key={region.id}
-                                            whileHover={{ y: -5, scale: 1.02 }}
-                                            onClick={() => setShareRegion(region)}
-                                            onKeyDown={keyActivate(() => setShareRegion(region))}
-                                            role="button"
-                                            tabIndex={0}
-                                            aria-label={`${region.name} 나눔 글 보기`}
-                                            className="group relative h-[240px] rounded-[2rem] overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all"
-                                        >
-                                            <img
-                                                src={region.image}
-                                                loading="lazy"
-                                                decoding="async"
-                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                                alt={region.name}
-                                            />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                                            <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
-                                                <div className="mb-2 text-3xl">{region.icon}</div>
-                                                <h3 className="text-3xl font-black mb-2">{region.name}</h3>
-                                                <p className="text-white/90 text-sm font-medium">{region.desc}</p>
-                                                <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                                                    <span className="text-xs font-bold bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/30">
-                                                        나눔 글 보기 →
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    ))}
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {mode === 'share' && shareRegion && (
-                        <motion.div
-                            key="share-list"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 20 }}
-                        >
-                            <div className="max-w-6xl mx-auto">
-                                <button
-                                    onClick={() => setShareRegion(null)}
-                                    className="flex items-center gap-2 text-gray-600 hover:text-pink-500 font-semibold mb-8 transition-colors"
-                                >
-                                    <ArrowLeft size={20} /> 지역 선택으로 돌아가기
-                                </button>
-
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-4xl flex-shrink-0">{shareRegion.icon}</span>
-                                        <div>
-                                            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{shareRegion.name} 나눔 게시판</h2>
-                                            <p className="text-gray-500 text-sm sm:text-base">{shareRegion.name} 지역 비행 정보를 나누세요.</p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-                                            setShowModal(true);
-                                        }}
-                                        className="flex items-center gap-2 px-6 py-3 bg-pink-500 text-white rounded-xl font-bold hover:bg-pink-600 transition-colors w-full sm:w-auto justify-center flex-shrink-0"
-                                    >
-                                        <Plus size={20} /> 나눔 글쓰기
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {loading || error ? (
-                                        <div className="col-span-full">
-                                            <ListState loading={loading} error={error} onRetry={fetchListings} color="pink" />
-                                        </div>
-                                    ) : visibleShare.length > 0 ? (
-                                        visibleShare
-                                            .map((item) => (
-                                                <div key={item.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all border border-gray-100">
-                                                    <div className="relative h-48 overflow-hidden bg-pink-50">
-                                                        {item.image_url
-                                                            ? <img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                                                            : <div className="w-full h-full flex items-center justify-center text-pink-200"><Gift size={48} /></div>}
-                                                        <div className="absolute top-3 left-3 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                                                            <Gift size={12} /> 무료나눔
-                                                        </div>
-                                                        <div className="absolute top-3 right-3">
-                                                            <ReportButton postId={item.id} boardType="market_share" reportedUserId={item.user_id} />
-                                                        </div>
-                                                    </div>
-                                                    <div className="p-6">
-                                                        <h3 className="font-bold text-xl mb-2">
-                                                            <span className="text-pink-600">[{item.country}]</span> {item.title}
-                                                        </h3>
-                                                        <p className="text-gray-500 text-sm mb-4">{item.content}</p>
-                                                        <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                                                            <span className="flex items-center gap-1 min-w-0 text-xs text-gray-400">
-                                                                <span className="truncate">{item.author}</span>
-                                                                <CrewBadge profile={item.profiles} />
-                                                            </span>
-                                                            <ShareButtons title={item.title} description={item.content} />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                    ) : (
-                                        <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
-                                            <Gift size={48} className="mx-auto text-gray-300 mb-4" />
-                                            <p className="text-gray-500 text-lg">아직 등록된 나눔이 없어요.</p>
-                                            <p className="text-gray-400 mt-1">첫 번째 나눔의 주인공이 되어보세요!</p>
-                                            {isLoggedIn && (
-                                                <button onClick={() => setShowModal(true)} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-pink-500 text-white rounded-xl font-bold hover:bg-pink-600 transition-colors">
-                                                    <Plus size={18} /> 나눔 등록하기
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* 검색 바 */}
-                                <div className="mt-8">
-                                    <div className="relative max-w-2xl mx-auto">
-                                        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                                        <input
-                                            type="text"
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            placeholder="나눔 물품, 국가 등으로 검색하세요..."
-                                            className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none transition-all text-gray-700 font-medium"
-                                        />
-                                    </div>
-                                </div>
+                                <MarketFeed
+                                    type="share"
+                                    items={sharingItems}
+                                    stats={stats}
+                                    loading={loading}
+                                    error={error}
+                                    onRetry={fetchListings}
+                                    isLoggedIn={isLoggedIn}
+                                    regions={regions}
+                                    region={shareRegion?.id || null}
+                                    onRegion={(id) => setShareRegion(id ? regions.find((r) => r.id === id) : null)}
+                                    onWrite={() => { if (!isLoggedIn) { setShowLoginPrompt(true); return; } setShowModal(true); }}
+                                />
                             </div>
                         </motion.div>
                     )}
@@ -877,6 +594,19 @@ const MarketBoard = () => {
                                 </button>
                             </div>
 
+                            {(mode === 'sell' || mode === 'share') ? (
+                                <MarketListingForm
+                                    mode={mode}
+                                    regions={regions}
+                                    defaultRegion={shareRegion?.id || null}
+                                    onDone={(item) => {
+                                        if (mode === 'sell') setSellingItems((prev) => [item, ...prev]);
+                                        else setSharingItems((prev) => [item, ...prev]);
+                                        setShowModal(false);
+                                    }}
+                                    onCancel={() => setShowModal(false)}
+                                />
+                            ) : (
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
                                     <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">제목</label>
@@ -1050,78 +780,11 @@ const MarketBoard = () => {
                                     </button>
                                 </div>
                             </form>
+                            )}
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
-            {/* 포인트 전액 결제 모달 */}
-            <AnimatePresence>
-                {paymentModal && (() => {
-                    const totalPrice = parseInt(String(paymentModal.price).replace(/[^0-9]/g, '')) || 0;
-                    const myPoints = profile?.points_balance || 0;
-                    const insufficient = myPoints < totalPrice;
-                    return (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4"
-                            onClick={() => setPaymentModal(null)}
-                        >
-                            <motion.div
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.9, opacity: 0 }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl"
-                            >
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-xl font-bold text-gray-800">포인트 결제</h3>
-                                    <button onClick={() => setPaymentModal(null)} className="text-gray-400 hover:text-gray-600" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
-                                </div>
-
-                                <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                                    <p className="font-semibold text-gray-800">{paymentModal.title}</p>
-                                    <p className="text-2xl font-black text-blue-600 mt-1">{totalPrice.toLocaleString()}원</p>
-                                </div>
-
-                                <div className="bg-blue-50 rounded-xl p-4 mb-4 space-y-1">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">결제 포인트</span>
-                                        <span className="font-bold text-blue-600">{totalPrice.toLocaleString()}P</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm pt-1 border-t border-blue-200">
-                                        <span className="text-gray-600">내 보유 포인트</span>
-                                        <span className={`font-semibold ${insufficient ? 'text-red-500' : 'text-gray-800'}`}>{myPoints.toLocaleString()}P</span>
-                                    </div>
-                                </div>
-
-                                {insufficient && (
-                                    <p className="text-sm text-red-500 mb-4">
-                                        포인트가 부족합니다.
-                                    </p>
-                                )}
-
-                                <button
-                                    onClick={handlePayment}
-                                    disabled={paymentLoading || insufficient}
-                                    className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    <Coins size={18} />
-                                    {paymentLoading ? '처리 중...' : '포인트로 전액 결제'}
-                                </button>
-                                <button
-                                    onClick={() => setPaymentModal(null)}
-                                    className="w-full mt-2 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-                                >
-                                    취소
-                                </button>
-                            </motion.div>
-                        </motion.div>
-                    );
-                })()}
-            </AnimatePresence>
-
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
         </section>
     );

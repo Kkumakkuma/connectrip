@@ -8,8 +8,8 @@ import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
+import AuthorActions from './AuthorActions';
 import ReportButton from './ReportButton';
-import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { crewVerificationStatus } from '../lib/crewVerification';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
@@ -68,6 +68,7 @@ const DestinationCard = ({ dest, onToggleLike, isLiked, likeCount, currentUserId
                     <User size={12} className="flex-shrink-0" />
                     <span className="truncate">{dest.profiles?.name || '익명 승무원'}</span>
                     <CrewBadge profile={dest.profiles} />
+                    <AuthorActions userId={dest.user_id} name={dest.profiles?.name || ''} size={12} />
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                     <ShareButtons title={`${dest.name} - ConnectTrip 추천 여행지`} description={dest.description} />
@@ -87,7 +88,6 @@ const DestinationCard = ({ dest, onToggleLike, isLiked, likeCount, currentUserId
 const likeCountOf = (dest, likeMap) => (dest.likes_count || 0) + (likeMap[dest.id]?.count || 0);
 
 const Destinations = () => {
-    const blockedIds = useBlockedIds();
     const { regionId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -209,7 +209,7 @@ const Destinations = () => {
         setShowModal(true);
     };
 
-    const filteredDestinations = filterBlocked(allDestinations, blockedIds).filter(dest =>
+    const filteredDestinations = allDestinations.filter(dest =>
         dest.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         dest.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );

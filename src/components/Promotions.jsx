@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
+import AuthorActions from './AuthorActions';
 import ReportButton from './ReportButton';
-import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
 import { useAuth } from '../lib/AuthContext';
 import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
@@ -33,7 +33,6 @@ const keyActivate = (fn) => (e) => {
 };
 
 const Promotions = () => {
-    const blockedIds = useBlockedIds();
     const location = useLocation();
     const { user, profile, isLoggedIn } = useAuth();
     const [mode, setMode] = useState('main');
@@ -163,7 +162,7 @@ const Promotions = () => {
         setShowModal(true);
     };
 
-    const filteredPosts = filterBlocked(posts, blockedIds).filter(p =>
+    const filteredPosts = posts.filter(p =>
         p.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -296,6 +295,7 @@ const Promotions = () => {
                                                         <User size={14} className="flex-shrink-0" />
                                                         <span className="truncate">{item.author_name || item.profiles?.name || '익명'}</span>
                                                         <CrewBadge profile={item.profiles} />
+                                                        <AuthorActions userId={item.user_id} name={item.author_name || item.profiles?.name || ''} size={12} />
                                                         <span className="flex-shrink-0">·</span>
                                                         <span className="whitespace-nowrap flex-shrink-0">{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>

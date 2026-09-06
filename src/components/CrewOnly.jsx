@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Pagination from './Pagination';
 import ReportButton from './ReportButton';
 import CrewBadge from './CrewBadge';
-import { useBlockedIds, filterBlocked } from '../lib/useBlockedIds';
+import AuthorActions from './AuthorActions';
 import { crewVerificationStatus } from '../lib/crewVerification';
 import { useAuth } from '../lib/AuthContext';
 import { crewApi, postLikeApi } from '../lib/db';
@@ -24,7 +24,6 @@ const keyActivate = (fn) => (e) => {
 
 const CrewOnly = () => {
     const { user, profile, isLoggedIn, isCrew, profileLoading, profileError } = useAuth();
-    const blockedIds = useBlockedIds();
     const [mode, setMode] = useState('main'); // 'main' | 'free' | 'layover' | 'deals'
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ title: '', content: '', category: 'general' });
@@ -319,7 +318,7 @@ const CrewOnly = () => {
                                     const posts = mode === 'free' ? freePosts : mode === 'layover' ? layoverPosts : dealsPosts;
                                     const currentPage = mode === 'free' ? currentPageFree : mode === 'layover' ? currentPageLayover : currentPageDeals;
                                     const setPage = mode === 'free' ? setCurrentPageFree : mode === 'layover' ? setCurrentPageLayover : setCurrentPageDeals;
-                                    const filtered = filterBlocked(posts, blockedIds).filter(p => !searchQuery || (p.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (p.content||'').toLowerCase().includes(searchQuery.toLowerCase()));
+                                    const filtered = posts.filter(p => !searchQuery || (p.title||'').toLowerCase().includes(searchQuery.toLowerCase()) || (p.content||'').toLowerCase().includes(searchQuery.toLowerCase()));
                                     const paged = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
                                     const EmptyIcon = mode === 'free' ? MessageSquare : mode === 'layover' ? Plane : Tag;
 
@@ -352,7 +351,7 @@ const CrewOnly = () => {
                                                             <button onClick={() => handleToggleLike(post.id)} className={`flex items-center gap-1 transition-colors ${likes[post.id]?.liked ? 'text-pink-500' : 'hover:text-pink-500'}`}>
                                                                 <Heart size={14} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
                                                             </button>
-                                                            <span className="flex items-center gap-1 min-w-0"><span className="truncate">작성자: {post.author_name}</span><CrewBadge profile={post.profiles} /></span>
+                                                            <span className="flex items-center gap-1 min-w-0"><span className="truncate">작성자: {post.author_name}</span><AuthorActions userId={post.user_id} name={post.author_name || ''} size={12} /><CrewBadge profile={post.profiles} /></span>
                                                             <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                         </div>
                                                     </div>

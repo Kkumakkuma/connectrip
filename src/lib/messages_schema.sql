@@ -1,5 +1,5 @@
 -- ============================================================
--- Messages (같은편 동행 쪽지)
+-- Messages (회원 간 쪽지) — 2026-09-06 chat_market_20260906.sql 로 재정의(쓰기·조회 RPC 전용, sender_deleted/receiver_deleted 추가). 아래 정책 중 INSERT/UPDATE 는 폐기됨.
 -- ============================================================
 
 CREATE TABLE public.messages (

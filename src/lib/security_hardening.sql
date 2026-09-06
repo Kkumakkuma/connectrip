@@ -257,7 +257,8 @@ BEGIN
     FROM public.market_listings WHERE id = p_listing_id FOR UPDATE;
   IF v_seller IS NULL THEN RAISE EXCEPTION 'listing not found'; END IF;
   IF v_seller = v_buyer THEN RAISE EXCEPTION 'cannot buy own listing'; END IF;
-  IF v_status = 'sold' THEN RAISE EXCEPTION 'already sold'; END IF;
+  IF v_status <> 'active' THEN RAISE EXCEPTION 'not available'; END IF;   -- 2026-09-06: reserved/sold reject
+  IF (SELECT type FROM public.market_listings WHERE id = p_listing_id) <> 'sell' THEN RAISE EXCEPTION 'not for sale'; END IF;
   IF COALESCE(v_price, 0) <= 0 THEN RAISE EXCEPTION 'invalid listing price'; END IF;
   IF p_expected_price IS NULL OR p_expected_price <> v_price THEN RAISE EXCEPTION 'price changed'; END IF;
 
@@ -269,7 +270,7 @@ BEGIN
   INSERT INTO public.point_transactions(user_id, amount, type, description) VALUES
     (v_buyer,  -v_price, 'market_purchase', '장터 물품 구매 (' || p_listing_id || ')'),
     (v_seller,  v_price, 'market_sale',     '장터 물품 판매 수익 (' || p_listing_id || ')');
-  UPDATE public.market_listings SET status = 'sold', buyer_id = v_buyer WHERE id = p_listing_id;
+  UPDATE public.market_listings SET status = 'sold', buyer_id = v_buyer, paid_at = NOW() WHERE id = p_listing_id;   -- 2026-09-06 paid_at
 END;
 $$;
 

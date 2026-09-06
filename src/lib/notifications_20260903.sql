@@ -50,40 +50,26 @@ GRANT SELECT, INSERT, UPDATE ON public.notification_prefs TO authenticated;
 CREATE OR REPLACE FUNCTION public.notify_user(
   p_user uuid, p_kind text, p_type text, p_message text, p_link text, p_post_id uuid DEFAULT NULL, p_actor uuid DEFAULT NULL
 ) RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v_on boolean := true;
 BEGIN
   IF p_user IS NULL THEN RETURN; END IF;
-  IF p_actor IS NOT NULL AND p_actor = p_user THEN RETURN; END IF;            -- 본인 행위
-  -- 차단 관계(양방향). is_blocked_with(p_other) 는 auth.uid() 기준 1인자 함수라 트리거 맥락에선 못 쓴다 → 직접 조회.
-  IF p_actor IS NOT NULL AND EXISTS (
-    SELECT 1 FROM public.blocks
-     WHERE (blocker_id = p_user AND blocked_id = p_actor) OR (blocker_id = p_actor AND blocked_id = p_user)
+  IF p_actor IS NOT NULL AND p_actor = p_user THEN RETURN; END IF;
+  IF p_kind = 'message' AND p_actor IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.blocks WHERE (blocker_id = p_user AND blocked_id = p_actor) OR (blocker_id = p_actor AND blocked_id = p_user)
   ) THEN RETURN; END IF;
   IF p_kind <> 'message' THEN
-    SELECT CASE p_kind
-             WHEN 'comments' THEN comments WHEN 'commendation' THEN commendation
-             WHEN 'flight' THEN flight
-             WHEN 'companion' THEN companion WHEN 'keywords' THEN keywords
-             ELSE true END
+    SELECT CASE p_kind WHEN 'comments' THEN comments WHEN 'commendation' THEN commendation WHEN 'flight' THEN flight
+                       WHEN 'companion' THEN companion WHEN 'keywords' THEN keywords ELSE true END
       INTO v_on FROM public.notification_prefs WHERE user_id = p_user;
-    IF v_on IS NOT NULL AND v_on = false THEN RETURN; END IF;                 -- 행 없음 = 기본 켬
+    IF v_on IS NOT NULL AND v_on = false THEN RETURN; END IF;
   END IF;
-
   INSERT INTO public.notifications (user_id, type, message, link, post_id)
-    VALUES (p_user, p_type, left(p_message, 200), left(p_link, 300), p_post_id)
-    ON CONFLICT (user_id, post_id) WHERE type = 'keyword' AND post_id IS NOT NULL DO NOTHING;
-
-  -- 보관 상한 정리는 삽입 경로(팬아웃 트리거)에서 하지 않고 mark_all_notifications_read 에서 본인 것만 한다.
+  VALUES (p_user, p_type, left(p_message, 200), left(p_link, 300), p_post_id)
+  ON CONFLICT (user_id, post_id) WHERE type = 'keyword' AND post_id IS NOT NULL DO NOTHING;
 EXCEPTION WHEN OTHERS THEN
-  -- 알림은 부가 기능: 어떤 오류도 본업무(쪽지·댓글·매칭 RPC) 트랜잭션을 되돌리지 않는다.
-  RAISE WARNING 'notify_user skipped: %', SQLERRM;
-  RETURN;
-END;
-$$;
+  RAISE WARNING 'notify_user skipped: %', SQLERRM; RETURN;
+END; $$;
 REVOKE ALL ON FUNCTION public.notify_user(uuid, text, text, text, text, uuid, uuid) FROM PUBLIC, anon, authenticated;
 
 -- 4) 트리거 ------------------------------------------------------------------
@@ -129,8 +115,19 @@ REVOKE ALL ON FUNCTION public.trg_notify_flight_post_comment() FROM PUBLIC, anon
 DROP TRIGGER IF EXISTS trg_notify_flight_post_comment ON public.flight_post_comments;
 CREATE TRIGGER trg_notify_flight_post_comment AFTER INSERT ON public.flight_post_comments FOR EACH ROW EXECUTE FUNCTION public.trg_notify_flight_post_comment();
 
--- 4-3 쪽지(항상) — ★ 2026-09-06 쪽지 기능 중단(flight_board_anon_20260906.sql): 트리거 제거, messages INSERT 권한 회수.
+-- 4-3 쪽지(항상) — 2026-09-06 쪽지함 복구(chat_market_20260906.sql 과 동일 본문, 링크 /messages)
+CREATE OR REPLACE FUNCTION public.trg_notify_message() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  PERFORM public.notify_user(NEW.receiver_id, 'message', 'message', '새 쪽지가 도착했습니다', '/messages', NEW.id, NEW.sender_id);
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'notify trigger skipped: %', SQLERRM;
+  RETURN NEW;
+END; $$;
+REVOKE ALL ON FUNCTION public.trg_notify_message() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_message ON public.messages;
+CREATE TRIGGER trg_notify_message AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION public.trg_notify_message();
 
 -- 4-4 칭찬매칭 상태
 CREATE OR REPLACE FUNCTION public.trg_notify_commendation() RETURNS trigger
