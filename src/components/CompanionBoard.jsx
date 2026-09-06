@@ -41,8 +41,10 @@ const CompanionBoard = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
     const [submitting, setSubmitting] = useState(false);
+    const [pickerError, setPickerError] = useState('');
     const formId = useId();
     const reqRef = useRef(0);
+    const likeTouchedRef = useRef(new Set());   // 목록 조회 중 사용자가 누른 좋아요는 늦게 온 응답으로 덮지 않는다
 
     // 검색어 입력 → 300ms 뒤 URL ?q= 반영(공유·뒤로가기 보존)
     useEffect(() => {
@@ -56,6 +58,8 @@ const CompanionBoard = () => {
         }, 300);
         return () => clearTimeout(t);
     }, [qInput, q, setSearchParams]);
+    // 뒤로가기·외부 링크로 URL 의 q 가 바뀌면 입력값도 맞춘다(입력 중이면 건드리지 않음)
+    useEffect(() => { setQInput((cur) => (cur.trim() === q ? cur : q)); }, [q]);
 
     const setRegion = (id) => {
         setSearchParams((prev) => {
@@ -76,7 +80,7 @@ const CompanionBoard = () => {
             if (data.length) {
                 const m = await postLikeApi.getForBoard('companion_posts', data.map((p) => p.id), user?.id);
                 if (reqId !== reqRef.current) return;
-                setLikes((prev) => ({ ...prev, ...m }));
+                setLikes((prev) => { const next = { ...prev, ...m }; likeTouchedRef.current.forEach((id) => { if (prev[id]) next[id] = prev[id]; }); likeTouchedRef.current.clear(); return next; });
             }
         } catch (err) {
             if (reqId !== reqRef.current) return;
@@ -88,11 +92,20 @@ const CompanionBoard = () => {
         }
     }, [region, q, page, user?.id]);
 
-    useEffect(() => { load(); }, [load]);
-    useEffect(() => { setPage(1); }, [region, q]);
+    // 대륙·검색어가 바뀌면 먼저 1페이지로 돌린 뒤에 조회한다(이전 페이지 번호로 헛조회 방지)
+    const keyRef = useRef('');
+    useEffect(() => {
+        const key = `${region || ''}|${q}`;
+        if (keyRef.current !== key) {
+            keyRef.current = key;
+            if (page !== 1) { setPage(1); return; }
+        }
+        load();
+    }, [load, region, q, page]);
 
     const openWrite = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+        setPickerError('');
         setForm({ ...EMPTY_FORM, region_id: region || '' });
         setShowModal(true);
     };
@@ -102,6 +115,7 @@ const CompanionBoard = () => {
         try {
             const { data, error: e } = await postLikeApi.toggle('companion_posts', postId);
             if (e) throw e;
+            likeTouchedRef.current.add(postId);
             setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
         } catch (err) {
             console.error('좋아요 실패:', err);
@@ -113,7 +127,7 @@ const CompanionBoard = () => {
         e.preventDefault();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting) return;
-        if (!continentOf(form.region_id)) { alert('말머리를 선택해 주세요.'); return; }
+        if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         setSubmitting(true);
         try {
             const created = await companionApi.create({
@@ -130,7 +144,8 @@ const CompanionBoard = () => {
                 setPosts((prev) => [created, ...prev].slice(0, PAGE));
                 setCount((c) => c + 1);
             } else {
-                setRegion(created.region_id); setQInput('');
+                setPage(1); setQInput('');
+                setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('q'); n.set('region', created.region_id); return n; });
             }
             setShowModal(false);
         } catch (err) {
@@ -145,8 +160,7 @@ const CompanionBoard = () => {
         if (!window.confirm('이 글을 삭제할까요?')) return;
         try {
             await companionApi.delete(post.id);
-            setPosts((prev) => prev.filter((p) => p.id !== post.id));
-            setCount((c) => Math.max(0, c - 1));
+            if (posts.length <= 1 && page > 1) setPage(page - 1); else load();
         } catch (err) {
             console.error('삭제 실패:', err);
             alert('삭제에 실패했습니다.');
@@ -246,7 +260,7 @@ const CompanionBoard = () => {
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                    <ContinentPicker name={`${formId}-continent`} value={form.region_id} onChange={(id) => setForm({ ...form, region_id: id })} />
+                    <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
                         <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={80} required />

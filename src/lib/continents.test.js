@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CONTINENTS, CONTINENT_IDS, continentOf, isContinentId, regionFromSearch, withRegionParam, searchTerm } from './continents';
+import { CONTINENTS, CONTINENT_IDS, continentOf, isContinentId, regionFromSearch, withRegionParam, searchTerm, ilikeOr } from './continents';
 
 describe('continents', () => {
   it('6대륙, id·색이 서로 다르다', () => {
@@ -26,8 +26,10 @@ describe('continents', () => {
     expect(withRegionParam('', 'bad')).toBe('');
   });
   it('searchTerm 은 or() 구분자를 지운다', () => {
-    expect(searchTerm(' 파리,(런던) ')).toBe('파리  런던');
+    expect(searchTerm(' 파리,(런던) ')).toBe('파리 런던');
+    expect(searchTerm('50%_x"y\\')).toBe('50 x y');
     expect(searchTerm('a'.repeat(100))).toHaveLength(60);
     expect(searchTerm(null)).toBe('');
+    expect(ilikeOr(['title', 'content'], '파리 동행')).toBe('title.ilike."%파리 동행%",content.ilike."%파리 동행%"');
   });
 });

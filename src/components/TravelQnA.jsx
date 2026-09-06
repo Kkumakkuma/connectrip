@@ -50,6 +50,7 @@ const TravelQnA = () => {
     const [form, setForm] = useState(EMPTY_FORM);
     const [uploading, setUploading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [pickerError, setPickerError] = useState('');
     // 댓글(Q&A): 카드를 펼칠 때 그 글 것만 받아온다
     const [expandedId, setExpandedId] = useState(null);
     const [comments, setComments] = useState({});
@@ -60,6 +61,7 @@ const TravelQnA = () => {
     const [replyTo, setReplyTo] = useState(null);
     const formId = useId();
     const reqRef = useRef(0);
+    const likeTouchedRef = useRef(new Set());   // 목록 조회 중 사용자가 누른 좋아요는 늦게 온 응답으로 덮지 않는다
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -72,6 +74,8 @@ const TravelQnA = () => {
         }, 300);
         return () => clearTimeout(t);
     }, [qInput, q, setSearchParams]);
+    // 뒤로가기·외부 링크로 URL 의 q 가 바뀌면 입력값도 맞춘다(입력 중이면 건드리지 않음)
+    useEffect(() => { setQInput((cur) => (cur.trim() === q ? cur : q)); }, [q]);
 
     const setTab = (id) => {
         setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('tab', id); n.delete('q'); return n; });
@@ -92,7 +96,7 @@ const TravelQnA = () => {
             if (data?.length) {
                 const m = await postLikeApi.getForBoard(mode === 'qna' ? 'qna_posts' : 'reviews', data.map((p) => p.id), user?.id);
                 if (reqId !== reqRef.current) return;
-                setLikes((prev) => ({ ...prev, ...m }));
+                setLikes((prev) => { const next = { ...prev, ...m }; likeTouchedRef.current.forEach((id) => { if (prev[id]) next[id] = prev[id]; }); likeTouchedRef.current.clear(); return next; });
             }
         } catch (err) {
             if (reqId !== reqRef.current) return;
@@ -129,6 +133,7 @@ const TravelQnA = () => {
         try {
             const { data, error: e } = await postLikeApi.toggle(mode === 'review' ? 'reviews' : 'qna_posts', postId);
             if (e) throw e;
+            likeTouchedRef.current.add(postId);
             setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
         } catch (err) {
             console.error('좋아요 실패:', err);
@@ -158,6 +163,7 @@ const TravelQnA = () => {
 
     const openWrite = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
+        setPickerError('');
         setForm({ ...EMPTY_FORM, region_id: mode === 'review' ? (region || '') : '' });
         setShowModal(true);
     };
@@ -166,7 +172,7 @@ const TravelQnA = () => {
         e.preventDefault();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting || uploading) return;
-        if (mode === 'review' && !continentOf(form.region_id)) { alert('말머리를 선택해 주세요.'); return; }
+        if (mode === 'review' && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         setSubmitting(true);
         try {
             let created;
@@ -206,6 +212,7 @@ const TravelQnA = () => {
     const perPage = mode === 'review' ? PAGE_REVIEW : PAGE_QNA;
     const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
     const paged = filtered.slice((page - 1) * perPage, page * perPage);
+    useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);   // 마지막 글 삭제로 빈 페이지에 고립되지 않게
 
     const cardActions = (post) => (
         <span className="flex items-center gap-0.5 flex-shrink-0">
@@ -384,7 +391,7 @@ const TravelQnA = () => {
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
                     {mode === 'review' && (
-                        <ContinentPicker name={`${formId}-continent`} value={form.region_id} onChange={(id) => setForm({ ...form, region_id: id })} />
+                        <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     )}
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>

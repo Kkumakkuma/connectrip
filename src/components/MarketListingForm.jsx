@@ -24,11 +24,12 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
     const [images, setImages] = useState(initial?.image_urls?.length ? initial.image_urls : (initial?.image_url ? [initial.image_url] : []));
     const [submitting, setSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [pickerError, setPickerError] = useState('');
 
     const submit = async (e) => {
         e.preventDefault();
         if (submitting || uploading) return;
-        if (isShare && !continentOf(regionId)) { alert('말머리를 선택해 주세요.'); return; }
+        if (isShare && !continentOf(regionId)) { setPickerError('말머리를 선택해 주세요.'); return; }
         setSubmitting(true);
         try {
             const digits = String(price || '').replace(/[^0-9]/g, '');
@@ -66,7 +67,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
 
     return (
         <form onSubmit={submit} className="space-y-5">
-            {isShare && <ContinentPicker name={`${formId}-continent`} value={regionId} onChange={setRegionId} />}
+            {isShare && <ContinentPicker name={`${formId}-continent`} value={regionId} error={pickerError} onChange={(id) => { setPickerError(''); setRegionId(id); }} />}
 
             <div>
                 <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>

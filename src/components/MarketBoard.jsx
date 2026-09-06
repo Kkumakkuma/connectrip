@@ -62,6 +62,8 @@ const MarketBoard = () => {
         }, 300);
         return () => clearTimeout(t);
     }, [qInput, q, setSearchParams]);
+    // 뒤로가기·외부 링크로 URL 의 q 가 바뀌면 입력값도 맞춘다(입력 중이면 건드리지 않음)
+    useEffect(() => { setQInput((cur) => (cur.trim() === q ? cur : q)); }, [q]);
 
     const setTab = (id) => {
         setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('tab', id); n.delete('q'); n.delete('region'); return n; });
@@ -132,6 +134,7 @@ const MarketBoard = () => {
     const filtered = items.filter((i) => !ql || (i.title || '').toLowerCase().includes(ql) || (i.content || '').toLowerCase().includes(ql));
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
     const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
+    useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
     const canWrite = mode !== 'groupbuy' || profile?.role === 'admin';
     const isFeed = mode === 'sell' || mode === 'share';
 

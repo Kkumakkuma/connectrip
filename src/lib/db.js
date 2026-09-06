@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { searchTerm } from './continents';
+import { searchTerm, ilikeOr } from './continents';
 import { ITINERARY_ENABLED, PROMO_REVIEWS_ENABLED } from './featureFlags';
 
 // ============================================================
@@ -33,7 +33,7 @@ export const companionApi = {
       .range((page - 1) * limit, page * limit - 1);
     if (regionId) query = query.eq('region_id', regionId);
     const term = searchTerm(q);
-    if (term) query = query.or(`title.ilike.%${term}%,country.ilike.%${term}%,content.ilike.%${term}%`);
+    if (term) query = query.or(ilikeOr(['title', 'country', 'content'], term));
     const { data, count, error } = await query;
     if (error) throw error;
     return { data: data || [], count: count || 0 };
@@ -357,7 +357,7 @@ export const destinationsApi = {
       .range((page - 1) * limit, page * limit - 1);
     if (regionId) query = query.eq('region_id', regionId);
     const term = searchTerm(q);
-    if (term) query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%`);
+    if (term) query = query.or(ilikeOr(['name', 'description'], term));
     const { data, count, error } = await query;
     if (error) throw error;
     return { data: data || [], count: count || 0 };

@@ -55,6 +55,7 @@ const CrewOnly = () => {
     const [submitting, setSubmitting] = useState(false);
     const formId = useId();
     const reqRef = useRef(0);
+    const likeTouchedRef = useRef(new Set());   // 목록 조회 중 사용자가 누른 좋아요는 늦게 온 응답으로 덮지 않는다
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -67,6 +68,8 @@ const CrewOnly = () => {
         }, 300);
         return () => clearTimeout(t);
     }, [qInput, q, setSearchParams]);
+    // 뒤로가기·외부 링크로 URL 의 q 가 바뀌면 입력값도 맞춘다(입력 중이면 건드리지 않음)
+    useEffect(() => { setQInput((cur) => (cur.trim() === q ? cur : q)); }, [q]);
 
     const setTab = (id) => {
         setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('tab', id); n.delete('q'); return n; });
@@ -84,7 +87,7 @@ const CrewOnly = () => {
             if (data.length) {
                 const m = await postLikeApi.getForBoard('crew_posts', data.map((p) => p.id), user?.id);
                 if (reqId !== reqRef.current) return;
-                setLikes((prev) => ({ ...prev, ...m }));
+                setLikes((prev) => { const next = { ...prev, ...m }; likeTouchedRef.current.forEach((id) => { if (prev[id]) next[id] = prev[id]; }); likeTouchedRef.current.clear(); return next; });
             }
         } catch (err) {
             if (reqId !== reqRef.current) return;
@@ -104,6 +107,7 @@ const CrewOnly = () => {
         try {
             const { data, error: e } = await postLikeApi.toggle('crew_posts', postId);
             if (e) throw e;
+            likeTouchedRef.current.add(postId);
             setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
         } catch (err) {
             console.error('좋아요 실패:', err);
@@ -144,6 +148,11 @@ const CrewOnly = () => {
         }
     };
 
+    const ql = q.toLowerCase();
+    const filtered = posts.filter((p) => !ql || (p.title || '').toLowerCase().includes(ql) || (p.content || '').toLowerCase().includes(ql));
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
+    useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);   // 마지막 글 삭제로 빈 페이지에 고립되지 않게
+
     if (isLoggedIn && profileLoading) {
         return (
             <section id="crew-only" className="bg-white min-h-screen pt-28">
@@ -176,9 +185,6 @@ const CrewOnly = () => {
         );
     }
 
-    const ql = q.toLowerCase();
-    const filtered = posts.filter((p) => !ql || (p.title || '').toLowerCase().includes(ql) || (p.content || '').toLowerCase().includes(ql));
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
     const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
     const tab = TABS.find((t) => t.id === mode);
 

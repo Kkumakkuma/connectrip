@@ -43,5 +43,8 @@ export const withRegionParam = (search, id) => {
   return s ? `?${s}` : '';
 };
 
-// PostgREST or() 필터에 넣을 검색어 — 구분자 문자(쉼표·괄호)는 지우고 길이를 제한한다.
-export const searchTerm = (q) => String(q || '').replace(/[,()]/g, ' ').trim().slice(0, 60);
+// PostgREST or() 필터에 넣을 검색어 — 구분자(쉼표·괄호)·따옴표·역슬래시·와일드카드(%_)를 지우고 공백을 하나로, 길이 제한.
+export const searchTerm = (q) => String(q || '').replace(/[,()"'\\%_]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+
+// or() 에 넣을 ilike 묶음. 값은 큰따옴표로 감싼다(공백 포함 검색어가 파싱 오류를 내지 않게).
+export const ilikeOr = (fields, term) => fields.map((f) => `${f}.ilike."%${term}%"`).join(',');

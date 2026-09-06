@@ -89,8 +89,10 @@ const Destinations = () => {
     const [form, setForm] = useState(EMPTY_FORM);
     const [uploading, setUploading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [pickerError, setPickerError] = useState('');
     const formId = useId();
     const reqRef = useRef(0);
+    const likeTouchedRef = useRef(new Set());   // 목록 조회 중 사용자가 누른 좋아요는 늦게 온 응답으로 덮지 않는다
 
     const crewExpired = isLoggedIn && isCrew && crewVerificationStatus(profile).state === 'expired';
     const canWrite = isLoggedIn && isCrew && !!profile?.crew_verified && !crewExpired;
@@ -106,6 +108,8 @@ const Destinations = () => {
         }, 300);
         return () => clearTimeout(t);
     }, [qInput, q, setSearchParams]);
+    // 뒤로가기·외부 링크로 URL 의 q 가 바뀌면 입력값도 맞춘다(입력 중이면 건드리지 않음)
+    useEffect(() => { setQInput((cur) => (cur.trim() === q ? cur : q)); }, [q]);
 
     const setRegion = (id) => {
         setSearchParams((prev) => {
@@ -125,7 +129,7 @@ const Destinations = () => {
             let likeMap = {};
             if (data.length) likeMap = await postLikeApi.getForBoard('destinations', data.map((d) => d.id), user?.id);
             if (reqId !== reqRef.current) return;
-            setLikes(likeMap);
+            setLikes((prev) => { const next = { ...prev, ...likeMap }; likeTouchedRef.current.forEach((id) => { if (prev[id]) next[id] = prev[id]; }); likeTouchedRef.current.clear(); return next; });
             setItems([...data].sort((a, b) => likeCountOf(b, likeMap) - likeCountOf(a, likeMap)));
             setCount(total);
         } catch (err) {
@@ -138,14 +142,22 @@ const Destinations = () => {
         }
     }, [region, q, page, user?.id]);
 
-    useEffect(() => { load(); }, [load]);
-    useEffect(() => { setPage(1); }, [region, q]);
+    const keyRef = useRef('');
+    useEffect(() => {
+        const key = `${region || ''}|${q}`;
+        if (keyRef.current !== key) {
+            keyRef.current = key;
+            if (page !== 1) { setPage(1); return; }
+        }
+        load();
+    }, [load, region, q, page]);
 
     const toggleLike = async (id) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         try {
             const { data, error: e } = await postLikeApi.toggle('destinations', id);
             if (e) throw e;
+            likeTouchedRef.current.add(id);
             setLikes((prev) => ({ ...prev, [id]: { count: data.likes_count, liked: data.liked } }));
         } catch (err) {
             console.error('좋아요 실패:', err);
@@ -156,6 +168,7 @@ const Destinations = () => {
     const openWrite = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (!canWrite) { alert('승무원 인증을 마친 회원만 명소를 추천할 수 있습니다.'); return; }
+        setPickerError('');
         setForm({ ...EMPTY_FORM, region_id: region || '' });
         setShowModal(true);
     };
@@ -164,7 +177,7 @@ const Destinations = () => {
         e.preventDefault();
         if (!user || submitting || uploading) return;
         if (!canWrite) { alert('승무원 인증을 마친 회원만 명소를 추천할 수 있습니다.'); setShowModal(false); return; }
-        if (!continentOf(form.region_id)) { alert('말머리를 선택해 주세요.'); return; }
+        if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         setSubmitting(true);
         try {
             const created = await destinationsApi.create({
@@ -179,7 +192,8 @@ const Destinations = () => {
                 setItems((prev) => [created, ...prev]);
                 setCount((c) => c + 1);
             } else {
-                setRegion(created.region_id); setQInput('');
+                setPage(1); setQInput('');
+                setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('q'); n.set('region', created.region_id); return n; });
             }
             setShowModal(false);
         } catch (err) {
@@ -245,7 +259,7 @@ const Destinations = () => {
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                    <ContinentPicker name={`${formId}-continent`} value={form.region_id} onChange={(id) => setForm({ ...form, region_id: id })} />
+                    <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     <div>
                         <label htmlFor={`${formId}-name`} className="block text-sm font-bold text-ink mb-1.5">장소명</label>
                         <input id={`${formId}-name`} type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-air" maxLength={80} required />
