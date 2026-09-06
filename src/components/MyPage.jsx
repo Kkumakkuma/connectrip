@@ -213,6 +213,22 @@ const MyPage = () => {
         setActiveTab('companions');
     };
 
+    // "게시판 참여" 스위치: 켜면 그 편 게시판에 들어가고(익명 번호 배정), 끄면 나온다
+    const [boardBusyId, setBoardBusyId] = useState(null);
+    const handleToggleBoard = async (flight) => {
+        if (boardBusyId) return;
+        setBoardBusyId(flight.id);
+        try {
+            await flightApi.setBoardJoined(flight.id, !flight.board_joined);
+            await fetchFlights();
+        } catch (err) {
+            console.error('게시판 참여 변경 실패:', err);
+            alert('게시판 참여 설정을 바꾸지 못했습니다. 다시 시도해 주세요.');
+        } finally {
+            setBoardBusyId(null);
+        }
+    };
+
     // Delete flight + 연관된 칭찬매칭/동행 데이터도 삭제
     const handleDeleteFlight = async (flightId) => {
         if (!window.confirm('이 스케줄을 삭제하시겠습니까?\n관련 칭찬매칭은 취소되고 그 편 게시판에는 더 들어갈 수 없습니다.')) return;
@@ -953,20 +969,47 @@ const MyPage = () => {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openBoard(flight.id)}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '4px',
-                                                        padding: '4px 10px', borderRadius: '8px', border: 'none',
-                                                        fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
-                                                        background: '#ecfdf5', color: '#059669', transition: 'all 0.2s'
-                                                    }}
-                                                    title="같은 편 게시판 열기"
-                                                >
-                                                    <MessageSquare size={12} />
-                                                    게시판
-                                                </button>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <button
+                                                        type="button"
+                                                        role="switch"
+                                                        aria-checked={!!flight.board_joined}
+                                                        aria-label="같은 편 게시판 참여"
+                                                        disabled={boardBusyId === flight.id}
+                                                        onClick={() => handleToggleBoard(flight)}
+                                                        style={{
+                                                            position: 'relative', display: 'inline-flex', height: '24px', width: '44px',
+                                                            alignItems: 'center', borderRadius: '12px', border: 'none',
+                                                            background: flight.board_joined ? '#22c55e' : '#d1d5db',
+                                                            cursor: boardBusyId === flight.id ? 'wait' : 'pointer', transition: 'background 0.2s', padding: 0
+                                                        }}
+                                                        title={flight.board_joined ? '끄면 게시판에서 나갑니다' : '켜면 같은 편 게시판에 들어갑니다'}
+                                                    >
+                                                        <span style={{
+                                                            display: 'inline-block', height: '16px', width: '16px', borderRadius: '50%', background: 'white',
+                                                            transition: 'transform 0.2s', transform: flight.board_joined ? 'translateX(24px)' : 'translateX(4px)'
+                                                        }} />
+                                                    </button>
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: '600', color: flight.board_joined ? '#16a34a' : '#9ca3af' }}>
+                                                        게시판 참여
+                                                    </span>
+                                                </div>
+                                                {flight.board_joined && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openBoard(flight.id)}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: '4px',
+                                                            padding: '4px 10px', borderRadius: '8px', border: 'none',
+                                                            fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
+                                                            background: '#ecfdf5', color: '#059669', transition: 'all 0.2s'
+                                                        }}
+                                                        title="같은 편 게시판 열기"
+                                                    >
+                                                        <MessageSquare size={12} />
+                                                        게시판
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditingFlight({ id: flight.id, flight_number: flight.flight_number, flight_date: flight.flight_date })}

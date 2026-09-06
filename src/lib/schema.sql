@@ -192,7 +192,8 @@ CREATE TABLE public.flight_schedules (
   is_public BOOLEAN DEFAULT false,
   status TEXT DEFAULT 'waiting' CHECK (status IN ('waiting', 'matching', 'completed')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  board_joined BOOLEAN NOT NULL DEFAULT FALSE   -- 2026-09-06 같은 편 게시판 참여 스위치(is_public 은 미사용)
 );
 
 -- ============================================================

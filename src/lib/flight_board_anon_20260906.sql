@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 같은 편 게시판 익명화 + 비밀댓글·답글 (2026-09-06, 쿠마님 지시) — 재실행 안전(멱등)
 --   · 같은 편 탑승자 명단(이름)은 누구도 볼 수 없다 — flight_schedules 는 본인 행만 읽힌다.
---   · 항공편을 등록하면 그 편의 게시판에 자동으로 들어간다(공개 토글 조건 삭제, is_public 컬럼은 남기되 미사용).
+--   · 스케줄마다 "게시판 참여" 스위치(flight_schedules.board_joined)를 켜야 들어가고, 끄면 나온다. 출발 14일 전~출발일에만 열린다(is_public 컬럼은 남기되 미사용).
 --   · 게시판 안에서는 편·회원유형별로 자동 배정된 익명 번호("익명 승객 3")로만 글·댓글을 쓴다.
 --   · 1:1 쪽지는 뺀다 — messages INSERT 권한 회수 + 알림 트리거 제거(테이블·데이터는 보존, 운영 데이터 0).
 --   · 비밀댓글(글쓴이·댓글 쓴 사람·답글 대상·관리자만 봄) + 답글(parent_id) — 같은 편 게시판, Q&A 게시판.
@@ -13,6 +13,7 @@
 -- 원본 파일도 같은 상태로 맞춰 두었다(재실행 회귀 방지): security_hardening.sql(GRANT→REVOKE, can_use_flight_board, reports 정책),
 --   schema.sql(flight_schedules·qna_comments 정책), notifications_20260903.sql(트리거 3종).
 -- 1차 적용 9/6 18:45, 교차검토(codex·agy) 반영 2차 적용 9/6 — 전체 재실행.
+-- 3차(9/6 20:20 쿠마님 지시, v4 적용): 자동 참여 → 스케줄마다 "게시판 참여" 스위치(board_joined, 기본 꺼짐), 출발 2주 전부터 열리고 출발일이 지나면 닫힘(읽기 전용 없음).
 -- ============================================================================
 
 -- 1) 익명 번호 --------------------------------------------------------------
@@ -44,6 +45,7 @@ ALTER TABLE public.flight_board_mutes ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.flight_board_mutes FROM PUBLIC, anon, authenticated;
 
 -- 2) 글·댓글 컬럼 + 직접 접근 차단(RPC 전용) --------------------------------
+ALTER TABLE public.flight_schedules ADD COLUMN IF NOT EXISTS board_joined boolean NOT NULL DEFAULT false;
 ALTER TABLE public.flight_posts ADD COLUMN IF NOT EXISTS alias text NOT NULL DEFAULT '익명';
 ALTER TABLE public.flight_post_comments ADD COLUMN IF NOT EXISTS alias text NOT NULL DEFAULT '익명';
 ALTER TABLE public.flight_post_comments ADD COLUMN IF NOT EXISTS is_private boolean NOT NULL DEFAULT false;
@@ -53,7 +55,15 @@ ALTER TABLE public.flight_post_comments ADD COLUMN IF NOT EXISTS reply_to_user_i
 REVOKE ALL ON public.flight_posts FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON public.flight_post_comments FROM PUBLIC, anon, authenticated;
 
--- 3) 자격: 등록 = 참여. 회원유형은 클라이언트가 아니라 본인 스케줄 행(user_type)에서 정한다 ----
+-- 게시판이 열리는 기간: 출발 14일 전부터 출발일까지(KST). 지나면 닫힌다(읽기 전용 없음).
+CREATE OR REPLACE FUNCTION public.flight_board_writable(p_date date)
+RETURNS boolean LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
+  SELECT ((now() AT TIME ZONE 'Asia/Seoul')::date) >= (p_date - 14)
+     AND ((now() AT TIME ZONE 'Asia/Seoul')::date) <= p_date;
+$$;
+GRANT EXECUTE ON FUNCTION public.flight_board_writable(date) TO authenticated;
+
+-- 3) 자격: "게시판 참여" 스위치를 켠 본인 스케줄 + 열린 기간. 회원유형은 클라이언트가 아니라 스케줄 행(user_type)에서 정한다 ----
 --    (flight_schedules_guard 가 미인증 승무원의 user_type 을 passenger 로 바꾸므로 클라이언트 값과 어긋날 수 있다)
 CREATE OR REPLACE FUNCTION public.flight_board_member_type(p_user uuid, p_flight text, p_date date)
 RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_temp AS $$
@@ -63,6 +73,8 @@ RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_t
     JOIN public.profiles_private pp ON pp.user_id = fs.user_id
    WHERE p_user IS NOT NULL AND fs.user_id = p_user
      AND fs.flight_number = p_flight AND fs.flight_date = p_date
+     AND COALESCE(fs.board_joined, FALSE) = TRUE
+     AND public.flight_board_writable(p_date)
      AND fs.user_type IN ('passenger','crew')
      AND COALESCE(pr.is_banned, FALSE) = FALSE
      AND pp.birthdate IS NOT NULL
@@ -119,11 +131,11 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.flight_board_alias(uuid, text, date, text) FROM PUBLIC, anon, authenticated;
 
--- 4-2) 등록 즉시 번호 배정: 첫 글을 쓰기 전에도 "내 이름: 익명 승객 3" 을 보여 준다. 편명·날짜를 고치면 새 게시판에서 새 번호.
+-- 4-2) 참여를 켜는 즉시 번호 배정: 첫 글을 쓰기 전에도 "내 이름: 익명 승객 3" 을 보여 준다. 편명·날짜를 고치면 새 게시판에서 새 번호.
 CREATE OR REPLACE FUNCTION public.trg_flight_board_alias() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
-  IF NEW.user_type IN ('passenger','crew') THEN
+  IF COALESCE(NEW.board_joined, FALSE) AND NEW.user_type IN ('passenger','crew') THEN
     PERFORM public.flight_board_alias(NEW.user_id, NEW.flight_number, NEW.flight_date, NEW.user_type);
   END IF;
   RETURN NEW;
@@ -133,7 +145,7 @@ EXCEPTION WHEN OTHERS THEN
 END; $$;
 REVOKE ALL ON FUNCTION public.trg_flight_board_alias() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_flight_board_alias ON public.flight_schedules;
-CREATE TRIGGER trg_flight_board_alias AFTER INSERT OR UPDATE OF flight_number, flight_date, user_type ON public.flight_schedules
+CREATE TRIGGER trg_flight_board_alias AFTER INSERT OR UPDATE OF flight_number, flight_date, user_type, board_joined ON public.flight_schedules
   FOR EACH ROW EXECUTE FUNCTION public.trg_flight_board_alias();
 
 -- 5) RPC ------------------------------------------------------------------
@@ -348,20 +360,23 @@ CREATE POLICY "Admin reads reports" ON public.reports FOR SELECT USING (COALESCE
 REVOKE INSERT ON public.messages FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_message ON public.messages;
 
--- 9) 같은 편 새 등록 알림: 등록(INSERT) 때만, 이름 없이. actor 는 본인 제외·차단 관계 판정에만 쓰이고 저장되지 않는다.
+-- 9) 같은 편 게시판 참여 알림: 참여 스위치를 켤 때(INSERT 로 켜짐 또는 꺼짐→켜짐), 이미 참여한 사람에게만, 이름 없이.
+--    actor 는 본인 제외·차단 관계 판정에만 쓰이고 저장되지 않는다.
 CREATE OR REPLACE FUNCTION public.trg_notify_same_flight() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE r record;
 BEGIN
-  IF TG_OP <> 'INSERT' THEN RETURN NEW; END IF;
+  IF NOT COALESCE(NEW.board_joined, FALSE) THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND COALESCE(OLD.board_joined, FALSE) THEN RETURN NEW; END IF;
   FOR r IN
     SELECT DISTINCT fs.user_id FROM public.flight_schedules fs
      WHERE fs.flight_number = NEW.flight_number AND fs.flight_date = NEW.flight_date
        AND fs.user_type = NEW.user_type AND fs.user_id <> NEW.user_id
+       AND COALESCE(fs.board_joined, FALSE) = TRUE
      LIMIT 50
   LOOP
     PERFORM public.notify_user(r.user_id, 'flight', 'flight',
-      CASE WHEN NEW.user_type = 'crew' THEN '같은 듀티 게시판에 승무원이 새로 등록됐습니다 (' ELSE '같은 편 게시판에 탑승객이 새로 등록됐습니다 (' END
+      CASE WHEN NEW.user_type = 'crew' THEN '같은 듀티 게시판에 승무원이 새로 들어왔습니다 (' ELSE '같은 편 게시판에 탑승객이 새로 들어왔습니다 (' END
         || NEW.flight_number || ')',
       '/mypage?tab=companions', NEW.id, NEW.user_id);
   END LOOP;
@@ -372,7 +387,7 @@ EXCEPTION WHEN OTHERS THEN
 END; $$;
 REVOKE ALL ON FUNCTION public.trg_notify_same_flight() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_same_flight ON public.flight_schedules;
-CREATE TRIGGER trg_notify_same_flight AFTER INSERT ON public.flight_schedules FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
+CREATE TRIGGER trg_notify_same_flight AFTER INSERT OR UPDATE OF board_joined ON public.flight_schedules FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
 
 -- 10) 댓글 알림: 글쓴이 + (답글이면) 답글 대상. 본문·작성자 정보는 담지 않는다. 그 게시판에서 내가 숨긴 사람의 댓글은 알리지 않는다.
 CREATE OR REPLACE FUNCTION public.trg_notify_flight_post_comment() RETURNS trigger

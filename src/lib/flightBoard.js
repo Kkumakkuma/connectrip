@@ -1,7 +1,7 @@
 // 같은 편 게시판 화면 보조 함수(순수 함수). 자격·가시성·작성 기간 판정은 서버 RPC 가 하고, 여기 값은 표시용이다.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-export const BOARD_OPEN_DAYS = 21;
+export const BOARD_OPEN_DAYS = 14;
 
 // flight_date 는 'YYYY-MM-DD' 문자열이다. new Date(문자열) 은 UTC 자정으로 파싱되므로
 // 현재 시각과 직접 비교하면 비행 당일 09:00 KST 를 넘긴 항공편이 과거로 취급된다.
@@ -22,21 +22,14 @@ export const dayDiff = (dateStr, todayStr) => {
   return Math.round((a - b) / DAY_MS);
 };
 
-export const PAST_BOARD_DAYS = 30;
+// 게시판 목록에 둘 항공편: "게시판 참여" 스위치를 켠 편 가운데 오늘(KST) 이후 것만, 날짜 오름차순.
+// 출발 2주 전까지는 잠김 안내(게시판이 한다), 출발일이 지나면 목록에서 사라진다.
+export const boardFlights = (flights, todayStr) =>
+  (flights || [])
+    .filter((f) => f && f.board_joined && String(f.flight_date || '').slice(0, 10) >= todayStr)
+    .sort((x, y) => String(x.flight_date).slice(0, 10).localeCompare(String(y.flight_date).slice(0, 10)));
 
-// 게시판 목록에 둘 항공편: 오늘(KST) 이후 전부(잠긴 편 포함, 잠김 안내는 게시판이 한다) + 지난 30일 안의 편(읽기 전용).
-// 다가오는 편은 날짜 오름차순, 지난 편은 그 뒤에 최근 것부터.
-export const boardFlights = (flights, todayStr, pastDays = PAST_BOARD_DAYS) => {
-  const list = (flights || []).filter((f) => f && String(f.flight_date || '').length >= 10);
-  const date = (f) => String(f.flight_date).slice(0, 10);
-  const upcoming = list.filter((f) => date(f) >= todayStr).sort((x, y) => date(x).localeCompare(date(y)));
-  const past = list
-    .filter((f) => date(f) < todayStr && dayDiff(date(f), todayStr) >= -pastDays)
-    .sort((x, y) => date(y).localeCompare(date(x)));
-  return [...upcoming, ...past];
-};
-
-// 'locked' = 출발 3주 전 이전, 'open' = 쓸 수 있는 기간, 'closed' = 비행이 지남(읽기 전용)
+// 'locked' = 출발 2주 전 이전, 'open' = 쓸 수 있는 기간, 'closed' = 출발일이 지남(게시판 닫힘)
 export const boardStatus = (dateStr, todayStr) => {
   const d = dayDiff(dateStr, todayStr);
   if (d === null) return 'unknown';
@@ -50,8 +43,8 @@ export const boardTitle = (memberType) => (memberType === 'crew' ? '같은 듀�
 // 서버 RPC 가 RAISE 하는 코드 → 안내 문구. 연락처 차단(CONTACT_*) 트리거는 현재 꺼져 있다(운영자 결정).
 export const BOARD_ERRORS = {
   AUTH_REQUIRED: '로그인이 필요합니다.',
-  NOT_MEMBER: '이 편에 등록된 스케줄이 없어 글을 쓸 수 없습니다.',
-  BOARD_CLOSED: '작성 기간이 아닙니다. 출발 3주 전부터 출발일까지 쓸 수 있습니다.',
+  NOT_MEMBER: '이 편 게시판에 참여하지 않았거나 열린 기간이 아닙니다.',
+  BOARD_CLOSED: '게시판이 열린 기간이 아닙니다. 출발 2주 전부터 출발일까지 쓸 수 있습니다.',
   NOT_FOUND: '글이나 댓글을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   BAD_PARENT: '답글 대상을 찾을 수 없습니다. 목록을 새로 불러와 주세요.',
   BAD_CONTENT: '내용을 확인해 주세요.',

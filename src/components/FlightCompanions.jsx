@@ -7,7 +7,8 @@ import { kstDateString, dayDiff, boardFlights, boardStatus } from '../lib/flight
 
 // 내가 등록한 항공편마다 붙는 "같은 편 게시판" 목록. (2026-09-06 개편)
 // 같은 편 탑승자 명단은 개인정보라 누구에게도 보이지 않고, 쪽지도 없다.
-// 게시판 안에서는 서버가 배정한 익명 번호로만 글·댓글을 쓴다. 출발 3주 전부터 출발일까지 쓸 수 있고, 지난 편은 30일 동안 읽기 전용으로 남는다.
+// 스케줄 목록에서 "게시판 참여" 를 켠 편만 여기 보인다. 게시판 안에서는 서버가 배정한 익명 번호로만 글·댓글을 쓴다.
+// 출발 2주 전부터 출발일까지 열리고, 출발일이 지나면 목록에서 사라진다.
 // focus = { id, at } : 마이페이지 스케줄 목록의 "게시판" 버튼이 넘겨 주면 그 편을 펼치고 화면을 옮긴다.
 const FlightCompanions = ({ flights = [], focus = null }) => {
   const { isLoggedIn, isCrew } = useAuth();
@@ -51,16 +52,16 @@ const FlightCompanions = ({ flights = [], focus = null }) => {
 
       <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-2xl p-4 border border-green-100">
         <p className="text-xs text-gray-600 leading-relaxed">
-          비행 스케줄을 등록하면 그 편의 게시판이 자동으로 생깁니다. 이름은 누구에게도 보이지 않고, 각자 <strong>익명 번호</strong>로 글과 댓글을 씁니다.
-          출발 <strong>3주 전</strong>부터 출발일까지 쓸 수 있습니다. 연락처처럼 남에게 보이면 안 되는 내용은 <strong>비밀댓글</strong>로 남겨 주세요.
+          스케줄 목록에서 <strong>게시판 참여</strong>를 켜면 그 편의 게시판에 들어가고, 끄면 나옵니다. 이름은 누구에게도 보이지 않고, 각자 <strong>익명 번호</strong>로 글과 댓글을 씁니다.
+          게시판은 출발 <strong>2주 전</strong>부터 열리고 출발일이 지나면 닫힙니다. 연락처처럼 남에게 보이면 안 되는 내용은 <strong>비밀댓글</strong>로 남겨 주세요.
         </p>
       </div>
 
       {myFlights.length === 0 ? (
         <div className="text-center py-10 text-gray-400">
           <Plane size={48} className="mx-auto mb-3 opacity-30" />
-          <p className="font-semibold">등록된 항공편이 없습니다</p>
-          <p className="text-sm mt-1">위에서 비행 스케줄을 등록하면 그 편의 게시판이 여기에 생깁니다.</p>
+          <p className="font-semibold">참여 중인 게시판이 없습니다</p>
+          <p className="text-sm mt-1">위 스케줄 목록에서 게시판 참여를 켜면 그 편의 게시판이 여기에 나타납니다.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -85,14 +86,11 @@ const FlightCompanions = ({ flights = [], focus = null }) => {
                         <span className="text-sm text-gray-500">{flight.flight_date}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-xs font-semibold ${status === 'closed' ? 'text-gray-400' : 'text-green-600'}`}>
-                          {daysUntil === 0 ? '오늘 출발' : daysUntil > 0 ? `D-${daysUntil}` : '지난 항공편'}
+                        <span className="text-xs font-semibold text-green-600">
+                          {daysUntil === 0 ? '오늘 출발' : `D-${daysUntil}`}
                         </span>
                         {status === 'locked' && (
-                          <span className="text-[11px] text-gray-400 flex items-center gap-1"><Lock size={10} />출발 3주 전에 열림</span>
-                        )}
-                        {status === 'closed' && (
-                          <span className="text-[11px] text-gray-400">읽기 전용</span>
+                          <span className="text-[11px] text-gray-400 flex items-center gap-1"><Lock size={10} />출발 2주 전에 열림</span>
                         )}
                       </div>
                     </div>

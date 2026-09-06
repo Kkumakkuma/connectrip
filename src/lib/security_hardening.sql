@@ -1274,9 +1274,11 @@ $$;
 REVOKE ALL ON FUNCTION public.can_use_flight_board(TEXT,DATE,TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.can_use_flight_board(TEXT,DATE,TEXT) TO authenticated;
 
+-- ★ 2026-09-06 개편: 출발 14일 전~출발일(KST), STABLE(security_20260905.sql 정정) — 본체는 flight_board_anon_20260906.sql
 CREATE OR REPLACE FUNCTION public.flight_board_writable(p_date DATE)
-RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
-  SELECT CURRENT_DATE >= (p_date - 21) AND CURRENT_DATE <= p_date;
+RETURNS BOOLEAN LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
+  SELECT ((now() AT TIME ZONE 'Asia/Seoul')::date) >= (p_date - 14)
+     AND ((now() AT TIME ZONE 'Asia/Seoul')::date) <= p_date;
 $$;
 GRANT EXECUTE ON FUNCTION public.flight_board_writable(DATE) TO authenticated;
 

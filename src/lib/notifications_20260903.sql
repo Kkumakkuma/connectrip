@@ -161,21 +161,23 @@ REVOKE ALL ON FUNCTION public.trg_notify_commendation() FROM PUBLIC, anon, authe
 DROP TRIGGER IF EXISTS trg_notify_commendation ON public.commendation_matches;
 CREATE TRIGGER trg_notify_commendation AFTER INSERT OR UPDATE OF status ON public.commendation_matches FOR EACH ROW EXECUTE FUNCTION public.trg_notify_commendation();
 
--- 4-5 같은 항공편 게시판 새 등록 — ★ 2026-09-06 개편: 공개 여부와 무관하게 등록(INSERT) 때만, 이름 없이.
+-- 4-5 같은 편 게시판 참여 알림 — ★ 2026-09-06 개편: 참여 스위치를 켤 때 참여자에게만, 이름 없이.
 --     (본체는 flight_board_anon_20260906.sql 9). actor 는 차단 관계 판정에만 쓰이고 저장되지 않는다)
 CREATE OR REPLACE FUNCTION public.trg_notify_same_flight() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE r record;
 BEGIN
-  IF TG_OP <> 'INSERT' THEN RETURN NEW; END IF;
+  IF NOT COALESCE(NEW.board_joined, FALSE) THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND COALESCE(OLD.board_joined, FALSE) THEN RETURN NEW; END IF;
   FOR r IN
     SELECT DISTINCT fs.user_id FROM public.flight_schedules fs
      WHERE fs.flight_number = NEW.flight_number AND fs.flight_date = NEW.flight_date
        AND fs.user_type = NEW.user_type AND fs.user_id <> NEW.user_id
+       AND COALESCE(fs.board_joined, FALSE) = TRUE
      LIMIT 50
   LOOP
     PERFORM public.notify_user(r.user_id, 'flight', 'flight',
-      CASE WHEN NEW.user_type = 'crew' THEN '같은 듀티 게시판에 승무원이 새로 등록됐습니다 (' ELSE '같은 편 게시판에 탑승객이 새로 등록됐습니다 (' END
+      CASE WHEN NEW.user_type = 'crew' THEN '같은 듀티 게시판에 승무원이 새로 들어왔습니다 (' ELSE '같은 편 게시판에 탑승객이 새로 들어왔습니다 (' END
         || NEW.flight_number || ')',
       '/mypage?tab=companions', NEW.id, NEW.user_id);
   END LOOP;
@@ -186,7 +188,7 @@ EXCEPTION WHEN OTHERS THEN
 END; $$;
 REVOKE ALL ON FUNCTION public.trg_notify_same_flight() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS trg_notify_same_flight ON public.flight_schedules;
-CREATE TRIGGER trg_notify_same_flight AFTER INSERT ON public.flight_schedules FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
+CREATE TRIGGER trg_notify_same_flight AFTER INSERT OR UPDATE OF board_joined ON public.flight_schedules FOR EACH ROW EXECUTE FUNCTION public.trg_notify_same_flight();
 
 -- 4-6 내가 글 올린 지역의 새 동행 글(최근 90일)
 CREATE OR REPLACE FUNCTION public.trg_notify_companion_region() RETURNS trigger

@@ -5,7 +5,7 @@ import { REPORT_REASONS } from '../lib/reportReasons';
 import { kstDateString, boardStatus, boardTitle, boardErrorMessage } from '../lib/flightBoard';
 
 // 같은 편·같은 날 스케줄을 등록한 사람들이 익명 번호("익명 승객 3")로만 쓰는 미니 게시판.
-// 비행 21일 전부터 열리고 비행 다음날부터는 읽기 전용(글은 남는다).
+// 출발 14일 전부터 출발일까지 열리고, 출발일이 지나면 닫힌다(목록에서도 사라진다).
 // 입장 자격·작성 기간·익명 번호·비밀댓글 가시성·차단은 전부 서버 RPC 가 판정한다. 여기 표시는 보조일 뿐이다.
 // 서버 응답에는 작성자 id·실명이 없다(alias·mine 플래그만). 비밀댓글은 볼 수 있는 것만 내려온다.
 
@@ -155,7 +155,7 @@ const FlightBoard = ({ flight }) => {
         return (
             <div className="mt-4 p-4 bg-gray-50 rounded-xl text-center">
                 <Lock size={18} className="mx-auto text-gray-300 mb-1.5" />
-                <p className="text-xs text-gray-500">출발 3주 전부터 {boardTitle(memberType)}이 열립니다.</p>
+                <p className="text-xs text-gray-500">출발 2주 전부터 {boardTitle(memberType)}이 열립니다.</p>
             </div>
         );
     }
@@ -168,7 +168,7 @@ const FlightBoard = ({ flight }) => {
                     <span className="text-sm font-bold text-gray-700">{boardTitle(memberType)}</span>
                 </div>
                 {data.eligible && !data.writable && (
-                    <span className="text-[11px] font-semibold text-gray-400">비행이 지나 읽기 전용</span>
+                    <span className="text-[11px] font-semibold text-gray-400">게시판이 닫혔습니다</span>
                 )}
             </div>
             {data.eligible && (
@@ -211,7 +211,7 @@ const FlightBoard = ({ flight }) => {
                     <button onClick={fetchBoard} className="px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-bold text-gray-600">다시 시도</button>
                 </div>
             ) : !data.eligible ? (
-                <p className="py-6 text-center text-xs text-gray-400">이 편의 게시판에 들어갈 수 없습니다. 스케줄 등록과 생년월일을 확인해 주세요.</p>
+                <p className="py-6 text-center text-xs text-gray-400">이 편 게시판에 들어갈 수 없습니다. 게시판 참여 스위치와 열린 기간(출발 2주 전~출발일), 생년월일을 확인해 주세요.</p>
             ) : data.posts.length === 0 ? (
                 <p className="py-6 text-center text-xs text-gray-400">
                     아직 글이 없습니다.{writable && ' 첫 글을 남겨 보세요.'}

@@ -348,6 +348,18 @@ export const flightApi = {
       .eq('id', id);
     if (error) throw error;
   },
+
+  // 같은 편 게시판 참여 스위치(2026-09-06). 켜면 서버가 익명 번호를 배정하고 참여자에게 알린다.
+  async setBoardJoined(id, joined) {
+    const { data, error } = await supabase
+      .from('flight_schedules')
+      .update({ board_joined: !!joined })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
 };
 
 // ============================================================

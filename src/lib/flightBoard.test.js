@@ -22,25 +22,24 @@ describe('dayDiff', () => {
 });
 
 describe('boardFlights', () => {
-  it('다가오는 편은 날짜순(3주 밖 포함), 지난 30일 편은 뒤에 최근 것부터, 더 오래된 편은 제외', () => {
+  it('참여를 켠 편만, 오늘 이후만, 날짜순(2주 밖도 포함·잠김은 게시판이 안내), 지난 편은 제외', () => {
     const list = [
-      { id: 'c', flight_date: '2026-11-01' },
-      { id: 'a', flight_date: '2026-09-06' },
-      { id: 'p1', flight_date: '2026-09-05' },
-      { id: 'p2', flight_date: '2026-08-10' },
-      { id: 'old', flight_date: '2026-08-01' },
-      { id: 'b', flight_date: '2026-09-20' },
+      { id: 'c', flight_date: '2026-11-01', board_joined: true },
+      { id: 'a', flight_date: '2026-09-06', board_joined: true },
+      { id: 'off', flight_date: '2026-09-10', board_joined: false },
+      { id: 'p1', flight_date: '2026-09-05', board_joined: true },
+      { id: 'b', flight_date: '2026-09-20', board_joined: true },
       null,
     ];
-    expect(boardFlights(list, '2026-09-06').map((f) => f.id)).toEqual(['a', 'b', 'c', 'p1', 'p2']);
+    expect(boardFlights(list, '2026-09-06').map((f) => f.id)).toEqual(['a', 'b', 'c']);
     expect(boardFlights(undefined, '2026-09-06')).toEqual([]);
   });
 });
 
 describe('boardStatus', () => {
-  it('3주 전 이전 잠김, 기간 안 열림, 지나면 읽기 전용', () => {
-    expect(boardStatus('2026-09-28', '2026-09-06')).toBe('locked');
-    expect(boardStatus('2026-09-27', '2026-09-06')).toBe('open');
+  it('2주 전 이전 잠김, 기간 안 열림, 지나면 닫힘', () => {
+    expect(boardStatus('2026-09-21', '2026-09-06')).toBe('locked');
+    expect(boardStatus('2026-09-20', '2026-09-06')).toBe('open');
     expect(boardStatus('2026-09-06', '2026-09-06')).toBe('open');
     expect(boardStatus('2026-09-05', '2026-09-06')).toBe('closed');
     expect(boardStatus(null, '2026-09-06')).toBe('unknown');
@@ -53,7 +52,7 @@ describe('boardTitle / boardErrorMessage / replyTargetLabel', () => {
     expect(boardTitle('passenger')).toBe('같은 편 게시판');
   });
   it('서버 코드가 섞인 메시지에서 안내 문구를 찾고, 없으면 기본 문구', () => {
-    expect(boardErrorMessage({ message: 'P0001: BOARD_CLOSED' }, '실패')).toMatch(/출발 3주 전/);
+    expect(boardErrorMessage({ message: 'P0001: BOARD_CLOSED' }, '실패')).toMatch(/출발 2주 전/);
     expect(boardErrorMessage({ message: 'network' }, '실패')).toBe('실패');
     expect(boardErrorMessage(null, '실패')).toBe('실패');
   });
