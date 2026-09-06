@@ -165,7 +165,7 @@ export const qnaApi = {
   async getComments(postId) {
     const { data, error } = await supabase
       .from('qna_comments')
-      .select('*, profiles(user_type, crew_verified)')
+      .select('*, profiles!qna_comments_user_id_fkey(user_type, crew_verified)')
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
     if (error) throw error;
@@ -177,7 +177,7 @@ export const qnaApi = {
     await supabase.rpc('increment_view_count', { post_id: id }).catch(() => {});
     const { data, error } = await supabase
       .from('qna_posts')
-      .select('*, qna_comments(*, profiles(user_type, crew_verified)), profiles(user_type, crew_verified)')
+      .select('*, qna_comments(*, profiles!qna_comments_user_id_fkey(user_type, crew_verified)), profiles(user_type, crew_verified)')
       .eq('id', id)
       .single();
     if (error) throw error;
@@ -198,7 +198,7 @@ export const qnaApi = {
     const { data, error } = await supabase
       .from('qna_comments')
       .insert(comment)
-      .select('*, profiles(user_type, crew_verified)')
+      .select('*, profiles!qna_comments_user_id_fkey(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;

@@ -445,7 +445,10 @@ CREATE TRIGGER trg_notify_flight_post_comment AFTER INSERT ON public.flight_post
 -- 11) Q&A 비밀댓글·답글 ---------------------------------------------------------
 ALTER TABLE public.qna_comments ADD COLUMN IF NOT EXISTS is_private boolean NOT NULL DEFAULT false;
 ALTER TABLE public.qna_comments ADD COLUMN IF NOT EXISTS parent_id uuid REFERENCES public.qna_comments(id) ON DELETE SET NULL;
-ALTER TABLE public.qna_comments ADD COLUMN IF NOT EXISTS reply_to_user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL;
+-- reply_to_user_id 에 profiles FK 를 걸면 qna_comments→profiles 관계가 둘이 되어 PostgREST 임베드 profiles(...) 가 PGRST201 로 실패한다(9/6 운영 사고).
+-- FK 없이 둔다(auth.uid() 비교 전용). 1차 적용분은 v8 에서 DROP CONSTRAINT.
+ALTER TABLE public.qna_comments ADD COLUMN IF NOT EXISTS reply_to_user_id uuid;
+ALTER TABLE public.qna_comments DROP CONSTRAINT IF EXISTS qna_comments_reply_to_user_id_fkey;
 
 -- 가시성 판정. 같은 테이블을 다시 조회하지 않으므로(답글 대상은 reply_to_user_id 로 굳혀 둠) 정책 재귀가 없다.
 DROP POLICY IF EXISTS "Anyone can read comments" ON public.qna_comments;

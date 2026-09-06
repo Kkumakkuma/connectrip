@@ -122,7 +122,7 @@ CREATE TABLE public.qna_comments (
   content TEXT NOT NULL,
   is_private BOOLEAN NOT NULL DEFAULT FALSE,                                   -- 2026-09-06 비밀댓글
   parent_id UUID REFERENCES public.qna_comments(id) ON DELETE SET NULL,        -- 2026-09-06 답글
-  reply_to_user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,     -- 2026-09-06 답글 대상(트리거가 채움)
+  reply_to_user_id UUID,                                                       -- 2026-09-06 답글 대상(트리거가 채움). FK 금지: profiles 임베드가 모호해진다(PGRST201)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
