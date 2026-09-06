@@ -204,8 +204,12 @@ const MarketBoard = () => {
     }, [shareRegion]);
 
     // 차단은 쪽지·대화만 막는다(2026-09-06) — 게시글은 숨기지 않는다.
-    const visibleBuy = buyingRequests;
     const groupbuyQuery = searchQuery.toLowerCase();
+    const visibleBuy = buyingRequests.filter(i =>
+        !groupbuyQuery
+        || (i.title || '').toLowerCase().includes(groupbuyQuery)
+        || (i.content || '').toLowerCase().includes(groupbuyQuery)
+    );
     const visibleGroupbuy = groupbuyItems.filter(i =>
         !groupbuyQuery
         || (i.title || '').toLowerCase().includes(groupbuyQuery)
@@ -337,6 +341,7 @@ const MarketBoard = () => {
                                 </div>
                                 <MarketFeed
                                     type="sell"
+                                    initialQuery={searchQuery}
                                     items={sellingItems}
                                     stats={stats}
                                     loading={loading}
@@ -547,6 +552,7 @@ const MarketBoard = () => {
                                 </div>
                                 <MarketFeed
                                     type="share"
+                                    initialQuery={searchQuery}
                                     items={sharingItems}
                                     stats={stats}
                                     loading={loading}

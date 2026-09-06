@@ -13,7 +13,7 @@ import ListState from '../components/ListState';
 // detail  = 결과 한 건을 여는 경로. 없으면 종전대로 게시판 목록으로 이동한다.
 const BOARDS = [
   { key: 'companion_posts', label: '동행 게시판', icon: Users, color: 'blue', link: '/companion', fields: ['title', 'content'], bodyField: 'content' },
-  { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content' },
+  { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content', detail: (item) => `/market/${item.id}` },
   { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', fields: ['title', 'content'], bodyField: 'content' },
   { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', fields: ['title', 'content'], bodyField: 'content' },
   // itinerary_posts 는 snapshot(jsonb = 여행 전체)을 갖고 있어 '*' 로 받으면 검색 응답이 통째로

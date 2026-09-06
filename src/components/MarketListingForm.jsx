@@ -21,10 +21,11 @@ const MarketListingForm = ({ mode, regions = [], initial = null, defaultRegion =
     const [content, setContent] = useState(initial?.content || '');
     const [images, setImages] = useState(initial?.image_urls?.length ? initial.image_urls : (initial?.image_url ? [initial.image_url] : []));
     const [submitting, setSubmitting] = useState(false);
+    const [uploading, setUploading] = useState(false);
 
     const submit = async (e) => {
         e.preventDefault();
-        if (submitting) return;
+        if (submitting || uploading) return;
         setSubmitting(true);
         try {
             const digits = String(price || '').replace(/[^0-9]/g, '');
@@ -82,7 +83,12 @@ const MarketListingForm = ({ mode, regions = [], initial = null, defaultRegion =
                     </div>
                 )}
                 {images.length < MAX_IMAGES && (
-                    <ImageUpload bucket="images" onUpload={(url) => setImages((prev) => (prev.length < MAX_IMAGES && !prev.includes(url) ? [...prev, url] : prev))} />
+                    <ImageUpload
+                        bucket="images"
+                        resetAfterUpload
+                        onUploadingChange={setUploading}
+                        onUpload={(url) => { if (!url) return; setImages((prev) => (prev.length < MAX_IMAGES && !prev.includes(url) ? [...prev, url] : prev)); }}
+                    />
                 )}
             </div>
 
@@ -116,7 +122,7 @@ const MarketListingForm = ({ mode, regions = [], initial = null, defaultRegion =
                     </div>
                     <div>
                         <label htmlFor={`${formId}-price`} className="block text-sm font-bold text-gray-700 mb-1.5">가격(원)</label>
-                        <input id={`${formId}-price`} type="text" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ''))} required
+                        <input id={`${formId}-price`} type="text" inputMode="numeric" maxLength={9} value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, '').slice(0, 9))} required
                             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none" />
                     </div>
                 </>
@@ -136,8 +142,8 @@ const MarketListingForm = ({ mode, regions = [], initial = null, defaultRegion =
 
             <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onCancel} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50">취소</button>
-                <button type="submit" disabled={submitting} className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
-                    {submitting ? '저장 중...' : initial?.id ? '수정' : '등록'}
+                <button type="submit" disabled={submitting || uploading} className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                    {submitting ? '저장 중...' : uploading ? '사진 올리는 중...' : initial?.id ? '수정' : '등록'}
                 </button>
             </div>
         </form>

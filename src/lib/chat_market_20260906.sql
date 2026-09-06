@@ -88,9 +88,10 @@ RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_t
 DECLARE v_uid uuid := auth.uid(); v_n int;
 BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
+  -- 탈퇴로 상대 id 가 NULL 이면 그쪽은 이미 지운 것으로 본다(v4, NULL-safe)
   UPDATE public.messages SET
-    sender_deleted   = sender_deleted   OR (sender_id   = v_uid),
-    receiver_deleted = receiver_deleted OR (receiver_id = v_uid)
+    sender_deleted   = sender_deleted   OR sender_id   IS NULL OR COALESCE(sender_id   = v_uid, FALSE),
+    receiver_deleted = receiver_deleted OR receiver_id IS NULL OR COALESCE(receiver_id = v_uid, FALSE)
   WHERE id = p_id AND (sender_id = v_uid OR receiver_id = v_uid);
   GET DIAGNOSTICS v_n = ROW_COUNT;
   DELETE FROM public.messages WHERE id = p_id AND sender_deleted AND receiver_deleted;
@@ -229,9 +230,10 @@ BEGIN
     RAISE EXCEPTION 'RATE_LIMIT';
   END IF;
   INSERT INTO public.chat_messages (room_id, sender_id, content) VALUES (p_room, v_uid, v_body) RETURNING id INTO v_id;
+  -- 보낸 사람의 읽음 시각은 앞으로만 간다(v4: 늦게 실행된 send 가 mark_read 를 되돌리지 않게)
   UPDATE public.chat_rooms SET last_message = left(v_body, 120), last_message_at = now(),
-         lo_last_read_at = CASE WHEN user_lo = v_uid THEN now() ELSE lo_last_read_at END,
-         hi_last_read_at = CASE WHEN user_hi = v_uid THEN now() ELSE hi_last_read_at END
+         lo_last_read_at = CASE WHEN user_lo = v_uid THEN GREATEST(lo_last_read_at, now()) ELSE lo_last_read_at END,
+         hi_last_read_at = CASE WHEN user_hi = v_uid THEN GREATEST(hi_last_read_at, now()) ELSE hi_last_read_at END
    WHERE id = p_room;
   RETURN v_id;
 END $$;
@@ -336,14 +338,20 @@ CREATE TRIGGER trg_notify_chat_message AFTER INSERT ON public.chat_messages FOR 
 UPDATE public.market_listings SET status = 'active' WHERE status IS NULL OR status NOT IN ('active','reserved','sold');
 ALTER TABLE public.market_listings DROP CONSTRAINT IF EXISTS market_listings_status_check;
 ALTER TABLE public.market_listings ADD CONSTRAINT market_listings_status_check CHECK (status IN ('active','reserved','sold'));
+-- status 는 NULL 불가(v4): NULL 이면 상태 검사·재결제 방지가 전부 통과한다(codex 지적)
+UPDATE public.market_listings SET status = 'active' WHERE status IS NULL;
+ALTER TABLE public.market_listings ALTER COLUMN status SET DEFAULT 'active';
+ALTER TABLE public.market_listings ALTER COLUMN status SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_market_listings_type_refreshed ON public.market_listings (type, refreshed_at DESC);
 -- 대표 이미지(image_url)는 image_urls 첫 장과 같게 유지
 CREATE OR REPLACE FUNCTION public.trg_market_listing_images() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 BEGIN
   IF NEW.image_urls IS NULL THEN NEW.image_urls := '{}'; END IF;
-  IF array_length(NEW.image_urls, 1) IS NULL AND NEW.image_url IS NOT NULL THEN NEW.image_urls := ARRAY[NEW.image_url]; END IF;
-  IF array_length(NEW.image_urls, 1) > 5 THEN NEW.image_urls := NEW.image_urls[1:5]; END IF;
+  IF array_ndims(NEW.image_urls) > 1 THEN RAISE EXCEPTION 'BAD_IMAGES'; END IF;   -- 다차원 배열로 5장 제한 우회 금지(v4)
+  NEW.image_urls := ARRAY(SELECT t.u FROM unnest(NEW.image_urls) WITH ORDINALITY AS t(u, n) WHERE t.u IS NOT NULL AND btrim(t.u) <> '' ORDER BY t.n);
+  IF cardinality(NEW.image_urls) = 0 AND NEW.image_url IS NOT NULL AND btrim(NEW.image_url) <> '' THEN NEW.image_urls := ARRAY[NEW.image_url]; END IF;
+  IF cardinality(NEW.image_urls) > 5 THEN NEW.image_urls := NEW.image_urls[1:5]; END IF;
   NEW.image_url := NEW.image_urls[1];
   IF TG_OP = 'INSERT' THEN NEW.refreshed_at := now(); NEW.view_count := 0; END IF;
   RETURN NEW;
@@ -377,7 +385,7 @@ RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_
                  (SELECT count(*) FROM public.market_favorites f WHERE f.listing_id = l.id) AS favs,
                  (SELECT count(*) FROM public.chat_rooms r WHERE r.listing_id = l.id) AS chats,
                  EXISTS (SELECT 1 FROM public.market_favorites f WHERE f.listing_id = l.id AND f.user_id = auth.uid()) AS mine_fav
-            FROM public.market_listings l WHERE l.id = ANY(COALESCE(p_ids, '{}')) LIMIT 200) x;
+            FROM public.market_listings l WHERE l.id = ANY(COALESCE(p_ids, '{}')) LIMIT 1000) x;
 $$;
 REVOKE ALL ON FUNCTION public.market_listing_stats(uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.market_listing_stats(uuid[]) TO authenticated;
@@ -388,7 +396,7 @@ RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_t
 DECLARE v_n int; v_paid timestamptz;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
-  IF p_status NOT IN ('active','reserved','sold') THEN RAISE EXCEPTION 'BAD_REQUEST'; END IF;
+  IF p_status IS NULL OR p_status NOT IN ('active','reserved','sold') THEN RAISE EXCEPTION 'BAD_REQUEST'; END IF;
   SELECT paid_at INTO v_paid FROM public.market_listings WHERE id = p_listing AND user_id = auth.uid() FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
   IF v_paid IS NOT NULL AND p_status <> 'sold' THEN RAISE EXCEPTION 'PAID_FINAL'; END IF;
@@ -426,16 +434,17 @@ CREATE OR REPLACE FUNCTION public.market_purchase(p_listing_id UUID, p_expected_
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp AS $$
-DECLARE v_seller UUID; v_price INT; v_status TEXT; v_type TEXT; v_buyer UUID; v_cur INT;
+DECLARE v_seller UUID; v_price INT; v_status TEXT; v_type TEXT; v_paid TIMESTAMPTZ; v_buyer UUID; v_cur INT;
 BEGIN
   v_buyer := auth.uid();
   IF v_buyer IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
-  SELECT user_id, price, status, type INTO v_seller, v_price, v_status, v_type
+  SELECT user_id, price, status, type, paid_at INTO v_seller, v_price, v_status, v_type, v_paid
     FROM public.market_listings WHERE id = p_listing_id FOR UPDATE;
   IF v_seller IS NULL THEN RAISE EXCEPTION 'listing not found'; END IF;
   IF v_seller = v_buyer THEN RAISE EXCEPTION 'cannot buy own listing'; END IF;
-  IF v_status <> 'active' THEN RAISE EXCEPTION 'not available'; END IF;
-  IF v_type <> 'sell' THEN RAISE EXCEPTION 'not for sale'; END IF;
+  -- NULL 상태·이미 결제된 매물 모두 거부(v4)
+  IF v_status IS DISTINCT FROM 'active' OR v_paid IS NOT NULL THEN RAISE EXCEPTION 'not available'; END IF;
+  IF v_type IS DISTINCT FROM 'sell' THEN RAISE EXCEPTION 'not for sale'; END IF;
   IF COALESCE(v_price, 0) <= 0 THEN RAISE EXCEPTION 'invalid listing price'; END IF;
   IF p_expected_price IS NULL OR p_expected_price <> v_price THEN RAISE EXCEPTION 'price changed'; END IF;
   -- 정지·탈퇴 계정은 사고팔 수 없다(v3)
@@ -463,20 +472,26 @@ CREATE OR REPLACE FUNCTION public.trg_market_listing_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 BEGIN
   IF current_user IN ('authenticated', 'anon') THEN
+    IF TG_OP = 'DELETE' THEN
+      IF OLD.paid_at IS NOT NULL THEN RAISE EXCEPTION 'PAID_FINAL'; END IF;   -- 결제 끝난 매물은 지울 수 없다(v4)
+      RETURN OLD;
+    END IF;
     IF TG_OP = 'INSERT' THEN
       NEW.status := 'active'; NEW.buyer_id := NULL; NEW.paid_at := NULL; NEW.view_count := 0; NEW.refreshed_at := now(); NEW.bumped_at := NULL;
+      NEW.created_at := now();   -- 끌어올리기 대기 기준(v4)
     ELSIF OLD.paid_at IS NOT NULL THEN   -- 포인트 결제가 끝난 매물은 내용도 못 바꾼다(v3)
       RAISE EXCEPTION 'PAID_FINAL';
     ELSIF NEW.status IS DISTINCT FROM OLD.status OR NEW.buyer_id IS DISTINCT FROM OLD.buyer_id OR NEW.paid_at IS DISTINCT FROM OLD.paid_at
        OR NEW.view_count IS DISTINCT FROM OLD.view_count OR NEW.refreshed_at IS DISTINCT FROM OLD.refreshed_at OR NEW.bumped_at IS DISTINCT FROM OLD.bumped_at
-       OR NEW.user_id IS DISTINCT FROM OLD.user_id OR NEW.type IS DISTINCT FROM OLD.type THEN
+       OR NEW.user_id IS DISTINCT FROM OLD.user_id OR NEW.type IS DISTINCT FROM OLD.type OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
       RAISE EXCEPTION 'READ_ONLY_COLUMN';
     END IF;
   END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END; $$;
 DROP TRIGGER IF EXISTS trg_market_listing_guard ON public.market_listings;
-CREATE TRIGGER trg_market_listing_guard BEFORE INSERT OR UPDATE ON public.market_listings
+CREATE TRIGGER trg_market_listing_guard BEFORE INSERT OR UPDATE OR DELETE ON public.market_listings
   FOR EACH ROW EXECUTE FUNCTION public.trg_market_listing_guard();
 
 -- 차단(blocks)은 쪽지·대화(p_kind = 'message')만 막는다. 댓글·동행·칭찬 알림은 차단과 무관.

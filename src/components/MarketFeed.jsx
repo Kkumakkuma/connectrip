@@ -13,10 +13,10 @@ const THEME = {
 };
 
 const MarketFeed = ({
-    type, items, stats = {}, loading, error, onRetry, onWrite, isLoggedIn,
+    type, items, stats = {}, loading, error, onRetry, onWrite, isLoggedIn, initialQuery = '',
     regions = [], region = null, onRegion,
 }) => {
-    const [query, setQuery] = useState('');
+    const [query, setQuery] = useState(initialQuery || '');
     const [onlyActive, setOnlyActive] = useState(true);
     const isShare = type === 'share';
     const color = isShare ? 'pink' : 'blue';

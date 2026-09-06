@@ -96,7 +96,9 @@ function loadImageElement(file) {
   });
 }
 
-const ImageUpload = ({ bucket = 'images', onUpload, className = '' }) => {
+// resetAfterUpload: 업로드 성공 후 미리보기를 비워 다음 파일을 바로 고를 수 있게(여러 장 첨부용)
+// onUploadingChange: 업로드 중 여부를 부모에 알림(업로드 끝나기 전 저장 방지)
+const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUpload = false, onUploadingChange }) => {
   const { user } = useAuth();
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -130,7 +132,7 @@ const ImageUpload = ({ bucket = 'images', onUpload, className = '' }) => {
       return;
     }
 
-    setUploading(true);
+    setUploading(true); onUploadingChange?.(true);
     try {
       // 클라이언트 리사이즈/압축 시도. 실패하거나 미지원 포맷이면 원본 그대로 업로드.
       let uploadFile = file;
@@ -142,12 +144,16 @@ const ImageUpload = ({ bucket = 'images', onUpload, className = '' }) => {
       await storageApi.upload(bucket, filePath, uploadFile);
       const publicUrl = storageApi.getPublicUrl(bucket, filePath);
       onUpload?.(publicUrl);
+      if (resetAfterUpload) {
+        setPreview(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
     } catch (err) {
       console.error('이미지 업로드 실패:', err);
       setError('업로드에 실패했습니다. 다시 시도해주세요.');
       setPreview(null);
     } finally {
-      setUploading(false);
+      setUploading(false); onUploadingChange?.(false);
     }
   };
 

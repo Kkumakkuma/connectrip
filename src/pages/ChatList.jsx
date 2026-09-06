@@ -15,26 +15,33 @@ const ChatList = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const timer = useRef(null);
+    const busyRef = useRef(false);
+    const aliveRef = useRef(true);
 
     const load = useCallback(async (silent = false) => {
+        if (busyRef.current) return;   // 이전 요청이 끝나기 전엔 다시 묻지 않는다(응답 역전 방지)
+        busyRef.current = true;
         try {
             if (!silent) { setLoading(true); setError(null); }
-            setRooms(await chatApi.rooms());
+            const data = await chatApi.rooms();
+            if (aliveRef.current) setRooms(data);
         } catch (err) {
             console.error('대화방 목록 실패:', err);
-            if (!silent) setError('대화방을 불러오지 못했습니다.');
+            if (!silent && aliveRef.current) setError('대화방을 불러오지 못했습니다.');
         } finally {
-            if (!silent) setLoading(false);
+            busyRef.current = false;
+            if (!silent && aliveRef.current) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
+        aliveRef.current = true;
         load();
         const tick = () => { if (!document.hidden) load(true); };
         timer.current = setInterval(tick, POLL_MS);
         const onVis = () => { if (!document.hidden) load(true); };
         document.addEventListener('visibilitychange', onVis);
-        return () => { clearInterval(timer.current); document.removeEventListener('visibilitychange', onVis); };
+        return () => { aliveRef.current = false; clearInterval(timer.current); document.removeEventListener('visibilitychange', onVis); };
     }, [load]);
 
     return (

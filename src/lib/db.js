@@ -104,11 +104,16 @@ export const marketApi = {
     return data;
   },
   // { [id]: { favorites, chats, mine_fav } }
+  // 200개씩 나눠 요청해 목록 상한(300)과 어긋나지 않게 한다
   async stats(ids) {
     if (!ids || ids.length === 0) return {};
-    const { data, error } = await supabase.rpc('market_listing_stats', { p_ids: ids });
-    if (error) throw error;
-    return data || {};
+    const out = {};
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await supabase.rpc('market_listing_stats', { p_ids: ids.slice(i, i + 200) });
+      if (error) throw error;
+      Object.assign(out, data || {});
+    }
+    return out;
   },
   async setStatus(id, status) {
     const { error } = await supabase.rpc('market_set_status', { p_listing: id, p_status: status });
@@ -770,7 +775,7 @@ export const flightBoardApi = {
 export const messageApi = {
   async send(toUserId, content) { return rpc('message_send', { p_to: toUserId, p_content: content }); },
   // kind: 'in' 받은 쪽지 | 'out' 보낸 쪽지
-  async box(kind = 'in', limit = 100) { return (await rpc('message_box', { p_box: kind, p_limit: limit })) || []; },
+  async box(kind = 'in', limit = 300) { return (await rpc('message_box', { p_box: kind, p_limit: limit })) || []; },
   async markRead(id) { return rpc('message_mark_read', { p_id: id }); },
   async remove(id) { return rpc('message_delete', { p_id: id }); },
   async unreadCount() { return (await rpc('message_unread_count')) || 0; },
@@ -785,8 +790,8 @@ export const chatApi = {
   async rooms() { return (await rpc('chat_rooms_list')) || []; },
   async roomInfo(roomId) { return rpc('chat_room_info', { p_room: roomId }); },
   // sinceAt 이후(같은 시각 포함)만 받아 호출부가 id 로 중복을 걸러 붙인다.
-  // 처음엔 최신 limit 건(내림차순 → 뒤집기), 이후엔 sinceAt 부터 오름차순 증분.
-  async messages(roomId, { sinceAt = null, limit = 300 } = {}) {
+  // 처음엔 최신 limit 건(내림차순 → 뒤집기), sinceAt 이면 그 시각부터 오름차순 증분, beforeAt 이면 그 앞의 이전 대화.
+  async messages(roomId, { sinceAt = null, beforeAt = null, limit = 300 } = {}) {
     let q = supabase
       .from('chat_messages')
       .select('id, room_id, sender_id, content, created_at')
@@ -798,13 +803,15 @@ export const chatApi = {
       if (error) throw error;
       return data || [];
     }
+    if (beforeAt) q = q.lt('created_at', beforeAt);
     q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
     const { data, error } = await q;
     if (error) throw error;
     return (data || []).reverse();
   },
   async send(roomId, content) { return rpc('chat_send', { p_room: roomId, p_content: content }); },
-  async markRead(roomId) { return rpc('chat_mark_read', { p_room: roomId }); },
+  // until: 화면에 실제로 붙은 마지막 메시지 시각(그 뒤에 온 메시지는 안 읽은 채로 남긴다)
+  async markRead(roomId, until = null) { return rpc('chat_mark_read', { p_room: roomId, p_until: until }); },
   async unreadCount() { return (await rpc('chat_unread_count')) || 0; },
 };
 

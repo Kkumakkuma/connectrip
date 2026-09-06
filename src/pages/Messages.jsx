@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Send, Trash2, X, MessageCircle, Ban } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -22,17 +22,21 @@ const Messages = () => {
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
     const [blockedIds, setBlockedIds] = useState(() => new Set());
+    const loadSeqRef = useRef(0);   // 탭을 바꾼 뒤 도착한 이전 탭 응답은 버린다
 
     const load = useCallback(async (kind) => {
+        const seq = ++loadSeqRef.current;
         try {
             setLoading(true);
             setError(null);
-            setRows(await messageApi.box(kind));
+            const data = await messageApi.box(kind);
+            if (seq !== loadSeqRef.current) return;
+            setRows(data);
         } catch (err) {
             console.error('쪽지함 로드 실패:', err);
-            setError('쪽지를 불러오지 못했습니다.');
+            if (seq === loadSeqRef.current) setError('쪽지를 불러오지 못했습니다.');
         } finally {
-            setLoading(false);
+            if (seq === loadSeqRef.current) setLoading(false);
         }
     }, []);
 

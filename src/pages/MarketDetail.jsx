@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, MessageCircle, Eye, MapPin, ChevronLeft, ChevronRight, Coins, X } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -29,42 +29,51 @@ const MarketDetail = () => {
     const [busy, setBusy] = useState(false);
     const [editing, setEditing] = useState(false);
     const [paying, setPaying] = useState(false);
+    const loadSeqRef = useRef(0);   // id 가 바뀐 뒤 도착한 이전 응답은 버린다
+    const viewSentRef = useRef(null);
 
     const isOwner = !!user && item?.user_id === user.id;
     const isShare = item?.type === 'share';
     const images = item ? (item.image_urls?.length ? item.image_urls : item.image_url ? [item.image_url] : []) : [];
 
     const load = useCallback(async () => {
+        const seq = ++loadSeqRef.current;
         try {
-            setLoading(true); setError(null);
+            setLoading(true); setError(null); setItem(null); setIdx(0);
             const data = await marketApi.getById(id);
+            if (seq !== loadSeqRef.current) return;
             if (!data) { setError('삭제되었거나 없는 글입니다.'); return; }
             setItem(data);
             const st = await marketApi.stats([id]).catch(() => ({}));
+            if (seq !== loadSeqRef.current) return;
             setStats(st[id] || { favorites: 0, chats: 0, mine_fav: false });
         } catch (err) {
             console.error('매물 로드 실패:', err);
-            setError('불러오지 못했습니다.');
+            if (seq === loadSeqRef.current) setError('불러오지 못했습니다.');
         } finally {
-            setLoading(false);
+            if (seq === loadSeqRef.current) setLoading(false);
         }
     }, [id]);
 
     useEffect(() => { load(); }, [load]);
 
-    // 조회수: 이 브라우저 세션에서 글당 1번만
+    // 조회수: 이 브라우저 세션에서 글당 1번만. 성공했을 때만 기록해 실패가 세션 내내 묻히지 않게 한다.
     useEffect(() => {
         if (!item || !isLoggedIn) return;
-        try {
-            const key = `mv:${item.id}`;
-            if (sessionStorage.getItem(key)) return;
-            sessionStorage.setItem(key, '1');
-            marketApi.bumpView(item.id).catch(() => {});
-        } catch { /* 저장소 없음 */ }
+        const key = `mv:${item.id}`;
+        try { if (sessionStorage.getItem(key)) return; } catch { /* 저장소 없음 */ }
+        if (viewSentRef.current === item.id) return;
+        viewSentRef.current = item.id;
+        marketApi.bumpView(item.id)
+            .then(() => { try { sessionStorage.setItem(key, '1'); } catch { /* 저장소 없음 */ } })
+            .catch(() => { if (viewSentRef.current === item.id) viewSentRef.current = null; });
     }, [item, isLoggedIn]);
 
+    // 화면에 뜬 매물과 라우트 id 가 같을 때만 행동한다(늦은 응답 방어)
+    const current = () => !!item && item.id === id;
+
     const toggleFav = async () => {
-        if (!isLoggedIn || busy) return;
+        if (!isLoggedIn || busy || !current()) return;
         setBusy(true);
         try {
             const on = !stats.mine_fav;
@@ -78,7 +87,7 @@ const MarketDetail = () => {
     };
 
     const openChat = async () => {
-        if (!isLoggedIn || busy || !item) return;
+        if (!isLoggedIn || busy || !current()) return;
         setBusy(true);
         try {
             const roomId = await chatApi.open(item.user_id, item.id);
@@ -92,7 +101,7 @@ const MarketDetail = () => {
     };
 
     const setStatus = async (status) => {
-        if (busy) return;
+        if (busy || !current()) return;
         setBusy(true);
         try {
             await marketApi.setStatus(id, status);
@@ -106,7 +115,7 @@ const MarketDetail = () => {
     };
 
     const bump = async () => {
-        if (busy) return;
+        if (busy || !current()) return;
         setBusy(true);
         try {
             await marketApi.bump(id);
@@ -120,6 +129,7 @@ const MarketDetail = () => {
     };
 
     const remove = async () => {
+        if (!current() || item.paid_at) return;
         if (!window.confirm('이 글을 삭제할까요?')) return;
         try {
             await marketApi.delete(id);
@@ -131,6 +141,7 @@ const MarketDetail = () => {
     };
 
     const pay = async () => {
+        if (!current()) return;
         const total = Number(item?.price) || 0;
         const myPoints = profile?.points_balance || 0;
         if (total <= 0) return;
@@ -229,7 +240,9 @@ const MarketDetail = () => {
                             {!item.paid_at && (
                             <button type="button" onClick={() => setEditing(true)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">수정</button>
                             )}
+                            {!item.paid_at && (
                             <button type="button" onClick={remove} className="px-3 py-2.5 rounded-xl border border-red-200 text-sm font-bold text-red-600">삭제</button>
+                            )}
                             <Link to={`/market?tab=${isShare ? 'share' : 'sell'}`} className="ml-auto text-xs font-bold text-gray-400">목록</Link>
                         </>
                     ) : (
