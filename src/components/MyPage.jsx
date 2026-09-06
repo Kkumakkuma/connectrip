@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { requestPointPayment, parsePaymentReturn, stripPaymentParams, readPendingPayment, clearPendingPayment } from '../lib/payments/portone';
@@ -6,11 +7,11 @@ import { POINT_PACKAGES } from '../lib/products';
 import { PAYMENTS_ENABLED } from '../lib/featureFlags';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Trash2, Settings, Gift, Copy, Share2, UserX, MessageSquare } from 'lucide-react';
+import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Trash2, Settings, Gift, Copy, Share2, UserX, MessageSquare, X } from 'lucide-react';
 import KeywordSettings from './KeywordSettings';
 import CrewVerification from './CrewVerification';
 import CommendationMatching from './CommendationMatching';
-import FlightCompanions from './FlightCompanions';
+import FlightBoard from './FlightBoard';
 import { kstDateString } from '../lib/flightBoard';
 import BlockedUsers from './BlockedUsers';
 import SEOHead from './SEOHead';
@@ -33,7 +34,7 @@ const MyPage = () => {
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
         if (!tab) return;
-        const allowed = ['commendation', 'companions', 'keywords', 'blocks'];
+        const allowed = ['commendation', 'keywords', 'blocks'];
         setActiveTab(allowed.includes(tab) ? tab : 'commendation');
     }, [location]);
 
@@ -68,7 +69,7 @@ const MyPage = () => {
     // Flight registration state
     const [flightDate, setFlightDate] = useState('');
     const [flightNumber, setFlightNumber] = useState('');
-    const [boardFocus, setBoardFocus] = useState(null); // { id, at } — 스케줄 목록의 '게시판' 버튼 → 같은 편 게시판 탭
+    const [boardFlight, setBoardFlight] = useState(null); // 스케줄 목록의 '게시판' 버튼 → 그 편 게시판 팝업
     const [registering, setRegistering] = useState(false);
     const [myFlights, setMyFlights] = useState([]);
     const [flightsLoading, setFlightsLoading] = useState(true);
@@ -206,12 +207,6 @@ const MyPage = () => {
         } finally {
             setRegistering(false);
         }
-    };
-
-    // 스케줄 목록의 "게시판" 버튼: 같은 편 게시판 탭으로 옮기고 그 편을 펼친다
-    const openBoard = (flightId) => {
-        setBoardFocus({ id: flightId, at: Date.now() });
-        setActiveTab('companions');
     };
 
     // "게시판 참여" 스위치: 켜면 그 편 게시판에 들어가고(익명 번호 배정), 끄면 나온다.
@@ -520,7 +515,6 @@ const MyPage = () => {
 
     const tabs = [
         { id: 'commendation', label: '칭찬매칭', icon: Heart },
-        { id: 'companions', label: isCrew ? '듀티 게시판' : '같은 편 게시판', icon: Users },
         { id: 'keywords', label: '키워드 알림', icon: Bell },
         { id: 'blocks', label: '차단 목록', icon: UserX },
     ];
@@ -932,6 +926,9 @@ const MyPage = () => {
                                 <Calendar size={18} style={{ color: '#3b82f6' }} />
                                 나의 등록 스케줄 ({myFlights.length})
                             </h5>
+                            <p style={{ fontSize: '0.82rem', color: '#6b7280', marginTop: '-0.4rem', marginBottom: '0.9rem', lineHeight: 1.5 }}>
+                                스케줄 목록에서 게시판 참여를 활성화하면 같은 비행편에 타는 다른 승객과 소통할 수 있습니다. 게시판은 익명이고, 2주 전부터 게시판이 생성되고 출발일이 지나면 사라집니다.
+                            </p>
 
                             {flightsLoading ? (
                                 <div style={{ textAlign: 'center', padding: '2rem 0' }}>
@@ -988,7 +985,6 @@ const MyPage = () => {
                                                             background: flight.board_joined ? '#22c55e' : '#d1d5db',
                                                             cursor: boardBusyIds.has(flight.id) ? 'wait' : 'pointer', transition: 'background 0.2s', padding: 0
                                                         }}
-                                                        title={flight.board_joined ? '끄면 게시판에서 나갑니다' : '켜면 같은 편 게시판에 들어갑니다'}
                                                     >
                                                         <span style={{
                                                             display: 'inline-block', height: '16px', width: '16px', borderRadius: '50%', background: 'white',
@@ -1003,14 +999,13 @@ const MyPage = () => {
                                                 {flight.board_joined && String(flight.flight_date).slice(0, 10) >= kstDateString() && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => openBoard(flight.id)}
+                                                        onClick={() => setBoardFlight(flight)}
                                                         style={{
                                                             display: 'flex', alignItems: 'center', gap: '4px',
                                                             padding: '4px 10px', borderRadius: '8px', border: 'none',
                                                             fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
                                                             background: '#ecfdf5', color: '#059669', transition: 'all 0.2s'
                                                         }}
-                                                        title="같은 편 게시판 열기"
                                                     >
                                                         <MessageSquare size={12} />
                                                         게시판
@@ -1069,7 +1064,7 @@ const MyPage = () => {
                                 return (
                                     <button
                                         key={tab.id}
-                                        onClick={() => { setActiveTab(tab.id); setBoardFocus(null); }}
+                                        onClick={() => setActiveTab(tab.id)}
                                         style={{
                                             flex: 1,
                                             padding: '0.75rem 0.5rem',
@@ -1102,9 +1097,30 @@ const MyPage = () => {
                             background: 'white'
                         }}>
                             {activeTab === 'commendation' && <CommendationMatching flights={myFlights} onFlightsChange={fetchFlights} />}
-                            {activeTab === 'companions' && <FlightCompanions flights={myFlights} focus={boardFocus} />}
                             {activeTab === 'keywords' && <KeywordSettings />}
                             {activeTab === 'blocks' && <BlockedUsers />}
+                            {boardFlight && createPortal(
+                                <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4" onClick={() => setBoardFlight(null)}>
+                                    <div
+                                        role="dialog"
+                                        aria-modal="true"
+                                        aria-label={isCrew ? '듀티 게시판' : '같은 편 게시판'}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-base font-extrabold text-gray-800">
+                                                {boardFlight.flight_number} <span className="text-sm font-semibold text-gray-500 ml-1">{boardFlight.flight_date}</span>
+                                            </h3>
+                                            <button type="button" onClick={() => setBoardFlight(null)} className="p-1.5 hover:bg-gray-100 rounded-full" aria-label="닫기">
+                                                <X size={18} />
+                                            </button>
+                                        </div>
+                                        <FlightBoard flight={boardFlight} />
+                                    </div>
+                                </div>,
+                                document.body
+                            )}
                         </div>
                     </div>
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  kstDateString, dayDiff, boardFlights, boardStatus, boardTitle, boardErrorMessage, replyTargetLabel,
+  kstDateString, dayDiff, boardStatus, boardTitle, boardErrorMessage, replyTargetLabel,
 } from './flightBoard';
 
 describe('kstDateString', () => {
@@ -18,21 +18,6 @@ describe('dayDiff', () => {
     expect(dayDiff('2026-09-05', '2026-09-06')).toBe(-1);
     expect(dayDiff('', '2026-09-06')).toBeNull();
     expect(dayDiff('2026-09-06T00:00:00Z', '2026-09-06')).toBe(0);
-  });
-});
-
-describe('boardFlights', () => {
-  it('참여를 켠 편만, 오늘 이후만, 날짜순(2주 밖도 포함·잠김은 게시판이 안내), 지난 편은 제외', () => {
-    const list = [
-      { id: 'c', flight_date: '2026-11-01', board_joined: true },
-      { id: 'a', flight_date: '2026-09-06', board_joined: true },
-      { id: 'off', flight_date: '2026-09-10', board_joined: false },
-      { id: 'p1', flight_date: '2026-09-05', board_joined: true },
-      { id: 'b', flight_date: '2026-09-20', board_joined: true },
-      null,
-    ];
-    expect(boardFlights(list, '2026-09-06').map((f) => f.id)).toEqual(['a', 'b', 'c']);
-    expect(boardFlights(undefined, '2026-09-06')).toEqual([]);
   });
 });
 

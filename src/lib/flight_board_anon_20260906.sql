@@ -407,7 +407,7 @@ BEGIN
     PERFORM public.notify_user(r.user_id, 'flight', 'flight',
       CASE WHEN NEW.user_type = 'crew' THEN '같은 듀티 게시판에 승무원이 새로 들어왔습니다 (' ELSE '같은 편 게시판에 탑승객이 새로 들어왔습니다 (' END
         || NEW.flight_number || ')',
-      '/mypage?tab=companions', NEW.id, NEW.user_id);
+      '/mypage', NEW.id, NEW.user_id);
   END LOOP;
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
@@ -427,11 +427,11 @@ BEGIN
   SELECT * INTO v_post FROM public.flight_posts WHERE id = NEW.post_id;
   IF v_post.id IS NULL THEN RETURN NEW; END IF;
   IF NOT public.flight_board_hidden(v_post.user_id, NEW.user_id, v_post.flight_number, v_post.flight_date) THEN
-    PERFORM public.notify_user(v_post.user_id, 'comments', 'comment', '같은편 게시판 내 글에 댓글이 달렸습니다', '/mypage?tab=companions', NEW.post_id, NEW.user_id);
+    PERFORM public.notify_user(v_post.user_id, 'comments', 'comment', '같은편 게시판 내 글에 댓글이 달렸습니다', '/mypage', NEW.post_id, NEW.user_id);
   END IF;
   IF NEW.reply_to_user_id IS NOT NULL AND NEW.reply_to_user_id <> v_post.user_id
      AND NOT public.flight_board_hidden(NEW.reply_to_user_id, NEW.user_id, v_post.flight_number, v_post.flight_date) THEN
-    PERFORM public.notify_user(NEW.reply_to_user_id, 'comments', 'comment', '같은편 게시판 내 댓글에 답글이 달렸습니다', '/mypage?tab=companions', NEW.post_id, NEW.user_id);
+    PERFORM public.notify_user(NEW.reply_to_user_id, 'comments', 'comment', '같은편 게시판 내 댓글에 답글이 달렸습니다', '/mypage', NEW.post_id, NEW.user_id);
   END IF;
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN

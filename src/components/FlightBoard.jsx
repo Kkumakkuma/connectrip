@@ -124,7 +124,7 @@ const FlightBoard = ({ flight }) => {
     };
 
     const handleMute = async (target) => {
-        if (!window.confirm('이 사람의 같은 편 게시판 글과 댓글을 앞으로 보지 않습니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+        if (!window.confirm('이 사람의 글과 댓글을 숨길까요? 되돌릴 수 없습니다.')) return;
         try {
             await flightBoardApi.mute(target);
             await fetchBoard();
@@ -143,7 +143,7 @@ const FlightBoard = ({ flight }) => {
         try {
             await flightBoardApi.report({ ...report, reason: reportReason + (reportNote.trim() ? ` - ${reportNote.trim()}` : '') });
             setReport(null);
-            alert('신고가 접수되었습니다. 관리자가 검토 후 조치합니다.');
+            alert('신고가 접수되었습니다.');
         } catch (err) {
             console.error('신고 실패:', err);
             alert(boardErrorMessage(err, '신고 접수에 실패했습니다. 다시 시도해 주세요.'));
@@ -157,7 +157,7 @@ const FlightBoard = ({ flight }) => {
             <div className="mt-4 p-4 bg-gray-50 rounded-xl text-center">
                 <Lock size={18} className="mx-auto text-gray-300 mb-1.5" />
                 <p className="text-xs text-gray-500">
-                    {closed ? `출발일이 지나 ${boardTitle(memberType)}이 닫혔습니다.` : `출발 2주 전부터 ${boardTitle(memberType)}이 열립니다.`}
+                    {closed ? '게시판이 닫혔습니다.' : '출발 2주 전부터 열립니다.'}
                 </p>
             </div>
         );
@@ -174,10 +174,8 @@ const FlightBoard = ({ flight }) => {
                     <span className="text-[11px] font-semibold text-gray-400">게시판이 닫혔습니다</span>
                 )}
             </div>
-            {data.eligible && (
-                <p className="text-[11px] text-gray-500 mb-3">
-                    이름은 보이지 않습니다. 내 이름: <strong className="text-gray-700">{data.my_alias || '첫 글을 쓰면 번호가 정해집니다'}</strong>
-                </p>
+            {data.eligible && data.my_alias && (
+                <p className="text-[11px] font-semibold text-gray-600 mb-3">{data.my_alias}</p>
             )}
 
             {writable && (
@@ -189,7 +187,7 @@ const FlightBoard = ({ flight }) => {
                         maxLength={1000}
                         placeholder={memberType === 'crew'
                             ? '레이오버 일정이나 같이 다닐 분을 찾아보세요'
-                            : '택시 같이 탈 분, 공항 이동, 궁금한 점을 자유롭게 남겨 보세요'}
+                            : '공항 이동, 일정 공유 등 자유롭게 남겨보세요'}
                         className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none transition-all"
                     />
                     <div className="flex items-center justify-between mt-1.5">
@@ -214,10 +212,10 @@ const FlightBoard = ({ flight }) => {
                     <button onClick={fetchBoard} className="px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-bold text-gray-600">다시 시도</button>
                 </div>
             ) : !data.eligible ? (
-                <p className="py-6 text-center text-xs text-gray-400">이 편 게시판에 들어갈 수 없습니다. 게시판 참여 스위치와 열린 기간(출발 2주 전~출발일), 생년월일을 확인해 주세요.</p>
+                <p className="py-6 text-center text-xs text-gray-400">게시판에 들어갈 수 없습니다.</p>
             ) : data.posts.length === 0 ? (
                 <p className="py-6 text-center text-xs text-gray-400">
-                    아직 글이 없습니다.{writable && ' 첫 글을 남겨 보세요.'}
+                    아직 글이 없습니다.
                 </p>
             ) : (
                 <div className="space-y-2">
@@ -319,7 +317,7 @@ const FlightBoard = ({ flight }) => {
                                             <label className="flex items-center gap-1.5 text-[11px] text-gray-500 select-none cursor-pointer">
                                                 <input type="checkbox" checked={commentPrivate || !!replyTo?.isPrivate} disabled={!!replyTo?.isPrivate} onChange={(e) => setCommentPrivate(e.target.checked)} />
                                                 <Lock size={11} className="text-amber-500" />
-                                                {replyTo?.isPrivate ? '비밀댓글에 다는 답글은 비밀댓글로 남습니다' : '비밀댓글 (글쓴이와 나, 답글 대상만 볼 수 있습니다)'}
+                                                비밀댓글
                                             </label>
                                         </div>
                                     )}
@@ -337,7 +335,6 @@ const FlightBoard = ({ flight }) => {
                             <h3 className="text-base font-bold text-gray-900 flex items-center gap-2"><Flag size={16} className="text-red-500" />신고</h3>
                             <button type="button" onClick={() => setReport(null)} className="p-1.5 hover:bg-gray-100 rounded-full" aria-label="닫기"><X size={16} /></button>
                         </div>
-                        <p className="text-xs text-gray-500">신고 내용은 관리자만 봅니다. 상대에게 신고자가 알려지지 않습니다.</p>
                         <select
                             value={reportReason}
                             onChange={(e) => setReportReason(e.target.value)}

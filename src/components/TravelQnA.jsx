@@ -455,7 +455,7 @@ const TravelQnA = () => {
                                                         <label className="flex items-center gap-1.5 text-xs text-gray-500 select-none cursor-pointer">
                                                             <input type="checkbox" checked={commentPrivate || !!replyTo?.isPrivate} disabled={!!replyTo?.isPrivate} onChange={(e) => setCommentPrivate(e.target.checked)} />
                                                             <Lock size={11} className="text-amber-500" />
-                                                            {replyTo?.isPrivate ? '비밀댓글에 다는 답글은 비밀댓글로 남습니다' : '비밀댓글 (글쓴이와 나, 답글 대상만 볼 수 있습니다)'}
+                                                            비밀댓글
                                                         </label>
                                                     </div>
                                                 )}

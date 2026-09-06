@@ -22,13 +22,6 @@ export const dayDiff = (dateStr, todayStr) => {
   return Math.round((a - b) / DAY_MS);
 };
 
-// 게시판 목록에 둘 항공편: "게시판 참여" 스위치를 켠 편 가운데 오늘(KST) 이후 것만, 날짜 오름차순.
-// 출발 2주 전까지는 잠김 안내(게시판이 한다), 출발일이 지나면 목록에서 사라진다.
-export const boardFlights = (flights, todayStr) =>
-  (flights || [])
-    .filter((f) => f && f.board_joined && String(f.flight_date || '').slice(0, 10) >= todayStr)
-    .sort((x, y) => String(x.flight_date).slice(0, 10).localeCompare(String(y.flight_date).slice(0, 10)));
-
 // 'locked' = 출발 2주 전 이전, 'open' = 쓸 수 있는 기간, 'closed' = 출발일이 지남(게시판 닫힘)
 export const boardStatus = (dateStr, todayStr) => {
   const d = dayDiff(dateStr, todayStr);
