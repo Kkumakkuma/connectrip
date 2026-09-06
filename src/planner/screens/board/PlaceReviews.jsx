@@ -130,6 +130,7 @@ export default function PlaceReviews({ place, visited }) {
           <Input
             className="mt-2"
             value={menu}
+            hangulFix
             onChange={(e) => setMenu(e.target.value)}
             placeholder="추천 메뉴 (선택)"
             aria-label="추천 메뉴"
@@ -138,6 +139,7 @@ export default function PlaceReviews({ place, visited }) {
           <Textarea
             className="mt-2"
             value={body}
+            hangulFix
             onChange={(e) => setBody(e.target.value)}
             placeholder="한 줄 후기 (선택)"
             aria-label="후기"

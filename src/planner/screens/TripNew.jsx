@@ -268,6 +268,7 @@ export default function TripNew() {
                 value={title}
                 maxLength={80}
                 placeholder="예: 도쿄 가을 여행"
+                hangulFix
                 error={errors.title}
                 onChange={(e) => {
                   setTitle(e.target.value);

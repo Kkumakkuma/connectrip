@@ -106,7 +106,7 @@ export default function PlaceSheet({
       )}
     >
       <div className="space-y-4">
-        <Input label="이름" value={name} maxLength={200} onChange={(e) => setName(e.target.value)} />
+        <Input label="이름" value={name} maxLength={200} hangulFix onChange={(e) => setName(e.target.value)} />
 
         {place.address && (
           <div>
@@ -154,6 +154,7 @@ export default function PlaceSheet({
           rows={3}
           value={note}
           maxLength={MAX_NOTE}
+          hangulFix
           placeholder="예: 예약 번호, 가는 길"
           onChange={(e) => setNote(e.target.value)}
         />

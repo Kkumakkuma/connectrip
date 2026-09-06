@@ -201,6 +201,7 @@ export function PlaceSearchSheet({ open, targetLabel, saving, onClose, onPick, b
       <div className="flex gap-2">
         <Input
           value={q}
+          hangulFix
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {

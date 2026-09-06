@@ -83,12 +83,14 @@ export function AddPlaceSheet({ open, initial, targetLabel, saving, onClose, onS
           value={name}
           maxLength={200}
           placeholder="예: 센소지"
+          hangulFix
           onChange={(e) => setName(e.target.value)}
         />
         <Input
           label="주소 (선택)"
           value={address}
           maxLength={300}
+          hangulFix
           onChange={(e) => setAddress(e.target.value)}
         />
         <div className="grid grid-cols-2 gap-3">
