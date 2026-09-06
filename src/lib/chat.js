@@ -70,6 +70,8 @@ export const CHAT_ERRORS = {
   RATE_LIMIT: '잠시 후 다시 시도해 주세요.',
   BUMP_WAIT: '끌어올리기는 24시간에 한 번입니다.',
   AUTH_REQUIRED: '로그인이 필요합니다.',
+  UNAVAILABLE: '대화할 수 없는 회원입니다.',
+  PAID_FINAL: '결제가 끝난 매물은 변경할 수 없습니다.',
 };
 export const chatErrorMessage = (err, fallback) => {
   const raw = String(err?.message || err?.details || '');

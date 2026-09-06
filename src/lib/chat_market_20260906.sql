@@ -54,7 +54,7 @@ RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
            'id', m.id, 'content', m.content, 'created_at', m.created_at, 'read_at', m.read_at,
            'other_id', o.id, 'other_name', COALESCE(o.nickname, o.name, '탈퇴한 회원'), 'other_avatar', o.avatar_url,
-           'other_crew', (o.user_type = 'crew' AND COALESCE(o.crew_verified, FALSE)),
+           'other_crew', COALESCE(o.user_type = 'crew' AND o.crew_verified, FALSE),
            'mine', (m.sender_id = auth.uid())
          ) ORDER BY m.created_at DESC), '[]'::jsonb)
     FROM (SELECT * FROM public.messages m
@@ -73,7 +73,11 @@ DECLARE v_n int;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
   UPDATE public.messages SET read_at = COALESCE(read_at, now()) WHERE id = p_id AND receiver_id = auth.uid();
-  GET DIAGNOSTICS v_n = ROW_COUNT; RETURN v_n > 0;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  IF v_n > 0 THEN   -- 쪽지 알림(post_id = 쪽지 id)도 같이 읽음(v3)
+    UPDATE public.notifications SET read_at = now() WHERE user_id = auth.uid() AND type = 'message' AND post_id = p_id AND read_at IS NULL;
+  END IF;
+  RETURN v_n > 0;
 END $$;
 REVOKE ALL ON FUNCTION public.message_mark_read(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.message_mark_read(uuid) TO authenticated;
@@ -217,6 +221,10 @@ BEGIN
   v_other := CASE WHEN v_room.user_lo = v_uid THEN v_room.user_hi ELSE v_room.user_lo END;
   IF public.chat_blocked(v_uid, v_other) THEN RAISE EXCEPTION 'BLOCKED'; END IF;
   IF EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = v_uid AND COALESCE(p.is_banned, FALSE)) THEN RAISE EXCEPTION 'BANNED'; END IF;
+  -- 상대가 탈퇴·정지됐으면 보낼 수 없다(v3)
+  IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = v_other AND COALESCE(p.is_banned, FALSE) = FALSE AND p.deleted_at IS NULL) THEN RAISE EXCEPTION 'UNAVAILABLE'; END IF;
+  -- 동시 호출로 시간당 상한을 넘기지 못하게 사용자 단위 직렬화(v3)
+  PERFORM pg_advisory_xact_lock(hashtextextended('chat_send:' || v_uid::text, 0));
   IF (SELECT count(*) FROM public.chat_messages m WHERE m.sender_id = v_uid AND m.created_at > now() - interval '1 hour') >= 500 THEN
     RAISE EXCEPTION 'RATE_LIMIT';
   END IF;
@@ -256,7 +264,7 @@ RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_
            'id', r.id, 'kind', r.kind, 'listing_id', r.listing_id, 'created_at', r.created_at,
            'last_message', r.last_message, 'last_message_at', r.last_message_at,
            'other_id', o.id, 'other_name', COALESCE(o.nickname, o.name, '탈퇴한 회원'), 'other_avatar', o.avatar_url,
-           'other_crew', (o.user_type = 'crew' AND COALESCE(o.crew_verified, FALSE)),
+           'other_crew', COALESCE(o.user_type = 'crew' AND o.crew_verified, FALSE),
            'listing_title', l.title, 'listing_image', COALESCE(l.image_urls[1], l.image_url), 'listing_price', l.price, 'listing_type', l.type, 'listing_status', l.status,
            'unread', (SELECT count(*) FROM public.chat_messages m
                        WHERE m.room_id = r.id AND m.sender_id <> auth.uid()
@@ -278,7 +286,7 @@ RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public, pg_
   SELECT jsonb_build_object(
            'id', r.id, 'kind', r.kind, 'listing_id', r.listing_id,
            'other_id', o.id, 'other_name', COALESCE(o.nickname, o.name, '탈퇴한 회원'), 'other_avatar', o.avatar_url,
-           'other_crew', (o.user_type = 'crew' AND COALESCE(o.crew_verified, FALSE)),
+           'other_crew', COALESCE(o.user_type = 'crew' AND o.crew_verified, FALSE),
            'listing_title', l.title, 'listing_image', COALESCE(l.image_urls[1], l.image_url), 'listing_price', l.price, 'listing_type', l.type, 'listing_status', l.status,
            'listing_seller', l.user_id,
            'blocked_by_me', EXISTS (SELECT 1 FROM public.blocks b WHERE b.blocker_id = auth.uid() AND b.blocked_id = o.id),
@@ -325,10 +333,6 @@ DROP TRIGGER IF EXISTS trg_notify_chat_message ON public.chat_messages;
 CREATE TRIGGER trg_notify_chat_message AFTER INSERT ON public.chat_messages FOR EACH ROW EXECUTE FUNCTION public.trg_notify_chat_message();
 
 -- 2) 당근식 장터 --------------------------------------------------------------------
-ALTER TABLE public.market_listings ADD COLUMN IF NOT EXISTS image_urls text[] NOT NULL DEFAULT '{}';
-ALTER TABLE public.market_listings ADD COLUMN IF NOT EXISTS refreshed_at timestamptz NOT NULL DEFAULT now();
-ALTER TABLE public.market_listings ADD COLUMN IF NOT EXISTS view_count int NOT NULL DEFAULT 0;
-ALTER TABLE public.market_listings ADD COLUMN IF NOT EXISTS bumped_at timestamptz;
 UPDATE public.market_listings SET status = 'active' WHERE status IS NULL OR status NOT IN ('active','reserved','sold');
 ALTER TABLE public.market_listings DROP CONSTRAINT IF EXISTS market_listings_status_check;
 ALTER TABLE public.market_listings ADD CONSTRAINT market_listings_status_check CHECK (status IN ('active','reserved','sold'));
@@ -379,7 +383,6 @@ REVOKE ALL ON FUNCTION public.market_listing_stats(uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.market_listing_stats(uuid[]) TO authenticated;
 
 -- 포인트로 결제된 매물(paid_at)은 거래완료로 고정(재판매 반복 결제 방지). 수동 거래완료는 되돌릴 수 있다.
-ALTER TABLE public.market_listings ADD COLUMN IF NOT EXISTS paid_at timestamptz;
 CREATE OR REPLACE FUNCTION public.market_set_status(p_listing uuid, p_status text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v_n int; v_paid timestamptz;
@@ -403,7 +406,7 @@ BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'AUTH_REQUIRED'; END IF;
   UPDATE public.market_listings SET refreshed_at = now(), bumped_at = now()
    WHERE id = p_listing AND user_id = auth.uid() AND status <> 'sold'
-     AND (bumped_at IS NULL OR bumped_at < now() - interval '24 hours');
+     AND COALESCE(bumped_at, created_at) < now() - interval '24 hours';   -- 등록 24시간 뒤부터(v3)
   GET DIAGNOSTICS v_n = ROW_COUNT;
   IF v_n = 0 THEN RAISE EXCEPTION 'BUMP_WAIT'; END IF;
   RETURN TRUE;
@@ -422,22 +425,28 @@ GRANT EXECUTE ON FUNCTION public.market_bump_view(uuid) TO authenticated;
 CREATE OR REPLACE FUNCTION public.market_purchase(p_listing_id UUID, p_expected_price INT)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public AS $$
-DECLARE v_seller UUID; v_price INT; v_status TEXT; v_buyer UUID; v_cur INT;
+SET search_path = public, pg_temp AS $$
+DECLARE v_seller UUID; v_price INT; v_status TEXT; v_type TEXT; v_buyer UUID; v_cur INT;
 BEGIN
   v_buyer := auth.uid();
   IF v_buyer IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
-  SELECT user_id, price, status INTO v_seller, v_price, v_status
+  SELECT user_id, price, status, type INTO v_seller, v_price, v_status, v_type
     FROM public.market_listings WHERE id = p_listing_id FOR UPDATE;
   IF v_seller IS NULL THEN RAISE EXCEPTION 'listing not found'; END IF;
   IF v_seller = v_buyer THEN RAISE EXCEPTION 'cannot buy own listing'; END IF;
   IF v_status <> 'active' THEN RAISE EXCEPTION 'not available'; END IF;
-  IF (SELECT type FROM public.market_listings WHERE id = p_listing_id) <> 'sell' THEN RAISE EXCEPTION 'not for sale'; END IF;
+  IF v_type <> 'sell' THEN RAISE EXCEPTION 'not for sale'; END IF;
   IF COALESCE(v_price, 0) <= 0 THEN RAISE EXCEPTION 'invalid listing price'; END IF;
   IF p_expected_price IS NULL OR p_expected_price <> v_price THEN RAISE EXCEPTION 'price changed'; END IF;
+  -- 정지·탈퇴 계정은 사고팔 수 없다(v3)
+  IF EXISTS (SELECT 1 FROM public.profiles p WHERE p.id IN (v_buyer, v_seller) AND (COALESCE(p.is_banned, FALSE) OR p.deleted_at IS NOT NULL)) THEN
+    RAISE EXCEPTION 'user unavailable';
+  END IF;
 
   PERFORM set_config('app.allow_sensitive', 'on', true);
-  SELECT points_balance INTO v_cur FROM public.profiles WHERE id = v_buyer FOR UPDATE;
+  -- 두 프로필 행을 id 순서로 잠가 교차 구매 데드락을 막는다(v3)
+  PERFORM 1 FROM public.profiles WHERE id IN (v_buyer, v_seller) ORDER BY id FOR UPDATE;
+  SELECT points_balance INTO v_cur FROM public.profiles WHERE id = v_buyer;
   IF COALESCE(v_cur, 0) < v_price THEN RAISE EXCEPTION 'insufficient points'; END IF;
   UPDATE public.profiles SET points_balance = points_balance - v_price, updated_at = NOW() WHERE id = v_buyer;
   UPDATE public.profiles SET points_balance = COALESCE(points_balance, 0) + v_price, updated_at = NOW() WHERE id = v_seller;
@@ -456,6 +465,8 @@ BEGIN
   IF current_user IN ('authenticated', 'anon') THEN
     IF TG_OP = 'INSERT' THEN
       NEW.status := 'active'; NEW.buyer_id := NULL; NEW.paid_at := NULL; NEW.view_count := 0; NEW.refreshed_at := now(); NEW.bumped_at := NULL;
+    ELSIF OLD.paid_at IS NOT NULL THEN   -- 포인트 결제가 끝난 매물은 내용도 못 바꾼다(v3)
+      RAISE EXCEPTION 'PAID_FINAL';
     ELSIF NEW.status IS DISTINCT FROM OLD.status OR NEW.buyer_id IS DISTINCT FROM OLD.buyer_id OR NEW.paid_at IS DISTINCT FROM OLD.paid_at
        OR NEW.view_count IS DISTINCT FROM OLD.view_count OR NEW.refreshed_at IS DISTINCT FROM OLD.refreshed_at OR NEW.bumped_at IS DISTINCT FROM OLD.bumped_at
        OR NEW.user_id IS DISTINCT FROM OLD.user_id OR NEW.type IS DISTINCT FROM OLD.type THEN

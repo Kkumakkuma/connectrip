@@ -248,29 +248,35 @@ $$;
 CREATE OR REPLACE FUNCTION public.market_purchase(p_listing_id UUID, p_expected_price INT)
 RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public AS $$
-DECLARE v_seller UUID; v_price INT; v_status TEXT; v_buyer UUID; v_cur INT;
+SET search_path = public, pg_temp AS $$
+DECLARE v_seller UUID; v_price INT; v_status TEXT; v_type TEXT; v_buyer UUID; v_cur INT;
 BEGIN
   v_buyer := auth.uid();
   IF v_buyer IS NULL THEN RAISE EXCEPTION 'auth required'; END IF;
-  SELECT user_id, price, status INTO v_seller, v_price, v_status
+  SELECT user_id, price, status, type INTO v_seller, v_price, v_status, v_type
     FROM public.market_listings WHERE id = p_listing_id FOR UPDATE;
   IF v_seller IS NULL THEN RAISE EXCEPTION 'listing not found'; END IF;
   IF v_seller = v_buyer THEN RAISE EXCEPTION 'cannot buy own listing'; END IF;
-  IF v_status <> 'active' THEN RAISE EXCEPTION 'not available'; END IF;   -- 2026-09-06: reserved/sold reject
-  IF (SELECT type FROM public.market_listings WHERE id = p_listing_id) <> 'sell' THEN RAISE EXCEPTION 'not for sale'; END IF;
+  IF v_status <> 'active' THEN RAISE EXCEPTION 'not available'; END IF;
+  IF v_type <> 'sell' THEN RAISE EXCEPTION 'not for sale'; END IF;
   IF COALESCE(v_price, 0) <= 0 THEN RAISE EXCEPTION 'invalid listing price'; END IF;
   IF p_expected_price IS NULL OR p_expected_price <> v_price THEN RAISE EXCEPTION 'price changed'; END IF;
+  -- 정지·탈퇴 계정은 사고팔 수 없다(v3)
+  IF EXISTS (SELECT 1 FROM public.profiles p WHERE p.id IN (v_buyer, v_seller) AND (COALESCE(p.is_banned, FALSE) OR p.deleted_at IS NOT NULL)) THEN
+    RAISE EXCEPTION 'user unavailable';
+  END IF;
 
   PERFORM set_config('app.allow_sensitive', 'on', true);
-  SELECT points_balance INTO v_cur FROM public.profiles WHERE id = v_buyer FOR UPDATE;
+  -- 두 프로필 행을 id 순서로 잠가 교차 구매 데드락을 막는다(v3)
+  PERFORM 1 FROM public.profiles WHERE id IN (v_buyer, v_seller) ORDER BY id FOR UPDATE;
+  SELECT points_balance INTO v_cur FROM public.profiles WHERE id = v_buyer;
   IF COALESCE(v_cur, 0) < v_price THEN RAISE EXCEPTION 'insufficient points'; END IF;
   UPDATE public.profiles SET points_balance = points_balance - v_price, updated_at = NOW() WHERE id = v_buyer;
   UPDATE public.profiles SET points_balance = COALESCE(points_balance, 0) + v_price, updated_at = NOW() WHERE id = v_seller;
   INSERT INTO public.point_transactions(user_id, amount, type, description) VALUES
     (v_buyer,  -v_price, 'market_purchase', '장터 물품 구매 (' || p_listing_id || ')'),
     (v_seller,  v_price, 'market_sale',     '장터 물품 판매 수익 (' || p_listing_id || ')');
-  UPDATE public.market_listings SET status = 'sold', buyer_id = v_buyer, paid_at = NOW() WHERE id = p_listing_id;   -- 2026-09-06 paid_at
+  UPDATE public.market_listings SET status = 'sold', buyer_id = v_buyer, paid_at = NOW() WHERE id = p_listing_id;
 END;
 $$;
 

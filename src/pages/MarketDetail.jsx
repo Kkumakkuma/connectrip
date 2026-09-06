@@ -194,7 +194,7 @@ const MarketDetail = () => {
                             {!isOwner && <AuthorActions userId={item.user_id} name={sellerName} />}
                         </span>
                         {isOwner && (
-                            <select value={item.status} onChange={(e) => setStatus(e.target.value)} disabled={busy} className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 bg-white" aria-label="상태">
+                            <select value={item.status} onChange={(e) => setStatus(e.target.value)} disabled={busy || !!item.paid_at} className="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1.5 bg-white" aria-label="상태">
                                 <option value="active">{isShare ? '나눔중' : '판매중'}</option>
                                 <option value="reserved">예약중</option>
                                 <option value="sold">{isShare ? '나눔완료' : '거래완료'}</option>
@@ -226,7 +226,9 @@ const MarketDetail = () => {
                     {isOwner ? (
                         <>
                             <button type="button" onClick={bump} disabled={busy || item.status === 'sold'} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50">끌어올리기</button>
+                            {!item.paid_at && (
                             <button type="button" onClick={() => setEditing(true)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">수정</button>
+                            )}
                             <button type="button" onClick={remove} className="px-3 py-2.5 rounded-xl border border-red-200 text-sm font-bold text-red-600">삭제</button>
                             <Link to={`/market?tab=${isShare ? 'share' : 'sell'}`} className="ml-auto text-xs font-bold text-gray-400">목록</Link>
                         </>

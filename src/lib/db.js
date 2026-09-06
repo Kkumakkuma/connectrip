@@ -785,18 +785,23 @@ export const chatApi = {
   async rooms() { return (await rpc('chat_rooms_list')) || []; },
   async roomInfo(roomId) { return rpc('chat_room_info', { p_room: roomId }); },
   // sinceAt 이후(같은 시각 포함)만 받아 호출부가 id 로 중복을 걸러 붙인다.
+  // 처음엔 최신 limit 건(내림차순 → 뒤집기), 이후엔 sinceAt 부터 오름차순 증분.
   async messages(roomId, { sinceAt = null, limit = 300 } = {}) {
     let q = supabase
       .from('chat_messages')
       .select('id, room_id, sender_id, content, created_at')
       .eq('room_id', roomId)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
       .limit(limit);
-    if (sinceAt) q = q.gte('created_at', sinceAt);
+    if (sinceAt) {
+      q = q.gte('created_at', sinceAt).order('created_at', { ascending: true }).order('id', { ascending: true });
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    }
+    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
     const { data, error } = await q;
     if (error) throw error;
-    return data || [];
+    return (data || []).reverse();
   },
   async send(roomId, content) { return rpc('chat_send', { p_room: roomId, p_content: content }); },
   async markRead(roomId) { return rpc('chat_mark_read', { p_room: roomId }); },
