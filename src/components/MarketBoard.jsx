@@ -241,7 +241,7 @@ const MarketBoard = () => {
                         {mode === 'groupbuy' && (
                             <div>
                                 <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                                <ImageUpload bucket="images" onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
+                                <ImageUpload label={null} bucket="images" onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
                             </div>
                         )}
                         <div>

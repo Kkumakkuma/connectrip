@@ -146,7 +146,7 @@ const MarketDetail = () => {
     return (
         <section className="pt-20 pb-24 bg-gray-50 min-h-screen">
             <SEOHead title={`${item.title} - ConnectTrip 장터`} description={item.content || ''} />
-            <div className="container mx-auto px-0 sm:px-4 max-w-3xl">
+            <div className="mx-auto px-0 sm:px-4 max-w-3xl">
                 <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="relative bg-gray-100 aspect-square sm:aspect-[4/3]">
                         {images.length > 0 ? (
@@ -209,7 +209,7 @@ const MarketDetail = () => {
             </div>
 
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200">
-                <div className="container mx-auto px-4 max-w-3xl py-2.5 flex items-center gap-3">
+                <div className="mx-auto px-4 max-w-3xl py-2.5 flex items-center gap-3">
                     {isOwner ? (
                         <>
                             <button type="button" onClick={bump} disabled={busy || item.status === 'sold'} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50">끌어올리기</button>

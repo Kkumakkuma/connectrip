@@ -105,9 +105,9 @@ const Messages = () => {
     };
 
     return (
-        <section className="py-20 bg-gray-50 min-h-[80vh]">
+        <section className="pt-28 pb-20 bg-gray-50 min-h-[80vh]">
             <SEOHead title="쪽지 - ConnectTrip" description="회원 간 쪽지" />
-            <div className="container mx-auto px-4 max-w-3xl">
+            <div className="mx-auto px-4 max-w-3xl">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Link to="/chat" className="px-3 py-1.5 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100">대화</Link>
@@ -122,7 +122,7 @@ const Messages = () => {
                                 key={k}
                                 type="button"
                                 onClick={() => { setBox(k); setOpenId(null); }}
-                                className={`flex-1 py-3 text-sm font-bold ${box === k ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400'}`}
+                                className={`flex-1 sm:flex-none sm:px-8 py-3 text-sm font-bold ${box === k ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400'}`}
                             >
                                 {label}
                             </button>

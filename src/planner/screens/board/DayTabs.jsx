@@ -1,5 +1,6 @@
 import { Archive } from 'lucide-react';
 import { formatDateWithWeekday } from '../../lib/format';
+import useScrollHint from '../../../lib/useScrollHint';
 
 // 일정판 날짜 탭. N일차 + 보관함.
 //
@@ -31,8 +32,10 @@ function Tab({ active, count, primary, secondary, icon: Icon, onClick }) {
 }
 
 export default function DayTabs({ days = [], counts, unassignedCount = 0, activeId, onSelect }) {
+  // 일정이 길면 마지막 '보관함' 탭이 화면 밖으로 나간다 — 잘린 쪽에 페이드를 줘 스크롤됨을 알린다(2026-09-07).
+  const [scrollRef, hintStyle] = useScrollHint();
   return (
-    <div className="-mx-4 mb-4 overflow-x-auto px-4">
+    <div ref={scrollRef} style={hintStyle} className="-mx-4 mb-4 overflow-x-auto px-4">
       <div className="flex gap-2 pb-1">
         {days.map((day) => (
           <Tab

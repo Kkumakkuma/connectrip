@@ -41,11 +41,13 @@ const KbEscrowMark = ({ className = '' }) => {
                 title="KB국민은행 에스크로 이체 인증마크 확인"
                 style={{ display: 'inline-block', lineHeight: 0 }}
             >
+                {/* 원본 gif 는 81×81 정사각이다. height 를 41 로 적어 두면 로드 전 예약 높이가 절반이라
+                    마크가 뜰 때 푸터가 밀린다(2026-09-07 원본 헤더 실측). */}
                 <img
                     src="https://img1.kbstar.com/img/escrow/escrowcmark.gif"
                     alt="KB국민은행 에스크로 이체 인증마크"
                     width="80"
-                    height="41"
+                    height="80"
                     style={{ border: 0 }}
                 />
             </a>

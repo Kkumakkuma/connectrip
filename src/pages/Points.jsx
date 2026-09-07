@@ -4,6 +4,7 @@ import JsonLd from '../components/JsonLd';
 import { BUSINESS_INFO } from '../lib/businessInfo';
 import KbEscrowMark from '../components/KbEscrowMark';
 import { POINT_PACKAGES, VOUCHER, REFUND_SUMMARY, buildProductsJsonLd } from '../lib/products';
+import useScrollHint from '../lib/useScrollHint';
 
 // 포인트·매칭신청권 안내 — 로그인 없이 보이는 유료 서비스(상품) 설명·가격 페이지.
 // 결제대행사 계약 심사 요건("상품 등록·상세 설명·가격 정보")용으로 2026-09-02 추가.
@@ -20,6 +21,8 @@ function Section({ title, children }) {
 const PRODUCTS_JSONLD = buildProductsJsonLd('https://www.connecttrip.co.kr');
 
 const Points = () => {
+  const [tableRef0, tableRefStyle0] = useScrollHint();
+  const [tableRef1, tableRefStyle1] = useScrollHint();
   return (
     <section className="min-h-screen bg-gray-50 py-24">
       <SEOHead
@@ -28,7 +31,7 @@ const Points = () => {
         path="/points"
       />
       <JsonLd id="products" data={PRODUCTS_JSONLD} />
-      <div className="container mx-auto px-4 max-w-3xl">
+      <div className="mx-auto px-4 max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-900">포인트·매칭신청권 안내</h1>
         <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-09-02</p>
 
@@ -38,7 +41,7 @@ const Points = () => {
         </p>
 
         <Section title="1. 포인트 충전 패키지 (1포인트 = 1원)">
-          <div className="overflow-x-auto">
+          <div ref={tableRef0} style={tableRefStyle0} className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500">
@@ -62,7 +65,7 @@ const Points = () => {
         </Section>
 
         <Section title="2. 매칭신청권">
-          <div className="overflow-x-auto">
+          <div ref={tableRef1} style={tableRefStyle1} className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-gray-500">

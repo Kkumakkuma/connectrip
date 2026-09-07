@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { BUSINESS_INFO } from '../lib/businessInfo';
 import SEOHead from '../components/SEOHead';
 import { IDENTITY_PG_NAME } from '../lib/identity';
+import useScrollHint from '../lib/useScrollHint';
 
 // 개인정보처리방침. 보호책임자 = 회사명 대표 표기(쿠마님 2026-07-20 확정).
 // 2026-09-02 개정: 휴대폰 본인확인(PASS) 수집항목·수탁자(포트원·{IDENTITY_PG_NAME})·차단 회원 해시 보관 추가.
@@ -20,6 +21,7 @@ function Section({ title, children }) {
 }
 
 const Privacy = () => {
+  const [tableRef0, tableRefStyle0] = useScrollHint();
   return (
     <section className="min-h-screen bg-gray-50 py-24">
       <SEOHead
@@ -27,7 +29,7 @@ const Privacy = () => {
         description="ConnectTrip이 수집하는 개인정보 항목, 이용 목적, 처리위탁, 보관·파기, 이용자 권리에 대한 안내."
         path="/privacy"
       />
-      <div className="container mx-auto px-4 max-w-3xl">
+      <div className="mx-auto px-4 max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-900">개인정보처리방침</h1>
         <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-09-02</p>
 
@@ -78,7 +80,7 @@ const Privacy = () => {
             이용자는 회원가입을 진행하지 않거나, 가입 후에는 회원탈퇴를 통해 처리 중단을 요청할 수 있습니다.
             다만 서비스가 국외 클라우드 인프라를 통해 제공되므로, 국외 이전 없이는 서비스 이용이 제한됩니다.
           </p>
-          <div className="overflow-x-auto">
+          <div ref={tableRef0} style={tableRefStyle0} className="overflow-x-auto">
             <table className="mt-2 w-full min-w-[520px] border-collapse text-xs">
               <thead>
                 <tr className="border-b border-gray-200 text-left text-gray-500">

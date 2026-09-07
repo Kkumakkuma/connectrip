@@ -404,7 +404,7 @@ const TravelQnA = () => {
                     {mode === 'review' && (
                         <div>
                             <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                            <ImageUpload onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
+                            <ImageUpload label={null} onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
                         </div>
                     )}
                 </form>

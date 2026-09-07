@@ -41,7 +41,7 @@ const Terms = () => {
         description="ConnectTrip 이용약관 — 서비스 성격, 회원의 의무, 금지행위, 포인트, 면책에 관한 안내."
         path="/terms"
       />
-      <div className="container mx-auto px-4 max-w-3xl">
+      <div className="mx-auto px-4 max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-900">이용약관</h1>
         <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-09-03</p>
 

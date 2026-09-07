@@ -233,6 +233,10 @@ a {
   width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px; border: 1px solid #dddddd; background: #fff; color: #222;
   font-size: 15px; outline: none; transition: border-color .15s ease, box-shadow .15s ease;
 }
+/* date 는 네이티브 컨트롤이 텍스트 input 보다 2px 높아, 2열로 나란히 두면 아래 테두리가 어긋났다
+   (2026-09-07 동행자 글쓰기 모달 실측). 높이를 고정하면 !py-2 로 줄여 쓴 댓글 입력까지 늘어나므로
+   date 쪽 세로 패딩만 1px 씩 줄여 맞춘다 — 실측 text 41.375px = date 41.375px. */
+input.input-air[type="date"] { padding-top: calc(0.7rem - 1px); padding-bottom: calc(0.7rem - 1px); }
 .input-air:focus { border-color: #222; box-shadow: 0 0 0 1px #222; }
 .input-air::placeholder { color: #929292; }
 .card-air { background: #fff; border: 1px solid #ebebeb; border-radius: 14px; transition: box-shadow .15s ease, transform .15s ease; }

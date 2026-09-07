@@ -274,7 +274,7 @@ const Destinations = () => {
                     </div>
                     <div>
                         <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                        <ImageUpload onUpload={(url) => { if (url !== undefined) setForm((f) => ({ ...f, image_url: url })); }} onUploadingChange={setUploading} />
+                        <ImageUpload label={null} onUpload={(url) => { if (url !== undefined) setForm((f) => ({ ...f, image_url: url })); }} onUploadingChange={setUploading} />
                     </div>
                 </form>
             </WriteModal>

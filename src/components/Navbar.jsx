@@ -176,7 +176,9 @@ const Navbar = () => {
               )}
             </div>
           ))}
-          <SearchBar className="w-28 2xl:w-36" />
+          {/* 메뉴가 6개인 승무원 계정의 1280px 헤더에서 이 검색창만 눌려 placeholder 가 한 글자만 남았다.
+              shrink-0 으로 폭을 지킨다(2026-09-07 실측). */}
+          <SearchBar className="w-28 2xl:w-36 shrink-0" />
         </div>
 
         {/* Section 3: Auth Buttons - Right */}

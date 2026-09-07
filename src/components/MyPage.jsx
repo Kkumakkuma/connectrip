@@ -551,7 +551,7 @@ const MyPage = () => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                                 <div>
                                     <p style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '0.2rem' }}>나의 보유 포인트</p>
-                                    <p style={{ fontSize: '1.8rem', fontWeight: '800' }}>{totalPoints.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>P</span></p>
+                                    <p style={{ fontSize: 'clamp(1.35rem, 5.5vw, 1.8rem)', fontWeight: '800' }}>{totalPoints.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>P</span></p>
                                 </div>
                                 {PAYMENTS_ENABLED && (
                                 <button
@@ -587,7 +587,8 @@ const MyPage = () => {
                             style={{
                                 order: 1,
                                 borderRadius: '1.5rem',
-                                padding: '2rem',
+                                // 360px 에서 좌우 2rem(64px)이 내용 폭을 잡아먹어 안쪽 2열 카드가 패널 밖으로 넘쳤다(2026-09-07 실측)
+                                padding: 'clamp(1.1rem, 4.5vw, 2rem)',
                                 background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
                                 color: 'white',
                                 boxShadow: '0 10px 25px rgba(99, 102, 241, 0.4)',
@@ -605,10 +606,13 @@ const MyPage = () => {
                                         <Heart size={24} fill="white" />
                                     </div>
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: '1.5rem', borderRadius: '1rem', backdropFilter: 'blur(10px)', position: 'relative' }}>
+                                {/* 1fr 1fr 고정이면 360px 에서 각 칸이 136px 로 눌려 '300,000 P'·버튼이 밖으로 밀린다.
+                                    좁은 화면은 1열로 쌓고 640px 부터 원래대로 2열(2026-09-07).
+                                    auto-fit 은 데스크톱에서 4열이 돼 카드가 왼쪽에 몰리므로 쓰지 않는다. */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+                                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: 'clamp(1rem, 3.5vw, 1.5rem)', borderRadius: '1rem', backdropFilter: 'blur(10px)', position: 'relative', minWidth: 0 }}>
                                         <p style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '0.5rem' }}>전환 가능한 좋아요</p>
-                                        <p style={{ fontSize: '1.8rem', fontWeight: '800' }}>{availableLikes.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>개</span></p>
+                                        <p style={{ fontSize: 'clamp(1.35rem, 5.5vw, 1.8rem)', fontWeight: '800' }}>{availableLikes.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>개</span></p>
                                         {availableLikes >= 100 && (
                                             <button
                                                 onClick={handleConvertLikes}
@@ -629,10 +633,10 @@ const MyPage = () => {
                                             </button>
                                         )}
                                     </div>
-                                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: '1.5rem', borderRadius: '1rem', backdropFilter: 'blur(10px)' }}>
+                                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: 'clamp(1rem, 3.5vw, 1.5rem)', borderRadius: '1rem', backdropFilter: 'blur(10px)', minWidth: 0 }}>
                                         <p style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '0.5rem' }}>보유 포인트</p>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <p style={{ fontSize: '1.8rem', fontWeight: '800' }}>{totalPoints.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>P</span></p>
+                                            <p style={{ fontSize: 'clamp(1.35rem, 5.5vw, 1.8rem)', fontWeight: '800' }}>{totalPoints.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: '400' }}>P</span></p>
                                             {PAYMENTS_ENABLED && (
                                             <button
                                                 onClick={() => setShowChargeModal(true)}
@@ -660,7 +664,7 @@ const MyPage = () => {
                                             신청권 구매
                                         </button>
                                     </div>
-                                    <div style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '1rem', backdropFilter: 'blur(10px)', marginTop: '0.5rem' }}>
+                                    <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '1rem', backdropFilter: 'blur(10px)', marginTop: '0.5rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <p style={{ fontSize: '0.9rem', fontWeight: '600' }}>나의 매칭신청권 보유량</p>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1072,13 +1076,16 @@ const MyPage = () => {
                                             border: 'none',
                                             background: isActive ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'transparent',
                                             color: isActive ? 'white' : '#6b7280',
-                                            fontSize: '0.85rem',
+                                            fontSize: 'clamp(0.78rem, 3.2vw, 0.85rem)',
                                             fontWeight: isActive ? '700' : '500',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             gap: '6px',
+                                            // 360px 에서 '키워드 알림'만 두 줄로 꺾여 탭 높이가 어긋났다(2026-09-07)
+                                            whiteSpace: 'nowrap',
+                                            minWidth: 0,
                                             transition: 'all 0.2s'
                                         }}
                                     >

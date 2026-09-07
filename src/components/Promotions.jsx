@@ -357,7 +357,7 @@ const Promotions = () => {
                                 <div>
                                     {/* ImageUpload 가 자체 label 을 가지고 있어, 바깥 문구는 label 이 아닌 제목으로 둔다 */}
                                     <span className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</span>
-                                    <ImageUpload onUpload={(url) => setFormData({ ...formData, image_url: url })} />
+                                    <ImageUpload label={null} onUpload={(url) => setFormData({ ...formData, image_url: url })} />
                                     {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
                                 </div>
                                 <div className="flex gap-3 pt-4">

@@ -1,11 +1,14 @@
 import { CONTINENTS } from '../../lib/continents';
+import useScrollHint from '../../lib/useScrollHint';
 
 // 대륙 필터 바(에어비앤비 카테고리 바). "전체" + 6대륙, 가로 스크롤, 활성은 ink 밑줄. 단일 선택이라 tablist/tab 으로 알린다.
 // value: 대륙 id 또는 null(전체). onChange(id|null).
 const ContinentBar = ({ value, onChange, className = '' }) => {
     const items = [{ id: null, name: '전체', icon: '🌐' }, ...CONTINENTS];
+    // 360px 에서는 7개가 한 줄에 안 들어간다 — 잘린 쪽에 페이드를 줘 스크롤되는 줄임을 알린다.
+    const [scrollRef, hintStyle] = useScrollHint();
     return (
-        <div role="tablist" aria-label="대륙" className={`flex gap-1 sm:gap-2 overflow-x-auto no-scrollbar border-b border-hairline mb-5 -mx-4 px-4 sm:mx-0 sm:px-0 ${className}`}>
+        <div ref={scrollRef} style={hintStyle} role="tablist" aria-label="대륙" className={`flex gap-1 sm:gap-2 overflow-x-auto no-scrollbar border-b border-hairline mb-5 -mx-4 px-4 sm:mx-0 sm:px-0 ${className}`}>
             {items.map((c) => {
                 const active = (value || null) === c.id;
                 return (

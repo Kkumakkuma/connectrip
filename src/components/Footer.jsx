@@ -87,16 +87,24 @@ const Footer = () => {
                 )}
 
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem', textAlign: 'center', fontSize: '0.9rem', opacity: 0.5 }}>
+                    {/* 항목을 한 문자열로 join 하면 keep-all 이어도 하이픈 뒤에서 줄이 바뀌어
+                        '552-17-' / '02943' 처럼 번호가 두 줄로 갈라진다(2026-09-07 모바일 실측).
+                        번호·이메일처럼 끊기면 안 되는 값만 nowrap 으로 감싸고, 주소는 길어서 그대로 둔다. */}
                     <p style={{ fontSize: '0.75rem', lineHeight: 1.7, marginBottom: '0.75rem', wordBreak: 'keep-all' }}>
                         {[
-                            BUSINESS_INFO.상호,
-                            isBusinessValueFilled(BUSINESS_INFO.대표자) && `대표자 ${BUSINESS_INFO.대표자}`,
-                            isBusinessValueFilled(BUSINESS_INFO.사업자등록번호) && `사업자등록번호 ${BUSINESS_INFO.사업자등록번호}`,
-                            isBusinessValueFilled(BUSINESS_INFO.통신판매업신고번호) && `통신판매업신고번호 ${BUSINESS_INFO.통신판매업신고번호}`,
-                            isBusinessValueFilled(BUSINESS_INFO.사업장소재지) && `소재지 ${BUSINESS_INFO.사업장소재지}`,
-                            isBusinessValueFilled(BUSINESS_INFO.유선전화) && `전화 ${BUSINESS_INFO.유선전화}`,
-                            BUSINESS_INFO.이메일,
-                        ].filter(Boolean).join(' · ')}
+                            { text: BUSINESS_INFO.상호, nowrap: false },
+                            isBusinessValueFilled(BUSINESS_INFO.대표자) && { text: `대표자 ${BUSINESS_INFO.대표자}`, nowrap: true },
+                            isBusinessValueFilled(BUSINESS_INFO.사업자등록번호) && { text: `사업자등록번호 ${BUSINESS_INFO.사업자등록번호}`, nowrap: true },
+                            isBusinessValueFilled(BUSINESS_INFO.통신판매업신고번호) && { text: `통신판매업신고번호 ${BUSINESS_INFO.통신판매업신고번호}`, nowrap: true },
+                            isBusinessValueFilled(BUSINESS_INFO.사업장소재지) && { text: `소재지 ${BUSINESS_INFO.사업장소재지}`, nowrap: false },
+                            isBusinessValueFilled(BUSINESS_INFO.유선전화) && { text: `전화 ${BUSINESS_INFO.유선전화}`, nowrap: true },
+                            { text: BUSINESS_INFO.이메일, nowrap: true },
+                        ].filter(Boolean).map((item, i, arr) => (
+                            <span key={item.text}>
+                                <span style={item.nowrap ? { whiteSpace: 'nowrap' } : undefined}>{item.text}</span>
+                                {i < arr.length - 1 && ' · '}
+                            </span>
+                        ))}
                     </p>
                     {/* KB 에스크로 인증마크 — 구매안전 서비스 이용확인증 발급 요건.
                         푸터는 모든 화면에 렌더되므로 초기화면과 결제화면 구간을 함께 만족한다. */}

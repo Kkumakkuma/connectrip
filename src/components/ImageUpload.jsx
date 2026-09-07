@@ -98,7 +98,9 @@ function loadImageElement(file) {
 
 // resetAfterUpload: 업로드 성공 후 미리보기를 비워 다음 파일을 바로 고를 수 있게(여러 장 첨부용)
 // onUploadingChange: 업로드 중 여부를 부모에 알림(업로드 끝나기 전 저장 방지)
-const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUpload = false, onUploadingChange }) => {
+// label: 컴포넌트가 직접 그리는 제목. 쓰는 쪽에서 이미 '사진 (…)' 같은 제목을 달았으면 null 을 넘겨 끈다
+// (안 그러면 '사진 (0/5)' 바로 아래 '이미지 첨부'가 또 나온다 — 2026-09-07 모바일 실측).
+const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUpload = false, onUploadingChange, label = '이미지 첨부' }) => {
   const { user } = useAuth();
   const [preview, setPreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -176,7 +178,7 @@ const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUp
 
   return (
     <div className={className}>
-      <label className="block text-sm font-bold text-gray-700 mb-2">이미지 첨부</label>
+      {label && <label className="block text-sm font-bold text-gray-700 mb-2">{label}</label>}
 
       {preview ? (
         <div className="relative rounded-xl overflow-hidden border border-gray-200">

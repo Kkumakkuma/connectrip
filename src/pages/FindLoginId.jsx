@@ -120,7 +120,7 @@ const FindLoginId = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-20">
+        <div className="min-h-[60vh] bg-gray-50 flex items-start justify-center pt-28 pb-16 px-4">
             <SEOHead title="아이디 찾기 - ConnectTrip" description="ConnectTrip 아이디 찾기" robots="noindex, nofollow" />
             <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl border border-gray-100" style={{ wordBreak: 'keep-all' }}>
                 {/* 결과 화면에만 안내 문장이 따라붙는다. 1단계 안내는 본인확인 카드가 들고 있어

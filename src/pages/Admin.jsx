@@ -11,6 +11,7 @@ import { useAuth } from '../lib/AuthContext';
 import { reportApi, blockApi, adminApi, commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
+import useScrollHint from '../lib/useScrollHint';
 
 const STATUS_COLORS = {
   '대기': 'bg-yellow-100 text-yellow-700',
@@ -27,6 +28,7 @@ const Admin = () => {
   // 프로필 조회가 실패했을 뿐인데 '권한 없음' 으로 단정하면 실제 관리자가 막힌다.
   const profileUnknown = isLoggedIn && !profileLoading && profileError;
   const [activeTab, setActiveTab] = useState('reports');
+  const [tabScrollRef, tabHintStyle] = useScrollHint();
   const location = useLocation();
 
   // 네비 드롭다운 ?tab=(reports/commendations/users/stats) 반영
@@ -361,7 +363,8 @@ const Admin = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {/* 768px 에서 4열이면 카드가 좁아 '총 회원 수' 같은 라벨이 두 줄로 꺾이고 숫자 기준선이 어긋났다 → lg 부터 4열(2026-09-07) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -415,7 +418,8 @@ const Admin = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        {/* 360px 에서 마지막 '회원 관리'·'통계' 탭이 화면 밖으로 나간다 — 페이드로 스크롤 단서를 준다(2026-09-07) */}
+        <div ref={tabScrollRef} style={tabHintStyle} className="flex gap-2 mb-6 overflow-x-auto pb-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}

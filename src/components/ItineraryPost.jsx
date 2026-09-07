@@ -297,7 +297,7 @@ const ItineraryPost = () => {
           </div>
 
           <footer className="px-5 sm:px-8 py-5 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleToggleLike}
                 className={`flex items-center gap-1 px-3 py-2.5 rounded-xl font-bold transition-colors ${
@@ -316,7 +316,7 @@ const ItineraryPost = () => {
             <button
               onClick={() => runImport(post.id)}
               disabled={importingId === post.id}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto justify-center flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {importingId === post.id ? (
                 <Loader2 size={18} className="animate-spin" aria-hidden="true" />

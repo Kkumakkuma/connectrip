@@ -6,7 +6,7 @@ import { POINT_PACKAGES, VOUCHER, REFUND_SUMMARY } from '../lib/products';
 const PaidServices = () => {
   return (
     <section id="paid-services" className="bg-white py-16" aria-labelledby="paid-services-title">
-      <div className="container mx-auto px-4 max-w-5xl">
+      <div className="mx-auto px-4 max-w-5xl">
         <h2 id="paid-services-title" className="text-2xl font-bold text-gray-900 text-center">유료 서비스 안내</h2>
         <p className="mt-2 text-center text-sm text-gray-500">
           포인트를 충전해 매칭신청권 구매·장터 결제 등에 사용합니다. 1포인트 = 1원, 결제는 신용카드 등 결제대행사 결제수단으로 진행됩니다.
