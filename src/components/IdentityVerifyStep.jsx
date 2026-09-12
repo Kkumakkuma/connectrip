@@ -12,7 +12,7 @@ export default function IdentityVerifyStep({
   returnPath, returnResult, onVerified, accent = '#2563eb', disabled = false,
   purpose = IDENTITY_PURPOSE_SIGNUP,
   title = '1단계 · 휴대폰 본인확인',
-  description = '안전한 커뮤니티를 위해 가입 전에 본인 명의 휴대폰으로 본인확인을 진행합니다. PASS 앱으로 본인확인을 진행하면, 확인된 이름·생년월일·휴대폰번호는 가입 정보에 자동으로 채워집니다.',
+  description = '안전한 커뮤니티를 위해 가입 전에 본인 명의 휴대폰으로 본인확인을 진행합니다.',
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
