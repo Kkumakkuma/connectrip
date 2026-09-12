@@ -13,3 +13,8 @@ VITE_PLANNER_ENABLED=true
 
 # 커넥트립 안의 "여행 일정" 게시판. 글이 0건이라 웹과 마찬가지로 꺼 둔다.
 VITE_ITINERARY_ENABLED=true
+
+# --- PASS 본인확인 ---
+# 여기에 VITE_PORTONE_* 를 다시 쓰지 말 것. Vite 는 .env 다음에 .env.app 을 읽어 뒤가 이기므로,
+# 빈 값으로 적어 두면 앱 번들의 IDENTITY_ENABLED 가 false 가 되어 PASS 버튼이 잠긴다(앱 가입 불가).
+# 값은 .env 에서 그대로 상속된다 — 실키로 교체할 때도 .env 한 곳만 고친다.
