@@ -41,3 +41,18 @@ export const FAMILY_SITES_ENABLED = false;
 //   "여행후기 및 Q&A" 메뉴의 여행 후기 탭(TravelQnA, 같은 reviews 테이블의 type=review)은 이 플래그와 무관하게 유지된다.
 //   켤 때: 이 값을 true 로 바꾸고 재배포(라우트·메뉴·카드·알림이 한 번에 돌아온다).
 export const PROMO_REVIEWS_ENABLED = false;
+
+// REFERRAL_ENABLED — 승무원 추천코드(초대링크 ?ref=, 가입 폼 "추천 승무원 ID / 추천코드" 칸, 마이페이지 "내 추천코드" 카드, 가입 시 3,000P 추천 보너스).
+//   2026-09-14 쿠마님 지시: 추천코드 기능은 사이트에서 전부 숨긴다. 나중에 필요하면 다시 켠다.
+//   끄면 가입 폼 두 화면(SignupEmail·SignupComplete)의 추천인 칸, ?ref= 자동 입력·제출 시 추천인 해석, 마이페이지 추천코드 카드와
+//   get_my_referral_code 조회가 빠진다. 코드·DB(find_crew_referrer / get_my_referral_code / grant_referral_bonus, profiles.referred_by)는 그대로다.
+//   켤 때: 이 값을 true 로 바꾸고 재배포.
+export const REFERRAL_ENABLED = false;
+
+// COMMENDATION_ENABLED — 칭찬매칭(구 칭송매칭): 마이페이지 "칭찬매칭" 탭(CommendationMatching), 승무원 대시보드의 "신청권 구매"·"나의 매칭신청권 보유량",
+//   관리자 "칭찬 인증" 탭·회원 목록의 신청권 지급, 알림 설정의 "칭찬매칭" 토글.
+//   2026-09-14 쿠마님 지시: 칭찬 관련 기능은 사이트에서 전부 숨긴다. 나중에 필요하면 다시 켠다.
+//   끄면 마이페이지 기본 탭이 "키워드 알림"이 되고 ?tab=commendation 직접 진입도 막힌다. 비행 스케줄 등록·같은 편 게시판은 이 플래그와 무관하게 유지.
+//   코드·DB(commendation_matches, purchase_voucher, refund_my_voucher, admin_get_commendation_reviews, profiles.voucher_count)는 그대로다.
+//   켤 때: 이 값을 true 로 바꾸고 재배포(탭·버튼·관리자 탭·알림 토글이 한 번에 돌아온다).
+export const COMMENDATION_ENABLED = false;

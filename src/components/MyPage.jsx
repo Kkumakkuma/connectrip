@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { requestPointPayment, parsePaymentReturn, stripPaymentParams, readPendingPayment, clearPendingPayment } from '../lib/payments/portone';
 import { isNativeApp } from '../lib/native';
 import { POINT_PACKAGES } from '../lib/products';
-import { PAYMENTS_ENABLED } from '../lib/featureFlags';
+import { PAYMENTS_ENABLED, REFERRAL_ENABLED, COMMENDATION_ENABLED } from '../lib/featureFlags';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Trash2, Settings, Gift, Copy, Share2, UserX, MessageSquare, X } from 'lucide-react';
@@ -25,7 +25,9 @@ const MyPage = () => {
     const location = useLocation();
 
     // Active tab for bottom sections
-    const [activeTab, setActiveTab] = useState('commendation');
+    // 칭찬매칭이 꺼져 있으면(COMMENDATION_ENABLED=false) 키워드 알림 탭이 기본이다(2026-09-14).
+    const DEFAULT_TAB = COMMENDATION_ENABLED ? 'commendation' : 'keywords';
+    const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
 
     // ?tab= 딥링크 반영. useState 초기값으로만 읽으면 이미 /mypage 에 있을 때(알림 링크 등)
     // 컴포넌트가 재마운트되지 않아 탭이 바뀌지 않는다.
@@ -34,8 +36,8 @@ const MyPage = () => {
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
         if (!tab) return;
-        const allowed = ['commendation', 'keywords', 'blocks'];
-        setActiveTab(allowed.includes(tab) ? tab : 'commendation');
+        const allowed = [...(COMMENDATION_ENABLED ? ['commendation'] : []), 'keywords', 'blocks'];
+        setActiveTab(allowed.includes(tab) ? tab : DEFAULT_TAB);
     }, [location]);
 
     // 전역 배너의 '갱신하기'(/mypage#crew-renewal)로 들어오면 승무원 인증 섹션으로 내려준다.
@@ -84,9 +86,9 @@ const MyPage = () => {
         }
     }, [profile]);
 
-    // 인증 승무원이면 내 추천코드 조회/발급 (없으면 서버가 lazy 생성)
+    // 인증 승무원이면 내 추천코드 조회/발급 (없으면 서버가 lazy 생성). 추천 기능이 꺼져 있으면 조회도 하지 않는다.
     useEffect(() => {
-        if (!isCrew) { setReferralCode(null); return; }
+        if (!REFERRAL_ENABLED || !isCrew) { setReferralCode(null); return; }
         let alive = true;
         (async () => {
             try {
@@ -279,7 +281,10 @@ const MyPage = () => {
                 if (matchErr) throw matchErr;
                 const active = (matches || []).filter(m => !['rejected', 'deleted'].includes(m.status));
                 if (active.length > 0) {
-                    alert('칭찬매칭이 진행 중인 항공편은 수정할 수 없습니다. 칭찬매칭에서 신청을 취소한 뒤 다시 수정해 주세요.');
+                    // 칭찬매칭 화면이 숨겨진 동안(COMMENDATION_ENABLED=false)에는 취소 동선이 없으므로 삭제 후 재등록을 안내한다(codex 지적, 2026-09-14).
+                    alert(COMMENDATION_ENABLED
+                        ? '칭찬매칭이 진행 중인 항공편은 수정할 수 없습니다. 칭찬매칭에서 신청을 취소한 뒤 다시 수정해 주세요.'
+                        : '칭찬매칭 기록이 있는 항공편은 수정할 수 없습니다. 항공편을 삭제한 뒤 다시 등록해 주세요.');
                     return;
                 }
             }
@@ -514,14 +519,15 @@ const MyPage = () => {
     }, []);
 
     const tabs = [
-        { id: 'commendation', label: '칭찬매칭', icon: Heart },
+        // 칭찬매칭 — 2026-09-14 쿠마님 지시로 숨김. featureFlags.COMMENDATION_ENABLED 로 켠다.
+        ...(COMMENDATION_ENABLED ? [{ id: 'commendation', label: '칭찬매칭', icon: Heart }] : []),
         { id: 'keywords', label: '키워드 알림', icon: Bell },
         { id: 'blocks', label: '차단 목록', icon: UserX },
     ];
 
     return (
         <>
-        <SEOHead title="마이 페이지 - ConnectTrip" description="ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭찬 매칭 현황을 한눈에 관리하세요." robots="noindex, nofollow" />
+        <SEOHead title="마이 페이지 - ConnectTrip" description={COMMENDATION_ENABLED ? "ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭찬 매칭 현황을 한눈에 관리하세요." : "ConnectTrip 마이 페이지. 내 포인트, 항공편 스케줄, 키워드 알림을 한눈에 관리하세요."} robots="noindex, nofollow" />
         <section id="mypage" className="section-padding" style={{ background: '#f8f9fa' }}>
             <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -646,6 +652,7 @@ const MyPage = () => {
                                             </button>
                                             )}
                                         </div>
+                                        {COMMENDATION_ENABLED && (
                                         <button
                                             onClick={handleBuyVoucher}
                                             style={{
@@ -663,7 +670,9 @@ const MyPage = () => {
                                         >
                                             신청권 구매
                                         </button>
+                                        )}
                                     </div>
+                                    {COMMENDATION_ENABLED && (
                                     <div style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '1rem', backdropFilter: 'blur(10px)', marginTop: '0.5rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <p style={{ fontSize: '0.9rem', fontWeight: '600' }}>나의 매칭신청권 보유량</p>
@@ -697,6 +706,7 @@ const MyPage = () => {
                                             </p>
                                         )}
                                     </div>
+                                    )}
                                 </div>
                             </div>
                             {/* Decorative background circle */}
@@ -765,7 +775,7 @@ const MyPage = () => {
                     </motion.div>
 
                     {/* Crew Referral (승무원 추천코드 + 초대링크) */}
-                    {isCrew && referralCode && (
+                    {REFERRAL_ENABLED && isCrew && referralCode && (
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -1103,7 +1113,7 @@ const MyPage = () => {
                             padding: 'clamp(1rem, 5vw, 2rem)',
                             background: 'white'
                         }}>
-                            {activeTab === 'commendation' && <CommendationMatching flights={myFlights} onFlightsChange={fetchFlights} />}
+                            {COMMENDATION_ENABLED && activeTab === 'commendation' && <CommendationMatching flights={myFlights} onFlightsChange={fetchFlights} />}
                             {activeTab === 'keywords' && <KeywordSettings />}
                             {activeTab === 'blocks' && <BlockedUsers />}
                             {boardFlight && createPortal(
@@ -1312,10 +1322,10 @@ const MyPage = () => {
                                 <ul className="ml-4 list-disc space-y-1 text-gray-500">
                                     <li>계정 및 프로필(이메일·이름·닉네임·휴대폰·주소·생년월일)</li>
                                     <li>작성한 게시글·댓글·후기·좋아요, 비행 스케줄</li>
-                                    <li>보유 포인트·매칭신청권(환급되지 않습니다)</li>
+                                    <li>보유 포인트{COMMENDATION_ENABLED ? '·매칭신청권' : ''}(환급되지 않습니다)</li>
                                 </ul>
                                 <p className="text-gray-500">
-                                    다만 다른 이용자와 주고받은 <strong>게시판 댓글·칭찬매칭 기록</strong>은 상대방의 이용기록 보호를 위해
+                                    다만 다른 이용자와 주고받은 <strong>게시판 댓글{COMMENDATION_ENABLED ? '·칭찬매칭 기록' : ''}</strong>은 상대방의 이용기록 보호를 위해
                                     삭제하지 않고, 회원님을 식별할 수 없도록 익명 처리(‘탈퇴한 사용자’로 표시)합니다.
                                 </p>
                                 <p className="text-gray-500">

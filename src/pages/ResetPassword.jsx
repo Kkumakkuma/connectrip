@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
+import { passwordWeak } from '../lib/loginId';
 
 // 재설정 메일 링크 착지 페이지 — recovery 세션 상태에서 새 비밀번호 설정(2026-07-20 신설).
 // 링크의 recovery 토큰은 supabase-js(detectSessionInUrl)가 세션으로 전환하며,
@@ -54,8 +55,9 @@ const ResetPassword = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!password || password.length < 8) {
-            setError('비밀번호는 8자 이상으로 입력해주세요.');
+        // 가입·PASS 재설정 경로와 같은 규칙(passwordWeak: 8~72자, 영문·숫자 포함)으로 통일(2026-09-14).
+        if (passwordWeak(password)) {
+            setError('비밀번호는 8자 이상, 영문과 숫자를 포함해야 합니다.');
             return;
         }
         if (password !== confirm) {
@@ -122,7 +124,7 @@ const ResetPassword = () => {
                                 <input
                                     type={show ? 'text' : 'password'}
                                     autoComplete="new-password"
-                                    placeholder="새 비밀번호 (8자 이상)"
+                                    placeholder="새 비밀번호 (8자 이상, 영문·숫자·특수문자)" maxLength={72}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full pl-12 pr-12 py-4 bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-gray-800"

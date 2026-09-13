@@ -6,7 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell';
 import ChatBadge from './ChatBadge';
 import SearchBar from './SearchBar';
-import { ITINERARY_ENABLED, PLANNER_ENABLED, PROMO_REVIEWS_ENABLED } from '../lib/featureFlags';
+import { ITINERARY_ENABLED, PLANNER_ENABLED, PROMO_REVIEWS_ENABLED, COMMENDATION_ENABLED } from '../lib/featureFlags';
 
 
 const Navbar = () => {
@@ -75,7 +75,7 @@ const Navbar = () => {
     ]}] : []),
     ...(isAdmin ? [{ name: '관리자', to: '/admin', sub: [
       { name: '🚨 신고 관리', to: '/admin?tab=reports' },
-      { name: '✅ 칭찬 인증', to: '/admin?tab=commendations' },
+      ...(COMMENDATION_ENABLED ? [{ name: '✅ 칭찬 인증', to: '/admin?tab=commendations' }] : []),
       { name: '👥 회원 관리', to: '/admin?tab=users' },
       { name: '📊 통계', to: '/admin?tab=stats' },
     ]}] : [])

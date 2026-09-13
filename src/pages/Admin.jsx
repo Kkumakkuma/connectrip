@@ -12,6 +12,7 @@ import { reportApi, blockApi, adminApi, commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
 import useScrollHint from '../lib/useScrollHint';
+import { COMMENDATION_ENABLED } from '../lib/featureFlags';
 
 const STATUS_COLORS = {
   '대기': 'bg-yellow-100 text-yellow-700',
@@ -34,7 +35,7 @@ const Admin = () => {
   // 네비 드롭다운 ?tab=(reports/commendations/users/stats) 반영
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
-    if (tab && ['reports', 'commendations', 'users', 'stats'].includes(tab)) setActiveTab(tab);
+    if (tab && ['reports', ...(COMMENDATION_ENABLED ? ['commendations'] : []), 'users', 'stats'].includes(tab)) setActiveTab(tab);
   }, [location]);
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
@@ -344,7 +345,8 @@ const Admin = () => {
 
   const tabs = [
     { id: 'reports', label: '신고 관리', icon: AlertTriangle },
-    { id: 'commendations', label: '칭찬 인증', icon: CheckCircle },
+    // 칭찬 인증 — 2026-09-14 쿠마님 지시로 숨김. featureFlags.COMMENDATION_ENABLED 로 켠다.
+    ...(COMMENDATION_ENABLED ? [{ id: 'commendations', label: '칭찬 인증', icon: CheckCircle }] : []),
     { id: 'users', label: '회원 관리', icon: Users },
     { id: 'stats', label: '통계', icon: BarChart3 },
   ];
@@ -628,6 +630,7 @@ const Admin = () => {
                                 >
                                   포인트
                                 </button>
+                                {COMMENDATION_ENABLED && (
                                 <button
                                   onClick={() => handleGrantVouchers(u.id)}
                                   disabled={actionLoading === u.id}
@@ -635,6 +638,7 @@ const Admin = () => {
                                 >
                                   사용권
                                 </button>
+                                )}
                                 <button
                                   onClick={() => handleBanToggle(u.id, u.is_banned)}
                                   disabled={actionLoading === u.id}
@@ -719,6 +723,7 @@ const Admin = () => {
                           >
                             포인트 선물
                           </button>
+                          {COMMENDATION_ENABLED && (
                           <button
                             onClick={() => handleGrantVouchers(u.id)}
                             disabled={actionLoading === u.id}
@@ -726,6 +731,7 @@ const Admin = () => {
                           >
                             사용권 선물
                           </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -734,7 +740,7 @@ const Admin = () => {
               )}
 
               {/* Commendation Review Tab */}
-              {activeTab === 'commendations' && (
+              {COMMENDATION_ENABLED && activeTab === 'commendations' && (
                 <div className="p-4 md:p-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-6">칭찬 인증 검토</h2>
                   {commendations.length === 0 ? (

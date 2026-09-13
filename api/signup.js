@@ -18,6 +18,9 @@ import { createClient } from '@supabase/supabase-js';
 import { applyCors } from './_cors.js';
 import { normalizeLoginId, isReservedLoginId, synthEmail, passwordWeak } from './_login_id.js';
 
+// 서버 사본 — src/lib/featureFlags.js 의 REFERRAL_ENABLED 와 같은 값으로 유지한다(그 파일은 import.meta.env 를 써서 Node 에서 못 읽는다).
+const REFERRAL_ENABLED = false;
+
 const fail = (res, status, code, error) => res.status(status).json({ ok: false, code, error });
 
 // RPC 예외 문구(RAISE EXCEPTION 'CODE') → HTTP 응답. 목록 밖은 500 + 일반 문구(내부 원문 비노출).
@@ -83,7 +86,7 @@ export default async function handler(req, res) {
 
   const b = req.body || {};
   const loginId = normalizeLoginId(b.login_id);
-  if (!loginId) return fail(res, 400, 'LOGIN_ID_INVALID', '아이디는 영문 소문자·숫자·밑줄 4~20자입니다.');
+  if (!loginId) return fail(res, 400, 'LOGIN_ID_INVALID', '아이디는 영문 소문자·숫자 4~20자입니다.');
   if (isReservedLoginId(loginId)) return fail(res, 400, 'LOGIN_ID_RESERVED', '사용할 수 없는 아이디입니다.');
   const password = String(b.password || '');
   if (passwordWeak(password)) return fail(res, 400, 'PASSWORD_WEAK', '비밀번호는 8자 이상, 영문과 숫자를 포함해야 합니다.');
@@ -105,7 +108,8 @@ export default async function handler(req, res) {
   if (userType === 'crew' && (!airlineEmail || !airlineOtpToken)) {
     return fail(res, 401, 'OTP_PROOF_REQUIRED_AIRLINE', '회사 이메일 인증을 먼저 완료해주세요.');
   }
-  const referredBy = isUuid(b.referred_by) ? String(b.referred_by) : null;
+  // 추천코드 기능 숨김(2026-09-14, src/lib/featureFlags.js REFERRAL_ENABLED 와 함께 켠다) — 꺼져 있으면 클라이언트가 보낸 값도 버린다.
+  const referredBy = REFERRAL_ENABLED && isUuid(b.referred_by) ? String(b.referred_by) : null;
 
   const supabase = createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || '';

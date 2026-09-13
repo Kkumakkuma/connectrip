@@ -76,7 +76,7 @@ const ForgotPassword = () => {
         setError('');
         const id = normalizeLoginId(loginId);
         if (!id) {
-            setError('아이디 형식이 올바르지 않습니다. 영문 소문자·숫자·밑줄(_) 4~20자입니다.');
+            setError('아이디 형식이 올바르지 않습니다. 영문 소문자·숫자 4~20자입니다.');
             return;
         }
         setLoginId(id);
@@ -233,7 +233,7 @@ const ForgotPassword = () => {
                                     <input
                                         type="password"
                                         autoComplete="new-password"
-                                        placeholder="새 비밀번호 (8자 이상, 영문+숫자)"
+                                        placeholder="새 비밀번호 (8자 이상, 영문·숫자·특수문자)"
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
                                         maxLength={72}

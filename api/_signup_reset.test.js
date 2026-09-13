@@ -62,7 +62,7 @@ beforeEach(() => {
 afterEach(() => { process.env = savedEnv; vi.doUnmock('@supabase/supabase-js'); vi.resetModules(); });
 
 const TRAVELER = {
-  login_id: 'Kuma_01', password: 'passw0rd!', user_type: 'traveler', identity_token: 'idtok',
+  login_id: 'Kuma01', password: 'passw0rd!', user_type: 'traveler', identity_token: 'idtok',
   email: 'Me@Gmail.com', email_otp_token: 'emtok', name: '홍길동', nickname: '쿠마', birthdate: '1990-01-01',
   phone: '01012345678', zipcode: '16000', road: '수원시', detail: '101호', referred_by: null,
   terms_agreed_at: '2026-09-05T00:00:00Z', privacy_agreed_at: '2026-09-05T00:00:00Z',
@@ -70,14 +70,15 @@ const TRAVELER = {
 
 describe('아이디 규칙(_login_id.js)', () => {
   it('정규화·예약어·합성 주소·비밀번호 규칙', () => {
-    expect(normalizeLoginId('  Kuma_01 ')).toBe('kuma_01');
+    expect(normalizeLoginId('  Kuma01 ')).toBe('kuma01');
     expect(normalizeLoginId('ab')).toBe('');
     expect(normalizeLoginId('has-dash')).toBe('');
+    expect(normalizeLoginId('kuma_01')).toBe('');  // 2026-09-14 밑줄 제거
     expect(normalizeLoginId('a'.repeat(21))).toBe('');
     expect(isReservedLoginId('admin')).toBe(true);
-    expect(isReservedLoginId('kuma_01')).toBe(false);
-    expect(synthEmail('kuma_01')).toBe('kuma_01@id.connecttrip.co.kr');
-    expect(isSyntheticEmail('KUMA_01@ID.connecttrip.co.kr')).toBe(true);
+    expect(isReservedLoginId('kuma01')).toBe(false);
+    expect(synthEmail('kuma01')).toBe('kuma01@id.connecttrip.co.kr');
+    expect(isSyntheticEmail('KUMA01@ID.connecttrip.co.kr')).toBe(true);
     expect(isSyntheticEmail('me@gmail.com')).toBe(false);
     expect(passwordWeak('short1')).toBe(true);
     expect(passwordWeak('onlyletters')).toBe(true);
@@ -93,11 +94,11 @@ describe('POST /api/signup', () => {
     const res = mockRes();
     await handler(post(TRAVELER), res);
     expect(res.statusCode).toBe(200);
-    expect(calls.created[0].email).toBe('kuma_01@id.connecttrip.co.kr');
+    expect(calls.created[0].email).toBe('kuma01@id.connecttrip.co.kr');
     expect(calls.created[0].email_confirm).toBe(true);
     const rpc = calls.rpcs.find((r) => r.name === 'complete_signup_profile_admin');
     expect(rpc.args.p_user).toBe('user-uuid-1');
-    expect(rpc.args.p_login_id).toBe('kuma_01');
+    expect(rpc.args.p_login_id).toBe('kuma01');
     expect(rpc.args.p_email).toBe('me@gmail.com');
     expect(rpc.args.p_email_otp_token).toBe('emtok');
     expect(rpc.args.p_identity_token).toBe('idtok');
@@ -192,7 +193,7 @@ describe('POST /api/signup', () => {
 });
 
 describe('POST /api/reset-password-confirm (아이디 + PASS 증빙)', () => {
-  const body = { login_id: 'Kuma_01', identity_token: 'idtok-reset', new_password: 'newpassw0rd' };
+  const body = { login_id: 'Kuma01', identity_token: 'idtok-reset', new_password: 'newpassw0rd' };
 
   it('증빙 CI 가 계정 CI 와 일치하면 비밀번호 변경 + 세션 폐기', async () => {
     const calls = newCalls();

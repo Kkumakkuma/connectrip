@@ -4,6 +4,7 @@ import { Bell, Settings, ArrowLeft, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 import { notificationsApi, notificationPrefsApi } from '../lib/db';
+import { COMMENDATION_ENABLED } from '../lib/featureFlags';
 
 const timeAgo = (dateStr) => {
   const now = new Date();
@@ -17,10 +18,10 @@ const timeAgo = (dateStr) => {
   return date.toLocaleDateString('ko-KR');
 };
 
-// 설정 화면의 토글 5개.
+// 설정 화면의 토글 5개. 칭찬매칭 토글은 COMMENDATION_ENABLED 가 꺼져 있으면 숨긴다(저장 컬럼은 db.js 그대로).
 const PREF_ROWS = [
   { key: 'comments', label: '댓글·답변' },
-  { key: 'commendation', label: '칭찬매칭' },
+  ...(COMMENDATION_ENABLED ? [{ key: 'commendation', label: '칭찬매칭' }] : []),
   { key: 'flight', label: '같은 편 게시판', desc: '내 항공편 게시판에 새로 등록한 사람' },
   { key: 'companion', label: '동행 모집', desc: '내가 글을 올린 지역의 새 동행 글' },
   { key: 'keywords', label: '키워드 알림', desc: '등록한 키워드가 포함된 새 글' },

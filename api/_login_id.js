@@ -4,7 +4,8 @@
 // Supabase Auth 는 아이디를 모르므로 Auth email 은 합성 주소 <login_id>@id.connecttrip.co.kr 를 쓴다.
 // 이 주소는 수신 불가·표시 금지 — 사용자에게는 아이디만 보인다. 실제 연락 이메일은 profiles.email.
 
-export const LOGIN_ID_RE = /^[a-z0-9_]{4,20}$/;
+// 2026-09-14 쿠마님 지시로 밑줄(_) 제거 — 영문 소문자·숫자만.
+export const LOGIN_ID_RE = /^[a-z0-9]{4,20}$/;
 export const SYNTH_DOMAIN = 'id.connecttrip.co.kr';
 
 export const RESERVED_LOGIN_IDS = new Set([

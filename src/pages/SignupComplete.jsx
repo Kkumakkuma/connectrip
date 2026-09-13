@@ -12,6 +12,7 @@ import { normalizeLoginId, isReservedLoginId, isSyntheticEmail } from '../lib/lo
 import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
+import { REFERRAL_ENABLED, COMMENDATION_ENABLED } from '../lib/featureFlags';
 import { resolveNext, rememberNext } from '../lib/safeNext';
 
 // Daum 우편번호 스크립트 동적 로더
@@ -446,15 +447,15 @@ export default function SignupComplete() {
     const id = normalizeLoginId(loginId);
     if (!id) {
       setLoginIdStatus('invalid');
-      setError('아이디는 영문 소문자·숫자·밑줄 4~20자입니다.');
+      setError('아이디는 영문 소문자·숫자 4~20자입니다.');
       return;
     }
     setSaving(true);
     setError('');
     try {
       // 추천인 최종 확정 — 디바운스 검증 미완료 상태의 빠른 제출에도 보너스가 유실되지 않도록 재해석.
-      let resolvedReferrer = (referrerId && referrerStatus === 'valid') ? referrerId : null;
-      if (!resolvedReferrer && referrerAccountId.trim().length >= 3) {
+      let resolvedReferrer = (REFERRAL_ENABLED && referrerId && referrerStatus === 'valid') ? referrerId : null;
+      if (REFERRAL_ENABLED && !resolvedReferrer && referrerAccountId.trim().length >= 3) {
         const { data: rid } = await supabase.rpc('find_crew_referrer', { p_login_id: referrerAccountId.trim() });
         if (rid && rid !== (user?.id || '')) resolvedReferrer = rid;  // self-referral 제외
       }
@@ -638,7 +639,7 @@ export default function SignupComplete() {
             <Field label="회사(항공사) 이메일 인증 (승무원)" icon={<Plane size={16} />}
               helper={
                 airlineEmailVerified ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{airlineInfo && <AirlineLogo airline={airlineInfo} height={14} />}{airlineInfo ? `${airlineInfo.name} ` : ''}회사 이메일 인증 완료</span>) :
-                !airlineEmail ? '로그인 계정과 별개로, 회사(항공사) 이메일로 인증번호를 받아 인증합니다.' :
+                !airlineEmail ? '회사(항공사) 이메일로 인증번호를 받아 인증합니다.' :
                 airlineInfo ? (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><AirlineLogo airline={airlineInfo} height={14} />{`${airlineInfo.name} 도메인 확인됨 — 인증번호를 받아 인증하세요.`}</span>) :
                 airlineEmail.includes('@') ? '지원되지 않는 항공사 도메인' : '유효한 이메일 형식이 아닙니다'
               }
@@ -694,9 +695,9 @@ export default function SignupComplete() {
               loginIdStatus === 'checking' ? '확인 중...' :
               loginIdStatus === 'taken' ? '이미 사용 중인 아이디입니다.' :
               loginIdStatus === 'reserved' ? '사용할 수 없는 아이디입니다.' :
-              loginIdStatus === 'invalid' ? '영문 소문자·숫자·밑줄(_) 4~20자로 입력해주세요.' :
+              loginIdStatus === 'invalid' ? '영문 소문자·숫자 4~20자로 입력해주세요.' :
               loginIdStatus === 'available' ? '사용 가능한 아이디입니다.' :
-              '로그인에 쓸 아이디입니다. 영문 소문자·숫자·밑줄(_) 4~20자.'
+              '영문 소문자·숫자 4~20자'
             }
             helperColor={
               loginIdStatus === 'available' ? '#16a34a' :
@@ -711,7 +712,7 @@ export default function SignupComplete() {
                 setLoginId(v);
                 setLoginIdStatus(v ? 'checking' : null);
               }}
-              placeholder="예: traveler_kim"
+              placeholder="예: traveler01"
               style={inputStyle}
               autoComplete="username"
               inputMode="latin"
@@ -829,7 +830,8 @@ export default function SignupComplete() {
             />
           </Field>
 
-          {/* 추천 승무원 */}
+          {/* 추천 승무원 — REFERRAL_ENABLED 로 숨김(2026-09-14) */}
+          {REFERRAL_ENABLED && (
           <Field
             label="추천 승무원 ID / 추천코드 (선택) — 추천 보너스 3,000P는 인증 승무원 회원에게만 지급"
             icon={<Gift size={16} />}
@@ -853,6 +855,7 @@ export default function SignupComplete() {
               maxLength={80}
             />
           </Field>
+          )}
 
           <ConsentBox
             idPrefix="signup-complete"
@@ -944,8 +947,8 @@ function ConsentBox({ idPrefix, agreeTerms, agreePrivacy, agreeAge,
       </div>
 
       <ul style={{ margin: '2px 0 6px 30px', padding: 0, listStyle: 'disc', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
-        <li>수집 항목: 아이디, 이메일(로그인 계정), 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
-        <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, 승무원 칭찬매칭 운영, 포인트 적립·이용, 부정 이용 방지와 분쟁 조정·문의 대응.</li>
+        <li>수집 항목: 아이디, 이메일, 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
+        <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, {COMMENDATION_ENABLED ? '승무원 칭찬매칭 운영, ' : ''}포인트 적립·이용, 부정 이용 방지와 분쟁 조정·문의 대응.</li>
         <li>보유 기간: 회원 탈퇴 시 지체 없이 파기합니다. 관계 법령이 보존을 정한 결제·거래 기록은 법정 보존기간 동안 분리 보관한 뒤 파기합니다.</li>
       </ul>
 
