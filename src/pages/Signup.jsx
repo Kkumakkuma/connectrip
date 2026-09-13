@@ -113,7 +113,7 @@ const Signup = () => {
                                 transition={{ duration: 0.25 }}
                             >
                                 <div className="grid md:grid-cols-2 gap-6">
-                                    {/* 일반 여행자 카드 → 즉시 /signup/email?type=traveler */}
+                                    {/* 여행자 카드 → 즉시 /signup/email?type=traveler */}
                                     <motion.button
                                         onClick={() => navigate(`/signup/email?type=traveler${refQuery}${nextQ}`)}
                                         whileHover={{ scale: 1.02 }}
