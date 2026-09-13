@@ -3,14 +3,24 @@ import { BUSINESS_INFO } from '../lib/businessInfo';
 import SEOHead from '../components/SEOHead';
 import { IDENTITY_PG_NAME } from '../lib/identity';
 import useScrollHint from '../lib/useScrollHint';
+import { COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 
 // 개인정보처리방침. 보호책임자 = 회사명 대표 표기(쿠마님 2026-07-20 확정).
 // 2026-09-02 개정: 휴대폰 본인확인(PASS) 수집항목·수탁자(포트원·{IDENTITY_PG_NAME})·차단 회원 해시 보관 추가.
-//   가입 화면 ConsentBox 의 요약 문구와 complete_signup_profile 의 policy_version('2026-09-02')을 같이 맞춘다.
 // 2026-09-04 추가: 여행 플래너(티켓 파일·장소 검색어·OpenStreetMap 국외이전·기기 로컬 사본 보관기간).
-//   플래너는 아직 꺼져 있어(VITE_PLANNER_ENABLED=false) 실제 수집이 시작되기 전 미리 고지하는 항목이다.
-//   ⚠ 플래너를 켜는 시점에 '최종 개정일'과 complete_signup_profile 의 policy_version 을 같은 날짜로 함께 올린다.
-//     (지금 날짜만 올리면 동의 기록의 버전과 화면 표기가 어긋난다.)
+// 2026-09-14 개정(쿠마님 지시 — 기능이 없는데 문서에 남아 있으면 안 된다):
+//   · 칭찬매칭·포인트를 숨기면서(src/lib/featureFlags.js) "승무원 칭찬매칭 운영"·"포인트 적립·이용" 목적과
+//     주소 항목(칭찬매칭 답례품 배송 전용)을 플래그로 가림 — 가입 화면도 이 동안 주소를 받지 않는다.
+//   · 여행 플래너가 구글 지도로 전환돼 있어(planner_settings.google_maps_enabled=true, 2026-09-05)
+//     Google LLC(지도 표시·장소 검색·경로 계산) 위탁·국외이전을 추가. 회원가입 항목에 아이디 추가(2026-09-05 아이디 로그인 전환).
+//   · 개인정보 보호법 제28조의8(국외 이전 고지 사항: 이전받는 자의 명칭·연락처)에 맞춰 국외이전 표에 연락처를 넣음.
+//     연락처는 각 사 개인정보처리방침에서 2026-09-14 확인: Supabase privacy@supabase.com / Vercel privacy@vercel.com /
+//     Resend(Plus Five Five) support@resend.com / Google 한국어 방침 googlekrsupport@google.com / OSMF privacy@osmfoundation.org
+//     (OSMF 방침상 저장 위치 = 영국·네덜란드). 수탁자가 바뀌면 이 표와 아래 개정 이력을 함께 고친다.
+//   ⚠ 가입 화면 ConsentBox 의 요약 문구와 DB complete_signup_profile_for 의 v_policy_version 을 '최종 개정일'과 같은 날짜로 맞춘다
+//     (src/lib/policy_version_20260914.sql). 플래그를 다시 켜면 문구가 바뀌므로 그 배포에서 날짜와 버전을 함께 올린다.
+const PRIVACY_REVISED_AT = '2026-09-14';
+
 function Section({ title, children }) {
   return (
     <section className="mt-8">
@@ -31,7 +41,7 @@ const Privacy = () => {
       />
       <div className="mx-auto px-4 max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-900">개인정보처리방침</h1>
-        <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-09-02</p>
+        <p className="mt-2 text-sm text-gray-400">최종 개정일: {PRIVACY_REVISED_AT}</p>
 
         <p className="mt-6 text-sm leading-relaxed text-gray-600">
           ConnectTrip(이하 “서비스”)은 「개인정보 보호법」을 준수하며, 이용자의 개인정보를 서비스 제공 목적 범위
@@ -40,9 +50,11 @@ const Privacy = () => {
 
         <Section title="1. 수집하는 개인정보 항목">
           <ul className="ml-4 list-disc space-y-1">
-            <li><strong className="text-gray-900">회원가입</strong>: 이메일, 비밀번호, 닉네임</li>
+            <li><strong className="text-gray-900">회원가입</strong>: 아이디, 이메일, 비밀번호, 닉네임</li>
             <li><strong className="text-gray-900">휴대폰 본인확인</strong>: 이름, 생년월일, 성별, 휴대폰번호, 이동통신사, 내외국인 여부, 연계정보(CI). 본인확인기관(이동통신사)이 확인한 값을 {IDENTITY_PG_NAME}·포트원을 통해 제공받으며, 연계정보(CI)는 복원할 수 없는 해시값으로만 저장합니다.</li>
-            <li><strong className="text-gray-900">주소</strong>: 우편번호, 도로명 주소, 상세 주소(포인트 선물 등 배송 목적)</li>
+            {COMMENDATION_ENABLED && (
+              <li><strong className="text-gray-900">주소</strong>: 우편번호, 도로명 주소, 상세 주소(칭찬매칭 답례품 배송 목적)</li>
+            )}
             <li><strong className="text-gray-900">승무원 회원</strong>: 항공사 이메일, 항공사명(승무원 인증용)</li>
             <li><strong className="text-gray-900">여행 플래너</strong>: 이용자가 올린 티켓 파일(항공권·입장권 등 이미지·PDF)과 그 파일에서 읽어낸 날짜·편명, 장소 검색어</li>
             <li><strong className="text-gray-900">자동 수집</strong>: 접속 기록(서비스 이용·접속 로그)</li>
@@ -53,9 +65,9 @@ const Privacy = () => {
           <ul className="ml-4 list-disc space-y-1">
             <li>회원 관리 및 본인 확인(실명 확인, 1인 1계정 확인, 만 14세 미만 가입 제한)</li>
             <li>커뮤니티(동행·정보공유·물품거래·후기 등) 운영</li>
-            <li>승무원 칭찬매칭 운영</li>
+            {COMMENDATION_ENABLED && <li>승무원 칭찬매칭 운영</li>}
             <li>여행 일정 작성·공유 및 티켓 보관 기능 제공</li>
-            <li>포인트 적립·이용 등 운영</li>
+            {POINTS_ENABLED && <li>포인트 적립·이용</li>}
             <li>부정 이용 방지, 분쟁 조정, 고객 문의 대응</li>
           </ul>
         </Section>
@@ -68,6 +80,7 @@ const Privacy = () => {
             <li><strong className="text-gray-900">Resend</strong> — 인증·알림 이메일 발송</li>
             <li><strong className="text-gray-900">포트원(주)</strong> — 휴대폰 본인확인 연동(본인확인 요청 중계·결과 전달)</li>
             <li><strong className="text-gray-900">{IDENTITY_PG_NAME}</strong> — 휴대폰 본인확인 서비스(이동통신사 본인확인 대행, PASS 앱)</li>
+            <li><strong className="text-gray-900">Google LLC</strong> — 여행 플래너의 지도 표시·장소 검색·경로 계산(해외)</li>
             <li><strong className="text-gray-900">OpenStreetMap Foundation</strong> — 여행 플래너의 지도 표시·장소 검색(해외)</li>
           </ul>
           <p className="text-xs text-gray-400">위탁 업무 내용이나 수탁자가 변경되는 경우 본 방침을 통해 고지합니다.</p>
@@ -84,7 +97,7 @@ const Privacy = () => {
             <table className="mt-2 w-full min-w-[520px] border-collapse text-xs">
               <thead>
                 <tr className="border-b border-gray-200 text-left text-gray-500">
-                  <th className="py-2 pr-3 font-semibold">이전받는 자</th>
+                  <th className="py-2 pr-3 font-semibold">이전받는 자(연락처)</th>
                   <th className="py-2 pr-3 font-semibold">이전 국가</th>
                   <th className="py-2 pr-3 font-semibold">이전 항목</th>
                   <th className="py-2 font-semibold">이용목적·보유기간</th>
@@ -92,26 +105,32 @@ const Privacy = () => {
               </thead>
               <tbody className="align-top text-gray-600">
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 pr-3">Supabase Inc.</td>
+                  <td className="py-2 pr-3">Supabase Inc.<br /><span className="text-gray-400">privacy@supabase.com</span></td>
                   <td className="py-2 pr-3">미국</td>
                   <td className="py-2 pr-3">회원가입·이용 과정에서 수집한 개인정보 전체(계정·프로필·게시물 등)</td>
                   <td className="py-2">데이터베이스·회원 인증 처리 / 회원 탈퇴 또는 위탁계약 종료 시까지</td>
                 </tr>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 pr-3">Vercel Inc.</td>
+                  <td className="py-2 pr-3">Vercel Inc.<br /><span className="text-gray-400">privacy@vercel.com</span></td>
                   <td className="py-2 pr-3">미국</td>
                   <td className="py-2 pr-3">서비스 접속·이용 과정의 요청 정보(접속기록 등)</td>
                   <td className="py-2">웹/앱 호스팅·전송 / 위탁계약 종료 시까지</td>
                 </tr>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 pr-3">Resend (Plus Five Five, Inc.)</td>
+                  <td className="py-2 pr-3">Resend (Plus Five Five, Inc.)<br /><span className="text-gray-400">support@resend.com</span></td>
                   <td className="py-2 pr-3">미국</td>
                   <td className="py-2 pr-3">이메일 주소</td>
                   <td className="py-2">인증·알림 이메일 발송 / 발송 목적 달성 시까지</td>
                 </tr>
+                <tr className="border-b border-gray-100">
+                  <td className="py-2 pr-3">Google LLC<br /><span className="text-gray-400">googlekrsupport@google.com</span></td>
+                  <td className="py-2 pr-3">미국</td>
+                  <td className="py-2 pr-3">여행 플래너에서 입력한 장소 검색어, 장소 좌표·경로 계산 요청 정보, 지도 요청 정보(접속 IP 등)</td>
+                  <td className="py-2">지도 표시·장소 검색·경로 계산 결과 제공 / 해당 회사의 로그 보관 정책에 따름</td>
+                </tr>
                 <tr>
-                  <td className="py-2 pr-3">OpenStreetMap Foundation</td>
-                  <td className="py-2 pr-3">영국</td>
+                  <td className="py-2 pr-3">OpenStreetMap Foundation<br /><span className="text-gray-400">privacy@osmfoundation.org</span></td>
+                  <td className="py-2 pr-3">영국·네덜란드</td>
                   <td className="py-2 pr-3">여행 플래너에서 입력한 장소 검색어, 지도 요청 정보(접속 IP 등)</td>
                   <td className="py-2">지도 표시·장소 검색 결과 제공 / 해당 재단의 로그 보관 정책에 따름</td>
                 </tr>
@@ -135,7 +154,7 @@ const Privacy = () => {
           <p>
             개인정보는 수집·이용 목적이 달성되거나 회원이 탈퇴를 요청한 때 지체 없이 파기합니다. 회원탈퇴는
             마이페이지에서 직접 신청할 수 있으며, 탈퇴 시 계정·프로필 등 회원을 식별할 수 있는 개인정보를 파기합니다.
-            다만 다른 이용자와 주고받은 게시판 댓글·매칭 등 상대방의 서비스 이용기록에 포함된 내용은 상대방의 기록 보호를
+            다만 다른 이용자와 주고받은 게시판 댓글{COMMENDATION_ENABLED ? '·매칭' : ''} 등 상대방의 서비스 이용기록에 포함된 내용은 상대방의 기록 보호를
             위해 삭제하지 않고, 탈퇴 회원을 식별할 수 없도록 익명 처리(‘탈퇴한 사용자’로 표시)합니다.
           </p>
           <p>
@@ -178,6 +197,17 @@ const Privacy = () => {
           <p className="text-xs text-gray-400">
             개인정보 침해에 대한 신고·상담은 개인정보침해신고센터(privacy.kisa.or.kr, 국번 없이 118)에서도 받을 수 있습니다.
           </p>
+        </Section>
+
+        {/* 개정 이력 — 날짜·내용은 git 이력과 각 시점 화면의 '최종 개정일' 기준(2026-09-14 확인). 개정할 때마다 맨 위에 한 줄 추가. */}
+        <Section title="개정 이력">
+          <ul className="ml-4 list-disc space-y-1">
+            <li>2026-09-14: 운영하지 않는 기능과 관련된 수집 항목(주소)·이용 목적 삭제, 여행 플래너 지도 제공자 Google LLC 위탁·국외 이전 추가, 국외 이전받는 자 연락처 명시, 회원가입 수집 항목에 아이디 명시</li>
+            <li>2026-09-04: 여행 플래너 관련 수집 항목(티켓 파일·장소 검색어)과 OpenStreetMap Foundation 위탁·국외 이전 추가</li>
+            <li>2026-09-02: 휴대폰 본인확인(PASS) 수집 항목과 수탁자(포트원·{IDENTITY_PG_NAME}) 추가, 이용 제한 상태 탈퇴 회원의 해시값 보관 기준 추가</li>
+            <li>2026-07-11: 만 14세 미만 가입 제한, 회원탈퇴 시 처리 기준, 개인정보 국외 이전 고지 추가</li>
+          </ul>
+          <p className="text-xs text-gray-400">이전 개인정보처리방침 전문은 {BUSINESS_INFO.이메일} 로 요청하시면 보내 드립니다.</p>
         </Section>
 
         <p className="mt-10 text-xs text-gray-400">

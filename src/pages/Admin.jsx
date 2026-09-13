@@ -12,7 +12,7 @@ import { reportApi, blockApi, adminApi, commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
 import useScrollHint from '../lib/useScrollHint';
-import { COMMENDATION_ENABLED } from '../lib/featureFlags';
+import { COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 
 const STATUS_COLORS = {
   '대기': 'bg-yellow-100 text-yellow-700',
@@ -590,7 +590,7 @@ const Admin = () => {
                           <th className="text-left py-3 px-4 font-bold text-gray-500">이름</th>
                           <th className="text-left py-3 px-4 font-bold text-gray-500">이메일</th>
                           <th className="text-left py-3 px-4 font-bold text-gray-500">유형</th>
-                          <th className="text-left py-3 px-4 font-bold text-gray-500">포인트</th>
+                          {POINTS_ENABLED && <th className="text-left py-3 px-4 font-bold text-gray-500">포인트</th>}
                           <th className="text-left py-3 px-4 font-bold text-gray-500">가입일</th>
                           <th className="text-left py-3 px-4 font-bold text-gray-500">상태</th>
                           <th className="text-right py-3 px-4 font-bold text-gray-500">액션</th>
@@ -608,7 +608,7 @@ const Admin = () => {
                                 {u.user_type === 'crew' ? '승무원' : '여행자'}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-gray-600">{u.points_balance || 0}P</td>
+                            {POINTS_ENABLED && <td className="py-3 px-4 text-gray-600">{u.points_balance || 0}P</td>}
                             <td className="py-3 px-4 text-gray-500 text-xs">
                               {u.created_at ? new Date(u.created_at).toLocaleDateString('ko-KR') : '-'}
                             </td>
@@ -623,6 +623,7 @@ const Admin = () => {
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-2">
+                                {POINTS_ENABLED && (
                                 <button
                                   onClick={() => handleGrantPoints(u.id)}
                                   disabled={actionLoading === u.id}
@@ -630,6 +631,7 @@ const Admin = () => {
                                 >
                                   포인트
                                 </button>
+                                )}
                                 {COMMENDATION_ENABLED && (
                                 <button
                                   onClick={() => handleGrantVouchers(u.id)}
@@ -690,7 +692,7 @@ const Admin = () => {
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                          <span>{u.points_balance || 0}P</span>
+                          {POINTS_ENABLED ? <span>{u.points_balance || 0}P</span> : <span />}
                           <span>{u.created_at ? new Date(u.created_at).toLocaleDateString('ko-KR') : '-'}</span>
                         </div>
                         <div className="flex gap-2">
@@ -715,7 +717,9 @@ const Admin = () => {
                             <option value="admin">관리자</option>
                           </select>
                         </div>
+                        {(POINTS_ENABLED || COMMENDATION_ENABLED) && (
                         <div className="flex gap-2 mt-2">
+                          {POINTS_ENABLED && (
                           <button
                             onClick={() => handleGrantPoints(u.id)}
                             disabled={actionLoading === u.id}
@@ -723,6 +727,7 @@ const Admin = () => {
                           >
                             포인트 선물
                           </button>
+                          )}
                           {COMMENDATION_ENABLED && (
                           <button
                             onClick={() => handleGrantVouchers(u.id)}
@@ -733,6 +738,7 @@ const Admin = () => {
                           </button>
                           )}
                         </div>
+                        )}
                       </div>
                     ))}
                   </div>

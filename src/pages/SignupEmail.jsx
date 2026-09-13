@@ -13,7 +13,7 @@ import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
 import { resolveNext, rememberNext } from '../lib/safeNext';
-import { REFERRAL_ENABLED, COMMENDATION_ENABLED } from '../lib/featureFlags';
+import { REFERRAL_ENABLED, COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 
 function loadDaumPostcode() {
   return new Promise((resolve, reject) => {
@@ -455,7 +455,8 @@ export default function SignupEmail() {
     if (!birthdate || isUnder14(birthdate)) return false;
     // 본인확인(PASS) 증빙 토큰이 유일한 신원 확인 수단이다(서버가 토큰 소비 + 값 재검증)
     if (!identityProof?.token) return false;
-    if (!zipcode || !addressRoad) return false;
+    // 주소는 칭찬매칭 답례품 배송에만 쓰인다 — 칭찬매칭이 꺼져 있으면 받지 않는다(개인정보 최소수집, 2026-09-14).
+    if (COMMENDATION_ENABLED && (!zipcode || !addressRoad)) return false;
     if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified || !airlineOtpToken
         || verifiedAirlineEmail !== airlineEmail.trim().toLowerCase())) return false;
     // 필수 동의 3종을 모두 체크해야 제출 가능 (가입 요청 자체를 막는 게 목적)
@@ -579,9 +580,10 @@ export default function SignupEmail() {
           nickname: nickname.trim(),
           birthdate,
           phone,
-          zipcode,
-          road: addressRoad,
-          detail: addressDetail,
+          // 칭찬매칭(답례품 배송)이 꺼져 있으면 주소를 보내지 않는다 — 서버가 빈 값을 NULL 로 저장.
+          zipcode: COMMENDATION_ENABLED ? zipcode : '',
+          road: COMMENDATION_ENABLED ? addressRoad : '',
+          detail: COMMENDATION_ENABLED ? addressDetail : '',
           referred_by: resolvedReferrer,
           terms_agreed_at: termsAgreedAt,
           privacy_agreed_at: privacyAgreedAt,
@@ -916,6 +918,8 @@ export default function SignupEmail() {
             <input type="tel" value={phone} readOnly style={lockedInputStyle} />
           </Field>
 
+          {/* 주소 — 칭찬매칭 답례품 배송 전용이라 COMMENDATION_ENABLED 로 숨김(2026-09-14) */}
+          {COMMENDATION_ENABLED && (
           <Field label="주소" icon={<MapPin size={16} />}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <input type="text" value={zipcode} readOnly placeholder="우편번호"
@@ -931,6 +935,7 @@ export default function SignupEmail() {
               placeholder="상세 주소 (동/호수 등)" style={inputStyle}
               autoComplete="off" maxLength={80} />
           </Field>
+          )}
 
           {REFERRAL_ENABLED && (
           <Field label="추천 승무원 ID / 추천코드" icon={<Gift size={16} />} required={false}
@@ -1034,8 +1039,8 @@ function ConsentBox({ idPrefix, agreeTerms, agreePrivacy, agreeAge,
       </div>
 
       <ul style={{ margin: '2px 0 6px 30px', padding: 0, listStyle: 'disc', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
-        <li>수집 항목: 아이디, 비밀번호, 이메일, 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
-        <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, {COMMENDATION_ENABLED ? '승무원 칭찬매칭 운영, ' : ''}포인트 적립·이용, 부정 이용 방지와 분쟁 조정·문의 대응.</li>
+        <li>수집 항목: 아이디, 비밀번호, 이메일, 닉네임, {COMMENDATION_ENABLED ? '주소(우편번호·도로명·상세), ' : ''}휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
+        <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, {COMMENDATION_ENABLED ? '승무원 칭찬매칭 운영, ' : ''}{POINTS_ENABLED ? '포인트 적립·이용, ' : ''}부정 이용 방지와 분쟁 조정·문의 대응.</li>
         <li>보유 기간: 회원 탈퇴 시 지체 없이 파기합니다. 관계 법령이 보존을 정한 결제·거래 기록은 법정 보존기간 동안 분리 보관한 뒤 파기합니다.</li>
       </ul>
 

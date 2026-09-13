@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { requestPointPayment, parsePaymentReturn, stripPaymentParams, readPendingPayment, clearPendingPayment } from '../lib/payments/portone';
 import { isNativeApp } from '../lib/native';
 import { POINT_PACKAGES } from '../lib/products';
-import { PAYMENTS_ENABLED, REFERRAL_ENABLED, COMMENDATION_ENABLED } from '../lib/featureFlags';
+import { PAYMENTS_ENABLED, REFERRAL_ENABLED, COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Trash2, Settings, Gift, Copy, Share2, UserX, MessageSquare, X } from 'lucide-react';
@@ -139,7 +139,8 @@ const MyPage = () => {
     const [pointHistoryLoading, setPointHistoryLoading] = useState(true);
 
     const fetchPointHistory = useCallback(async () => {
-        if (!user) {
+        // 포인트 기능이 꺼져 있으면(POINTS_ENABLED=false) 내역을 조회하지 않는다(2026-09-14).
+        if (!user || !POINTS_ENABLED) {
             setPointHistoryLoading(false);
             return;
         }
@@ -230,7 +231,9 @@ const MyPage = () => {
 
     // Delete flight + 연관된 칭찬매칭/동행 데이터도 삭제
     const handleDeleteFlight = async (flightId) => {
-        if (!window.confirm('이 스케줄을 삭제하시겠습니까?\n관련 칭찬매칭은 취소되고 그 편 게시판에는 더 들어갈 수 없습니다.')) return;
+        if (!window.confirm(COMMENDATION_ENABLED
+            ? '이 스케줄을 삭제하시겠습니까?\n관련 칭찬매칭은 취소되고 그 편 게시판에는 더 들어갈 수 없습니다.'
+            : '이 스케줄을 삭제하시겠습니까?\n그 편 게시판에는 더 들어갈 수 없습니다.')) return;
         try {
             // 해당 항공편 정보 가져오기
             const flight = myFlights.find(f => f.id === flightId);
@@ -527,7 +530,7 @@ const MyPage = () => {
 
     return (
         <>
-        <SEOHead title="마이 페이지 - ConnectTrip" description={COMMENDATION_ENABLED ? "ConnectTrip 마이 페이지. 내 포인트, 바우처, 항공편 스케줄, 키워드 알림과 칭찬 매칭 현황을 한눈에 관리하세요." : "ConnectTrip 마이 페이지. 내 포인트, 항공편 스케줄, 키워드 알림을 한눈에 관리하세요."} robots="noindex, nofollow" />
+        <SEOHead title="마이 페이지 - ConnectTrip" description={`ConnectTrip 마이 페이지. 내 ${POINTS_ENABLED ? '포인트, ' : ''}${COMMENDATION_ENABLED ? '바우처, ' : ''}항공편 스케줄, 키워드 알림${COMMENDATION_ENABLED ? '과 칭찬 매칭 현황' : ''}을 한눈에 관리하세요.`} robots="noindex, nofollow" />
         <section id="mypage" className="section-padding" style={{ background: '#f8f9fa' }}>
             <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -539,8 +542,8 @@ const MyPage = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px', margin: '0 auto' }}>
 
-                    {/* Traveler Point Wallet */}
-                    {!isCrew && (
+                    {/* Traveler Point Wallet — POINTS_ENABLED 로 숨김(2026-09-14) */}
+                    {POINTS_ENABLED && !isCrew && (
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -584,8 +587,8 @@ const MyPage = () => {
                         </motion.div>
                     )}
 
-                    {/* Crew Point Dashboard */}
-                    {isCrew && (
+                    {/* Crew Point Dashboard — POINTS_ENABLED 로 숨김(2026-09-14) */}
+                    {POINTS_ENABLED && isCrew && (
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
@@ -717,7 +720,8 @@ const MyPage = () => {
                     {/* 승무원 인증 (상태 + 1년 갱신) — 승무원 계정에만 */}
                     {isCrew && <CrewVerification />}
 
-                    {/* 최근 포인트 내역 (잔액 카드 바로 아래) */}
+                    {/* 최근 포인트 내역 (잔액 카드 바로 아래) — POINTS_ENABLED 로 숨김(2026-09-14) */}
+                    {POINTS_ENABLED && (
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -773,6 +777,7 @@ const MyPage = () => {
                             )}
                         </div>
                     </motion.div>
+                    )}
 
                     {/* Crew Referral (승무원 추천코드 + 초대링크) */}
                     {REFERRAL_ENABLED && isCrew && referralCode && (
@@ -1322,7 +1327,7 @@ const MyPage = () => {
                                 <ul className="ml-4 list-disc space-y-1 text-gray-500">
                                     <li>계정 및 프로필(이메일·이름·닉네임·휴대폰·주소·생년월일)</li>
                                     <li>작성한 게시글·댓글·후기·좋아요, 비행 스케줄</li>
-                                    <li>보유 포인트{COMMENDATION_ENABLED ? '·매칭신청권' : ''}(환급되지 않습니다)</li>
+                                    {POINTS_ENABLED && <li>보유 포인트{COMMENDATION_ENABLED ? '·매칭신청권' : ''}(환급되지 않습니다)</li>}
                                 </ul>
                                 <p className="text-gray-500">
                                     다만 다른 이용자와 주고받은 <strong>게시판 댓글{COMMENDATION_ENABLED ? '·칭찬매칭 기록' : ''}</strong>은 상대방의 이용기록 보호를 위해

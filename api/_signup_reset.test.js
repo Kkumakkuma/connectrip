@@ -107,6 +107,25 @@ describe('POST /api/signup', () => {
     expect(calls.deleted).toHaveLength(0);
   });
 
+  it('주소: 값이 오면 그대로, 비어 있으면 NULL 로 넘긴다(칭찬매칭 숨김 중 주소 미수집, 2026-09-14)', async () => {
+    const calls = newCalls();
+    const handler = await load('./signup.js', fakeSupabase(calls));
+    const res = mockRes();
+    await handler(post({ ...TRAVELER, zipcode: '', road: '', detail: '   ' }), res);
+    expect(res.statusCode).toBe(200);
+    const rpc = calls.rpcs.find((r) => r.name === 'complete_signup_profile_admin');
+    expect(rpc.args.p_zipcode).toBeNull();
+    expect(rpc.args.p_road).toBeNull();
+    expect(rpc.args.p_detail).toBeNull();
+
+    const calls2 = newCalls();
+    const handler2 = await load('./signup.js', fakeSupabase(calls2));
+    await handler2(post(TRAVELER), mockRes());
+    const rpc2 = calls2.rpcs.find((r) => r.name === 'complete_signup_profile_admin');
+    expect(rpc2.args.p_zipcode).toBe('16000');
+    expect(rpc2.args.p_road).toBe('수원시');
+  });
+
   it('승무원 가입: 회사 메일·토큰만, 개인 이메일 인자는 null', async () => {
     const calls = newCalls();
     const handler = await load('./signup.js', fakeSupabase(calls));

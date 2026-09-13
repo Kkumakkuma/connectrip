@@ -2,9 +2,18 @@ import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import { BUSINESS_INFO } from '../lib/businessInfo';
+import { COMMENDATION_ENABLED, POINTS_ENABLED, REFERRAL_ENABLED } from '../lib/featureFlags';
 
 // 이용약관. ⚠️ 사업자 정보(상호·대표자·사업자등록번호·통신판매업신고번호·소재지·연락처)는
 // src/lib/businessInfo.js 한 곳에서만 관리한다. 값이 바뀌면 여기와 푸터에 자동 반영된다.
+//
+// 2026-09-14 개정(쿠마님 지시): 칭찬매칭·추천코드·포인트 기능을 사이트에서 숨기면서(src/lib/featureFlags.js)
+//   기능이 없는데 조항이 남지 않도록 "포인트"·"매칭신청권의 취소" 조항과 서비스 성격의 "승무원 칭찬" 문구를 플래그로 가린다.
+//   조 번호는 화면에 보이는 조항만 차례로 매긴다(가운데 조항이 빠져도 번호가 비지 않게).
+//   ⚠ 플래그를 다시 켜면 조항이 돌아와 약관 내용이 바뀌므로, 그 배포에서 '최종 개정일'과
+//     DB complete_signup_profile_for 의 v_policy_version 을 같은 날짜로 함께 올린다.
+const TERMS_REVISED_AT = '2026-09-14';
+
 const OPERATOR_INFO = [
   ['서비스명', 'ConnectTrip (커넥트립)'],
   ['상호', BUSINESS_INFO.상호],
@@ -34,23 +43,30 @@ const Terms = () => {
     const el = document.getElementById(hash.slice(1));
     if (el) el.scrollIntoView({ block: 'start' });
   }, [hash]);
+
+  // 보이는 조항만 번호를 매긴다. 렌더마다 1부터 다시 센다(JSX 는 위에서 아래 순서로 평가된다).
+  let articleNo = 0;
+  const article = (title) => `${++articleNo}. ${title}`;
+  const showPoints = POINTS_ENABLED;
+  const showVoucherCancel = COMMENDATION_ENABLED && POINTS_ENABLED;
+
   return (
     <section className="min-h-screen bg-gray-50 py-24">
       <SEOHead
         title="이용약관 - ConnectTrip"
-        description="ConnectTrip 이용약관 — 서비스 성격, 회원의 의무, 금지행위, 포인트, 면책에 관한 안내."
+        description={`ConnectTrip 이용약관 — 서비스 성격, 회원의 의무, 금지행위${showPoints ? ', 포인트' : ''}, 면책에 관한 안내.`}
         path="/terms"
       />
       <div className="mx-auto px-4 max-w-3xl">
         <h1 className="text-3xl font-bold text-gray-900">이용약관</h1>
-        <p className="mt-2 text-sm text-gray-400">최종 개정일: 2026-09-03</p>
+        <p className="mt-2 text-sm text-gray-400">최종 개정일: {TERMS_REVISED_AT}</p>
 
         <p className="mt-6 text-sm leading-relaxed text-gray-600">
           본 약관은 ConnectTrip(이하 “서비스”)이 제공하는 여행 커뮤니티 서비스의 이용 조건과
           회원·운영자의 권리·의무를 정합니다. 회원으로 가입하면 본 약관에 동의한 것으로 봅니다.
         </p>
 
-        <Section title="1. 운영자 정보">
+        <Section title={article('운영자 정보')}>
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
             <table className="w-full text-sm">
               <tbody>
@@ -65,10 +81,10 @@ const Terms = () => {
           </div>
         </Section>
 
-        <Section title="2. 서비스의 성격">
+        <Section title={article('서비스의 성격')}>
           <p>
-            ConnectTrip은 여행자와 승무원이 동행 모집, 여행 일정 작성·공유, 여행 정보·후기 공유, 물품 거래·나눔,
-            승무원 칭찬 등을 나누는 <strong className="text-gray-900">커뮤니티 플랫폼</strong>입니다. 서비스는 통신판매중개자가 아니며,
+            ConnectTrip은 여행자와 승무원이 동행 모집, 여행 일정 작성·공유, 여행 정보·후기 공유, 물품 거래·나눔
+            {COMMENDATION_ENABLED ? ', 승무원 칭찬' : ''} 등을 나누는 <strong className="text-gray-900">커뮤니티 플랫폼</strong>입니다. 서비스는 통신판매중개자가 아니며,
             회원 간 물품 거래·나눔·동행 등은 <strong className="text-gray-900">회원이 직접 진행하는 거래</strong>입니다.
           </p>
           <p>
@@ -78,7 +94,7 @@ const Terms = () => {
           </p>
         </Section>
 
-        <Section title="3. 회원가입 및 본인확인">
+        <Section title={article('회원가입 및 본인확인')}>
           <p>
             서비스는 오프라인 만남이 동반될 수 있는 특성상 안전을 위해 가입 시 이메일 인증과 이동통신사 휴대폰
             본인확인(PASS)을 요구하며, 본인확인으로 확인된 이름·생년월일·휴대폰번호로 가입합니다.
@@ -88,7 +104,7 @@ const Terms = () => {
           </p>
         </Section>
 
-        <Section title="4. 회원의 금지행위">
+        <Section title={article('회원의 금지행위')}>
           <p>회원은 다음 행위를 해서는 안 되며, 위반 시 게시물 삭제·이용 제한·계정 정지 등의 조치가 이루어질 수 있습니다.</p>
           <ul className="ml-4 list-disc space-y-1">
             <li>타인 사칭, 본인확인 정보·신분 위조</li>
@@ -99,7 +115,7 @@ const Terms = () => {
           </ul>
         </Section>
 
-        <Section title="5. 회원 간 거래·동행 시 유의">
+        <Section title={article('회원 간 거래·동행 시 유의')}>
           <p>
             물품 거래·나눔·동행은 회원 간 직접 거래·약속이므로, 회원은 거래 상대와 거래 조건을 신중히 확인할 책임이
             있습니다. 사기·범죄가 의심되는 경우 즉시 신고 기능을 이용하시고, 필요한 경우 수사기관에 신고하시기 바랍니다.
@@ -107,46 +123,52 @@ const Terms = () => {
           </p>
         </Section>
 
-        <Section title="6. 포인트">
-          <p>
-            서비스 이용·활동에 따라 제공되는 포인트는 서비스 내에서만 사용할 수 있는 혜택이며,
-            <strong className="text-gray-900"> 현금으로 환급되지 않습니다.</strong> 부정한 방법으로 적립된 포인트는 회수될 수 있습니다.
-          </p>
-          <p>
-            포인트는 추천 보너스, 게시글 좋아요 등 서비스 활동으로만 적립되며 현금으로 충전하지 않습니다.
-            칭찬매칭 신청에 필요한 매칭신청권은 1개당 30,000포인트로 구매합니다.
-          </p>
-        </Section>
+        {/* 포인트 — POINTS_ENABLED 로 숨김(2026-09-14) */}
+        {showPoints && (
+          <Section title={article('포인트')}>
+            <p>
+              서비스 이용·활동에 따라 제공되는 포인트는 서비스 내에서만 사용할 수 있는 혜택이며,
+              <strong className="text-gray-900"> 현금으로 환급되지 않습니다.</strong> 부정한 방법으로 적립된 포인트는 회수될 수 있습니다.
+            </p>
+            <p>
+              포인트는 {REFERRAL_ENABLED ? '추천 보너스, ' : ''}게시글 좋아요 등 서비스 활동으로만 적립되며 현금으로 충전하지 않습니다.
+              {COMMENDATION_ENABLED ? ' 칭찬매칭 신청에 필요한 매칭신청권은 1개당 30,000포인트로 구매합니다.' : ''}
+            </p>
+          </Section>
+        )}
 
         {/* 2026-09-03 개정: 현금 결제(포인트 충전)를 운영하지 않아 결제·환불 조항을 포인트·매칭신청권 취소 규정으로 대체.
-            결제 기능을 다시 켤 때는 git 이력(2026-09-02 본)의 7조를 복구한다. */}
-        <Section title="7. 매칭신청권의 취소" id="refund">
-          <p>
-            <strong className="text-gray-900">취소</strong>: 회원은 매칭신청권을 사용하지 않은 상태에서 구매일로부터 7일 이내에 마이페이지에서
-            취소할 수 있으며, 취소 시 구매에 쓴 포인트로 되돌려 드립니다. 이미 칭찬매칭 신청에 사용한 매칭신청권과 운영자가 무상으로
-            지급한 매칭신청권은 취소 대상에서 제외합니다.
-          </p>
-          <p>
-            <strong className="text-gray-900">현금 환급 불가</strong>: 포인트와 매칭신청권은 서비스 내에서만 사용할 수 있으며 현금으로
-            환급되지 않습니다. 부정 이용으로 회수된 포인트는 되돌려 드리지 않습니다.
-          </p>
-          <p>
-            <strong className="text-gray-900">답례품</strong>: 칭찬매칭에 참여한 승객에게 드리는 소정의 답례품은 커넥트립이 이벤트로
-            제공하며, 수량·품목은 운영 상황에 따라 달라질 수 있습니다.
-          </p>
-          <p>
-            취소 관련 문의는 아래 연락처로 접수합니다: {BUSINESS_INFO.이메일}
-          </p>
-        </Section>
+            결제 기능을 다시 켤 때는 git 이력(2026-09-02 본)의 7조를 복구한다.
+            2026-09-14: 칭찬매칭·포인트를 숨기면서 이 조항도 COMMENDATION_ENABLED && POINTS_ENABLED 일 때만 보인다. */}
+        {showVoucherCancel && (
+          <Section title={article('매칭신청권의 취소')} id="refund">
+            <p>
+              <strong className="text-gray-900">취소</strong>: 회원은 매칭신청권을 사용하지 않은 상태에서 구매일로부터 7일 이내에 마이페이지에서
+              취소할 수 있으며, 취소 시 구매에 쓴 포인트로 되돌려 드립니다. 이미 칭찬매칭 신청에 사용한 매칭신청권과 운영자가 무상으로
+              지급한 매칭신청권은 취소 대상에서 제외합니다.
+            </p>
+            <p>
+              <strong className="text-gray-900">현금 환급 불가</strong>: 포인트와 매칭신청권은 서비스 내에서만 사용할 수 있으며 현금으로
+              환급되지 않습니다. 부정 이용으로 회수된 포인트는 되돌려 드리지 않습니다.
+            </p>
+            <p>
+              <strong className="text-gray-900">답례품</strong>: 칭찬매칭에 참여한 승객에게 드리는 소정의 답례품은 커넥트립이 이벤트로
+              제공하며, 수량·품목은 운영 상황에 따라 달라질 수 있습니다.
+            </p>
+            <p>
+              취소 관련 문의는 아래 연락처로 접수합니다: {BUSINESS_INFO.이메일}
+            </p>
+          </Section>
+        )}
 
-        <Section title="8. 게시물의 관리">
+        <Section title={article('게시물의 관리')}>
           <p>
             회원이 작성한 게시물의 권리와 책임은 작성자에게 있습니다. 운영자는 본 약관 또는 법령을 위반하거나 신고된
             게시물에 대해 사전 통지 없이 삭제·이동·노출 제한을 할 수 있습니다.
           </p>
         </Section>
 
-        <Section title="9. 면책">
+        <Section title={article('면책')}>
           <p>
             서비스는 천재지변, 회원 또는 제3자의 귀책 사유로 인한 손해에 대해 책임을 지지 않습니다. 또한 회원 간
             거래·동행·만남의 과정과 결과에 대해 보증하지 않으며, 그로 인해 발생한 분쟁은 당사자 간에 해결하는 것을
@@ -154,11 +176,21 @@ const Terms = () => {
           </p>
         </Section>
 
-        <Section title="10. 약관의 변경">
+        <Section title={article('약관의 변경')}>
           <p>
             운영자는 관련 법령을 위반하지 않는 범위에서 본 약관을 개정할 수 있으며, 개정 시 서비스 내 공지를 통해
             적용일자와 변경 내용을 안내합니다.
           </p>
+        </Section>
+
+        {/* 개정 이력 — 날짜·내용은 git 이력과 각 시점 화면의 '최종 개정일' 기준(2026-09-14 확인). 조 번호를 매기지 않는 부속 안내다. */}
+        <Section title="개정 이력">
+          <ul className="ml-4 list-disc space-y-1">
+            <li>{TERMS_REVISED_AT}: 운영하지 않는 기능과 관련된 조항 삭제, 서비스 성격 설명 정리</li>
+            <li>2026-09-03: 현금 결제를 운영하지 않게 되어 결제·환불 조항 개정</li>
+            <li>2026-09-02: 결제·환불·청약철회 조항 신설, 운영자 정보에 전화 추가</li>
+          </ul>
+          <p className="text-xs text-gray-400">이전 약관 전문은 {BUSINESS_INFO.이메일} 로 요청하시면 보내 드립니다.</p>
         </Section>
 
         <p className="mt-10 text-xs text-gray-400">
