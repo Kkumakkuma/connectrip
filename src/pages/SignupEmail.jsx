@@ -634,7 +634,7 @@ export default function SignupEmail() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         style={{ background: 'white', borderRadius: 16, padding: 32, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
         <h1 style={{ fontSize: 22, marginBottom: 6, color: '#1a365d', fontWeight: 700 }}>
-          회원가입 ({userType === 'crew' ? '승무원' : '일반 여행자'})
+          회원가입 ({userType === 'crew' ? '승무원' : '여행자'})
         </h1>
         {userType === 'crew' && airlineInfo && (
           <p style={{ color: '#6d28d9', fontSize: 13, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>

@@ -124,13 +124,13 @@ const Signup = () => {
                                             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                                                 <User size={40} className="text-white" />
                                             </div>
-                                            <h2 className="text-2xl font-bold text-gray-800">일반 여행자</h2>
+                                            <h2 className="text-2xl font-bold text-gray-800">여행자</h2>
                                             <p className="text-gray-600 leading-relaxed">
                                                 여행 동행자를 찾고, 여행 정보를 공유하며, 다양한 여행 관련 서비스를 이용할 수 있습니다.
                                             </p>
                                             <div className="pt-4">
                                                 <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-full font-semibold">
-                                                    <span>일반 회원으로 가입</span>
+                                                    <span>여행자로 가입</span>
                                                     <ArrowRight size={16} />
                                                 </div>
                                             </div>
