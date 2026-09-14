@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, Calendar, Heart, Plus } from 'lucide-react';
+import { Users, Calendar, Heart, Plus, MessageSquare } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { companionApi, postLikeApi } from '../lib/db';
 import { postPath, COMPANION_STATUS } from '../lib/boards';
@@ -192,6 +192,7 @@ const CompanionBoard = () => {
                                                 <span className="ml-auto inline-flex items-center gap-3 whitespace-nowrap">
                                                     <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                     <span className="inline-flex items-center gap-1"><Heart size={13} aria-hidden="true" />{likes[post.id]?.count || 0}</span>
+                                                    <span className="inline-flex items-center gap-1"><MessageSquare size={13} aria-hidden="true" />{post.comment_count ?? 0}</span>
                                                 </span>
                                             </div>
                                         </Link>

@@ -20,13 +20,22 @@ const LIST_FETCH_LIMIT = 300;
 // Companion Posts (동행 게시판)
 // ============================================================
 
+// PostgREST 집계 임베드 [{count}] → comment_count 로 펴는 공용 헬퍼 (2026-09-15). 행 하나·배열 모두 받는다.
+const flattenCount = (key) => {
+  const one = (row) => { if (!row) return row; const { [key]: agg, ...post } = row; return { ...post, comment_count: agg?.[0]?.count ?? 0 }; };
+  return (v) => (Array.isArray(v) ? v.map(one) : one(v));
+};
+const flattenCompanion = flattenCount('companion_comments');
+const flattenCrew = flattenCount('crew_comments');
+const flattenDestination = flattenCount('destination_comments');
+
 export const companionApi = {
   // 통합 게시판(2026-09-07): 대륙(region_id)·검색어를 서버에서 거르고 페이지 단위로 받는다. 반환 { data, count }.
   // 클라이언트에서 전체를 받아 거르면 인기 대륙이 상한(300)을 채워 다른 대륙 글이 사라진다(agy 지적).
   async getAll({ regionId = null, q = '', page = 1, limit = 20 } = {}) {
     let query = supabase
       .from('companion_posts')
-      .select('*, profiles(user_type, crew_verified)', { count: 'exact' })
+      .select('*, companion_comments(count), profiles(user_type, crew_verified)', { count: 'exact' })
       .order('created_at', { ascending: false })
       // id 2차 정렬 = 정렬값이 같을 때 페이지 경계에서 뽑히는 행이 매번 달라지지 않게 고정
       .order('id', { ascending: false })
@@ -36,27 +45,27 @@ export const companionApi = {
     if (term) query = query.or(ilikeOr(['title', 'country', 'content'], term));
     const { data, count, error } = await query;
     if (error) throw error;
-    return { data: data || [], count: count || 0 };
+    return { data: flattenCompanion(data || []), count: count || 0 };
   },
 
   async create(post) {
     const { data, error } = await supabase
       .from('companion_posts')
       .insert(post)
-      .select('*, profiles(user_type, crew_verified)')
+      .select('*, companion_comments(count), profiles(user_type, crew_verified)')
       .single();
     if (error) throw error;
-    return data;
+    return flattenCompanion(data);
   },
 
   async getById(id) {
     const { data, error } = await supabase
       .from('companion_posts')
-      .select('*, profiles(name, user_type, crew_verified)')
+      .select('*, companion_comments(count), profiles(name, user_type, crew_verified)')
       .eq('id', id)
       .single();
     if (error) throw error;
-    return data;
+    return flattenCompanion(data);
   },
 
   // 글쓴이 본인만 통과한다(RLS "Update companion"). status: 'open' | 'closed' (모집완료, 2026-09-14)
@@ -65,10 +74,37 @@ export const companionApi = {
       .from('companion_posts')
       .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select('*, profiles(name, user_type, crew_verified)')
+      .select('*, companion_comments(count), profiles(name, user_type, crew_verified)')
+      .single();
+    if (error) throw error;
+    return flattenCompanion(data);
+  },
+
+
+  // 댓글(companion_comments, 2026-09-15) — 구조·규칙은 qna_comments 와 동일
+  async getComments(postId) {
+    const { data, error } = await supabase
+      .from('companion_comments')
+      .select('*, profiles!companion_comments_user_id_fkey(user_type, crew_verified)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async addComment(comment) {
+    const { data, error } = await supabase
+      .from('companion_comments')
+      .insert(comment)
+      .select('*, profiles!companion_comments_user_id_fkey(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
+  },
+
+  async deleteComment(id) {
+    const { error } = await supabase.from('companion_comments').delete().eq('id', id);
+    if (error) throw error;
   },
 
   async delete(id) {
@@ -324,34 +360,34 @@ export const qnaApi = {
 export const crewApi = {
   async getAll(postType = null) {
     let query = supabase.from('crew_posts')
-      .select('*, profiles(user_type, crew_verified)')
+      .select('*, crew_comments(count), profiles(user_type, crew_verified)')
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
     if (postType) query = query.eq('post_type', postType);
     const { data, error } = await query;
     if (error) throw error;
-    return data;
+    return flattenCrew(data);
   },
 
   async create(post) {
     const { data, error } = await supabase
       .from('crew_posts')
       .insert(post)
-      .select('*, profiles(user_type, crew_verified)')
+      .select('*, crew_comments(count), profiles(user_type, crew_verified)')
       .single();
     if (error) throw error;
-    return data;
+    return flattenCrew(data);
   },
 
   async getById(id) {
     const { data, error } = await supabase
       .from('crew_posts')
-      .select('*, profiles(user_type, crew_verified)')
+      .select('*, crew_comments(count), profiles(user_type, crew_verified)')
       .eq('id', id)
       .single();
     if (error) throw error;
-    return data;
+    return flattenCrew(data);
   },
 
   async update(id, patch) {
@@ -359,10 +395,37 @@ export const crewApi = {
       .from('crew_posts')
       .update(patch)
       .eq('id', id)
-      .select('*, profiles(user_type, crew_verified)')
+      .select('*, crew_comments(count), profiles(user_type, crew_verified)')
+      .single();
+    if (error) throw error;
+    return flattenCrew(data);
+  },
+
+
+  // 댓글(crew_comments, 2026-09-15) — 구조·규칙은 qna_comments 와 동일
+  async getComments(postId) {
+    const { data, error } = await supabase
+      .from('crew_comments')
+      .select('*, profiles!crew_comments_user_id_fkey(user_type, crew_verified)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async addComment(comment) {
+    const { data, error } = await supabase
+      .from('crew_comments')
+      .insert(comment)
+      .select('*, profiles!crew_comments_user_id_fkey(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
+  },
+
+  async deleteComment(id) {
+    const { error } = await supabase.from('crew_comments').delete().eq('id', id);
+    if (error) throw error;
   },
 
   async delete(id) {
@@ -462,7 +525,7 @@ export const destinationsApi = {
     // likes_count 는 같은 값이 흔하고 실시간으로 변한다. id 2차 정렬이 없으면
     // 같은 좋아요 수끼리 순서가 조회할 때마다 뒤바뀐다.
     let query = supabase.from('destinations')
-      .select('*, profiles(name, user_type, crew_verified, avatar_url)', { count: 'exact' })
+      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)', { count: 'exact' })
       .order('likes_count', { ascending: false })
       .order('id', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
@@ -471,17 +534,17 @@ export const destinationsApi = {
     if (term) query = query.or(ilikeOr(['name', 'description'], term));
     const { data, count, error } = await query;
     if (error) throw error;
-    return { data: data || [], count: count || 0 };
+    return { data: flattenDestination(data || []), count: count || 0 };
   },
 
   async create(dest) {
     const { data, error } = await supabase
       .from('destinations')
       .insert(dest)
-      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)')
       .single();
     if (error) throw error;
-    return data;
+    return flattenDestination(data);
   },
 
   // like/unlike 는 제거했다(2026-08-28). destinations.likes_count 를 클라이언트가 직접
@@ -491,11 +554,11 @@ export const destinationsApi = {
   async getById(id) {
     const { data, error } = await supabase
       .from('destinations')
-      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)')
       .eq('id', id)
       .single();
     if (error) throw error;
-    return data;
+    return flattenDestination(data);
   },
 
   async update(id, patch) {
@@ -503,10 +566,37 @@ export const destinationsApi = {
       .from('destinations')
       .update(patch)
       .eq('id', id)
-      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)')
+      .single();
+    if (error) throw error;
+    return flattenDestination(data);
+  },
+
+
+  // 댓글(destination_comments, 2026-09-15) — 구조·규칙은 qna_comments 와 동일
+  async getComments(postId) {
+    const { data, error } = await supabase
+      .from('destination_comments')
+      .select('*, profiles!destination_comments_user_id_fkey(user_type, crew_verified)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async addComment(comment) {
+    const { data, error } = await supabase
+      .from('destination_comments')
+      .insert(comment)
+      .select('*, profiles!destination_comments_user_id_fkey(user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
+  },
+
+  async deleteComment(id) {
+    const { error } = await supabase.from('destination_comments').delete().eq('id', id);
+    if (error) throw error;
   },
 
   async delete(id) {

@@ -7,7 +7,7 @@ export const BOARDS = {
   companion: {
     key: 'companion', label: '여행 동행자 모집', listPath: '/companion', api: companionApi,
     likeTable: 'companion_posts', reportType: 'companion',
-    titleField: 'title', bodyField: 'content', imageField: null, comments: null,
+    titleField: 'title', bodyField: 'content', imageField: null, comments: companionApi,
     hasRegion: true, hasStatus: true,
   },
   review: {
@@ -31,14 +31,14 @@ export const BOARDS = {
   crew: {
     key: 'crew', label: 'CREW 전용', listPath: '/crew', api: crewApi,
     likeTable: 'crew_posts', reportType: 'crew',
-    titleField: 'title', bodyField: 'content', imageField: 'image_url', comments: null,
+    titleField: 'title', bodyField: 'content', imageField: 'image_url', comments: crewApi,
     hasRegion: false, crewOnly: true,
   },
   destination: {
     key: 'destination', label: '승무원 추천지', listPath: '/recommend', api: destinationsApi,
     likeTable: 'destinations', reportType: 'destination',
     titleField: 'name', bodyField: 'description', extraField: 'crew_comment', extraLabel: '승무원 꿀팁',
-    imageField: 'image_url', comments: null,
+    imageField: 'image_url', comments: destinationsApi,
     hasRegion: true, crewOnly: false, crewWriteOnly: true,
   },
 };

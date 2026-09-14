@@ -199,6 +199,7 @@ const CrewOnly = () => {
                                                 <span className="ml-auto inline-flex items-center gap-3 whitespace-nowrap">
                                                     <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
                                                     <span className="inline-flex items-center gap-1"><Heart size={13} aria-hidden="true" />{likes[post.id]?.count || 0}</span>
+                                                    <span className="inline-flex items-center gap-1"><MessageSquare size={13} aria-hidden="true" />{post.comment_count ?? 0}</span>
                                                 </span>
                                             </div>
                                         </Link>

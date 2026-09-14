@@ -28,6 +28,7 @@ const Comments = ({ api, postId, postOwnerId = null }) => {
             const data = await api.getComments(postId);
             if (reqId !== reqRef.current) return;
             setList(data || []);
+            return data || [];
         } catch (err) {
             if (reqId !== reqRef.current) return;
             console.error('댓글 조회 실패:', err);
@@ -74,8 +75,10 @@ const Comments = ({ api, postId, postOwnerId = null }) => {
             await api.deleteComment(commentId);
             if (replyTo?.id === commentId) setReplyTo(null);
             // 달린 답글의 처리가 게시판마다 다르다(qna_comments 는 parent_id SET NULL,
-            // review_comments 는 CASCADE) — 화면에서 지레짐작하지 않고 서버 상태를 다시 받는다.
-            await load();
+            // review_comments 등은 CASCADE) — 화면에서 지레짐작하지 않고 서버 상태를 다시 받는다.
+            const rows = await load();
+            // 같이 지워진 답글이 답글 대상으로 남아 있으면 해제 (codex 지적, 2026-09-15)
+            if (Array.isArray(rows) && replyTo && !rows.some((c) => c.id === replyTo.id)) setReplyTo(null);
         } catch (err) {
             console.error('댓글 삭제 실패:', err);
             alert('댓글 삭제에 실패했습니다.');

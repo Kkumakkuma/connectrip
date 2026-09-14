@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Heart, Plus, Lock, MapPin } from 'lucide-react';
+import { Heart, Plus, Lock, MapPin, MessageSquare } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { destinationsApi, postLikeApi } from '../lib/db';
 import { postPath } from '../lib/boards';
@@ -47,6 +47,7 @@ const DestinationCard = ({ dest, likeCount }) => (
                 </div>
                 <span className="inline-flex items-center gap-1 text-[13px] font-bold text-muted flex-shrink-0">
                     <Heart size={16} aria-hidden="true" /> {likeCount}
+                    <MessageSquare size={15} aria-hidden="true" className="ml-2" /> {dest.comment_count ?? 0}
                 </span>
             </div>
             <p className="text-[13px] text-muted mt-1 line-clamp-2 leading-relaxed">{dest.description}</p>

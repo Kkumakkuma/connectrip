@@ -287,7 +287,7 @@ const PostDetail = () => {
                                         </button>
                                     )}
                                     <button type="button" onClick={openEdit} className="btn-air-secondary !py-2">수정</button>
-                                    <button type="button" onClick={remove} className="btn-air-link text-error">삭제</button>
+                                    <button type="button" onClick={remove} className="btn-air-secondary !py-2">삭제</button>
                                 </span>
                             )}
                         </div>
