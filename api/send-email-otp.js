@@ -109,10 +109,11 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: FROM,
         to: [email],
-        subject: purpose === 'airline_email' ? '[ConnectTrip] 승무원 회사 이메일 인증번호' : '[ConnectTrip] 이메일 인증번호',
+        subject: purpose === 'airline_email' ? '[ConnectTrip] 승무원 회사 이메일 인증번호'
+          : purpose === 'email_change' ? '[ConnectTrip] 연락 이메일 변경 인증번호' : '[ConnectTrip] 이메일 인증번호',
         html: `<div style="font-family:'Noto Sans KR',sans-serif;max-width:520px;margin:0 auto;padding:32px;background:#ffffff">
-  <h1 style="font-size:20px;color:#1e3a8a;margin-bottom:12px">${purpose === 'airline_email' ? 'ConnectTrip 승무원 회사 이메일 인증' : 'ConnectTrip 이메일 인증'}</h1>
-  <p style="color:#334155;font-size:15px;line-height:1.6">아래 6자리 인증번호를 회원가입 화면의 ${purpose === 'airline_email' ? '승무원 회사 이메일' : '이메일'} 인증 칸에 입력해주세요.</p>
+  <h1 style="font-size:20px;color:#1e3a8a;margin-bottom:12px">${purpose === 'airline_email' ? 'ConnectTrip 승무원 회사 이메일 인증' : purpose === 'email_change' ? 'ConnectTrip 연락 이메일 변경 인증' : 'ConnectTrip 이메일 인증'}</h1>
+  <p style="color:#334155;font-size:15px;line-height:1.6">아래 6자리 인증번호를 ${purpose === 'email_change' ? '마이페이지의 연락 이메일 변경' : `회원가입 화면의 ${purpose === 'airline_email' ? '승무원 회사 이메일' : '이메일'} 인증`} 칸에 입력해주세요.</p>
   <div style="font-size:32px;font-weight:700;color:#2563eb;letter-spacing:8px;text-align:center;background:#eff6ff;padding:20px 0;border-radius:12px;margin:24px 0">${code}</div>
   <p style="color:#64748b;font-size:13px;line-height:1.6">이 인증번호는 5분간 유효합니다.<br>본인이 요청하지 않았다면 이 이메일을 무시하셔도 됩니다.</p>
   <hr style="border:0;border-top:1px solid #e5e7eb;margin:24px 0">

@@ -13,8 +13,13 @@ export default function IdentityVerifyStep({
   purpose = IDENTITY_PURPOSE_SIGNUP,
   title = '1단계 · 휴대폰 본인확인',
   description = '안전한 커뮤니티를 위해 가입 전에 본인 명의 휴대폰으로 본인확인을 진행합니다.',
+  // 하단 고지. 가입 외 용도(휴대폰 변경 등)는 부모가 그 용도에 맞는 문구를 넘긴다(검토 지적, 2026-09-14).
+  notice = null,
+  // 서버 검증 진행 중 여부를 부모에 알린다(부모가 닫기·다른 편집을 잠글 수 있게).
+  onBusyChange = null,
 }) {
   const [busy, setBusy] = useState(false);
+  useEffect(() => { onBusyChange?.(busy); }, [busy]); // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState('');
   const confirmedRef = useRef('');
 
@@ -85,7 +90,7 @@ export default function IdentityVerifyStep({
       )}
       <p style={{ margin: '12px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
         본인확인은 {IDENTITY_PG_NAME}(휴대폰 본인확인 서비스)를 통해 이동통신사가 처리합니다. 확인 과정에서 받는 이름·생년월일·성별·휴대폰번호·통신사·내외국인 여부·연계정보(CI)는
-        실명 확인, 1인 1계정 확인, 만 14세 미만 가입 제한 목적으로만 사용하며, 가입을 마치지 않으면 24시간 안에 파기합니다.
+        {' '}{notice || '실명 확인, 1인 1계정 확인, 만 14세 미만 가입 제한 목적으로만 사용하며, 가입을 마치지 않으면 24시간 안에 파기합니다.'}
       </p>
     </div>
   );

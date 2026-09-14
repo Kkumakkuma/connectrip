@@ -243,6 +243,28 @@ describe('⑦ 승무원 회사 메일 전용', () => {
     }
   });
 
+  it("'email_change'(마이페이지 연락 이메일 변경)도 도메인 제한 없이 발송·검증되고 제목이 변경용이다", async () => {
+    let calls = newCalls();
+    const fetchFn = stubFetch({ ok: true, body: { id: 'em_3' } });
+    let handler = await loadHandler('./send-email-otp.js', fakeSupabase(calls));
+    let res = mockRes();
+    await handler(post({ email: 'me@gmail.com', purpose: 'email_change' }), res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.domainLookups).toHaveLength(0);
+    const sent = JSON.parse(fetchFn.mock.calls[0][1].body);
+    expect(sent.subject).toContain('연락 이메일 변경');
+    expect(sent.html).toContain('마이페이지');
+
+    calls = newCalls();
+    handler = await loadHandler('./verify-email-otp.js', fakeSupabase(calls, { rpcResult: 'ok' }));
+    res = mockRes();
+    await handler(post({ email: 'me@gmail.com', code: '123456', purpose: 'email_change' }), res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.domainLookups).toHaveLength(0);
+    const issued = calls.rpcs.find((r) => r.name === 'verify_otp_and_issue_token');
+    expect(issued.args.p_purpose).toBe('email_change');
+  });
+
   it("'signup'(여행자 개인 메일)은 도메인 제한 없이 발송·검증되고 도메인 조회를 하지 않는다", async () => {
     let calls = newCalls();
     const fetchFn = stubFetch({ ok: true, body: { id: 'em_2' } });

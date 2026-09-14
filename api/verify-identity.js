@@ -22,6 +22,9 @@ const PHONE_RE = /^01[016789][0-9]{7,8}$/;
 const BIRTH_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const CI_RE = /^[A-Za-z0-9+/=_-]{32,200}$/;         // CI 는 88자 base64 — 빈 값·이상값 해시 방지
 
+// 인증 완료 시각 신선도(1시간). 오래전에 완료된 인증 ID 를 다시 제출해 새 증빙을 받는 경로 차단(codex 지적, 2026-09-14).
+const IDENTITY_FRESH_MS = 60 * 60 * 1000;
+
 const RESULT_MAP = {
   already_used:  { status: 400, code: 'IDENTITY_ALREADY_USED',       error: '이미 처리된 본인확인 요청입니다. 본인확인을 다시 진행해주세요.' },
   ci_registered: { status: 409, code: 'IDENTITY_ALREADY_REGISTERED', error: '이미 가입된 회원입니다. 로그인하거나 아이디·비밀번호 찾기를 이용해주세요.' },
@@ -98,7 +101,9 @@ export default async function handler(req, res) {
     const id = str(body.identityVerificationId);
     // 증빙 용도: 가입(signup_identity)·비밀번호 찾기(password_reset)·아이디 찾기(find_id). 허용 밖은 400.
     const purpose = body.purpose === undefined ? 'signup_identity' : String(body.purpose);
-    if (!['signup_identity', 'password_reset', 'find_id'].includes(purpose)) {
+    // 'phone_change' = 마이페이지 휴대폰 변경(2026-09-14). 소비는 로그인한 본인만 가능한 RPC change_my_phone_by_identity 가
+    // CI 일치까지 검사하므로, 여기서 비로그인 발급이 가능해도 남의 계정을 바꾸는 경로는 없다.
+    if (!['signup_identity', 'password_reset', 'find_id', 'phone_change'].includes(purpose)) {
       return fail(res, 400, 'BAD_PURPOSE', '본인확인 용도가 올바르지 않습니다.');
     }
     if (!ID_RE.test(id)) {
@@ -151,6 +156,11 @@ export default async function handler(req, res) {
       return fail(res, 400, 'IDENTITY_NOT_VERIFIED', msg);
     }
 
+    // ②-b 인증 시각 — 포트원 V2 응답의 verifiedAt(ISO) 기준. 필드가 없으면(구형 응답) 검사하지 않는다.
+    const verifiedAtMs = iv.verifiedAt ? Date.parse(iv.verifiedAt) : NaN;
+    if (Number.isFinite(verifiedAtMs) && Date.now() - verifiedAtMs > IDENTITY_FRESH_MS) {
+      return fail(res, 400, 'IDENTITY_STALE', '본인확인이 만료되었습니다. 다시 진행해주세요.');
+    }
     // ③ 결과 필드 검증 (타입·빈값·형식)
     const c = (iv.verifiedCustomer && typeof iv.verifiedCustomer === 'object') ? iv.verifiedCustomer : {};
     const name = str(c.name).slice(0, 30);

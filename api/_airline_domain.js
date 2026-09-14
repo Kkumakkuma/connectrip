@@ -51,7 +51,8 @@ export function airlineDomainFailure(check) {
   return { status: 403, code: 'AIRLINE_DOMAIN_REQUIRED', error: '승무원 회사 이메일 주소만 인증할 수 있습니다. 지원 항공사 목록을 확인해주세요.' };
 }
 
-export const OTP_PURPOSES = ['signup', 'airline_email'];
+// 'email_change' = 마이페이지 연락 이메일 변경(2026-09-14). 개인 메일이라 'signup' 과 같이 도메인 게이트 없음.
+export const OTP_PURPOSES = ['signup', 'airline_email', 'email_change'];
 
 /** 클라이언트 purpose 를 서버 허용값으로 정규화. 허용 밖이면 ''. */
 export function normalizePurpose(raw) {
@@ -64,6 +65,6 @@ export function normalizePurpose(raw) {
  * @returns {{ status, code, error } | null}  실패 응답 또는 null(통과)
  */
 export async function gateByPurpose(supabase, email, purpose) {
-  if (purpose === 'signup') return null;
+  if (purpose === 'signup' || purpose === 'email_change') return null;
   return airlineDomainFailure(await checkAirlineDomain(supabase, email));
 }
