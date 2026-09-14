@@ -11,7 +11,6 @@ import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, Credit
 import KeywordSettings from './KeywordSettings';
 import CrewVerification from './CrewVerification';
 import ProfileCard from './ProfileCard';
-import { IDENTITY_ENABLED, parseIdentityReturn, stripIdentityParams, clearIdentityStart } from '../lib/identity';
 import CommendationMatching from './CommendationMatching';
 import FlightBoard from './FlightBoard';
 import { kstDateString } from '../lib/flightBoard';
@@ -30,8 +29,6 @@ const MyPage = () => {
     // 칭찬매칭이 꺼져 있으면(COMMENDATION_ENABLED=false) 키워드 알림 탭이 기본이다(2026-09-14).
     const DEFAULT_TAB = COMMENDATION_ENABLED ? 'commendation' : 'keywords';
     const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
-    // 휴대폰 변경 PASS 복귀(모바일 REDIRECTION, ?flow=identity…) — ProfileCard 에 넘겨 서버 검증을 잇는다.
-    const [identityReturn, setIdentityReturn] = useState(null);
 
     // ?tab= 딥링크 반영. useState 초기값으로만 읽으면 이미 /mypage 에 있을 때(알림 링크 등)
     // 컴포넌트가 재마운트되지 않아 탭이 바뀌지 않는다.
@@ -509,16 +506,6 @@ const MyPage = () => {
     // 서버 confirm 이 멱등이라 새로고침·뒤로가기로 여러 번 불려도 안전. 쿼리는 결제 관련 키만 지운다.
     useEffect(() => {
         if (returnHandledRef.current) return;
-        // 본인확인 복귀가 먼저다 — 결제 복귀 정리(stripPaymentParams)가 flow/code/message 를 같이 지우므로
-        // identity 면 여기서 읽고 URL 을 정리한 뒤 결제 쪽은 건드리지 않는다(codex 지적, 2026-09-14).
-        const idRet = IDENTITY_ENABLED ? parseIdentityReturn(window.location.search) : null;
-        if (idRet) {
-            returnHandledRef.current = true;
-            clearIdentityStart();
-            setIdentityReturn(idRet);
-            navigate({ pathname: window.location.pathname, search: stripIdentityParams(window.location.search) }, { replace: true });
-            return;
-        }
         if (!PAYMENTS_ENABLED) { returnHandledRef.current = true; clearPendingPayment(); stripPaymentParams(); return; }
         const ret = parsePaymentReturn(window.location.search);
         const pending = readPendingPayment();
@@ -533,8 +520,6 @@ const MyPage = () => {
         }
         const id = ret?.paymentId || pending?.paymentId || '';
         if (id) runConfirmRef.current?.(id);
-        // 마운트 1회 복귀 처리 — navigate 는 안정 참조라 의존성에서 뺀다.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const tabs = [
@@ -558,8 +543,8 @@ const MyPage = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px', margin: '0 auto' }}>
 
-                    {/* 회원 정보 카드(표시 + 닉네임·이메일·주소·비밀번호·휴대폰 수정) — 2026-09-14 */}
-                    <ProfileCard identityReturn={identityReturn} onIdentityHandled={() => setIdentityReturn(null)} />
+                    {/* 회원 정보 카드(표시 + 닉네임·이메일·주소·비밀번호 수정) — 2026-09-14 */}
+                    <ProfileCard />
 
                     {/* Traveler Point Wallet — POINTS_ENABLED 로 숨김(2026-09-14) */}
                     {POINTS_ENABLED && !isCrew && (

@@ -101,9 +101,7 @@ export default async function handler(req, res) {
     const id = str(body.identityVerificationId);
     // 증빙 용도: 가입(signup_identity)·비밀번호 찾기(password_reset)·아이디 찾기(find_id). 허용 밖은 400.
     const purpose = body.purpose === undefined ? 'signup_identity' : String(body.purpose);
-    // 'phone_change' = 마이페이지 휴대폰 변경(2026-09-14). 소비는 로그인한 본인만 가능한 RPC change_my_phone_by_identity 가
-    // CI 일치까지 검사하므로, 여기서 비로그인 발급이 가능해도 남의 계정을 바꾸는 경로는 없다.
-    if (!['signup_identity', 'password_reset', 'find_id', 'phone_change'].includes(purpose)) {
+    if (!['signup_identity', 'password_reset', 'find_id'].includes(purpose)) {
       return fail(res, 400, 'BAD_PURPOSE', '본인확인 용도가 올바르지 않습니다.');
     }
     if (!ID_RE.test(id)) {

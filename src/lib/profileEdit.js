@@ -60,15 +60,10 @@ const MESSAGES = {
   crew_managed: '승무원 회원은 항공사 이메일을 사용합니다.',
   email_invalid: '이메일 형식이 올바르지 않습니다.',
   email_claimed: '이미 다른 계정에서 사용 중인 이메일입니다.',
-  // change_my_phone_by_identity
-  mismatch: '본인확인 정보가 계정과 다릅니다.',
-  phone_blocked: '이용이 제한된 휴대폰 번호입니다.',
-  phone_claimed: '이미 다른 계정에서 사용 중인 휴대폰 번호입니다.',
   // 공통
   same: '현재 등록된 정보와 같습니다.',
   proof_invalid: '인증이 만료되었거나 이미 사용되었습니다. 인증을 다시 진행해주세요.',
   NICKNAME_TAKEN: '이미 사용 중인 닉네임입니다.',
-  IDENTITY_PROOF_INVALID: '본인확인이 만료되었거나 이미 사용되었습니다. 다시 진행해주세요.',
 };
 
 export function messageFor(code, fallback = '처리에 실패했습니다. 잠시 후 다시 시도해주세요.') {
@@ -83,7 +78,6 @@ export function codeFromError(err) {
   if (err.code === '23505' || /duplicate key value/.test(msg)) {
     if (/profiles_nickname_key/.test(msg)) return 'NICKNAME_TAKEN';
     if (/uq_profiles_email_lower/.test(msg)) return 'email_claimed';
-    if (/uq_profiles_phone/.test(msg)) return 'phone_claimed';
     return 'DUPLICATE';
   }
   const m = msg.match(/^([A-Z_]{4,})\b/);

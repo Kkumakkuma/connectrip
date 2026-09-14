@@ -5,8 +5,6 @@ import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { apiUrl } from '../lib/api';
 import AddressInput from './AddressInput';
-import IdentityVerifyStep from './IdentityVerifyStep';
-import { IDENTITY_ENABLED, IDENTITY_PURPOSE_PHONE_CHANGE, clearIdentityProof } from '../lib/identity';
 import { passwordWeak } from '../lib/loginId';
 import {
   maskPhone, normalizeNickname, nicknameProblem, formatJoinedDate, userTypeLabel,
@@ -14,10 +12,10 @@ import {
 } from '../lib/profileEdit';
 
 // 마이페이지 맨 위 "회원 정보" 카드 (2026-09-14, 쿠마님 9583 "1번부터").
-// 표시만: 아이디·이름·생년월일·휴대폰(가림)·회원 유형·가입일. 수정: 닉네임·연락 이메일(OTP)·주소·비밀번호·휴대폰(PASS 재확인).
+// 표시만: 아이디·이름·생년월일·휴대폰(가림)·회원 유형·가입일. 수정: 닉네임·연락 이메일(OTP)·주소·비밀번호.
+// 휴대폰 번호 변경은 넣지 않는다(쿠마님 9600 "사람들이 번호 살면서 몇 번이나 바꾼다고" — 제거).
 // · 닉네임·주소 = profiles 본인 행 직접 UPDATE(RLS + profiles_guard 허용 컬럼, 주소는 트리거가 재암호화)
 // · 이메일 = /api/send-email-otp → /api/verify-email-otp(purpose email_change) → rpc change_my_email
-// · 휴대폰 = IdentityVerifyStep(purpose phone_change) → rpc change_my_phone_by_identity (CI 일치할 때만)
 // · 비밀번호 = 현재 비밀번호로 signInWithPassword 재확인 → auth.updateUser (아이디 로그인 계정만)
 // · 승무원의 연락 이메일은 항공사 이메일(가입 RPC 확정) → 여기선 표시만, 갱신은 승무원 인증 카드.
 const RESEND_SECONDS = 60;
@@ -67,9 +65,9 @@ function Notice({ tone = 'error', children }) {
   );
 }
 
-export default function ProfileCard({ identityReturn = null, onIdentityHandled }) {
+export default function ProfileCard() {
   const { user, profile, isCrew, updateProfile, fetchProfile } = useAuth();
-  const [editing, setEditing] = useState(null);      // 'nickname' | 'email' | 'address' | 'password' | 'phone' | null
+  const [editing, setEditing] = useState(null);      // 'nickname' | 'email' | 'address' | 'password' | null
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');               // 저장 성공 안내(행 닫힌 뒤 카드 하단에 표시)
@@ -89,8 +87,6 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
   const [pwCurrent, setPwCurrent] = useState('');
   const [pwNew, setPwNew] = useState('');
   const [pwConfirm, setPwConfirm] = useState('');
-  const phoneBusyRef = useRef(false);
-  const [passBusy, setPassBusy] = useState(false);   // IdentityVerifyStep 이 서버 검증 중(닫기·다른 행 열기 잠금)
   const [emailToken, setEmailToken] = useState('');  // OTP 확인 뒤 받은 소비 토큰 — 변경 RPC 가 일시 실패하면 재시도에 쓴다
   const startedUserRef = useRef(null);               // 편집을 연 시점의 계정. 다른 탭에서 계정이 바뀌면 저장하지 않는다(codex 지적)
 
@@ -105,14 +101,6 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
       .catch(() => { /* 표시용이라 실패는 무시 */ });
     return () => { cancelled = true; };
   }, [user?.id]);
-
-  // 모바일 PASS 복귀(?flow=identity…) → 휴대폰 편집 행을 열어 IdentityVerifyStep 이 이어서 서버 검증하게 한다.
-  useEffect(() => {
-    if (!identityReturn) return;
-    setError('');
-    setDone('');
-    setEditing('phone');
-  }, [identityReturn]);
 
   useEffect(() => {
     if (resendIn <= 0) return undefined;
@@ -139,7 +127,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
   }, [nickname, editing, profile?.nickname]);
 
   const open = (section) => {
-    if (busy || passBusy) return;
+    if (busy) return;
     startedUserRef.current = user?.id || null;
     setError('');
     setDone('');
@@ -149,7 +137,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
     if (section === 'address') setAddr({ zipcode: profile?.address_zipcode || '', road: profile?.address_road || '', detail: profile?.address_detail || '' });
     if (section === 'password') { setPwCurrent(''); setPwNew(''); setPwConfirm(''); }
   };
-  const close = () => { if (passBusy) return; setEditing(null); setError(''); };
+  const close = () => { setEditing(null); setError(''); };
   const SESSION_CHANGED = '로그인 계정이 바뀌었습니다. 새로고침한 뒤 다시 시도해주세요.';
   // 저장 직전에 세션의 계정이 편집을 연 계정과 같은지 확인(다른 탭 로그아웃·계정 전환 대비).
   const sameUser = async () => {
@@ -281,24 +269,6 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
     finally { setBusy(false); }
   };
 
-  // ---------- 휴대폰(PASS 재확인) ----------
-  const onPhoneVerified = async (proof) => {
-    if (phoneBusyRef.current) return;
-    phoneBusyRef.current = true;
-    setBusy(true); setError('');
-    try {
-      if (!(await sameUser())) { clearIdentityProof(); setError(SESSION_CHANGED); return; }
-      const { data: result, error: rpcErr } = await supabase.rpc('change_my_phone_by_identity', { p_identity_token: proof?.token || '' });
-      clearIdentityProof(); // 증빙은 1회용 — 성공·실패 모두 버린다
-      onIdentityHandled?.();
-      if (rpcErr) { fail(rpcErr, '휴대폰 번호를 바꾸지 못했습니다.'); return; }
-      if (result === 'same') { setEditing(null); setDone('등록된 번호와 같습니다.'); return; }
-      if (result !== 'ok') { fail(String(result), '휴대폰 번호를 바꾸지 못했습니다.'); return; }
-      await finish('휴대폰 번호를 바꿨습니다.', (p) => !!p.phone);
-    } catch (err) { setError('네트워크 오류: ' + (err.message || '알 수 없음')); }
-    finally { setBusy(false); phoneBusyRef.current = false; }
-  };
-
   if (!user || !profile) return null;
 
   const addressText = profile.address_road
@@ -324,20 +294,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
       <Row label="이름" value={profile.name || '-'} />
       {birthdate && <Row label="생년월일" value={birthdate} />}
 
-      <Row label="휴대폰" value={profile.phone ? maskPhone(profile.phone) : '미등록'}
-        actionLabel="변경" onAction={() => open('phone')} editing={editing === 'phone'}>
-        <IdentityVerifyStep
-          purpose={IDENTITY_PURPOSE_PHONE_CHANGE} returnPath="/mypage" returnResult={identityReturn}
-          disabled={!IDENTITY_ENABLED || busy} onVerified={onPhoneVerified}
-          onBusyChange={(b) => { setPassBusy(b); if (b) onIdentityHandled?.(); }}
-          title="휴대폰 번호 변경"
-          description=""
-          notice={false}
-        />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={close} style={ghostBtn} disabled={busy || passBusy}><X size={14} /> 닫기</button>
-        </div>
-      </Row>
+      <Row label="휴대폰" value={profile.phone ? maskPhone(profile.phone) : '미등록'} />
 
       <Row label="닉네임" value={profile.nickname || '-'}
         actionLabel="수정" onAction={() => open('nickname')} editing={editing === 'nickname'}>

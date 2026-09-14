@@ -36,7 +36,7 @@ describe('profileEdit — 마이페이지 회원 정보 수정 보조 함수', (
 
   it('상태값은 문구로, 모르는 값은 기본 문구로', () => {
     expect(messageFor('email_claimed')).toContain('다른 계정');
-    expect(messageFor('mismatch')).toContain('계정과 다릅니다');
+    expect(messageFor('crew_managed')).toContain('항공사');
     expect(messageFor('zzz', '기본')).toBe('기본');
   });
 

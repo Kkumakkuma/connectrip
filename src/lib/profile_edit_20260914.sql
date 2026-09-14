@@ -168,7 +168,7 @@ $$;
 REVOKE ALL ON FUNCTION public.change_my_email(TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.change_my_email(TEXT, TEXT) TO authenticated;
 
--- ---------- 5-b. 휴대폰 번호 변경 (PASS 재확인 증빙 소비, 본인확인값(CI)이 계정과 같을 때만) ----------
+-- ---------- 5-b. 휴대폰 번호 변경 — **같은 날 밤 제거됨(8번 참고, 쿠마님 9600)**. 이력 보존용으로 정의만 남긴다 ----------
 CREATE OR REPLACE FUNCTION public.change_my_phone_by_identity(p_identity_token TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog, pg_temp AS $$
@@ -326,3 +326,8 @@ ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_nickname_len;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_nickname_len
   CHECK (nickname IS NULL OR (char_length(btrim(nickname)) BETWEEN 2 AND 20
          AND nickname !~* '(관리자|운영자|운영진|admin|connecttrip|커넥트립)'));
+
+-- ---------- 8. 휴대폰 번호 변경 기능 제거 (2026-09-14 밤, 쿠마님 9600 "사람들이 번호 살면서 몇 번이나 바꾼다고 넣은거냐 그냥 빼") ----------
+-- 화면(ProfileCard 휴대폰 행 표시만)·서버(verify-identity 허용 purpose 에서 phone_change 제외)·상수·문구를 걷어냈고 DB 함수도 내린다.
+-- record_identity_verification 의 용도별 중복검사(1번)는 기존 회원의 password_reset·find_id 를 살리는 수정이라 그대로 둔다.
+DROP FUNCTION IF EXISTS public.change_my_phone_by_identity(TEXT);

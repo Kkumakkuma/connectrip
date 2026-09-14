@@ -124,7 +124,6 @@ const isMobileUA = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent ||
 //          — 가입용 증빙으로 남의 비밀번호를 바꾸는 것을 막기 위해서다(2026-09-05).
 export const IDENTITY_PURPOSE_SIGNUP = 'signup_identity';
 export const IDENTITY_PURPOSE_PASSWORD_RESET = 'password_reset';
-export const IDENTITY_PURPOSE_PHONE_CHANGE = 'phone_change';   // 마이페이지 휴대폰 변경(2026-09-14)
 
 export async function startIdentityVerification({ returnPath, purpose = IDENTITY_PURPOSE_SIGNUP }) {
   if (!IDENTITY_ENABLED) {
