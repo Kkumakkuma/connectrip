@@ -14,29 +14,7 @@ import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams } from '../lib/identity';
 import { REFERRAL_ENABLED, COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 import { resolveNext, rememberNext } from '../lib/safeNext';
-
-// Daum 우편번호 스크립트 동적 로더
-function loadDaumPostcode() {
-  return new Promise((resolve, reject) => {
-    if (window.daum && window.daum.Postcode) {
-      resolve();
-      return;
-    }
-    const existing = document.getElementById('daum-postcode-sdk');
-    if (existing) {
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', reject);
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'daum-postcode-sdk';
-    script.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Daum Postcode 스크립트 로드 실패'));
-    document.body.appendChild(script);
-  });
-}
+import AddressInput from '../components/AddressInput';
 
 export default function SignupComplete() {
   const navigate = useNavigate();
@@ -341,21 +319,6 @@ export default function SignupComplete() {
     return () => { cancelled = true; clearTimeout(t); };
   }, [nickname, user?.id]);
 
-  const openPostcode = async () => {
-    try {
-      await loadDaumPostcode();
-      new window.daum.Postcode({
-        oncomplete: (data) => {
-          setZipcode(data.zonecode);
-          const road = data.roadAddress || data.jibunAddress || '';
-          setAddressRoad(road);
-        },
-      }).open();
-    } catch (err) {
-      setError(err.message || '주소 검색을 열 수 없습니다.');
-    }
-  };
-
   // 회사(항공사) 이메일 인증번호 발송 — 로그인 이메일(구글 계정)과 별개 주소로 발송
   const sendAirlineEmailCode = async () => {
     setError('');
@@ -425,8 +388,8 @@ export default function SignupComplete() {
     if (!birthdate || isUnder14(birthdate)) return false;
     // 본인확인(PASS) 증빙 토큰이 유일한 신원 확인 수단이다(서버가 토큰 소비 + 값 재검증)
     if (!identityProof?.token) return false;
-    // 주소는 칭찬매칭 답례품 배송에만 쓰인다 — 칭찬매칭이 꺼져 있으면 받지 않는다(개인정보 최소수집, 2026-09-14).
-    if (COMMENDATION_ENABLED && (!zipcode || !addressRoad)) return false;
+    // 주소는 필수 — 우편번호·도로명은 검색으로만 채워진다(상세 주소는 선택).
+    if (!zipcode || !addressRoad) return false;
     // 승무원은 회사 이메일 인증 필수 + 인증한 이메일이 현재 입력값과 일치해야 함
     if (userType === 'crew' && (!airlineInfo || !airlineEmailVerified || !airlineOtpToken
         || verifiedAirlineEmail !== airlineEmail.trim().toLowerCase())) return false;
@@ -473,10 +436,9 @@ export default function SignupComplete() {
         p_name: name.trim(),
         p_nickname: nickname.trim(),
         p_phone: phone,
-        // 칭찬매칭(답례품 배송)이 꺼져 있으면 주소를 저장하지 않는다(2026-09-14).
-        p_zipcode: COMMENDATION_ENABLED ? (zipcode || null) : null,
-        p_road: COMMENDATION_ENABLED ? (addressRoad || null) : null,
-        p_detail: COMMENDATION_ENABLED ? (addressDetail || null) : null,
+        p_zipcode: zipcode,
+        p_road: addressRoad,
+        p_detail: addressDetail.trim() || null,
         p_user_type: userType,
         p_airline_email: (userType === 'crew' && airlineInfo) ? (verifiedAirlineEmail || airlineEmail.trim().toLowerCase()) : null,
         p_airline_name: (userType === 'crew' && airlineInfo) ? airlineInfo.name : null,
@@ -796,43 +758,15 @@ export default function SignupComplete() {
             <input type="tel" value={phone} readOnly style={lockedInputStyle} />
           </Field>
 
-          {/* 주소 — 칭찬매칭 답례품 배송 전용이라 COMMENDATION_ENABLED 로 숨김(2026-09-14) */}
-          {COMMENDATION_ENABLED && (
+          {/* 주소 — 우편번호·도로명은 다음 우편번호 서비스(화면 안 레이어)로 검색해 채우고 상세 주소만 직접 입력. 필수 항목(2026-09-14 쿠마님 지시로 복구). */}
           <Field label="주소" icon={<MapPin size={16} />}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input
-                type="text"
-                value={zipcode}
-                readOnly
-                placeholder="우편번호"
-                style={{ ...inputStyle, flex: '0 0 120px' }}
-              />
-              <button
-                type="button"
-                onClick={openPostcode}
-                style={{
-                  padding: '0 14px', borderRadius: 10, background: '#2563eb',
-                  color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer',
-                }}
-              >주소 검색</button>
-            </div>
-            <input
-              type="text"
-              value={addressRoad}
-              readOnly
-              placeholder="도로명 주소"
-              style={{ ...inputStyle, marginBottom: 8 }}
-            />
-            <input
-              type="text"
-              value={addressDetail}
-              onChange={(e) => setAddressDetail(e.target.value)}
-              placeholder="상세 주소 (동/호수 등)"
-              style={inputStyle}
-              maxLength={80}
+            <AddressInput
+              zipcode={zipcode} road={addressRoad} detail={addressDetail}
+              onSelect={({ zipcode: z, road: r }) => { setZipcode(z); setAddressRoad(r); }}
+              onDetailChange={setAddressDetail}
+              inputStyle={inputStyle}
             />
           </Field>
-          )}
 
           {/* 추천 승무원 — REFERRAL_ENABLED 로 숨김(2026-09-14) */}
           {REFERRAL_ENABLED && (
@@ -951,8 +885,8 @@ function ConsentBox({ idPrefix, agreeTerms, agreePrivacy, agreeAge,
       </div>
 
       <ul style={{ margin: '2px 0 6px 30px', padding: 0, listStyle: 'disc', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
-        <li>수집 항목: 아이디, 이메일, 닉네임, {COMMENDATION_ENABLED ? '주소(우편번호·도로명·상세), ' : ''}휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
-        <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, {COMMENDATION_ENABLED ? '승무원 칭찬매칭 운영, ' : ''}{POINTS_ENABLED ? '포인트 적립·이용, ' : ''}부정 이용 방지와 분쟁 조정·문의 대응.</li>
+        <li>수집 항목: 아이디, 이메일, 닉네임, 주소(우편번호·도로명·상세), 휴대폰 본인확인으로 확인된 이름·생년월일·성별·휴대폰번호·이동통신사·내외국인 여부·연계정보(CI, 복원 불가한 해시로만 저장). 승무원 회원은 항공사 이메일·항공사명이 추가되며, 이용 과정의 접속 기록이 자동 수집됩니다.</li>
+        <li>이용 목적: 회원 관리 및 본인 확인, 커뮤니티 운영, 경품·답례품 배송, {COMMENDATION_ENABLED ? '승무원 칭찬매칭 운영, ' : ''}{POINTS_ENABLED ? '포인트 적립·이용, ' : ''}부정 이용 방지와 분쟁 조정·문의 대응.</li>
         <li>보유 기간: 회원 탈퇴 시 지체 없이 파기합니다. 관계 법령이 보존을 정한 결제·거래 기록은 법정 보존기간 동안 분리 보관한 뒤 파기합니다.</li>
       </ul>
 

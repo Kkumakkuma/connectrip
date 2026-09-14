@@ -54,9 +54,10 @@ export const REFERRAL_ENABLED = false;
 //   2026-09-14 쿠마님 지시: 칭찬 관련 기능은 사이트에서 전부 숨긴다. 나중에 필요하면 다시 켠다.
 //   끄면 마이페이지 기본 탭이 "키워드 알림"이 되고 ?tab=commendation 직접 진입도 막힌다. 비행 스케줄 등록·같은 편 게시판은 이 플래그와 무관하게 유지.
 //   코드·DB(commendation_matches, purchase_voucher, refund_my_voucher, admin_get_commendation_reviews, profiles.voucher_count)는 그대로다.
-//   가입 화면의 주소 입력(답례품 배송 전용)·개인정보처리방침의 주소·칭찬매칭 항목도 이 플래그를 따른다.
+//   개인정보처리방침의 칭찬매칭 이용 목적도 이 플래그를 따른다. 가입 화면의 주소 입력(components/AddressInput)은 이 플래그와 무관하게
+//   항상 받는다(2026-09-14 쿠마님 지시 — 주소는 없애지 말 것, 방침상 목적 = 경품·답례품 배송).
 //   이용약관 "매칭신청권의 취소" 조항은 포인트로 사고 되돌리는 규정이라 COMMENDATION_ENABLED && POINTS_ENABLED 일 때만 보인다(Terms.jsx).
-//   켤 때: 이 값을 true 로 바꾸고 재배포(탭·버튼·관리자 탭·알림 토글·주소 입력·약관 조항이 한 번에 돌아온다).
+//   켤 때: 이 값을 true 로 바꾸고 재배포(탭·버튼·관리자 탭·알림 토글·약관 조항이 한 번에 돌아온다).
 //   ⚠ 약관·방침 문구가 바뀌므로 켜는 배포에서 Terms/Privacy 의 '최종 개정일'과 DB complete_signup_profile_for 의 v_policy_version 을 같은 날짜로 올린다.
 export const COMMENDATION_ENABLED = false;
 

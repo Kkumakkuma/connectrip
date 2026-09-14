@@ -9,8 +9,8 @@ import { COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 // 2026-09-02 개정: 휴대폰 본인확인(PASS) 수집항목·수탁자(포트원·{IDENTITY_PG_NAME})·차단 회원 해시 보관 추가.
 // 2026-09-04 추가: 여행 플래너(티켓 파일·장소 검색어·OpenStreetMap 국외이전·기기 로컬 사본 보관기간).
 // 2026-09-14 개정(쿠마님 지시 — 기능이 없는데 문서에 남아 있으면 안 된다):
-//   · 칭찬매칭·포인트를 숨기면서(src/lib/featureFlags.js) "승무원 칭찬매칭 운영"·"포인트 적립·이용" 목적과
-//     주소 항목(칭찬매칭 답례품 배송 전용)을 플래그로 가림 — 가입 화면도 이 동안 주소를 받지 않는다.
+//   · 칭찬매칭·포인트를 숨기면서(src/lib/featureFlags.js) "승무원 칭찬매칭 운영"·"포인트 적립·이용" 목적을 플래그로 가림.
+//     주소(우편번호·도로명·상세)는 같은 날 쿠마님 지시로 계속 수집한다(가입 화면 AddressInput, 목적 = 경품·답례품 배송) — 플래그와 무관.
 //   · 여행 플래너가 구글 지도로 전환돼 있어(planner_settings.google_maps_enabled=true, 2026-09-05)
 //     Google LLC(지도 표시·장소 검색·경로 계산) 위탁·국외이전을 추가. 회원가입 항목에 아이디 추가(2026-09-05 아이디 로그인 전환).
 //   · 개인정보 보호법 제28조의8(국외 이전 고지 사항: 이전받는 자의 명칭·연락처)에 맞춰 국외이전 표에 연락처를 넣음.
@@ -52,9 +52,7 @@ const Privacy = () => {
           <ul className="ml-4 list-disc space-y-1">
             <li><strong className="text-gray-900">회원가입</strong>: 아이디, 이메일, 비밀번호, 닉네임</li>
             <li><strong className="text-gray-900">휴대폰 본인확인</strong>: 이름, 생년월일, 성별, 휴대폰번호, 이동통신사, 내외국인 여부, 연계정보(CI). 본인확인기관(이동통신사)이 확인한 값을 {IDENTITY_PG_NAME}·포트원을 통해 제공받으며, 연계정보(CI)는 복원할 수 없는 해시값으로만 저장합니다.</li>
-            {COMMENDATION_ENABLED && (
-              <li><strong className="text-gray-900">주소</strong>: 우편번호, 도로명 주소, 상세 주소(칭찬매칭 답례품 배송 목적)</li>
-            )}
+            <li><strong className="text-gray-900">주소</strong>: 우편번호, 도로명 주소, 상세 주소(경품·답례품 배송 목적)</li>
             <li><strong className="text-gray-900">승무원 회원</strong>: 항공사 이메일, 항공사명(승무원 인증용)</li>
             <li><strong className="text-gray-900">여행 플래너</strong>: 이용자가 올린 티켓 파일(항공권·입장권 등 이미지·PDF)과 그 파일에서 읽어낸 날짜·편명, 장소 검색어</li>
             <li><strong className="text-gray-900">자동 수집</strong>: 접속 기록(서비스 이용·접속 로그)</li>
@@ -67,6 +65,7 @@ const Privacy = () => {
             <li>커뮤니티(동행·정보공유·물품거래·후기 등) 운영</li>
             {COMMENDATION_ENABLED && <li>승무원 칭찬매칭 운영</li>}
             <li>여행 일정 작성·공유 및 티켓 보관 기능 제공</li>
+            <li>경품·답례품 배송(주소)</li>
             {POINTS_ENABLED && <li>포인트 적립·이용</li>}
             <li>부정 이용 방지, 분쟁 조정, 고객 문의 대응</li>
           </ul>
@@ -202,7 +201,7 @@ const Privacy = () => {
         {/* 개정 이력 — 날짜·내용은 git 이력과 각 시점 화면의 '최종 개정일' 기준(2026-09-14 확인). 개정할 때마다 맨 위에 한 줄 추가. */}
         <Section title="개정 이력">
           <ul className="ml-4 list-disc space-y-1">
-            <li>2026-09-14: 운영하지 않는 기능과 관련된 수집 항목(주소)·이용 목적 삭제, 여행 플래너 지도 제공자 Google LLC 위탁·국외 이전 추가, 국외 이전받는 자 연락처 명시, 회원가입 수집 항목에 아이디 명시</li>
+            <li>2026-09-14: 운영하지 않는 기능(칭찬매칭·포인트)의 이용 목적 삭제, 주소 수집 목적을 경품·답례품 배송으로 정리, 여행 플래너 지도 제공자 Google LLC 위탁·국외 이전 추가, 국외 이전받는 자 연락처 명시, 회원가입 수집 항목에 아이디 명시</li>
             <li>2026-09-04: 여행 플래너 관련 수집 항목(티켓 파일·장소 검색어)과 OpenStreetMap Foundation 위탁·국외 이전 추가</li>
             <li>2026-09-02: 휴대폰 본인확인(PASS) 수집 항목과 수탁자(포트원·{IDENTITY_PG_NAME}) 추가, 이용 제한 상태 탈퇴 회원의 해시값 보관 기준 추가</li>
             <li>2026-07-11: 만 14세 미만 가입 제한, 회원탈퇴 시 처리 기준, 개인정보 국외 이전 고지 추가</li>

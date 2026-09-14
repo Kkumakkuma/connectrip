@@ -153,7 +153,7 @@ export default async function handler(req, res) {
     p_name: str(b.name, 30),
     p_nickname: str(b.nickname, 20),
     p_phone: str(b.phone, 20),
-    // 주소는 칭찬매칭 답례품 배송 전용이라 기능이 꺼진 동안 화면이 보내지 않는다 — 빈 값은 '' 대신 NULL 로 저장(2026-09-14).
+    // 주소는 화면이 필수로 받는다(우편번호·도로명 검색). 빈 값이 오면 '' 대신 NULL 로 저장(2026-09-14).
     p_zipcode: str(b.zipcode, 10) || null,
     p_road: str(b.road, 200) || null,
     p_detail: str(b.detail, 200) || null,
