@@ -12,10 +12,10 @@ import ListState from '../components/ListState';
 // select  = 받아올 컬럼(생략하면 '*'). 큰 비텍스트 컬럼을 가진 보드만 적는다,
 // detail  = 결과 한 건을 여는 경로. 없으면 종전대로 게시판 목록으로 이동한다.
 const BOARDS = [
-  { key: 'companion_posts', label: '동행 게시판', icon: Users, color: 'blue', link: '/companion', fields: ['title', 'content'], bodyField: 'content' },
+  { key: 'companion_posts', label: '동행 게시판', icon: Users, color: 'blue', link: '/companion', detail: (item) => `/post/companion/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
   { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content', detail: (item) => `/market/${item.id}` },
-  { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', fields: ['title', 'content'], bodyField: 'content' },
-  { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', fields: ['title', 'content'], bodyField: 'content' },
+  { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', detail: (item) => `/post/${item.board === 'free' ? 'free' : 'qna'}/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
+  { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', detail: (item) => `/post/crew/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
   // itinerary_posts 는 snapshot(jsonb = 여행 전체)을 갖고 있어 '*' 로 받으면 검색 응답이 통째로
   // 커진다. 카드가 쓰는 컬럼만 적고, 아래 쿼리가 board.select 를 읽는다(둘 중 하나만 고치면 무효).
   {

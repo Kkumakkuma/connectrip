@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Lock, Plus, MessageSquare, Plane, Tag, Heart, Loader2, Trash2, ChevronDown } from 'lucide-react';
+import { Lock, Plus, MessageSquare, Plane, Tag, Heart, Loader2 } from 'lucide-react';
 import { crewVerificationStatus } from '../lib/crewVerification';
 import { useAuth } from '../lib/AuthContext';
 import { crewApi, postLikeApi } from '../lib/db';
+import { postPath } from '../lib/boards';
 import BoardShell from './board/BoardShell';
 import BoardTabs from './board/BoardTabs';
 import SearchPill from './board/SearchPill';
 import WriteModal from './board/WriteModal';
 import Pagination from './Pagination';
 import ListState from './ListState';
-import ReportButton from './ReportButton';
 import CrewBadge from './CrewBadge';
-import AuthorActions from './AuthorActions';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 
@@ -48,14 +47,14 @@ const CrewOnly = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [likes, setLikes] = useState({});
-    const [expanded, setExpanded] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
     const [submitting, setSubmitting] = useState(false);
     const formId = useId();
     const reqRef = useRef(0);
-    const likeTouchedRef = useRef(new Set());   // 목록 조회 중 사용자가 누른 좋아요는 늦게 온 응답으로 덮지 않는다
+    const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
+    useEffect(() => { modeRef.current = mode; }, [mode]);
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -73,7 +72,8 @@ const CrewOnly = () => {
 
     const setTab = (id) => {
         setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('tab', id); n.delete('q'); return n; });
-        setQInput(''); setPage(1); setExpanded(null);
+        setQInput(''); setPage(1);
+        setPosts([]); setLoading(true);         // 새 탭 링크가 이전 탭 목록에 붙는 순간을 없앤다
     };
 
     const load = useCallback(async () => {
@@ -87,7 +87,7 @@ const CrewOnly = () => {
             if (data.length) {
                 const m = await postLikeApi.getForBoard('crew_posts', data.map((p) => p.id), user?.id);
                 if (reqId !== reqRef.current) return;
-                setLikes((prev) => { const next = { ...prev, ...m }; likeTouchedRef.current.forEach((id) => { if (prev[id]) next[id] = prev[id]; }); likeTouchedRef.current.clear(); return next; });
+                setLikes(m);                    // 병합하면 좋아요가 0이 된 글에 예전 숫자가 남는다(키가 안 옴)
             }
         } catch (err) {
             if (reqId !== reqRef.current) return;
@@ -102,19 +102,6 @@ const CrewOnly = () => {
     useEffect(() => { load(); }, [load]);
     useEffect(() => { setPage(1); }, [q, mode]);
 
-    const toggleLike = async (postId) => {
-        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        try {
-            const { data, error: e } = await postLikeApi.toggle('crew_posts', postId);
-            if (e) throw e;
-            likeTouchedRef.current.add(postId);
-            setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
-        } catch (err) {
-            console.error('좋아요 실패:', err);
-            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
-        }
-    };
-
     const submit = async (e) => {
         e.preventDefault();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
@@ -126,25 +113,14 @@ const CrewOnly = () => {
                 category: mode === 'layover' ? form.category : 'general',
                 author_name: profile?.name || '익명', user_id: user.id,
             });
-            setPosts((prev) => [created, ...prev]);
-            setPage(1);
+            // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
+            if (modeRef.current === mode) { setPosts((prev) => [created, ...prev]); setPage(1); }
             setShowModal(false);
         } catch (err) {
             console.error('게시글 등록 실패:', err);
             alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
         } finally {
             setSubmitting(false);
-        }
-    };
-
-    const remove = async (id) => {
-        if (!window.confirm('이 글을 삭제할까요?')) return;
-        try {
-            await crewApi.delete(id);
-            setPosts((prev) => prev.filter((p) => p.id !== id));
-        } catch (err) {
-            console.error('삭제 실패:', err);
-            alert('삭제에 실패했습니다.');
         }
     };
 
@@ -207,38 +183,25 @@ const CrewOnly = () => {
                         <p className="text-[13px] text-muted mb-2">{filtered.length.toLocaleString()}건</p>
                         <ul className="divide-y divide-hairline-soft border-t border-b border-hairline-soft">
                             {paged.map((post) => {
-                                const open = expanded === post.id;
                                 const cat = mode === 'layover' ? CATEGORY_LABEL[post.category] : '';
                                 return (
-                                    <li key={post.id} className="py-4 sm:py-5">
-                                        <button type="button" onClick={() => setExpanded(open ? null : post.id)} aria-expanded={open} className="w-full text-left group">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                {cat && <span className="inline-flex items-center rounded-full bg-surface-soft text-ink text-[11px] font-bold px-2 py-0.5">{cat}</span>}
+                                    <li key={post.id}>
+                                        <Link to={postPath('crew', post.id)} className="block py-4 sm:py-5 group">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                {cat && <span className="inline-flex items-center rounded-full bg-surface-soft text-ink text-[11px] font-bold px-2 py-0.5 whitespace-nowrap flex-shrink-0">{cat}</span>}
+                                                <h3 className="min-w-0 flex-1 truncate text-[16px] font-bold text-ink tracking-[-0.01em] group-hover:underline underline-offset-4 decoration-hairline">{post.title}</h3>
                                             </div>
-                                            <h3 className="text-[16px] sm:text-[17px] font-bold text-ink tracking-[-0.01em] leading-snug group-hover:underline underline-offset-4 decoration-hairline">{post.title}</h3>
-                                            <p className={`text-[14px] text-body mt-1 leading-relaxed whitespace-pre-wrap ${open ? '' : 'line-clamp-2'}`}>{post.content}</p>
-                                        </button>
-                                        <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
-                                            <span className="inline-flex items-center gap-1 min-w-0">
-                                                <span className="truncate max-w-[10rem]">{post.author_name}</span>
-                                                <CrewBadge profile={post.profiles} />
-                                                <AuthorActions userId={post.user_id} name={post.author_name || ''} size={12} />
-                                            </span>
-                                            <span className="whitespace-nowrap">{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
-                                            <span className="ml-auto flex items-center gap-0.5">
-                                                <button type="button" onClick={() => toggleLike(post.id)} aria-pressed={!!likes[post.id]?.liked} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full font-bold ${likes[post.id]?.liked ? 'text-rausch' : 'text-muted hover:text-ink'}`}>
-                                                    <Heart size={14} fill={likes[post.id]?.liked ? 'currentColor' : 'none'} /> {likes[post.id]?.count || 0}
-                                                </button>
-                                                {user?.id === post.user_id ? (
-                                                    <button type="button" onClick={() => remove(post.id)} aria-label="삭제" className="p-1.5 rounded-full text-muted hover:text-error hover:bg-surface-soft"><Trash2 size={14} /></button>
-                                                ) : (
-                                                    <ReportButton postId={post.id} boardType="crew" reportedUserId={post.user_id} />
-                                                )}
-                                                <button type="button" onClick={() => setExpanded(open ? null : post.id)} aria-label={open ? '접기' : '펼치기'} className="p-1.5 rounded-full text-muted hover:bg-surface-soft">
-                                                    <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-                                                </button>
-                                            </span>
-                                        </div>
+                                            <div className="mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
+                                                <span className="inline-flex items-center gap-1 min-w-0">
+                                                    <span className="truncate max-w-[10rem]">{post.author_name}</span>
+                                                    <CrewBadge profile={post.profiles} />
+                                                </span>
+                                                <span className="ml-auto inline-flex items-center gap-3 whitespace-nowrap">
+                                                    <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+                                                    <span className="inline-flex items-center gap-1"><Heart size={13} aria-hidden="true" />{likes[post.id]?.count || 0}</span>
+                                                </span>
+                                            </div>
+                                        </Link>
                                     </li>
                                 );
                             })}

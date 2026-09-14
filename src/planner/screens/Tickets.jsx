@@ -16,6 +16,7 @@ import { resolveTripZoneAsync, timeZoneGapText } from '../lib/timezone';
 import TicketDateConfirm from '../tickets/TicketDateConfirm';
 import FullScreenTicket from '../tickets/FullScreenTicket';
 import { resolveTicketView, uploadAndDetect } from '../tickets/intake';
+import { offerFlightSchedule } from '../lib/flightSchedule';
 
 // /planner/t/:tripId/tickets — 티켓 지갑 (설계 §5)
 //
@@ -76,7 +77,7 @@ function TicketRow({ ticket, placeName, onOpen, onDelete, busy }) {
 
 export default function Tickets() {
   const { tripId } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const fileRef = useRef(null);
 
   const [trip, setTrip] = useState(null);
@@ -235,8 +236,16 @@ export default function Tickets() {
           });
         } catch { /* 기기 저장 실패는 티켓 저장 자체를 막지 않는다 */ }
       }
+      const bcbp = pending.bcbp;
       setPending(null);
       pushToast('success', '티켓을 저장했습니다.');
+      // 항공권이면 마이페이지 비행 스케줄에도 등록할지 묻는다(2026-09-14)
+      try {
+        const r = await offerFlightSchedule({ userId: user?.id, userType: profile?.user_type, values, bcbp });
+        if (r.status === 'registered') pushToast('success', `비행 스케줄 등록: ${r.flightNumber}`);
+      } catch (err) {
+        pushToast('error', err?.message || '비행 스케줄을 등록하지 못했습니다.');
+      }
     } catch (err) {
       pushToast('error', err?.message || '저장하지 못했습니다.');
     } finally {

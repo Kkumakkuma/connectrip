@@ -30,6 +30,8 @@ const Destinations = lazy(() => import('./components/Destinations'));
 const TravelQnA = lazy(() => import('./components/TravelQnA'));
 const MarketBoard = lazy(() => import('./components/MarketBoard'));
 const MarketDetail = lazy(() => import('./pages/MarketDetail'));
+// 게시판 공용 상세 페이지(/post/:board/:id, 2026-09-14) — 게시판별 차이는 src/lib/boards.js 설정이 정한다
+const PostDetail = lazy(() => import('./pages/PostDetail'));
 const ChatList = lazy(() => import('./pages/ChatList'));
 const ChatRoom = lazy(() => import('./pages/ChatRoom'));
 const Messages = lazy(() => import('./pages/Messages'));
@@ -274,6 +276,7 @@ function App() {
               <Route path="/qna" element={<RequireLogin><TravelQnA /></RequireLogin>} />
               <Route path="/market" element={<RequireLogin><MarketBoard /></RequireLogin>} />
               <Route path="/market/:id" element={<RequireLogin><MarketDetail /></RequireLogin>} />
+              <Route path="/post/:board/:id" element={<RequireLogin><PostDetail /></RequireLogin>} />
               <Route path="/chat" element={<RequireLogin><ChatList /></RequireLogin>} />
               <Route path="/chat/:roomId" element={<RequireLogin><ChatRoom /></RequireLogin>} />
               <Route path="/messages" element={<RequireLogin><Messages /></RequireLogin>} />

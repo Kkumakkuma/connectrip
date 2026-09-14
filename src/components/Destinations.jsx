@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Heart, Plus, Lock, MapPin } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { destinationsApi, postLikeApi } from '../lib/db';
+import { postPath } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
 import { crewVerificationStatus } from '../lib/crewVerification';
 import BoardShell from './board/BoardShell';
@@ -15,10 +16,7 @@ import Pagination from './Pagination';
 import ListState from './ListState';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
-import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
-import AuthorActions from './AuthorActions';
-import ReportButton from './ReportButton';
 import SEOHead from './SEOHead';
 
 const PAGE = 24;
@@ -26,10 +24,11 @@ const EMPTY_FORM = { region_id: '', name: '', desc: '', crewComment: '', image_u
 const FALLBACK_IMG = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800&auto=format&fit=crop';
 
 // 화면에 보여줄 좋아요 수 = 레거시 카운터 + post_likes 서버 집계.
-const likeCountOf = (dest, likeMap) => (dest.likes_count || 0) + (likeMap[dest.id]?.count || 0);
+// 좋아요는 post_likes(toggle_post_like RPC)만 센다 — 상세 페이지와 같은 숫자. 옛 destinations.likes_count 는 더하지 않는다(codex 지적).
+const likeCountOf = (dest, likeMap) => likeMap[dest.id]?.count || 0;
 
-const DestinationCard = ({ dest, liked, likeCount, onToggleLike, currentUserId }) => (
-    <article className="card-air overflow-hidden flex flex-col">
+const DestinationCard = ({ dest, likeCount }) => (
+    <Link to={postPath('destination', dest.id)} className="card-air overflow-hidden flex flex-col group">
         <div className="aspect-[4/3] overflow-hidden bg-surface-strong">
             <img
                 src={dest.image_url || FALLBACK_IMG}
@@ -44,31 +43,22 @@ const DestinationCard = ({ dest, liked, likeCount, onToggleLike, currentUserId }
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                     <ContinentBadge regionId={dest.region_id} className="mb-1" />
-                    <h3 className="text-[15px] sm:text-[16px] font-bold text-ink tracking-[-0.01em] leading-snug line-clamp-2">{dest.name}</h3>
+                    <h3 className="text-[15px] sm:text-[16px] font-bold text-ink tracking-[-0.01em] leading-snug line-clamp-2 group-hover:underline underline-offset-4 decoration-hairline">{dest.name}</h3>
                 </div>
-                <button type="button" onClick={() => onToggleLike(dest.id)} aria-pressed={liked} className={`inline-flex items-center gap-1 text-[13px] font-bold flex-shrink-0 ${liked ? 'text-rausch' : 'text-muted hover:text-ink'}`}>
-                    <Heart size={16} fill={liked ? 'currentColor' : 'none'} /> {likeCount}
-                </button>
+                <span className="inline-flex items-center gap-1 text-[13px] font-bold text-muted flex-shrink-0">
+                    <Heart size={16} aria-hidden="true" /> {likeCount}
+                </span>
             </div>
             <p className="text-[13px] text-muted mt-1 line-clamp-2 leading-relaxed">{dest.description}</p>
             {dest.crew_comment && (
                 <p className="mt-2 text-[13px] text-body bg-surface-soft rounded-sm px-3 py-2 line-clamp-3">✈️ {dest.crew_comment}</p>
             )}
-            <div className="mt-auto pt-3 flex items-center justify-between gap-2 text-[12px] text-muted">
-                <span className="flex items-center gap-1 min-w-0">
-                    <span className="truncate">{dest.profiles?.name || '익명 승무원'}</span>
-                    <CrewBadge profile={dest.profiles} />
-                    <AuthorActions userId={dest.user_id} name={dest.profiles?.name || ''} size={12} />
-                </span>
-                <span className="flex items-center gap-0.5 flex-shrink-0">
-                    <ShareButtons title={`${dest.name} - ConnectTrip 추천 여행지`} description={dest.description} />
-                    {currentUserId && currentUserId !== dest.user_id && (
-                        <ReportButton postId={dest.id} boardType="destination" reportedUserId={dest.user_id} />
-                    )}
-                </span>
+            <div className="mt-auto pt-3 flex items-center gap-1 min-w-0 text-[12px] text-muted">
+                <span className="truncate">{dest.profiles?.name || '익명 승무원'}</span>
+                <CrewBadge profile={dest.profiles} />
             </div>
         </div>
-    </article>
+    </Link>
 );
 
 // 승무원 추천지 — 통합 게시판(2026-09-07). 대륙은 말머리(필터 + 글쓰기 필수). 작성은 인증 승무원만.
@@ -92,7 +82,6 @@ const Destinations = () => {
     const [pickerError, setPickerError] = useState('');
     const formId = useId();
     const reqRef = useRef(0);
-    const likeTouchedRef = useRef(new Set());   // 목록 조회 중 사용자가 누른 좋아요는 늦게 온 응답으로 덮지 않는다
 
     const crewExpired = isLoggedIn && isCrew && crewVerificationStatus(profile).state === 'expired';
     const canWrite = isLoggedIn && isCrew && !!profile?.crew_verified && !crewExpired;
@@ -129,7 +118,7 @@ const Destinations = () => {
             let likeMap = {};
             if (data.length) likeMap = await postLikeApi.getForBoard('destinations', data.map((d) => d.id), user?.id);
             if (reqId !== reqRef.current) return;
-            setLikes((prev) => { const next = { ...prev, ...likeMap }; likeTouchedRef.current.forEach((id) => { if (prev[id]) next[id] = prev[id]; }); likeTouchedRef.current.clear(); return next; });
+            setLikes(likeMap);                  // 병합하면 좋아요가 0이 된 글에 예전 숫자가 남는다(키가 안 옴)
             setItems([...data].sort((a, b) => likeCountOf(b, likeMap) - likeCountOf(a, likeMap)));
             setCount(total);
         } catch (err) {
@@ -151,19 +140,6 @@ const Destinations = () => {
         }
         load();
     }, [load, region, q, page]);
-
-    const toggleLike = async (id) => {
-        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        try {
-            const { data, error: e } = await postLikeApi.toggle('destinations', id);
-            if (e) throw e;
-            likeTouchedRef.current.add(id);
-            setLikes((prev) => ({ ...prev, [id]: { count: data.likes_count, liked: data.liked } }));
-        } catch (err) {
-            console.error('좋아요 실패:', err);
-            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
-        }
-    };
 
     const openWrite = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
@@ -237,9 +213,9 @@ const Destinations = () => {
                 ) : (
                     <>
                         <p className="text-[13px] text-muted mb-3">{count.toLocaleString()}곳</p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
                             {items.map((dest) => (
-                                <DestinationCard key={dest.id} dest={dest} liked={!!likes[dest.id]?.liked} likeCount={likeCountOf(dest, likes)} onToggleLike={toggleLike} currentUserId={user?.id} />
+                                <DestinationCard key={dest.id} dest={dest} likeCount={likeCountOf(dest, likes)} />
                             ))}
                         </div>
                         {totalPages > 1 && <Pagination currentPage={page} totalPages={totalPages} onPageChange={(p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} color="ink" />}

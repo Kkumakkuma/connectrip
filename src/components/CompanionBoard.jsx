@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Users, Calendar, MapPin, Heart, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Users, Calendar, Heart, Plus } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { companionApi, postLikeApi } from '../lib/db';
+import { postPath, COMPANION_STATUS } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
 import BoardShell from './board/BoardShell';
 import ContinentBar from './board/ContinentBar';
@@ -12,17 +13,16 @@ import SearchPill from './board/SearchPill';
 import WriteModal from './board/WriteModal';
 import Pagination from './Pagination';
 import ListState from './ListState';
-import ReportButton from './ReportButton';
-import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
-import AuthorActions from './AuthorActions';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 
 const PAGE = 20;
 const EMPTY_FORM = { region_id: '', title: '', country: '', date: '', members: '', content: '' };
+const STATUS_CLASS = { open: 'bg-rausch-soft text-rausch', closed: 'bg-surface-soft text-muted' };
 
 // 여행 동행자 모집 — 통합 게시판(2026-09-07). 대륙은 말머리(ContinentBar 필터, 글쓰기 시 ContinentPicker 필수).
+// 목록은 한 줄 행이고 누르면 /post/companion/:id 상세로 들어간다(2026-09-14 게시판 정비).
 // 목록·필터·검색·페이지는 전부 서버(companionApi.getAll)가 처리하고, ?region= / ?q= 와 동기한다.
 const CompanionBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
@@ -36,7 +36,6 @@ const CompanionBoard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [likes, setLikes] = useState({});
-    const [expanded, setExpanded] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
@@ -44,7 +43,6 @@ const CompanionBoard = () => {
     const [pickerError, setPickerError] = useState('');
     const formId = useId();
     const reqRef = useRef(0);
-    const likeTouchedRef = useRef(new Set());   // 목록 조회 중 사용자가 누른 좋아요는 늦게 온 응답으로 덮지 않는다
 
     // 검색어 입력 → 300ms 뒤 URL ?q= 반영(공유·뒤로가기 보존)
     useEffect(() => {
@@ -80,7 +78,7 @@ const CompanionBoard = () => {
             if (data.length) {
                 const m = await postLikeApi.getForBoard('companion_posts', data.map((p) => p.id), user?.id);
                 if (reqId !== reqRef.current) return;
-                setLikes((prev) => { const next = { ...prev, ...m }; likeTouchedRef.current.forEach((id) => { if (prev[id]) next[id] = prev[id]; }); likeTouchedRef.current.clear(); return next; });
+                setLikes(m);                    // 병합하면 좋아요가 0이 된 글에 예전 숫자가 남는다(키가 안 옴)
             }
         } catch (err) {
             if (reqId !== reqRef.current) return;
@@ -110,19 +108,6 @@ const CompanionBoard = () => {
         setShowModal(true);
     };
 
-    const toggleLike = async (postId) => {
-        if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        try {
-            const { data, error: e } = await postLikeApi.toggle('companion_posts', postId);
-            if (e) throw e;
-            likeTouchedRef.current.add(postId);
-            setLikes((prev) => ({ ...prev, [postId]: { count: data.likes_count, liked: data.liked } }));
-        } catch (err) {
-            console.error('좋아요 실패:', err);
-            alert(err?.message?.includes('phone') ? '휴대폰 인증 후 좋아요할 수 있어요.' : '좋아요 처리에 실패했습니다.');
-        }
-    };
-
     const submit = async (e) => {
         e.preventDefault();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
@@ -137,6 +122,7 @@ const CompanionBoard = () => {
                 travel_date: form.date,
                 members_needed: form.members.trim(),
                 content: form.content.trim(),
+                status: 'open',
                 author_name: profile?.name || '익명',
                 user_id: user.id,
             });
@@ -153,17 +139,6 @@ const CompanionBoard = () => {
             alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
         } finally {
             setSubmitting(false);
-        }
-    };
-
-    const remove = async (post) => {
-        if (!window.confirm('이 글을 삭제할까요?')) return;
-        try {
-            await companionApi.delete(post.id);
-            if (posts.length <= 1 && page > 1) setPage(page - 1); else load();
-        } catch (err) {
-            console.error('삭제 실패:', err);
-            alert('삭제에 실패했습니다.');
         }
     };
 
@@ -193,52 +168,33 @@ const CompanionBoard = () => {
                         <p className="text-[13px] text-muted mb-2">{count.toLocaleString()}건</p>
                         <ul className="divide-y divide-hairline-soft border-t border-b border-hairline-soft">
                             {posts.map((post) => {
-                                const open = expanded === post.id;
-                                const like = likes[post.id];
+                                const status = post.status === 'closed' ? 'closed' : 'open';
                                 return (
-                                    <li key={post.id} className="py-4 sm:py-5">
-                                        <div className="flex items-start gap-3">
-                                            <div className="min-w-0 flex-1">
-                                                <button type="button" onClick={() => setExpanded(open ? null : post.id)} aria-expanded={open} className="w-full text-left group">
-                                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                        <ContinentBadge regionId={post.region_id} />
-                                                        {post.country && <span className="text-[12px] font-bold text-muted">{post.country}</span>}
-                                                    </div>
-                                                    <h3 className="text-[16px] sm:text-[17px] font-bold text-ink tracking-[-0.01em] leading-snug group-hover:underline underline-offset-4 decoration-hairline">
-                                                        {post.title}
-                                                    </h3>
-                                                </button>
-                                                <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
-                                                    <span className="inline-flex items-center gap-1"><Calendar size={13} aria-hidden="true" />{post.travel_date || '미정'}</span>
-                                                    <span className="inline-flex items-center gap-1"><Users size={13} aria-hidden="true" />{post.members_needed}명</span>
-                                                    <span className="inline-flex items-center gap-1 min-w-0">
-                                                        <MapPin size={13} aria-hidden="true" />
-                                                        <span className="truncate max-w-[10rem]">{post.author_name || '익명'}</span>
-                                                        <CrewBadge profile={post.profiles} />
-                                                        <AuthorActions userId={post.user_id} name={post.author_name || ''} size={12} />
-                                                    </span>
-                                                    <span className="ml-auto whitespace-nowrap">{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
-                                                </div>
-                                                {open && (
-                                                    <div className="mt-3 rounded-md bg-surface-soft px-4 py-3 text-[14px] text-body whitespace-pre-wrap leading-relaxed">
-                                                        {post.content}
-                                                    </div>
-                                                )}
-                                                <div className="mt-2 flex items-center gap-1">
-                                                    <button type="button" onClick={() => toggleLike(post.id)} aria-pressed={!!like?.liked} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[13px] font-bold transition-colors ${like?.liked ? 'text-rausch' : 'text-muted hover:text-ink'}`}>
-                                                        <Heart size={15} fill={like?.liked ? 'currentColor' : 'none'} /> {like?.count || 0}
-                                                    </button>
-                                                    <ShareButtons title={`${post.title} - ConnectTrip 동행 모집`} description={post.content} />
-                                                    {user?.id !== post.user_id && <ReportButton postId={post.id} boardType="companion" reportedUserId={post.user_id} />}
-                                                    {user?.id === post.user_id && (
-                                                        <button type="button" onClick={() => remove(post)} aria-label="삭제" className="p-1.5 rounded-full text-muted hover:text-error hover:bg-surface-soft"><Trash2 size={14} /></button>
-                                                    )}
-                                                    <button type="button" onClick={() => setExpanded(open ? null : post.id)} aria-label={open ? '접기' : '펼치기'} className="ml-auto p-1.5 rounded-full text-muted hover:bg-surface-soft">
-                                                        <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-                                                    </button>
-                                                </div>
+                                    <li key={post.id}>
+                                        <Link to={postPath('companion', post.id)} className="block py-4 sm:py-5 group">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <ContinentBadge regionId={post.region_id} className="flex-shrink-0" />
+                                                <span className={`inline-flex items-center rounded-full text-[11px] font-bold px-2 py-0.5 whitespace-nowrap flex-shrink-0 ${STATUS_CLASS[status]}`}>
+                                                    {COMPANION_STATUS[status]}
+                                                </span>
+                                                <h3 className="min-w-0 flex-1 truncate text-[16px] font-bold text-ink tracking-[-0.01em] group-hover:underline underline-offset-4 decoration-hairline">
+                                                    {post.title}
+                                                </h3>
                                             </div>
-                                        </div>
+                                            <div className="mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
+                                                <span className="inline-flex items-center gap-1 min-w-0">
+                                                    <span className="truncate max-w-[10rem]">{post.author_name || '익명'}</span>
+                                                    <CrewBadge profile={post.profiles} />
+                                                </span>
+                                                {post.country && <span className="truncate max-w-[10rem]">{post.country}</span>}
+                                                <span className="inline-flex items-center gap-1 whitespace-nowrap"><Calendar size={13} aria-hidden="true" />{post.travel_date || '미정'}</span>
+                                                <span className="inline-flex items-center gap-1 whitespace-nowrap"><Users size={13} aria-hidden="true" />{post.members_needed}명</span>
+                                                <span className="ml-auto inline-flex items-center gap-3 whitespace-nowrap">
+                                                    <span>{new Date(post.created_at).toLocaleDateString('ko-KR')}</span>
+                                                    <span className="inline-flex items-center gap-1"><Heart size={13} aria-hidden="true" />{likes[post.id]?.count || 0}</span>
+                                                </span>
+                                            </div>
+                                        </Link>
                                     </li>
                                 );
                             })}

@@ -4,6 +4,8 @@ import { saveTicket } from '../../lib/offlineStore';
 import { readOfflineOptIn, ticketsByPlace } from '../../lib/ticketFile';
 import { resolveTripZoneAsync } from '../../lib/timezone';
 import { resolveTicketView, uploadAndDetect } from '../../tickets/intake';
+import { offerFlightSchedule } from '../../lib/flightSchedule';
+import { useAuth } from '../../../lib/AuthContext';
 
 // 일정판에서 장소에 티켓을 붙이는 상태 묶음(2026-09-06 쿠마님: "장소에 티켓을 올리면 그 장소에서도, 티켓 지갑에서도 보이게").
 //
@@ -16,6 +18,7 @@ import { resolveTicketView, uploadAndDetect } from '../../tickets/intake';
 //     · pending 은 티켓 ID 로 결속: 저장이 끝난 뒤 다른 pending 으로 바뀌어 있으면 지우지 않는다
 //     · object URL 은 viewRevokeRef 가 소유: 교체·닫기·언마운트에서 해제(setState updater 안에서 부작용 금지)
 export default function usePlaceTickets({ tripId, userId, trip, places, pushToast }) {
+  const { profile } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [ticketsError, setTicketsError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -187,6 +190,13 @@ export default function usePlaceTickets({ tripId, userId, trip, places, pushToas
         // 저장한 그 티켓의 확인 시트만 닫는다(그새 다른 티켓으로 바뀌었으면 그대로 둔다)
         if (aliveRef.current && gen === genRef.current && pendingRef.current?.row?.id === target.row.id) setPending(null);
         pushToast('success', '티켓을 저장했습니다.');
+        // 항공권이면 마이페이지 비행 스케줄에도 등록할지 묻는다(2026-09-14)
+        try {
+          const r = await offerFlightSchedule({ userId, userType: profile?.user_type, values, bcbp: target.bcbp });
+          if (r.status === 'registered') pushToast('success', `비행 스케줄 등록: ${r.flightNumber}`);
+        } catch (err) {
+          pushToast('error', err?.message || '비행 스케줄을 등록하지 못했습니다.');
+        }
         return true;
       } catch (err) {
         pushToast('error', err?.message || '저장하지 못했습니다.');
@@ -196,7 +206,7 @@ export default function usePlaceTickets({ tripId, userId, trip, places, pushToas
         if (aliveRef.current) setBusy(false);
       }
     },
-    [tripId, userId, pushToast, refresh],
+    [tripId, userId, pushToast, refresh, profile?.user_type],
   );
 
   // 저장 중에는 닫지 못한다(백그라운드 저장이 끝난 뒤 시트가 사라지는 혼란 방지)

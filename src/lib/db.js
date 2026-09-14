@@ -49,6 +49,28 @@ export const companionApi = {
     return data;
   },
 
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('companion_posts')
+      .select('*, profiles(name, user_type, crew_verified)')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // 글쓴이 본인만 통과한다(RLS "Update companion"). status: 'open' | 'closed' (모집완료, 2026-09-14)
+  async update(id, patch) {
+    const { data, error } = await supabase
+      .from('companion_posts')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('*, profiles(name, user_type, crew_verified)')
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
   async delete(id) {
     const { error } = await supabase.from('companion_posts').delete().eq('id', id);
     if (error) throw error;
@@ -208,10 +230,12 @@ export const qnaApi = {
   // 목록 카드가 쓰는 건 댓글 '개수'뿐이고 본문은 펼친 한 건에서만 그린다.
   // 예전엔 모든 글의 모든 댓글 + 댓글마다 profiles 조인까지 한 응답에 실려 내려왔다.
   // 이제 집계 임베드(qna_comments(count))로 개수만 받고, 본문은 getComments 로 따로 받는다.
-  async getAll() {
+  // board: 'qna'(질문) | 'free'(자유게시판, 2026-09-14). 같은 테이블을 board 컬럼으로 나눠 쓴다.
+  async getAll(board = 'qna') {
     const { data, error } = await supabase
       .from('qna_posts')
       .select('*, qna_comments(count), profiles(user_type, crew_verified)')
+      .eq('board', board)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
@@ -237,15 +261,16 @@ export const qnaApi = {
   },
 
   async getById(id) {
-    // Increment view count
-    await supabase.rpc('increment_view_count', { post_id: id }).catch(() => {});
+    // 조회수 +1 — PostgREST 빌더는 .catch 가 없어 try/catch 로(2026-09-15 상세 페이지에서 실측한 TypeError 수정)
+    try { await supabase.rpc('increment_view_count', { post_id: id }); } catch { /* 조회수는 실패해도 글은 보여준다 */ }
     const { data, error } = await supabase
       .from('qna_posts')
-      .select('*, qna_comments(*, profiles!qna_comments_user_id_fkey(user_type, crew_verified)), profiles(user_type, crew_verified)')
+      .select('*, qna_comments(count), profiles(user_type, crew_verified)')
       .eq('id', id)
       .single();
     if (error) throw error;
-    return data;
+    const { qna_comments: commentAgg, ...post } = data;
+    return { ...post, comment_count: commentAgg?.[0]?.count ?? 0 };
   },
 
   async create(post) {
@@ -266,6 +291,24 @@ export const qnaApi = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  async update(id, patch) {
+    const { data, error } = await supabase
+      .from('qna_posts')
+      .update(patch)
+      .eq('id', id)
+      .select('*, qna_comments(count), profiles(user_type, crew_verified)')
+      .single();
+    if (error) throw error;
+    const { qna_comments: commentAgg, ...post } = data;
+    return { ...post, comment_count: commentAgg?.[0]?.count ?? 0 };
+  },
+
+  // 댓글 삭제 — 본인 댓글만(RLS "Delete comments"). 답글이 달린 댓글은 parent_id CASCADE 로 답글도 지워진다.
+  async deleteComment(id) {
+    const { error } = await supabase.from('qna_comments').delete().eq('id', id);
+    if (error) throw error;
   },
 
   async delete(id) {
@@ -301,6 +344,27 @@ export const crewApi = {
     return data;
   },
 
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('crew_posts')
+      .select('*, profiles(user_type, crew_verified)')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id, patch) {
+    const { data, error } = await supabase
+      .from('crew_posts')
+      .update(patch)
+      .eq('id', id)
+      .select('*, profiles(user_type, crew_verified)')
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
   async delete(id) {
     const { error } = await supabase.from('crew_posts').delete().eq('id', id);
     if (error) throw error;
@@ -311,10 +375,14 @@ export const crewApi = {
 // Reviews & Promotions
 // ============================================================
 
+const REVIEW_SELECT = '*, review_comments(count), profiles(name, user_type, crew_verified, avatar_url)';
+// PostgREST 집계 임베드 [{count}] → comment_count 로 편다 (qnaApi 와 동일)
+const flattenReview = ({ review_comments: commentAgg, ...post }) => ({ ...post, comment_count: commentAgg?.[0]?.count ?? 0 });
+
 export const reviewsApi = {
   async getAll(regionId = null, type = null) {
     let query = supabase.from('reviews')
-      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .select(REVIEW_SELECT)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
@@ -322,17 +390,60 @@ export const reviewsApi = {
     if (type) query = query.eq('type', type);
     const { data, error } = await query;
     if (error) throw error;
+    return (data || []).map(flattenReview);
+  },
+
+  async getById(id) {
+    const { data, error } = await supabase.from('reviews').select(REVIEW_SELECT).eq('id', id).single();
+    if (error) throw error;
+    return flattenReview(data);
+  },
+
+  async update(id, patch) {
+    const { data, error } = await supabase
+      .from('reviews')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select(REVIEW_SELECT)
+      .single();
+    if (error) throw error;
+    return flattenReview(data);
+  },
+
+  // 후기 댓글(review_comments, 2026-09-14) — 구조·규칙은 qna_comments 와 동일
+  async getComments(postId) {
+    const { data, error } = await supabase
+      .from('review_comments')
+      .select('*, profiles!review_comments_user_id_fkey(user_type, crew_verified)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async addComment(comment) {
+    const { data, error } = await supabase
+      .from('review_comments')
+      .insert(comment)
+      .select('*, profiles!review_comments_user_id_fkey(user_type, crew_verified)')
+      .single();
+    if (error) throw error;
     return data;
+  },
+
+  async deleteComment(id) {
+    const { error } = await supabase.from('review_comments').delete().eq('id', id);
+    if (error) throw error;
   },
 
   async create(review) {
     const { data, error } = await supabase
       .from('reviews')
       .insert(review)
-      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .select(REVIEW_SELECT)
       .single();
     if (error) throw error;
-    return data;
+    return flattenReview(data);
   },
 
   async delete(id) {
@@ -376,6 +487,27 @@ export const destinationsApi = {
   // like/unlike 는 제거했다(2026-08-28). destinations.likes_count 를 클라이언트가 직접
   // UPDATE 하는 경로라 좋아요를 무한히 조작할 수 있었다. 좋아요는 post_likes 테이블 +
   // toggle_post_like RPC 로 서버가 1인 1회를 강제한다(postLikeApi 참고).
+
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('destinations')
+      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id, patch) {
+    const { data, error } = await supabase
+      .from('destinations')
+      .update(patch)
+      .eq('id', id)
+      .select('*, profiles(name, user_type, crew_verified, avatar_url)')
+      .single();
+    if (error) throw error;
+    return data;
+  },
 
   async delete(id) {
     const { error } = await supabase.from('destinations').delete().eq('id', id);
@@ -821,6 +953,8 @@ export const chatApi = {
   async send(roomId, content) { return rpc('chat_send', { p_room: roomId, p_content: content }); },
   // until: 화면에 실제로 붙은 마지막 메시지 시각(그 뒤에 온 메시지는 안 읽은 채로 남긴다)
   async markRead(roomId, until = null) { return rpc('chat_mark_read', { p_room: roomId, p_until: until }); },
+  // 방 나가기(2026-09-14): 목록에서 빠지고 상대가 새 메시지를 보내면 다시 나타난다. 다시 열면(open) 나간 표시가 풀린다.
+  async leave(roomId) { return rpc('chat_leave', { p_room: roomId }); },
   async unreadCount() { return (await rpc('chat_unread_count')) || 0; },
 };
 

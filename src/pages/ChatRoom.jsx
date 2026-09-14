@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Send, Ban, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Send, Ban, MoreVertical, LogOut } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { chatApi, userBlockApi } from '../lib/db';
 import { messageTime, groupByDay, priceLabel, statusLabel, chatErrorMessage, pollDelay } from '../lib/chat';
@@ -41,6 +41,7 @@ const ChatRoom = () => {
     const lastActiveRef = useRef(Date.now());
     const timerRef = useRef(null);
     const pollCountRef = useRef(0);
+    const leftAtRef = useRef(null);     // 내가 방을 나갔던 시각 — 그 이전 메시지는 폴링·되감기에서도 받지 않는다
 
     const scrollBottom = () => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; };
     const alive = (seq) => seq === seqRef.current;
@@ -76,7 +77,9 @@ const ChatRoom = () => {
     const poll = useCallback(async () => {
         const seq = seqRef.current;
         try {
-            const rows = await chatApi.messages(roomId, { sinceAt: overlapSince(lastAtRef.current) });
+            const since = overlapSince(lastAtRef.current);
+            const floor = leftAtRef.current;
+            const rows = await chatApi.messages(roomId, { sinceAt: (floor && (!since || since < floor)) ? floor : since });
             if (!alive(seq)) return;
             const fresh = merge(rows);
             if (fresh.length > 0) {
@@ -92,17 +95,20 @@ const ChatRoom = () => {
 
     useEffect(() => {
         const seq = ++seqRef.current;
-        idsRef.current = new Set(); lastAtRef.current = null; firstAtRef.current = null; pollCountRef.current = 0;
+        idsRef.current = new Set(); lastAtRef.current = null; firstAtRef.current = null; pollCountRef.current = 0; leftAtRef.current = null;
         setMessages([]); setInfo(null); setText(''); setMenuOpen(false); setHasOlder(false);
         (async () => {
             try {
                 setLoading(true); setError(null);
-                await loadInfo(seq);
+                const data = await loadInfo(seq);
                 if (!alive(seq)) return;
-                const rows = await chatApi.messages(roomId, { limit: PAGE });
+                // 방을 나갔다가 다시 들어온 경우(my_left_at) 나간 뒤의 메시지만 보여준다(2026-09-14)
+                const leftAt = data?.my_left_at || null;
+                leftAtRef.current = leftAt;
+                const rows = await chatApi.messages(roomId, leftAt ? { sinceAt: leftAt, limit: 300 } : { limit: PAGE });
                 if (!alive(seq)) return;
                 merge(rows);
-                setHasOlder(rows.length >= PAGE);
+                setHasOlder(!leftAt && rows.length >= PAGE);
                 markRead(seq);
                 setTimeout(scrollBottom, 30);
             } catch (err) {
@@ -204,6 +210,20 @@ const ChatRoom = () => {
         }
     };
 
+    // 방 나가기(2026-09-14): 목록에서 사라지고, 상대가 새 메시지를 보내면 다시 나타난다.
+    const leaveRoom = async () => {
+        if (!window.confirm('이 대화방에서 나갈까요?')) return;
+        try {
+            await chatApi.leave(roomId);
+            navigate('/chat');
+        } catch (err) {
+            console.error('대화방 나가기 실패:', err);
+            alert(chatErrorMessage(err, '처리하지 못했습니다.'));
+        } finally {
+            setMenuOpen(false);
+        }
+    };
+
     const onKeyDown = (e) => {
         if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent?.isComposing) return;
         e.preventDefault();
@@ -235,6 +255,9 @@ const ChatRoom = () => {
                                         <button type="button" onClick={toggleBlock} className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-gray-50">
                                             <Ban size={13} /> {info.blocked_by_me ? '차단 해제' : '차단'}
                                         </button>
+                                    <button type="button" onClick={leaveRoom} className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 hover:bg-gray-50">
+                                        <LogOut size={13} /> 나가기
+                                    </button>
                                         <span className="flex items-center gap-2 px-3 py-1.5 text-gray-700">
                                             <ReportButton postId={roomId} boardType="chat" reportedUserId={info.other_id} /> 신고
                                         </span>
