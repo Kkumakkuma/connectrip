@@ -68,9 +68,11 @@ export default function IdentityVerifyStep({
         <ShieldCheck size={20} color={accent} />
         <strong style={{ fontSize: 16, color: '#1a365d' }}>{title}</strong>
       </div>
-      <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 14px' }}>
-        {description}
-      </p>
+      {description && (
+        <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 14px' }}>
+          {description}
+        </p>
+      )}
       <button type="button" onClick={start} disabled={busy || disabled}
         style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none',
           background: (busy || disabled) ? '#94a3b8' : accent, color: 'white', fontWeight: 700, fontSize: 15,
@@ -88,10 +90,12 @@ export default function IdentityVerifyStep({
           ⚠️ {error}
         </div>
       )}
+      {notice !== false && (
       <p style={{ margin: '12px 0 0', fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
         본인확인은 {IDENTITY_PG_NAME}(휴대폰 본인확인 서비스)를 통해 이동통신사가 처리합니다. 확인 과정에서 받는 이름·생년월일·성별·휴대폰번호·통신사·내외국인 여부·연계정보(CI)는
         {' '}{notice || '실명 확인, 1인 1계정 확인, 만 14세 미만 가입 제한 목적으로만 사용하며, 가입을 마치지 않으면 24시간 안에 파기합니다.'}
       </p>
+      )}
     </div>
   );
 }

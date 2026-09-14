@@ -57,11 +57,11 @@ export function userTypeLabel(userType) {
 // RPC 상태값·오류 코드 → 사용자 문구. 모르는 값은 fallback.
 const MESSAGES = {
   // change_my_email
-  crew_managed: '승무원 회원의 연락 이메일은 항공사 이메일입니다. 아래 승무원 인증 카드에서 갱신해주세요.',
+  crew_managed: '승무원 회원은 항공사 이메일을 사용합니다.',
   email_invalid: '이메일 형식이 올바르지 않습니다.',
   email_claimed: '이미 다른 계정에서 사용 중인 이메일입니다.',
   // change_my_phone_by_identity
-  mismatch: '본인확인한 분과 이 계정의 본인확인 정보가 다릅니다. 본인 명의 휴대폰으로만 변경할 수 있습니다. 가입 당시 본인확인 기록이 없는 계정이면 고객센터로 문의해주세요.',
+  mismatch: '본인확인 정보가 계정과 다릅니다.',
   phone_blocked: '이용이 제한된 휴대폰 번호입니다.',
   phone_claimed: '이미 다른 계정에서 사용 중인 휴대폰 번호입니다.',
   // 공통

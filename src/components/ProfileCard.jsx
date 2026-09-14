@@ -161,7 +161,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
     let after = null;
     try { after = await fetchProfile(user.id); } catch { after = null; }
     setEditing(null);
-    if (!after) { setError(''); setDone(message + ' 화면 표시가 갱신되지 않으면 새로고침해주세요.'); return; }
+    if (!after) { setError(''); setDone(message + ' 새로고침해주세요.'); return; }
     if (check && !check(after)) { setDone(''); setError('저장이 반영되지 않았습니다. 새로고침한 뒤 다시 확인해주세요.'); return; }
     setError('');
     setDone(message);
@@ -276,7 +276,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
       try { await supabase.auth.signOut({ scope: 'others' }); } catch { /* 무시 */ }
       setPwCurrent(''); setPwNew(''); setPwConfirm('');
       setEditing(null);
-      setDone('비밀번호를 바꿨습니다. 다른 기기에서는 다시 로그인해야 합니다.');
+      setDone('비밀번호를 바꿨습니다.');
     } catch (err) { setError('네트워크 오류: ' + (err.message || '알 수 없음')); }
     finally { setBusy(false); }
   };
@@ -292,7 +292,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
       clearIdentityProof(); // 증빙은 1회용 — 성공·실패 모두 버린다
       onIdentityHandled?.();
       if (rpcErr) { fail(rpcErr, '휴대폰 번호를 바꾸지 못했습니다.'); return; }
-      if (result === 'same') { setEditing(null); setDone('지금 등록된 번호와 같아 변경하지 않았습니다.'); return; }
+      if (result === 'same') { setEditing(null); setDone('등록된 번호와 같습니다.'); return; }
       if (result !== 'ok') { fail(String(result), '휴대폰 번호를 바꾸지 못했습니다.'); return; }
       await finish('휴대폰 번호를 바꿨습니다.', (p) => !!p.phone);
     } catch (err) { setError('네트워크 오류: ' + (err.message || '알 수 없음')); }
@@ -321,7 +321,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
       </div>
 
       <Row label="아이디" value={profile.login_id || '-'} />
-      <Row label="이름" value={profile.name || '-'} hint="휴대폰 본인확인으로 확인된 이름입니다." />
+      <Row label="이름" value={profile.name || '-'} />
       {birthdate && <Row label="생년월일" value={birthdate} />}
 
       <Row label="휴대폰" value={profile.phone ? maskPhone(profile.phone) : '미등록'}
@@ -330,9 +330,9 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
           purpose={IDENTITY_PURPOSE_PHONE_CHANGE} returnPath="/mypage" returnResult={identityReturn}
           disabled={!IDENTITY_ENABLED || busy} onVerified={onPhoneVerified}
           onBusyChange={(b) => { setPassBusy(b); if (b) onIdentityHandled?.(); }}
-          title="휴대폰 번호 변경 · PASS 본인확인"
-          description="새 번호의 휴대폰으로 PASS 본인확인을 마치면 그 번호로 바뀝니다. 가입할 때 본인확인한 분 본인 명의 휴대폰만 가능합니다."
-          notice="계정 주인과 같은 분인지 대조하고 휴대폰 번호를 바꾸는 데만 사용하며, 대조가 끝나면 즉시 지웁니다. 번호가 바뀌면 새 번호가 회원 정보에 저장됩니다."
+          title="휴대폰 번호 변경"
+          description=""
+          notice={false}
         />
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={close} style={ghostBtn} disabled={busy || passBusy}><X size={14} /> 닫기</button>
@@ -342,7 +342,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
       <Row label="닉네임" value={profile.nickname || '-'}
         actionLabel="수정" onAction={() => open('nickname')} editing={editing === 'nickname'}>
         <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={20}
-          aria-label="새 닉네임" placeholder="새 닉네임 (2~20자)" style={inputStyle} autoComplete="off" />
+          aria-label="새 닉네임" placeholder="새 닉네임" style={inputStyle} autoComplete="off" />
         <div style={{ fontSize: 12, marginTop: 6, minHeight: 16, color: nickStatus === 'taken' ? '#dc2626' : nickStatus === 'available' ? '#16a34a' : '#94a3b8' }}>
           {nickStatus === 'checking' && '확인 중...'}
           {nickStatus === 'available' && '사용할 수 있는 닉네임입니다.'}
@@ -358,7 +358,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
 
       {isCrew ? (
         <Row label="항공사" value={`${profile.airline_name || '-'}${profile.airline_email ? ` · ${profile.airline_email}` : ''}`}
-          hint="승무원 회원의 연락 이메일은 항공사 이메일입니다. 변경·갱신은 아래 승무원 인증 카드에서 합니다." />
+        />
       ) : (
         <Row label="연락 이메일" value={profile.email || '미등록'}
           actionLabel="변경" onAction={() => open('email')} editing={editing === 'email'}>
@@ -407,7 +407,7 @@ export default function ProfileCard({ identityReturn = null, onIdentityHandled }
           actionLabel="변경" onAction={() => open('password')} editing={editing === 'password'}>
           <div style={{ display: 'grid', gap: 8 }}>
             <input type="password" value={pwCurrent} onChange={(e) => setPwCurrent(e.target.value)} aria-label="현재 비밀번호" placeholder="현재 비밀번호" style={inputStyle} autoComplete="current-password" disabled={busy} />
-            <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} aria-label="새 비밀번호" placeholder="새 비밀번호 (8자 이상, 영문+숫자)" style={inputStyle} autoComplete="new-password" disabled={busy} />
+            <input type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} aria-label="새 비밀번호" placeholder="새 비밀번호" style={inputStyle} autoComplete="new-password" disabled={busy} />
             <input type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} aria-label="새 비밀번호 확인" placeholder="새 비밀번호 확인" style={inputStyle} autoComplete="new-password" disabled={busy} />
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
