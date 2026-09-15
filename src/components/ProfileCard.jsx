@@ -66,7 +66,8 @@ function Notice({ tone = 'error', children }) {
   );
 }
 
-export default function ProfileCard() {
+// embedded: 마이페이지 팝업(회원 정보 수정 버튼) 안에서 쓸 때 — 카드 테두리·머리글 없이 항목만 그린다(2026-09-15).
+export default function ProfileCard({ embedded = false }) {
   const { user, profile, isCrew, updateProfile, fetchProfile } = useAuth();
   const [editing, setEditing] = useState(null);      // 'nickname' | 'email' | 'address' | 'password' | null
   const [busy, setBusy] = useState(false);
@@ -273,11 +274,14 @@ export default function ProfileCard() {
     ? `${profile.address_zipcode ? `(${profile.address_zipcode}) ` : ''}${profile.address_road}${profile.address_detail ? ` ${profile.address_detail}` : ''}`
     : '';
 
+  const Wrap = embedded ? 'div' : motion.div;
+  const wrapProps = embedded ? {} : {
+    initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 },
+    style: { background: 'white', borderRadius: '1.5rem', padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' },
+  };
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-      style={{ background: 'white', borderRadius: '1.5rem', padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}
-    >
+    <Wrap {...wrapProps}>
+      {!embedded && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <div style={{ background: 'linear-gradient(135deg,#2563eb,#3b82f6)', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
           <UserRound size={20} />
@@ -287,10 +291,13 @@ export default function ProfileCard() {
           <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>{userTypeLabel(profile.user_type)} · 가입일 {formatJoinedDate(profile.created_at)}</p>
         </div>
       </div>
+      )}
 
       <Row label="아이디" value={profile.login_id || '-'} />
       <Row label="이름" value={profile.name || '-'} />
       {birthdate && <Row label="생년월일" value={birthdate} />}
+      {embedded && <Row label="회원 유형" value={userTypeLabel(profile.user_type)} />}
+      {embedded && <Row label="가입일" value={formatJoinedDate(profile.created_at)} />}
 
       <Row label="휴대폰" value={profile.phone ? maskPhone(profile.phone) : '미등록'} />
 
@@ -376,6 +383,6 @@ export default function ProfileCard() {
 
       {error && <Notice>{error}</Notice>}
       {done && !error && <Notice tone="ok">{done}</Notice>}
-    </motion.div>
+    </Wrap>
   );
 }

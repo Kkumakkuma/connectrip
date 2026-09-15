@@ -7,10 +7,11 @@ import { POINT_PACKAGES } from '../lib/products';
 import { PAYMENTS_ENABLED, REFERRAL_ENABLED, COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Trash2, Settings, Gift, Copy, Share2, UserX, MessageSquare, X } from 'lucide-react';
+import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, CreditCard, Users, LogOut, Trash2, Settings, Gift, Copy, Share2, UserX, MessageSquare, X, UserRound, Pencil } from 'lucide-react';
 import KeywordSettings from './KeywordSettings';
 import CrewVerification from './CrewVerification';
 import ProfileCard from './ProfileCard';
+import WriteModal from './board/WriteModal';
 import CommendationMatching from './CommendationMatching';
 import FlightBoard from './FlightBoard';
 import { kstDateString } from '../lib/flightBoard';
@@ -29,6 +30,8 @@ const MyPage = () => {
     // 칭찬매칭이 꺼져 있으면(COMMENDATION_ENABLED=false) 키워드 알림 탭이 기본이다(2026-09-14).
     const DEFAULT_TAB = COMMENDATION_ENABLED ? 'commendation' : 'keywords';
     const [activeTab, setActiveTab] = useState(DEFAULT_TAB);
+    // 회원 정보 수정 팝업(2026-09-15 쿠마님 지시: 마이페이지 자리를 차지하지 않게 버튼만 두고 누르면 거기서 수정)
+    const [showProfile, setShowProfile] = useState(false);
 
     // ?tab= 딥링크 반영. useState 초기값으로만 읽으면 이미 /mypage 에 있을 때(알림 링크 등)
     // 컴포넌트가 재마운트되지 않아 탭이 바뀌지 않는다.
@@ -543,8 +546,22 @@ const MyPage = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '800px', margin: '0 auto' }}>
 
-                    {/* 회원 정보 카드(표시 + 닉네임·이메일·주소·비밀번호 수정) — 2026-09-14 */}
-                    <ProfileCard />
+                    {/* 회원 정보 — 버튼 한 줄만 두고, 누르면 팝업에서 표시·수정(2026-09-15). 카드 본체는 ProfileCard embedded */}
+                    <div style={{ background: 'white', borderRadius: '1.5rem', padding: '1rem 1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ background: 'linear-gradient(135deg,#2563eb,#3b82f6)', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
+                                <UserRound size={20} />
+                            </div>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#1f2937' }}>회원 정보</h3>
+                        </div>
+                        <button type="button" onClick={() => setShowProfile(true)} aria-haspopup="dialog" aria-expanded={showProfile}
+                            style={{ padding: '10px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: 'white', color: '#0f172a', fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                            <Pencil size={14} /> 회원 정보 수정
+                        </button>
+                    </div>
+                    <WriteModal open={showProfile} title="회원 정보" onClose={() => setShowProfile(false)}>
+                        <ProfileCard embedded />
+                    </WriteModal>
 
                     {/* Traveler Point Wallet — POINTS_ENABLED 로 숨김(2026-09-14) */}
                     {POINTS_ENABLED && !isCrew && (

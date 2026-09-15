@@ -61,11 +61,13 @@ export default function AddressInput({
     if (!open) return undefined;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    window.addEventListener('keydown', onKey);
+    // Esc 는 우편번호 창만 닫는다. 마이페이지 회원 정보 팝업(WriteModal, document keydown) 안에서도 쓰이므로
+    // 캡처 단계에서 먼저 받아 전파를 끊는다(2026-09-15) — 안 그러면 Esc 한 번에 팝업까지 같이 닫힌다.
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+    window.addEventListener('keydown', onKey, true);
     return () => {
       document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
     };
   }, [open]);
 
