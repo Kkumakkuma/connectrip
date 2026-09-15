@@ -98,6 +98,13 @@ export default async function handler(req, res) {
   if (birthdate === 'AGE') return fail(res, 403, 'AGE_UNDER_14', '만 14세 미만은 가입할 수 없습니다.');
   if (!birthdate) return fail(res, 400, 'BAD_INPUT', '생년월일을 확인해주세요.');
   if (!b.terms_agreed_at || !b.privacy_agreed_at) return fail(res, 400, 'CONSENT_REQUIRED', '필수 약관에 동의해주세요.');
+  // 닉네임 필수(2026-09-15): 게시판 작성자는 닉네임으로만 표시된다. 규칙은 src/lib/profileEdit.js·DB CHECK profiles_nickname_len 과 같다.
+  const nickname = String(b.nickname ?? '').trim().replace(/\s+/g, ' ');
+  const nicknameLen = nickname.replace(/\s/g, '').length;
+  if (nicknameLen < 2 || nickname.length > 20) return fail(res, 400, 'NICKNAME_INVALID', '닉네임은 2자 이상 20자 이하로 입력해주세요.');
+  if (/(관리자|운영자|운영진|admin|connecttrip|커넥트립)/i.test(nickname)) {
+    return fail(res, 400, 'NICKNAME_RESERVED', '운영진으로 오해할 수 있는 단어는 닉네임에 쓸 수 없습니다.');
+  }
   const email = userType === 'traveler' ? str(b.email, 254).toLowerCase() : '';
   const emailOtpToken = userType === 'traveler' ? str(b.email_otp_token, 128) : '';
   if (userType === 'traveler' && (!email || !emailOtpToken)) {
@@ -133,7 +140,7 @@ export default async function handler(req, res) {
     email: synthEmail(loginId),
     password,
     email_confirm: true,
-    user_metadata: { login_id: loginId, name: str(b.name, 30), nickname: str(b.nickname, 20), birthdate },
+    user_metadata: { login_id: loginId, name: str(b.name, 30), nickname, birthdate },
   });
   if (cErr || !created?.user?.id) {
     const m = String(cErr?.message || '');
@@ -151,7 +158,7 @@ export default async function handler(req, res) {
     p_email: email || null,
     p_email_otp_token: emailOtpToken || null,
     p_name: str(b.name, 30),
-    p_nickname: str(b.nickname, 20),
+    p_nickname: nickname,
     p_phone: str(b.phone, 20),
     // 주소는 화면이 필수로 받는다(우편번호·도로명 검색). 빈 값이 오면 '' 대신 NULL 로 저장(2026-09-14).
     p_zipcode: str(b.zipcode, 10) || null,

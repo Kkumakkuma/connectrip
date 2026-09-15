@@ -7,6 +7,9 @@ import CrewBadge from './CrewBadge';
 import AuthorActions from './AuthorActions';
 import ReportButton from './ReportButton';
 import { useAuth } from '../lib/AuthContext';
+import { useNicknameGate } from '../lib/useNicknameGate';
+import { displayAuthor } from '../lib/authorName';
+import NicknameRequiredModal from './NicknameRequiredModal';
 import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import LoginPrompt from './LoginPrompt';
@@ -35,6 +38,7 @@ const keyActivate = (fn) => (e) => {
 const Promotions = () => {
     const location = useLocation();
     const { user, profile, isLoggedIn } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const [mode, setMode] = useState('main');
     const [selectedRegion, setSelectedRegion] = useState(null);
     const [showModal, setShowModal] = useState(false);
@@ -85,10 +89,11 @@ const Promotions = () => {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         if (!user) return;
         // 조기 return 을 모두 지난 뒤에 플래그를 세운다(먼저 세우면 버튼이 영구히 잠긴다).
         if (submitting) return;
+        if (!requireNickname(() => handleSubmit())) return;
         setSubmitting(true);
         try {
             await reviewsApi.create({
@@ -98,7 +103,7 @@ const Promotions = () => {
                 title: formData.title,
                 description: formData.content,
                 image_url: formData.image_url || null,
-                author_name: profile?.name || '익명',
+                author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
             });
             setFormData({ title: '', content: '', image_url: '' });
             setShowModal(false);
@@ -293,9 +298,9 @@ const Promotions = () => {
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-1.5 text-gray-400 text-xs min-w-0">
                                                         <User size={14} className="flex-shrink-0" />
-                                                        <span className="truncate">{item.author_name || item.profiles?.name || '익명'}</span>
+                                                        <span className="truncate">{displayAuthor(item.author_name, item.profiles?.nickname)}</span>
                                                         <CrewBadge profile={item.profiles} />
-                                                        <AuthorActions userId={item.user_id} name={item.author_name || item.profiles?.name || ''} size={12} />
+                                                        <AuthorActions userId={item.user_id} name={displayAuthor(item.author_name, item.profiles?.nickname)} size={12} />
                                                         <span className="flex-shrink-0">·</span>
                                                         <span className="whitespace-nowrap flex-shrink-0">{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>
@@ -377,6 +382,7 @@ const Promotions = () => {
             </AnimatePresence>
 
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
+            <NicknameRequiredModal {...nicknameModal} />
         </section>
         </>
     );

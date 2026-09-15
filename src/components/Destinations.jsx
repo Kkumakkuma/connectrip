@@ -2,6 +2,9 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Heart, Plus, Lock, MapPin, MessageSquare } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { useNicknameGate } from '../lib/useNicknameGate';
+import { displayAuthor } from '../lib/authorName';
+import NicknameRequiredModal from './NicknameRequiredModal';
 import { destinationsApi, postLikeApi } from '../lib/db';
 import { postPath } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
@@ -55,7 +58,7 @@ const DestinationCard = ({ dest, likeCount }) => (
                 <p className="mt-2 text-[13px] text-body bg-surface-soft rounded-sm px-3 py-2 line-clamp-3">✈️ {dest.crew_comment}</p>
             )}
             <div className="mt-auto pt-3 flex items-center gap-1 min-w-0 text-[12px] text-muted">
-                <span className="truncate">{dest.profiles?.name || '익명 승무원'}</span>
+                <span className="truncate">{displayAuthor(dest.profiles?.nickname)}</span>
                 <CrewBadge profile={dest.profiles} />
             </div>
         </div>
@@ -65,6 +68,7 @@ const DestinationCard = ({ dest, likeCount }) => (
 // 승무원 추천지 — 통합 게시판(2026-09-07). 대륙은 말머리(필터 + 글쓰기 필수). 작성은 인증 승무원만.
 const Destinations = () => {
     const { user, profile, isLoggedIn, isCrew, profileLoading } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const [searchParams, setSearchParams] = useSearchParams();
     const region = regionFromSearch(searchParams.toString());
     const q = searchParams.get('q') || '';
@@ -151,10 +155,11 @@ const Destinations = () => {
     };
 
     const submit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         if (!user || submitting || uploading) return;
         if (!canWrite) { alert('승무원 인증을 마친 회원만 명소를 추천할 수 있습니다.'); setShowModal(false); return; }
         if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             const created = await destinationsApi.create({
@@ -256,6 +261,7 @@ const Destinations = () => {
                 </form>
             </WriteModal>
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
+            <NicknameRequiredModal {...nicknameModal} />
         </>
     );
 };

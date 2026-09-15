@@ -1,3 +1,4 @@
+import { displayAuthor } from '../lib/authorName';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -147,7 +148,7 @@ const ItineraryBoard = () => {
                       </div>
                       <div className="flex items-center gap-1 text-gray-600 min-w-0">
                         <span className="flex-shrink-0">작성자</span>
-                        <strong className="text-gray-900 truncate">{post.author_name || '익명'}</strong>
+                        <strong className="text-gray-900 truncate">{displayAuthor(post.author_name)}</strong>
                         <CrewBadge profile={post.profiles} />
                       </div>
                     </div>

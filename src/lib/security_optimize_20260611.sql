@@ -230,6 +230,7 @@ grant  execute on function public.bump_email_otp_attempts(uuid) to service_role;
 drop policy if exists "Admin read all reports" on public.reports;
 drop policy if exists "Admin update reports" on public.reports;
 
+-- 재실행 주의: 20260915 닉네임 전환 참고 (author_nickname_20260915.sql)
 revoke select on table public.profiles from anon, authenticated;
 grant select (id, name, nickname, avatar_url, user_type, crew_verified, airline_name, bio, created_at)
   on table public.profiles to anon, authenticated;

@@ -1,3 +1,4 @@
+import { normalizeAdminReport } from './adminReports';
 import { supabase } from './supabase';
 import { searchTerm, ilikeOr } from './continents';
 import { ITINERARY_ENABLED, PROMO_REVIEWS_ENABLED } from './featureFlags';
@@ -61,7 +62,7 @@ export const companionApi = {
   async getById(id) {
     const { data, error } = await supabase
       .from('companion_posts')
-      .select('*, companion_comments(count), profiles(name, user_type, crew_verified)')
+      .select('*, companion_comments(count), profiles(nickname, user_type, crew_verified)')
       .eq('id', id)
       .single();
     if (error) throw error;
@@ -74,7 +75,7 @@ export const companionApi = {
       .from('companion_posts')
       .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select('*, companion_comments(count), profiles(name, user_type, crew_verified)')
+      .select('*, companion_comments(count), profiles(nickname, user_type, crew_verified)')
       .single();
     if (error) throw error;
     return flattenCompanion(data);
@@ -151,7 +152,7 @@ export const marketApi = {
   async getById(id) {
     const { data, error } = await supabase
       .from('market_listings')
-      .select('*, profiles!market_listings_user_id_fkey(id, name, nickname, avatar_url, user_type, crew_verified)')
+      .select('*, profiles!market_listings_user_id_fkey(id, nickname, avatar_url, user_type, crew_verified)')
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
@@ -162,7 +163,7 @@ export const marketApi = {
       .from('market_listings')
       .update(patch)
       .eq('id', id)
-      .select('*, profiles!market_listings_user_id_fkey(id, name, nickname, avatar_url, user_type, crew_verified)')
+      .select('*, profiles!market_listings_user_id_fkey(id, nickname, avatar_url, user_type, crew_verified)')
       .single();
     if (error) throw error;
     return data;
@@ -438,7 +439,7 @@ export const crewApi = {
 // Reviews & Promotions
 // ============================================================
 
-const REVIEW_SELECT = '*, review_comments(count), profiles(name, user_type, crew_verified, avatar_url)';
+const REVIEW_SELECT = '*, review_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)';
 // PostgREST 집계 임베드 [{count}] → comment_count 로 편다 (qnaApi 와 동일)
 const flattenReview = ({ review_comments: commentAgg, ...post }) => ({ ...post, comment_count: commentAgg?.[0]?.count ?? 0 });
 
@@ -525,7 +526,7 @@ export const destinationsApi = {
     // likes_count 는 같은 값이 흔하고 실시간으로 변한다. id 2차 정렬이 없으면
     // 같은 좋아요 수끼리 순서가 조회할 때마다 뒤바뀐다.
     let query = supabase.from('destinations')
-      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)', { count: 'exact' })
+      .select('*, destination_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)', { count: 'exact' })
       .order('likes_count', { ascending: false })
       .order('id', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
@@ -541,7 +542,7 @@ export const destinationsApi = {
     const { data, error } = await supabase
       .from('destinations')
       .insert(dest)
-      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)')
+      .select('*, destination_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)')
       .single();
     if (error) throw error;
     return flattenDestination(data);
@@ -554,7 +555,7 @@ export const destinationsApi = {
   async getById(id) {
     const { data, error } = await supabase
       .from('destinations')
-      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)')
+      .select('*, destination_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)')
       .eq('id', id)
       .single();
     if (error) throw error;
@@ -566,7 +567,7 @@ export const destinationsApi = {
       .from('destinations')
       .update(patch)
       .eq('id', id)
-      .select('*, destination_comments(count), profiles(name, user_type, crew_verified, avatar_url)')
+      .select('*, destination_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)')
       .single();
     if (error) throw error;
     return flattenDestination(data);
@@ -1081,15 +1082,12 @@ export const reportApi = {
     return true;
   },
 
+  // 관리자 전용(2026-09-15). 신고자·대상자의 실명·닉네임은 is_admin() 으로 막은 SECURITY DEFINER RPC 로만 받는다.
+  // profiles(name) 임베드 조회를 쓰지 않는다. 반환 모양은 adminReports.js 주석 참고.
   async getAll() {
-    // NOTE: Admin needs to read ALL reports regardless of RLS.
-    // Update RLS policy: allow select on reports where auth.uid() is in profiles with role='admin'
-    const { data, error } = await supabase
-      .from('reports')
-      .select('*, reporter:profiles!reports_reporter_id_fkey(id, name, avatar_url), reported:profiles!reports_reported_user_id_fkey(id, name, avatar_url)')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.rpc('admin_list_reports');
     if (error) throw error;
-    return data;
+    return (data || []).map(normalizeAdminReport);
   },
 
   async updateStatus(id, status, adminNote = null) {
@@ -1146,7 +1144,7 @@ export const userBlockApi = {
   async getMyBlocks() {
     const { data, error } = await supabase
       .from('blocks')
-      .select('blocked_id, created_at, blocked:profiles!blocks_blocked_id_fkey(id, name, nickname, avatar_url)')
+      .select('blocked_id, created_at, blocked:profiles!blocks_blocked_id_fkey(id, nickname, avatar_url)')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
@@ -1177,7 +1175,9 @@ export const userBlockApi = {
 //   브라우저로 내려보내게 되고, 관리자 PC 하나가 털리면 그게 그대로 유출 범위가 된다.
 //   PII 암호화 컬럼(phone_enc/phone_hash/name_enc/addr_*_enc/pii_key_version)은 클라이언트 롤에
 //   SELECT 권한 자체가 없으므로(src/lib/pii_encryption_20260905.sql) 절대 넣지 않는다.
-const ADMIN_PROFILE_COLUMNS = 'id, name, email, user_type, points_balance, created_at, is_banned, role';
+// 폴백 직접 조회에는 실명(name)을 넣지 않는다(2026-09-15). 관리자 회원 목록의 실명은 주 경로 admin_list_profiles RPC 에서만 온다 —
+// RPC 가 실패해 폴백으로 떨어지면 이름 칸은 '-' 로 보인다.
+const ADMIN_PROFILE_COLUMNS = 'id, nickname, email, user_type, points_balance, created_at, is_banned, role';
 
 export const adminApi = {
   async getAllProfiles() {

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPinned, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
+import { useNicknameGate } from '../../lib/useNicknameGate';
+import NicknameRequiredModal from '../../components/NicknameRequiredModal';
 import Button from '../kit/Button';
 import Card from '../kit/Card';
 import EmptyState from '../kit/EmptyState';
@@ -69,6 +71,7 @@ import { readDayWindow, writeDayWindow } from '../lib/dayWindow';
 export default function TripBoard() {
   const { tripId } = useParams();
   const { user } = useAuth();
+  const { requireNickname, nicknameModal } = useNicknameGate();
   const navigate = useNavigate();
 
   const [status, setStatus] = useState('loading'); // loading | ready | offline | error
@@ -594,6 +597,7 @@ export default function TripBoard() {
   };
 
   const handlePublish = () => {
+    if (!requireNickname(() => handlePublish())) return;
     runSaving(
       async () => {
         await publishToBoard(tripId);
@@ -962,6 +966,7 @@ export default function TripBoard() {
         items={toasts}
         onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
       />
+      <NicknameRequiredModal {...nicknameModal} />
     </div>
   );
 }

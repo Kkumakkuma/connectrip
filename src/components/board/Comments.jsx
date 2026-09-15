@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CornerDownRight, Lock, Trash2, X } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
+import { useNicknameGate } from '../../lib/useNicknameGate';
+import { displayAuthor } from '../../lib/authorName';
+import NicknameRequiredModal from '../NicknameRequiredModal';
 import { replyTargetLabel } from '../../lib/flightBoard';
 import CrewBadge from '../CrewBadge';
 import LoginPrompt from '../LoginPrompt';
@@ -11,6 +14,7 @@ import LoginPrompt from '../LoginPrompt';
 // 비밀댓글 가시성·삭제 권한은 서버(RLS)가 판정한다 — 여기서는 본인 댓글에만 삭제 버튼을 그린다.
 const Comments = ({ api, postId, postOwnerId = null }) => {
     const { user, profile, isLoggedIn } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const [list, setList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -49,12 +53,13 @@ const Comments = ({ api, postId, postOwnerId = null }) => {
         const content = text.trim();
         // 목록을 받는 중에는 등록하지 않는다 — 늦게 도착한 조회 응답이 방금 등록한 댓글을 지운다
         if (!content || busy || loading) return;
+        if (!requireNickname(() => add())) return;
         try {
             setBusy(true);
             const created = await api.addComment({
                 post_id: postId,
                 user_id: user.id,
-                author_name: profile?.name || '익명',
+                author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 content,
                 is_private: isPrivate || !!replyTo?.isPrivate,
                 parent_id: replyTo?.id || null,
@@ -102,7 +107,7 @@ const Comments = ({ api, postId, postOwnerId = null }) => {
                             <div key={c.id} className={`rounded-sm px-3 py-2.5 ${c.is_private ? 'bg-amber-50' : 'bg-white border border-hairline-soft'}`}>
                                 <div className="flex items-center justify-between mb-1 gap-2">
                                     <span className="flex items-center gap-1 min-w-0 text-[12px] font-bold text-ink">
-                                        <span className="truncate">{c.author_name || '익명'}</span>
+                                        <span className="truncate">{displayAuthor(c.author_name)}</span>
                                         <CrewBadge profile={c.profiles} />
                                         {postOwnerId && c.user_id === postOwnerId && (
                                             <span className="flex-shrink-0 rounded-full bg-surface-strong px-1.5 py-0.5 text-[10px] font-bold text-muted leading-none">글쓴이</span>
@@ -114,7 +119,7 @@ const Comments = ({ api, postId, postOwnerId = null }) => {
                                         {isLoggedIn && (
                                             <button
                                                 type="button"
-                                                onClick={() => { setReplyTo({ id: c.id, name: c.author_name || '익명', isPrivate: !!c.is_private }); if (c.is_private) setIsPrivate(true); }}
+                                                onClick={() => { setReplyTo({ id: c.id, name: displayAuthor(c.author_name), isPrivate: !!c.is_private }); if (c.is_private) setIsPrivate(true); }}
                                                 className="font-bold text-ink hover:underline"
                                             >
                                                 답글
@@ -171,6 +176,7 @@ const Comments = ({ api, postId, postOwnerId = null }) => {
                 </label>
             </div>
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
+            <NicknameRequiredModal {...nicknameModal} />
         </section>
     );
 };

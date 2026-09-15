@@ -4,6 +4,8 @@ import ImageUpload from './ImageUpload';
 import ContinentPicker from './board/ContinentPicker';
 import { marketApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
+import { useNicknameGate } from '../lib/useNicknameGate';
+import NicknameRequiredModal from './NicknameRequiredModal';
 import { continentOf } from '../lib/continents';
 
 const MAX_IMAGES = 5;
@@ -12,6 +14,7 @@ const MAX_IMAGES = 5;
 // 나눔은 대륙 말머리(ContinentPicker) 필수. initial 이 있으면 수정 모드(marketApi.update), 없으면 등록(marketApi.create).
 const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone, onCancel }) => {
     const { user, profile } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const formId = useId();
     const isShare = mode === 'share';
     const [title, setTitle] = useState(initial?.title || '');
@@ -27,9 +30,11 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
     const [pickerError, setPickerError] = useState('');
 
     const submit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         if (submitting || uploading) return;
         if (isShare && !continentOf(regionId)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        // 닉네임 확인은 새 글 등록에만 한다. 옛 글 수정은 막지 않는다(서버가 작성자명을 닉네임 또는 '회원'으로 저장).
+        if (!initial?.id && !requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             const digits = String(price || '').replace(/[^0-9]/g, '');
@@ -52,7 +57,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
             if (initial?.id) {
                 item = await marketApi.update(initial.id, patch);
             } else {
-                item = await marketApi.create({ ...patch, type: isShare ? 'share' : 'sell', author: profile?.nickname || profile?.name || '익명', user_id: user.id });
+                item = await marketApi.create({ ...patch, type: isShare ? 'share' : 'sell', author: profile?.nickname || null, user_id: user.id });
             }
             onDone?.(item);
         } catch (err) {
@@ -139,6 +144,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
                     {submitting ? '저장 중...' : uploading ? '사진 올리는 중...' : initial?.id ? '수정' : '등록'}
                 </button>
             </div>
+            <NicknameRequiredModal {...nicknameModal} />
         </form>
     );
 };

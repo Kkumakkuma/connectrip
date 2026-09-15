@@ -2,6 +2,9 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MessageSquare, HelpCircle, Plus, BookOpen, Heart } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { useNicknameGate } from '../lib/useNicknameGate';
+import { displayAuthor } from '../lib/authorName';
+import NicknameRequiredModal from './NicknameRequiredModal';
 import { qnaApi, reviewsApi, postLikeApi } from '../lib/db';
 import { postPath } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
@@ -38,6 +41,7 @@ const TAB_ICON = { review: BookOpen, qna: HelpCircle, free: MessageSquare };
 // ?tab=review|qna|free, 후기는 ?region= 으로 대륙 필터.
 const TravelQnA = () => {
     const { user, profile, isLoggedIn } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
     const mode = tabParam === 'qna' || tabParam === 'free' ? tabParam : 'review';
@@ -117,10 +121,11 @@ const TravelQnA = () => {
     };
 
     const submit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting || uploading) return;
         if (mode === 'review' && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             let created;
@@ -128,12 +133,12 @@ const TravelQnA = () => {
                 created = await reviewsApi.create({
                     user_id: user.id, type: 'review', region_id: form.region_id,
                     title: form.title.trim(), description: form.content.trim(), image_url: form.image_url || null,
-                    author_name: profile?.name || '익명',
+                    author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 });
             } else {
                 created = await qnaApi.create({
                     title: form.title.trim(), content: form.content.trim(), board: mode,
-                    author_name: profile?.name || '익명', user_id: user.id,
+                    author_name: profile?.nickname || null, user_id: user.id,
                 });
             }
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
@@ -194,7 +199,7 @@ const TravelQnA = () => {
                                             </div>
                                             <div className="mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
                                                 <span className="inline-flex items-center gap-1 min-w-0">
-                                                    <span className="truncate max-w-[10rem]">{post.author_name || post.profiles?.name || '익명'}</span>
+                                                    <span className="truncate max-w-[10rem]">{displayAuthor(post.author_name, post.profiles?.nickname)}</span>
                                                     <CrewBadge profile={post.profiles} />
                                                 </span>
                                                 <span className="ml-auto inline-flex items-center gap-3 whitespace-nowrap">
@@ -248,6 +253,7 @@ const TravelQnA = () => {
                 </form>
             </WriteModal>
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
+            <NicknameRequiredModal {...nicknameModal} />
         </>
     );
 };

@@ -1,3 +1,4 @@
+import { displayAuthor } from '../lib/authorName';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -199,9 +200,9 @@ const ItineraryPost = () => {
                 핀 {post.places_count ?? 0}개
               </span>
               <span className="inline-flex items-center gap-1 min-w-0">
-                <strong className="text-gray-900 truncate">{post.author_name || '익명'}</strong>
+                <strong className="text-gray-900 truncate">{displayAuthor(post.author_name)}</strong>
                 <CrewBadge profile={post.profiles} />
-                <AuthorActions userId={post.user_id} name={post.author_name || ''} size={13} />
+                <AuthorActions userId={post.user_id} name={displayAuthor(post.author_name)} size={13} />
               </span>
               <span className="inline-flex items-center gap-1.5 text-gray-400">
                 <Eye size={16} aria-hidden="true" />

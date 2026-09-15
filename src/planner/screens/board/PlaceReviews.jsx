@@ -5,6 +5,9 @@ import Input from '../../kit/Input';
 import Textarea from '../../kit/Textarea';
 import { listReviews, submitReview } from '../../api';
 import { formatDate } from '../../lib/format';
+import { useNicknameGate } from '../../../lib/useNicknameGate';
+import { displayAuthor } from '../../../lib/authorName';
+import NicknameRequiredModal from '../../../components/NicknameRequiredModal';
 
 // 핀 상세 안의 후기 영역 (설계 §1.1).
 //
@@ -55,6 +58,7 @@ export default function PlaceReviews({ place, visited }) {
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const { requireNickname, nicknameModal } = useNicknameGate();
 
   useEffect(() => {
     if (!catalogId) return undefined;
@@ -85,6 +89,7 @@ export default function PlaceReviews({ place, visited }) {
       setMessage('별점을 골라 주세요.');
       return;
     }
+    if (!requireNickname(() => save())) return;
     setBusy(true);
     setMessage('');
     try {
@@ -110,7 +115,7 @@ export default function PlaceReviews({ place, visited }) {
             <li key={r.id}>
               <div className="flex items-center gap-2">
                 <Stars value={r.rating} readOnly />
-                <span className="text-xs text-muted">{r.author_name}</span>
+                <span className="text-xs text-muted">{displayAuthor(r.author_name)}</span>
                 {r.visited_on && <span className="text-xs text-muted">{formatDate(r.visited_on)} 방문</span>}
               </div>
               {r.recommended_menu && (
@@ -155,6 +160,7 @@ export default function PlaceReviews({ place, visited }) {
       )}
 
       {message && <p className="mt-2 text-xs text-muted">{message}</p>}
+      <NicknameRequiredModal {...nicknameModal} />
     </div>
   );
 }

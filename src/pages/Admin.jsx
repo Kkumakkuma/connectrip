@@ -482,8 +482,8 @@ const Admin = () => {
                                 사유: <span className="text-red-600">{report.reason}</span>
                               </p>
                               <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-                                <span>신고자: <strong>{report.reporter?.name || '알 수 없음'}</strong></span>
-                                <span>대상자: <strong className="text-red-600">{report.reported?.name || '알 수 없음'}</strong></span>
+                                <span>신고자: <strong>{report.reporter?.name || '알 수 없음'}</strong>{report.reporter?.nickname && <span className="text-gray-400"> (닉네임 {report.reporter.nickname})</span>}</span>
+                                <span>대상자: <strong className="text-red-600">{report.reported?.name || '알 수 없음'}</strong>{report.reported?.nickname && <span className="text-gray-400"> (닉네임 {report.reported.nickname})</span>}</span>
                                 {report.post_id && <span>게시글 ID: {report.post_id}</span>}
                               </div>
                               {report.admin_note && (

@@ -1,3 +1,4 @@
+import { displayAuthor } from '../lib/authorName';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ShoppingBag, Heart, Gift, MapPin, Plus, Search, Users } from 'lucide-react';
@@ -8,6 +9,8 @@ import ReportButton from './ReportButton';
 import ShareButtons from './ShareButtons';
 import CrewBadge from './CrewBadge';
 import { useAuth } from '../lib/AuthContext';
+import { useNicknameGate } from '../lib/useNicknameGate';
+import NicknameRequiredModal from './NicknameRequiredModal';
 import { marketApi } from '../lib/db';
 import { regionFromSearch } from '../lib/continents';
 import BoardShell from './board/BoardShell';
@@ -32,6 +35,7 @@ const EMPTY_FORM = { title: '', price: '', location: '', content: '', image_url:
 // 구해요·공동구매는 카드 그리드. ?tab= / ?region= / ?q= 동기.
 const MarketBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
     const mode = TABS.some((t) => t.id === tabParam) ? tabParam : 'sell';
@@ -104,15 +108,16 @@ const MarketBoard = () => {
 
     // 구해요·공동구매 등록(판매·나눔은 MarketListingForm)
     const submit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting || uploading) return;
+        if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             const digits = String(form.price || '').replace(/[^0-9]/g, '');
             const listing = {
                 title: form.title.trim(), content: form.content.trim(), type: mode,
-                author: profile?.nickname || profile?.name || '익명', user_id: user.id,
+                author: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 location: form.location.trim() || null,
                 image_url: form.image_url || null,
             };
@@ -187,7 +192,7 @@ const MarketBoard = () => {
                                         <p className="text-[13px] text-muted mt-1 line-clamp-2">{item.content}</p>
                                         <div className="mt-auto pt-3 flex items-center justify-between gap-2 text-[12px] text-muted">
                                             <span className="flex items-center gap-1 min-w-0">
-                                                <span className="truncate">{item.author}</span>
+                                                <span className="truncate">{displayAuthor(item.author)}</span>
                                                 <CrewBadge profile={item.profiles} />
                                             </span>
                                             <span className="flex items-center gap-0.5 flex-shrink-0">
@@ -252,6 +257,7 @@ const MarketBoard = () => {
                 )}
             </WriteModal>
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
+            <NicknameRequiredModal {...nicknameModal} />
         </>
     );
 };

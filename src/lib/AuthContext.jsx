@@ -62,7 +62,8 @@ export const AuthProvider = ({ children }) => {
   const profileReqRef = useRef(0);
 
   // 본인 프로필 조회: get_my_profile RPC 우선 (profiles SELECT 컬럼 잠금 대비),
-  // RPC 미존재/실패 시 기존 select('*') 폴백.
+  // RPC 미존재/실패 시 공개 허용 컬럼만 직접 조회하는 폴백(select('*') 는 컬럼 단위 GRANT 에 막혀 2026-09-15 명시 컬럼으로 교체).
+  // 폴백 결과에는 실명·연락처·role 이 없다 — 권한 판정(isAdmin)은 RPC 결과로만 켜진다.
   // 전환기 폴백: profiles 잠금 SQL 적용 후 select('*') 폴백은 제거 가능.
   // 반환 { data, failed } — failed 는 "조회 자체가 실패"(권한/네트워크).
   // data=null & failed=false 는 "프로필 row 가 아직 없음"(아래 upsert 경로가 처리).
@@ -76,7 +77,7 @@ export const AuthProvider = ({ children }) => {
     } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, nickname, avatar_url, user_type, crew_verified, airline_name, bio, created_at')
       .eq('id', userId)
       .single();
     // PGRST116 = 0건 → row 미생성이지 오류가 아니다.

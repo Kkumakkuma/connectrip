@@ -3,6 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Lock, Plus, MessageSquare, Plane, Tag, Heart, Loader2 } from 'lucide-react';
 import { crewVerificationStatus } from '../lib/crewVerification';
 import { useAuth } from '../lib/AuthContext';
+import { useNicknameGate } from '../lib/useNicknameGate';
+import { displayAuthor } from '../lib/authorName';
+import NicknameRequiredModal from './NicknameRequiredModal';
 import { crewApi, postLikeApi } from '../lib/db';
 import { postPath } from '../lib/boards';
 import BoardShell from './board/BoardShell';
@@ -37,6 +40,7 @@ const Gate = ({ tone, icon, title, children }) => (
 // CREW 전용 게시판(2026-09-07 에어비앤비 톤): 탭 3개(자유/레이오버/할인), 행 목록. 인증 승무원만.
 const CrewOnly = () => {
     const { user, profile, isLoggedIn, isCrew, profileLoading, profileError } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
     const mode = TABS.some((t) => t.id === tabParam) ? tabParam : 'free';
@@ -103,15 +107,16 @@ const CrewOnly = () => {
     useEffect(() => { setPage(1); }, [q, mode]);
 
     const submit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting) return;
+        if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             const created = await crewApi.create({
                 title: form.title.trim(), content: form.content.trim(), post_type: mode,
                 category: mode === 'layover' ? form.category : 'general',
-                author_name: profile?.name || '익명', user_id: user.id,
+                author_name: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
             });
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
             if (modeRef.current === mode) { setPosts((prev) => [created, ...prev]); setPage(1); }
@@ -193,7 +198,7 @@ const CrewOnly = () => {
                                             </div>
                                             <div className="mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
                                                 <span className="inline-flex items-center gap-1 min-w-0">
-                                                    <span className="truncate max-w-[10rem]">{post.author_name}</span>
+                                                    <span className="truncate max-w-[10rem]">{displayAuthor(post.author_name)}</span>
                                                     <CrewBadge profile={post.profiles} />
                                                 </span>
                                                 <span className="ml-auto inline-flex items-center gap-3 whitespace-nowrap">
@@ -243,6 +248,7 @@ const CrewOnly = () => {
                 </form>
             </WriteModal>
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
+            <NicknameRequiredModal {...nicknameModal} />
         </>
     );
 };

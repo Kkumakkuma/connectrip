@@ -6,6 +6,7 @@ import { postLikeApi } from '../lib/db';
 import { BOARDS, COMPANION_STATUS, postPath } from '../lib/boards';
 import { continentOf } from '../lib/continents';
 import Comments from '../components/board/Comments';
+import { displayAuthor } from '../lib/authorName';
 import ContinentBadge from '../components/board/ContinentBadge';
 import ContinentPicker from '../components/board/ContinentPicker';
 import WriteModal from '../components/board/WriteModal';
@@ -194,7 +195,8 @@ const PostDetail = () => {
     const waiting = loading || (gate && profileLoading);
     // config 가 없는 주소로 옮겨간 첫 렌더에는 이전 글이 state 에 남아 있다 — 그때 글을 그리지 않는다
     const p = config ? post : null;
-    const authorName = p?.author_name || p?.profiles?.name || '익명';
+    // 추천지(destinations)는 작성자 컬럼이 없어 조인한 닉네임을 쓴다. 실명(profiles.name)으로 대체하지 않는다.
+    const authorName = displayAuthor(p?.author_name, p?.profiles?.nickname);
     const isOwner = !!user && !!p && p.user_id === user.id;
     const title = p ? p[config.titleField] : '';
     const body = p ? p[config.bodyField] : '';

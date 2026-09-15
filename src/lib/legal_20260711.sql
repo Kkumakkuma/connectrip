@@ -408,6 +408,7 @@ GRANT EXECUTE ON FUNCTION public.request_account_deletion() TO authenticated;
 --    잠금이 유지되도록 동일 잠금을 재확인한다(멱등). 절대 전체 GRANT 로 되돌리지 말 것.
 DROP POLICY IF EXISTS "Admin read all reports" ON public.reports;
 DROP POLICY IF EXISTS "Admin update reports" ON public.reports;
+-- 재실행 주의: 20260915 닉네임 전환 참고 (author_nickname_20260915.sql)
 REVOKE SELECT ON TABLE public.profiles FROM anon, authenticated;
 GRANT SELECT (id, name, nickname, avatar_url, user_type, crew_verified, airline_name, bio, created_at)
   ON TABLE public.profiles TO anon, authenticated;

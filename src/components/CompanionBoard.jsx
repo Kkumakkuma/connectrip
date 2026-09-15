@@ -2,6 +2,9 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Users, Calendar, Heart, Plus, MessageSquare } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import { useNicknameGate } from '../lib/useNicknameGate';
+import { displayAuthor } from '../lib/authorName';
+import NicknameRequiredModal from './NicknameRequiredModal';
 import { companionApi, postLikeApi } from '../lib/db';
 import { postPath, COMPANION_STATUS } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
@@ -26,6 +29,7 @@ const STATUS_CLASS = { open: 'bg-rausch-soft text-rausch', closed: 'bg-surface-s
 // 목록·필터·검색·페이지는 전부 서버(companionApi.getAll)가 처리하고, ?region= / ?q= 와 동기한다.
 const CompanionBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
+    const { requireNickname, nicknameModal } = useNicknameGate();
     const [searchParams, setSearchParams] = useSearchParams();
     const region = regionFromSearch(searchParams.toString());
     const q = searchParams.get('q') || '';
@@ -109,10 +113,11 @@ const CompanionBoard = () => {
     };
 
     const submit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting) return;
         if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             const created = await companionApi.create({
@@ -123,7 +128,7 @@ const CompanionBoard = () => {
                 members_needed: form.members.trim(),
                 content: form.content.trim(),
                 status: 'open',
-                author_name: profile?.name || '익명',
+                author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 user_id: user.id,
             });
             if ((!region || region === created.region_id) && !q && page === 1) {
@@ -183,7 +188,7 @@ const CompanionBoard = () => {
                                             </div>
                                             <div className="mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
                                                 <span className="inline-flex items-center gap-1 min-w-0">
-                                                    <span className="truncate max-w-[10rem]">{post.author_name || '익명'}</span>
+                                                    <span className="truncate max-w-[10rem]">{displayAuthor(post.author_name)}</span>
                                                     <CrewBadge profile={post.profiles} />
                                                 </span>
                                                 {post.country && <span className="truncate max-w-[10rem]">{post.country}</span>}
@@ -243,6 +248,7 @@ const CompanionBoard = () => {
                 </form>
             </WriteModal>
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
+            <NicknameRequiredModal {...nicknameModal} />
         </>
     );
 };

@@ -1,3 +1,4 @@
+import { displayMember } from '../lib/authorName';
 import { useState, useEffect } from 'react';
 import { UserX, Loader2, RotateCcw } from 'lucide-react';
 import { userBlockApi } from '../lib/db';
@@ -75,7 +76,7 @@ const BlockedUsers = () => {
                 <div className="space-y-2">
                     {rows.map((row) => {
                         const p = row.blocked;
-                        const name = p?.nickname || p?.name || '(탈퇴한 사용자)';
+                        const name = displayMember(p);
                         return (
                             <div key={row.blocked_id} className="flex items-center justify-between gap-3 p-4 bg-gray-50 rounded-xl">
                                 <div className="flex items-center gap-3 min-w-0">

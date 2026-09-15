@@ -1,3 +1,4 @@
+import { displayAuthor } from '../lib/authorName';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Heart, MessageCircle, Eye, MapPin, ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -141,7 +142,7 @@ const MarketDetail = () => {
     if (error || !item) return <section className="py-24 text-center text-sm text-gray-500">{error || '없는 글입니다.'}</section>;
 
     const seller = item.profiles || {};
-    const sellerName = seller.nickname || seller.name || item.author || '익명';
+    const sellerName = displayAuthor(seller.nickname, item.author);
 
     return (
         <section className="pt-20 pb-24 bg-gray-50 min-h-screen">

@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { apiUrl } from '../lib/api';
 import AddressInput from './AddressInput';
 import { passwordWeak } from '../lib/loginId';
+import { checkNicknameTaken } from '../lib/nicknameApi';
 import {
   maskPhone, normalizeNickname, nicknameProblem, formatJoinedDate, userTypeLabel,
   messageFor, codeFromError, EMAIL_OTP_PURPOSE_CHANGE, EMAIL_RE,
@@ -116,12 +117,9 @@ export default function ProfileCard() {
     setNickStatus('checking');
     let cancelled = false;
     const t = setTimeout(async () => {
-      try {
-        const { data, error: rpcErr } = await supabase.rpc('check_nickname_taken', { p_nickname: n });
-        if (cancelled) return;
-        if (rpcErr || data === null || data === undefined) { setNickStatus(null); return; }
-        setNickStatus(data ? 'taken' : 'available');
-      } catch { if (!cancelled) setNickStatus(null); }
+      const taken = await checkNicknameTaken(n);
+      if (cancelled) return;
+      setNickStatus(taken === null ? null : (taken ? 'taken' : 'available'));
     }, 400);
     return () => { cancelled = true; clearTimeout(t); };
   }, [nickname, editing, profile?.nickname]);
