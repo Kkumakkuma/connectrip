@@ -47,6 +47,15 @@
       ]
     },
     {
+      "source": "/:file(sitemap.xml|sitemap-static.xml|sitemap-guide.xml)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
+      ]
+    },
+    {
       "source": "/assets/(.*)",
       "headers": [
         {

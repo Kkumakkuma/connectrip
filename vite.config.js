@@ -1,9 +1,40 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
-import { sep } from 'node:path'
+import { join, resolve, sep } from 'node:path'
+import { readdir, rm } from 'node:fs/promises'
 
 const r = (p) => fileURLToPath(new URL(p, import.meta.url))
+
+// 앱(Capacitor, --mode app) 산출물에서 웹 전용 파일을 뺀다 (2026-09-15, SEO 설계 §3.5).
+// Vite 는 public/ 을 dist 로 통째 복사하므로, 그대로 두면 사이트맵(인덱스·하위 파일)과 IndexNow 키가
+// APK 에 딸려 간다. 안내 페이지 사본(dist/guide)은 웹 build 의 prerender-seo.mjs 만 만들지만
+// 앱 빌드 산출물에 절대 남지 않도록 같이 지우고, 남으면 빌드를 실패로 끝낸다.
+const isWebOnlyPublicFile = (name) =>
+  /^sitemap(-[a-z0-9-]+)?\.xml$/.test(name) || /^[a-f0-9-]{8,128}\.txt$/.test(name)
+
+function stripWebOnlyFromAppBuild() {
+  let outDir = ''
+  return {
+    name: 'connecttrip-strip-web-only',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir)
+    },
+    async closeBundle() {
+      const removed = []
+      for (const name of await readdir(outDir)) {
+        if (!isWebOnlyPublicFile(name)) continue
+        await rm(join(outDir, name), { force: true })
+        removed.push(name)
+      }
+      await rm(join(outDir, 'guide'), { recursive: true, force: true })
+      const left = (await readdir(outDir)).filter((name) => isWebOnlyPublicFile(name) || name === 'guide')
+      if (left.length) throw new Error(`[app-build] 웹 전용 파일이 남았다: ${left.join(', ')}`)
+      console.log(`[app-build] 웹 전용 파일 제거: ${removed.join(', ') || '없음'}`)
+    },
+  }
+}
 
 // planner-vendor 청크에 넣을 패키지.
 // ⚠ 객체형 manualChunks 의 값은 Rollup 이 "엔트리 모듈"로 해석한다. 아직 설치하지 않은 패키지를
@@ -25,7 +56,7 @@ export default defineConfig(({ mode }) => {
   const plannerOn = env.VITE_PLANNER_ENABLED === 'true'
 
   return {
-    plugins: [react()],
+    plugins: [react(), ...(mode === 'app' ? [stripWebOnlyFromAppBuild()] : [])],
     resolve: {
       alias: {
         // 플래너 진입점을 빌드가 고른다.
