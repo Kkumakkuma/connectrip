@@ -21,6 +21,8 @@
 //   /itinerary           src/components/ItineraryBoard.jsx
 //   /search              src/pages/Search.jsx
 //   /signup              src/pages/Signup.jsx (기본 mode = 'signup')
+//   /guide/*             src/pages/GuidePage.jsx (2026-09-15 공개 안내 페이지) — 예외: 이 경로들은 화면 쪽에 문구가 없고
+//                        **이 파일이 원본**이다. GuidePage 가 여기 값을 SEOHead 에 넘기고, 본문은 src/content/guide/*.md 에 있다.
 
 export const BASE_URL = 'https://www.connecttrip.co.kr';
 
@@ -80,6 +82,63 @@ export const ROUTE_META = {
     title: '개인정보처리방침 - ConnectTrip',
     description: 'ConnectTrip 개인정보처리방침. 수집하는 개인정보 항목과 이용 목적, 보관 기간을 안내합니다.',
   },
+  // 공개 안내 페이지(2026-09-15). 경로 목록의 원본은 src/lib/guide.js 의 GUIDE_PATHS,
+  // 사이트맵은 public/sitemap-guide.xml. 셋이 어긋나면 check-seo-surfaces 가 빌드를 세운다.
+  '/guide/companion': {
+    title: '여행 동행 구하기, 모집 글 쓰는 법 | ConnectTrip',
+    description:
+      '유럽·동남아 등 대륙과 도시별로 여행 동행 글을 찾는 방법, 동행 모집 글에 적을 내용, 처음 만나기 전에 챙길 안전 수칙.',
+  },
+  '/guide/travel-qna': {
+    title: '여행 Q&A와 여행 후기 게시판 이용법 | ConnectTrip',
+    description:
+      '여행 준비 중 궁금한 점은 Q&A에 묻고, 다녀온 뒤에는 대륙별로 여행 후기를 남길 수 있습니다. 탭 구성과 글쓰기 항목, 비밀댓글 쓰는 법을 안내합니다.',
+  },
+  '/guide/destinations': {
+    title: '승무원이 추천하는 여행지, 대륙별로 보기 | ConnectTrip',
+    description:
+      '인증 승무원이 장소와 꿀팁을 올리는 ConnectTrip 승무원 추천지. 유럽·동남아·일본 여행지 추천을 대륙별로 걸러 보는 방법과 댓글 쓰는 법을 안내합니다.',
+  },
+  '/guide/market': {
+    title: '여행 물품 중고 거래·무료 나눔 게시판 | ConnectTrip',
+    description:
+      '캐리어, 멀티 어댑터 같은 여행 준비물을 중고로 사고팔거나 나눌 때 쓰는 게시판입니다. 탭 구성과 글 올리는 법, 거래 전에 확인할 점을 담았습니다.',
+  },
+  '/guide/planner': {
+    title: '여행 일정 플래너, 날짜별 이동 경로 정리 | ConnectTrip',
+    description:
+      '여행 날짜별로 갈 곳을 담고 순서를 정하면 지도에 동선과 이동시간이 표시됩니다. 항공권·입장권 보관과 일정 공유, 내보내기 방법도 함께 안내합니다.',
+  },
+  '/guide/region/europe': {
+    title: '유럽 여행 동행 구하기와 후기 게시판 | ConnectTrip',
+    description:
+      '유럽 여행 동행을 구하거나 다녀온 회원의 후기와 승무원 추천지를 찾을 때, 커넥트립 게시판에서 유럽 글만 골라 보는 방법입니다.',
+  },
+  '/guide/region/americas': {
+    title: '미국·캐나다 여행 동행 구하기와 미주 후기 | ConnectTrip',
+    description:
+      '뉴욕, LA, 캐나다 여행을 준비할 때 커넥트립의 미주 말머리로 동행 모집, 여행 후기, Q&A, 승무원 추천지 글을 찾고 올리는 방법을 안내합니다.',
+  },
+  '/guide/region/africa': {
+    title: '아프리카 여행 동행·후기 찾기 | ConnectTrip',
+    description:
+      '이집트·모로코·남아공 여행을 앞두고 ConnectTrip에서 아프리카 동행을 구하고, 여행 후기와 Q&A, 승무원 추천지로 현지 정보를 찾는 방법입니다.',
+  },
+  '/guide/region/southeast-asia': {
+    title: '동남아 여행 동행 구하기와 후기 모아 보기 | ConnectTrip',
+    description:
+      '다낭·방콕·발리 같은 동남아 여행을 준비할 때 동남아 말머리로 동행을 구하고 여행 후기, Q&A, 승무원 추천지를 찾아보는 방법을 정리했습니다.',
+  },
+  '/guide/region/asia': {
+    title: '아시아 여행 동행 구하기와 게시판 안내 | ConnectTrip',
+    description:
+      '일본·중국·홍콩 여행 동행을 구하고, 아시아 말머리로 여행 후기와 Q&A, 승무원 추천지를 찾아보는 방법입니다.',
+  },
+  '/guide/region/oceania': {
+    title: '호주·뉴질랜드 여행 동행과 후기 | ConnectTrip',
+    description:
+      '호주·뉴질랜드 여행을 준비할 때 동행 모집, 여행 후기, Q&A, 승무원 추천지 게시판에서 오세아니아 글을 모아 보는 방법을 안내합니다.',
+  },
   // 2026-09-03 결제 기능 숨김(featureFlags.PAYMENTS_ENABLED) — 다시 켤 때 주석 해제
   //   '/points': {
   //     title: '포인트·매칭신청권 안내 - ConnectTrip',
@@ -108,11 +167,20 @@ export const ROBOTS_DISALLOW = [
 
 // 사이트맵에 실린 경로 중 정적 HTML 을 굽지 않을 것.
 // ⚠ 사이트맵에 없는 경로를 여기 적어도 **아무 일도 하지 않는다** — prerender-seo.mjs 는
-//   public/sitemap.xml 의 <loc> 만 순회한다. 색인 차단은 ROBOTS_DISALLOW 로 한다.
+//   사이트맵(public/sitemap.xml 인덱스와 하위 sitemap-*.xml)의 <loc> 와 아래 PRERENDER_EXTRA_PATHS 만
+//   순회한다. 색인 차단은 ROBOTS_DISALLOW 로 한다.
 // 2026-09-04 현재 비어 있다. 로그인해야 보이는 게시판을 사이트맵에서 통째로 뺐고,
 // /mypage·/admin·/crew 는 애초에 사이트맵에 없어 여기 적어 봐야 아무 일도 하지 않았다.
 // 나중에 "사이트맵에는 있지만 정적 HTML 은 굽지 않을 경로"가 생기면 그때 채운다.
 export const PRERENDER_EXCLUDED_PATHS = [];
+
+// 사이트맵에는 싣지 않지만 정적 HTML 은 굽는 경로 (2026-09-15, SEO 설계 §1.2).
+// /signup 은 검색 가치가 낮은 로그인·가입 폼이라 사이트맵에서 뺐다. 다만 사본까지 없애면 이 주소가
+// 홈 canonical 을 선언한 index.html 로 떨어지므로 굽기는 유지한다.
+// ⚠ 형식은 이 배열 리터럴 그대로 둔다 — check-seo-surfaces.mjs 가 문자열로 읽어 문구 유무·차단 충돌을 검사한다.
+export const PRERENDER_EXTRA_PATHS = [
+  '/signup',
+];
 
 // 끝의 슬래시만 다른 경로를 같은 항목으로 취급한다(/companion/ == /companion).
 export function normalizeRoutePath(path) {

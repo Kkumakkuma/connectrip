@@ -55,6 +55,11 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 //   lazy(()=>import) 는 항상 별도 청크를 생성해 프로덕션 dist 에 남으므로 쓰지 않는다.
 const PAYTEST = PAYMENTS_ENABLED && import.meta.env.VITE_PAYTEST === '1';
 
+// 공개 안내 페이지(/guide/*, 2026-09-15). 로그인 없이 열리는 정적 원고 화면이다(회원 글 없음).
+// 검색 노출용 웹 전용 화면이라 앱 빌드(vite build --mode app)에는 라우트도 청크도 싣지 않는다.
+// ★플래너와 같은 이유로 lazy() 호출식을 삼항 안에 둔다(MODE 가 상수로 접혀 dynamic import 가 사라진다).
+const GuidePage = import.meta.env.MODE !== 'app' ? lazy(() => import('./pages/GuidePage')) : null;
+
 // 여행 플래너 진입점.
 // ★lazy() 호출식 자체가 삼항 안에 있어야 Vite 가 import.meta.env 를 상수로 접고
 //   dynamic import 를 통째로 지운다. `{PLANNER_ENABLED && <Route …/>}` 로 라우트만 가리는
@@ -293,6 +298,8 @@ function App() {
               )}
               {/* 숨김 동안 옛 링크·알림의 /reviews 는 같은 reviews 테이블을 보여 주는 여행 후기 탭으로 보낸다(NotFound 대신) */}
               {!PROMO_REVIEWS_ENABLED && <Route path="/reviews/*" element={<Navigate to="/qna?tab=review" replace />} />}
+              {/* 공개 안내 페이지 — RequireLogin 바깥. 없는 /guide/... 는 GuidePage 가 NotFound 를 그린다 */}
+              {GuidePage && <Route path="/guide/*" element={<GuidePage />} />}
               <Route
                 path="/mypage"
                 element={
