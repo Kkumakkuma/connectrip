@@ -1,4 +1,5 @@
 // 쪽지·대화·장터 화면의 순수 보조 함수. 권한·차단 판정은 전부 서버(RPC/RLS)가 한다.
+import { BANNED_MESSAGE } from './banned';
 
 // "방금 전" / "N분 전" / "N시간 전" / "N일 전" / 그 이상은 날짜
 export const timeAgo = (iso, now = Date.now()) => {
@@ -64,7 +65,7 @@ export const statusLabel = (listing) => {
 // 서버 RPC 오류 코드 → 라벨
 export const CHAT_ERRORS = {
   BLOCKED: '차단된 회원입니다.',
-  BANNED: '이용이 제한된 계정입니다.',
+  BANNED: BANNED_MESSAGE,
   NOT_FOUND: '찾을 수 없습니다.',
   BAD_CONTENT: '내용을 확인해 주세요.',
   RATE_LIMIT: '잠시 후 다시 시도해 주세요.',

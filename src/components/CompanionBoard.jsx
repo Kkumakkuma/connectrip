@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Users, Calendar, Heart, Plus, MessageSquare } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { useNicknameGate } from '../lib/useNicknameGate';
+import { BANNED_MESSAGE, isBannedError, useIsBanned } from '../lib/banned';
 import { displayAuthor } from '../lib/authorName';
 import NicknameRequiredModal from './NicknameRequiredModal';
 import { companionApi, postLikeApi } from '../lib/db';
@@ -30,6 +31,7 @@ const STATUS_CLASS = { open: 'bg-rausch-soft text-rausch', closed: 'bg-surface-s
 const CompanionBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
     const { requireNickname, nicknameModal } = useNicknameGate();
+    const isBanned = useIsBanned();
     const [searchParams, setSearchParams] = useSearchParams();
     const region = regionFromSearch(searchParams.toString());
     const q = searchParams.get('q') || '';
@@ -117,6 +119,8 @@ const CompanionBoard = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting) return;
         if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        // 이용 제한 계정은 동행 모집 글을 올릴 수 없다(서버 트리거도 같은 이유로 막는다).
+        if (isBanned) { alert(BANNED_MESSAGE); return; }
         if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
@@ -141,7 +145,7 @@ const CompanionBoard = () => {
             setShowModal(false);
         } catch (err) {
             console.error('동행 글 등록 실패:', err);
-            alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+            alert(isBannedError(err) ? BANNED_MESSAGE : '게시글 등록에 실패했습니다. 다시 시도해주세요.');
         } finally {
             setSubmitting(false);
         }

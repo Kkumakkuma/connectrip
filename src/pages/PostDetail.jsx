@@ -294,7 +294,7 @@ const PostDetail = () => {
                             )}
                         </div>
 
-                        {config.comments && <Comments api={config.comments} postId={p.id} postOwnerId={p.user_id} />}
+                        {config.comments && <Comments api={config.comments} postId={p.id} postOwnerId={p.user_id} board={config.key} />}
                     </>
                 )}
             </div>

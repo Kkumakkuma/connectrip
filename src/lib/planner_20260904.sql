@@ -1401,7 +1401,7 @@ begin
   if v_user is null then raise exception 'auth required'; end if;
   if not exists (
     select 1 from public.profiles
-    where id = v_user and coalesce(phone_verified, false) = true and coalesce(is_banned, false) = false
+    where id = v_user and coalesce(phone_verified, false) = true  -- is_banned 조건은 2026-09-16 제거(ban_companion_20260916.sql: 이용제한 계정도 좋아요는 허용)
   ) then
     raise exception 'phone verification required';
   end if;

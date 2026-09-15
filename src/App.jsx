@@ -8,6 +8,7 @@ import { keywordsApi, keywordAlertsApi, notificationPrefsApi } from './lib/db';
 import { supabase } from './lib/supabase';
 import Navbar from './components/Navbar';
 import CrewRenewalBanner from './components/CrewRenewalBanner';
+import BannedBanner from './components/BannedBanner';
 import Home from './pages/Home';
 import ProfileCompleteGate from './components/ProfileCompleteGate';
 import RouteResetGuard from './components/RouteResetGuard';
@@ -246,6 +247,8 @@ function App() {
         <Navbar />
         {/* 승무원 인증 만료 임박·만료 안내(해당자에게만 렌더). 없으면 요소 자체가 없어 기존 레이아웃 그대로다. */}
         <CrewRenewalBanner />
+        {/* 이용 제한 계정 안내(해당자에게만 렌더). */}
+        <BannedBanner />
         <main>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
