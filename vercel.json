@@ -65,7 +65,7 @@
       ]
     },
     {
-      "source": "/:file(connectrip-logo.png|connectrip-logo-v2.webp|connectrip-logo-icon.png|footer-logo.png|footer-logo-white.webp|hero-bg.webp|og-image.jpg|favicon-16.png|favicon-32.png|favicon-new.jpg|icon-192x192.png|icon-512x512.png)",
+      "source": "/:file(connectrip-logo.png|connectrip-logo-v2.webp|connectrip-logo-icon.png|footer-logo.png|footer-logo-white.webp|hero-bg.webp|og-image.jpg|favicon.ico|favicon-16.png|favicon-32.png|favicon-48.png|favicon-96.png|favicon-192.png|favicon-new.jpg|apple-touch-icon.png|icon-192x192.png|icon-512x512.png|icon-maskable-192.png|icon-maskable-512.png)",
       "headers": [
         {
           "key": "Cache-Control",

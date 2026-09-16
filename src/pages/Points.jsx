@@ -26,7 +26,7 @@ const Points = () => {
   return (
     <section className="min-h-screen bg-gray-50 py-24">
       <SEOHead
-        title="포인트·매칭신청권 안내 - ConnectTrip"
+        title="포인트·매칭신청권 안내 - 커넥트립 ConnectTrip"
         description="ConnectTrip 포인트 충전 패키지 가격과 매칭신청권 가격, 사용처, 환불 기준 안내."
         path="/points"
       />

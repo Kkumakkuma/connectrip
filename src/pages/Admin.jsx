@@ -242,7 +242,7 @@ const Admin = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-32">
-        <SEOHead title="관리자 - ConnectTrip" robots="noindex, nofollow" />
+        <SEOHead title="관리자 - 커넥트립 ConnectTrip" robots="noindex, nofollow" />
         <Loader2 size={48} className="text-blue-500 animate-spin" />
       </div>
     );
@@ -251,7 +251,7 @@ const Admin = () => {
   if (profileUnknown) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-32">
-        <SEOHead title="관리자 - ConnectTrip" robots="noindex, nofollow" />
+        <SEOHead title="관리자 - 커넥트립 ConnectTrip" robots="noindex, nofollow" />
         <div className="text-center max-w-md mx-auto px-4">
           <h2 className="text-2xl font-bold text-gray-900 mb-3">계정 정보를 불러오지 못했습니다</h2>
           <p className="text-gray-500 mb-8">네트워크 상태를 확인한 뒤 다시 시도해주세요.</p>
@@ -269,7 +269,7 @@ const Admin = () => {
   if (!isLoggedIn || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-32">
-        <SEOHead title="관리자 - ConnectTrip" robots="noindex, nofollow" />
+        <SEOHead title="관리자 - 커넥트립 ConnectTrip" robots="noindex, nofollow" />
         <div className="text-center max-w-md mx-auto px-4">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Shield size={40} className="text-red-500" />
@@ -353,7 +353,7 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pt-32 pb-24">
-      <SEOHead title="관리자 - ConnectTrip" robots="noindex, nofollow" />
+      <SEOHead title="관리자 - 커넥트립 ConnectTrip" robots="noindex, nofollow" />
       <div className="max-w-7xl mx-auto px-4">
         {/* Header */}
         <div className="mb-8">

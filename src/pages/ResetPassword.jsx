@@ -82,7 +82,7 @@ const ResetPassword = () => {
 
     return (
         <div className="min-h-[60vh] bg-gray-50 flex items-start justify-center pt-28 pb-16 px-4">
-            <SEOHead title="새 비밀번호 설정 - ConnectTrip" description="ConnectTrip 새 비밀번호 설정" robots="noindex, nofollow" />
+            <SEOHead title="새 비밀번호 설정 - 커넥트립 ConnectTrip" description="ConnectTrip 새 비밀번호 설정" robots="noindex, nofollow" />
             <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl border border-gray-100">
                 <h1 className="text-2xl font-bold text-gray-800 mb-2">새 비밀번호 설정</h1>
                 {done ? (

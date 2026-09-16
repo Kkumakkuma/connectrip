@@ -596,7 +596,7 @@ export default function SignupEmail() {
   return (
     <div style={{ maxWidth: 560, margin: '120px auto 40px', padding: '0 20px' }}>
       <SEOHead
-        title="회원가입 - ConnectTrip"
+        title="회원가입 - 커넥트립 ConnectTrip"
         description="ConnectTrip 회원가입. 휴대폰 인증 기반 여행 동행 커뮤니티를 시작하세요."
         path="/signup/email"
         robots="noindex, follow"

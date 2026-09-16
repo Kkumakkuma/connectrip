@@ -538,7 +538,7 @@ const MyPage = () => {
 
     return (
         <>
-        <SEOHead title="마이 페이지 - ConnectTrip" description={`ConnectTrip 마이 페이지. 내 ${POINTS_ENABLED ? '포인트, ' : ''}${COMMENDATION_ENABLED ? '바우처, ' : ''}항공편 스케줄, 키워드 알림${COMMENDATION_ENABLED ? '과 칭찬 매칭 현황' : ''}을 한눈에 관리하세요.`} robots="noindex, nofollow" />
+        <SEOHead title="마이 페이지 - 커넥트립 ConnectTrip" description={`ConnectTrip 마이 페이지. 내 ${POINTS_ENABLED ? '포인트, ' : ''}${COMMENDATION_ENABLED ? '바우처, ' : ''}항공편 스케줄, 키워드 알림${COMMENDATION_ENABLED ? '과 칭찬 매칭 현황' : ''}을 한눈에 관리하세요.`} robots="noindex, nofollow" />
         <section id="mypage" className="section-padding" style={{ background: '#f8f9fa' }}>
             <div className="container">
                 <div style={{ textAlign: 'center', marginBottom: '3rem' }}>

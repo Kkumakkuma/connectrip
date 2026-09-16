@@ -205,7 +205,7 @@ const PostDetail = () => {
     return (
         <section className="bg-white text-ink min-h-screen pt-24 sm:pt-28 pb-20">
             <SEOHead
-                title={p ? `${title} - ${config.label} - ConnectTrip` : 'ConnectTrip'}
+                title={p ? `${title} - ${config.label} - 커넥트립 ConnectTrip` : 'ConnectTrip'}
                 description={body ? String(body).slice(0, 120) : undefined}
             />
             <div className="max-w-3xl mx-auto px-4 sm:px-6">

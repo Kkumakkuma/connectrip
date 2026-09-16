@@ -531,7 +531,7 @@ export default function SignupComplete() {
   return (
     <div style={{ maxWidth: 520, margin: '120px auto 40px', padding: '0 20px' }}>
       <SEOHead
-        title="회원정보 입력 - ConnectTrip"
+        title="회원정보 입력 - 커넥트립 ConnectTrip"
         description="ConnectTrip 회원가입 마무리. 남은 회원정보를 입력하고 가입을 완료하세요."
         path="/signup/complete"
         robots="noindex, follow"

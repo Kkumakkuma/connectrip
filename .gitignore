@@ -42,6 +42,7 @@ scripts/*
 !scripts/planner-sw.js
 # 플래너 정적 데이터 생성기(오프라인 도구). 빌드가 부르진 않지만 재현하려면 커밋돼 있어야 한다.
 !scripts/build_planner_data.py
+!scripts/gen-icons.py
 !scripts/planner_destinations_seed.json
 *.code-workspace
 

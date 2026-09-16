@@ -28,29 +28,29 @@ export const BASE_URL = 'https://www.connecttrip.co.kr';
 // (index, follow)을 그대로 둔다.
 export const ROUTE_META = {
   '/': {
-    title: 'ConnectTrip - 여행자부터 승무원까지 모두를 연결하는 여행 플랫폼',
+    title: '커넥트립 ConnectTrip - 여행자부터 승무원까지 모두를 연결하는 여행 플랫폼',
     description:
-      '동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자부터 승무원까지 모두를 연결하는 여행 정보 공유 플랫폼.',
+      '커넥트립(ConnectTrip) - 동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자부터 승무원까지 모두를 연결하는 여행 정보 공유 플랫폼.',
   },
   '/companion': {
-    title: '여행 동행자 모집 - ConnectTrip',
+    title: '여행 동행자 모집 - 커넥트립 ConnectTrip',
     description: '함께 여행할 동행자를 찾아보세요. 지역별 여행 동행 모집 게시판.',
   },
   '/qna': {
-    title: '여행후기 및 Q&A - ConnectTrip',
+    title: '여행후기 및 Q&A - 커넥트립 ConnectTrip',
     description: '여행 후기를 공유하고, 여행 관련 질문과 답변을 나누세요.',
   },
   '/market': {
-    title: '물품거래 및 나눔 - ConnectTrip',
+    title: '물품거래 및 나눔 - 커넥트립 ConnectTrip',
     description: '여행 물품 거래, 나눔, 중고 거래를 ConnectTrip에서 만나보세요.',
   },
   '/reviews': {
-    title: '여행 후기 게시판 - ConnectTrip',
+    title: '여행 후기 게시판 - 커넥트립 ConnectTrip',
     description:
       '여행자와 승무원이 직접 남긴 생생한 여행 후기와 추천 상품 정보. 지역별 여행 경험을 공유하고 확인하세요.',
   },
   '/recommend': {
-    title: '여행지 추천 - ConnectTrip',
+    title: '여행지 추천 - 커넥트립 ConnectTrip',
     description:
       '승무원들이 직접 추천하는 전 세계 여행지. 유럽, 미주, 동남아 등 지역별 숨은 명소와 핫플레이스를 만나보세요.',
   },
@@ -59,30 +59,30 @@ export const ROUTE_META = {
   // 문구는 다시 열 때 그대로 쓰려고 남겨 둔다. 켤 때: 아래 주석 해제 + 사이트맵 복구.
   // 글 단위 경로(/itinerary/:postId)는 사이트맵에 없어 프리렌더 대상이 아니다.
   // '/itinerary': {
-  //   title: '여행 일정 - ConnectTrip',
+  //   title: '여행 일정 - 커넥트립 ConnectTrip',
   //   description:
   //     '여행자들이 직접 짠 날짜별 여행 일정을 살펴보고, 마음에 드는 일정을 내 플래너로 가져오세요.',
   // },
   '/search': {
-    title: '검색 결과 - ConnectTrip',
+    title: '검색 결과 - 커넥트립 ConnectTrip',
     description: 'ConnectTrip에서 동행, 장터, Q&A, 승무원 게시판을 통합 검색하세요.',
     robots: 'noindex, follow',
   },
   '/signup': {
-    title: '회원가입 - ConnectTrip',
+    title: '회원가입 - 커넥트립 ConnectTrip',
     description: 'ConnectTrip 회원가입 — 여행자와 승무원을 잇는 여행 동행 커뮤니티.',
   },
   '/terms': {
-    title: '이용약관 - ConnectTrip',
-    description: 'ConnectTrip 서비스 이용약관. 회원의 권리와 의무, 서비스 이용 조건을 안내합니다.',
+    title: '이용약관 - 커넥트립 ConnectTrip',
+    description: 'ConnectTrip 이용약관 — 서비스 성격, 회원의 의무, 금지행위, 면책에 관한 안내.',
   },
   '/privacy': {
-    title: '개인정보처리방침 - ConnectTrip',
-    description: 'ConnectTrip 개인정보처리방침. 수집하는 개인정보 항목과 이용 목적, 보관 기간을 안내합니다.',
+    title: '개인정보처리방침 - 커넥트립 ConnectTrip',
+    description: 'ConnectTrip이 수집하는 개인정보 항목, 이용 목적, 처리위탁, 보관·파기, 이용자 권리에 대한 안내.',
   },
   // 2026-09-03 결제 기능 숨김(featureFlags.PAYMENTS_ENABLED) — 다시 켤 때 주석 해제
   //   '/points': {
-  //     title: '포인트·매칭신청권 안내 - ConnectTrip',
+  //     title: '포인트·매칭신청권 안내 - 커넥트립 ConnectTrip',
   //     description: 'ConnectTrip 포인트 충전 금액과 매칭신청권 가격, 사용처, 환불 기준 안내.',
   //   },
 };

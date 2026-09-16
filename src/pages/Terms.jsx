@@ -53,7 +53,7 @@ const Terms = () => {
   return (
     <section className="min-h-screen bg-gray-50 py-24">
       <SEOHead
-        title="이용약관 - ConnectTrip"
+        title="이용약관 - 커넥트립 ConnectTrip"
         description={`ConnectTrip 이용약관 — 서비스 성격, 회원의 의무, 금지행위${showPoints ? ', 포인트' : ''}, 면책에 관한 안내.`}
         path="/terms"
       />

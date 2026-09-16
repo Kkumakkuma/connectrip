@@ -174,7 +174,7 @@ const Promotions = () => {
 
     return (
         <>
-        <SEOHead title="여행 후기 게시판 - ConnectTrip" description="여행자와 승무원이 직접 남긴 생생한 여행 후기와 추천 상품 정보. 지역별 여행 경험을 공유하고 확인하세요." />
+        <SEOHead title="여행 후기 게시판 - 커넥트립 ConnectTrip" description="여행자와 승무원이 직접 남긴 생생한 여행 후기와 추천 상품 정보. 지역별 여행 경험을 공유하고 확인하세요." />
         <section id="promotions" className="section-padding" style={{ background: '#fff', minHeight: '80vh' }}>
             <div className="container">
                 <AnimatePresence mode="wait">

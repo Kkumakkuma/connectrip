@@ -46,7 +46,7 @@ const ChatList = () => {
 
     return (
         <section className="pt-28 pb-20 bg-gray-50 min-h-[80vh]">
-            <SEOHead title="대화 - ConnectTrip" description="회원 간 1:1 대화" />
+            <SEOHead title="대화 - 커넥트립 ConnectTrip" description="회원 간 1:1 대화" />
             <div className="mx-auto px-4 max-w-3xl">
                 <div className="flex items-center gap-2 mb-4">
                     <span className="px-3 py-1.5 rounded-lg text-sm font-bold bg-blue-600 text-white">대화</span>

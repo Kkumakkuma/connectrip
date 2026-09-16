@@ -47,7 +47,7 @@ export default function SharedView() {
 
   const head = (
     <SEOHead
-      title="공유받은 여행 일정 - ConnectTrip"
+      title="공유받은 여행 일정 - 커넥트립 ConnectTrip"
       description="공유 링크로 받은 여행 일정입니다."
       robots="noindex, nofollow"
     />

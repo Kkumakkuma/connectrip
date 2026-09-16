@@ -157,7 +157,7 @@ const CompanionBoard = () => {
     return (
         <>
             <SEOHead
-                title={`${regionName ? `${regionName} ` : ''}여행 동행자 모집 - ConnectTrip`}
+                title={`${regionName ? `${regionName} ` : ''}여행 동행자 모집 - 커넥트립 ConnectTrip`}
                 description="함께 여행할 동행자를 찾아보세요. 지역별 여행 동행 모집 게시판."
                 path="/companion"
             />

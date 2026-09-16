@@ -234,7 +234,7 @@ const ChatRoom = () => {
 
     return (
         <section className="pt-20 bg-gray-50 min-h-screen">
-            <SEOHead title="대화 - ConnectTrip" description="회원 간 1:1 대화" />
+            <SEOHead title="대화 - 커넥트립 ConnectTrip" description="회원 간 1:1 대화" />
             <div className="mx-auto px-0 sm:px-4 max-w-3xl">
                 <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-100 flex flex-col" style={{ height: 'calc(100vh - 6rem)' }}>
                     <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">

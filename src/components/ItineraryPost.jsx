@@ -167,7 +167,7 @@ const ItineraryPost = () => {
   const daysWithPlaces = days.filter((d) => d.places.length > 0);
   const unassigned = Array.isArray(snapshot?.unassigned) ? snapshot.unassigned : [];
   const period = formatRange(post.start_date, post.end_date);
-  const seoTitle = `${post.title} - ConnectTrip`;
+  const seoTitle = `${post.title} - 커넥트립 ConnectTrip`;
   const seoDesc = `${period} · ${post.days_count ?? 0}일 · 장소 ${post.places_count ?? 0}곳. 커넥트립 여행 일정.`;
 
   return (

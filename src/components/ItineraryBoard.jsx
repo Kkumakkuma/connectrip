@@ -21,7 +21,7 @@ import { formatRange } from '../lib/itineraryDate';
 // 1차 범위는 '더보기' 없이 첫 페이지 고정(설계 §1.2).
 const PAGE_SIZE = 20;
 
-const SEO_TITLE = '여행 일정 - ConnectTrip';
+const SEO_TITLE = '여행 일정 - 커넥트립 ConnectTrip';
 const SEO_DESC = '여행자들이 직접 짠 날짜별 여행 일정을 살펴보고, 마음에 드는 일정을 내 플래너로 가져오세요.';
 
 const ItineraryBoard = () => {

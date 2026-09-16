@@ -35,7 +35,7 @@ const Privacy = () => {
   return (
     <section className="min-h-screen bg-gray-50 py-24">
       <SEOHead
-        title="개인정보처리방침 - ConnectTrip"
+        title="개인정보처리방침 - 커넥트립 ConnectTrip"
         description="ConnectTrip이 수집하는 개인정보 항목, 이용 목적, 처리위탁, 보관·파기, 이용자 권리에 대한 안내."
         path="/privacy"
       />

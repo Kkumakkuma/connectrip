@@ -1,10 +1,8 @@
 import { useEffect } from 'react';
+import { BASE_URL, ROUTE_META } from '../lib/routeMeta';
 
-const BASE_URL = 'https://www.connecttrip.co.kr';
-const DEFAULTS = {
-  title: 'ConnectTrip - 여행자부터 승무원까지 모두를 연결하는 여행 플랫폼',
-  description: '동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자를 위한 모든 것.',
-};
+// 홈 문구는 routeMeta.js 의 '/' 가 단일 출처다(프리렌더가 같은 표를 읽는다). 여기서 따로 적지 않는다.
+const DEFAULTS = ROUTE_META['/'];
 
 const DEFAULT_ROBOTS = 'index, follow';
 

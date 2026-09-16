@@ -171,7 +171,7 @@ const CrewOnly = () => {
 
     return (
         <>
-            <SEOHead title="승무원 전용 - ConnectTrip" description="항공 승무원을 위한 전용 커뮤니티. 스케줄 공유, 할인 정보, 비행 꿀팁." />
+            <SEOHead title="승무원 전용 - 커넥트립 ConnectTrip" description="항공 승무원을 위한 전용 커뮤니티. 스케줄 공유, 할인 정보, 비행 꿀팁." />
             <BoardShell
                 id="crew-only"
                 title="CREW 전용"

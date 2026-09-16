@@ -145,7 +145,7 @@ const MarketBoard = () => {
 
     return (
         <>
-            <SEOHead title="물품거래 및 나눔 - ConnectTrip" description="여행 물품 거래, 나눔, 중고 거래를 ConnectTrip에서 만나보세요." path="/market" />
+            <SEOHead title="물품거래 및 나눔 - 커넥트립 ConnectTrip" description="여행 물품 거래, 나눔, 중고 거래를 ConnectTrip에서 만나보세요." path="/market" />
             <BoardShell
                 id="market"
                 title="물품거래 및 나눔"

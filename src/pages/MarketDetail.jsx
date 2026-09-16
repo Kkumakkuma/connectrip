@@ -146,7 +146,7 @@ const MarketDetail = () => {
 
     return (
         <section className="pt-20 pb-24 bg-gray-50 min-h-screen">
-            <SEOHead title={`${item.title} - ConnectTrip 장터`} description={item.content || ''} />
+            <SEOHead title={`${item.title} - 커넥트립 ConnectTrip 장터`} description={item.content || ''} />
             <div className="mx-auto px-0 sm:px-4 max-w-3xl">
                 <div className="bg-white sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="relative bg-gray-100 aspect-square sm:aspect-[4/3]">

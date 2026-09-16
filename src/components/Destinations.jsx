@@ -201,7 +201,7 @@ const Destinations = () => {
     return (
         <>
             <SEOHead
-                title={`${regionName ? `${regionName} ` : ''}여행지 추천 - ConnectTrip`}
+                title={`${regionName ? `${regionName} ` : ''}여행지 추천 - 커넥트립 ConnectTrip`}
                 description="승무원들이 직접 추천하는 전 세계 여행지. 유럽, 미주, 동남아 등 지역별 숨은 명소와 핫플레이스를 만나보세요."
                 path="/recommend"
             />

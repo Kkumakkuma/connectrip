@@ -5,7 +5,7 @@ import SEOHead from '../components/SEOHead';
 const NotFound = () => {
   return (
     <section className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-24">
-      <SEOHead title="페이지를 찾을 수 없습니다 - ConnectTrip" robots="noindex, follow" />
+      <SEOHead title="페이지를 찾을 수 없습니다 - 커넥트립 ConnectTrip" robots="noindex, follow" />
       <div className="text-center max-w-md mx-auto">
         <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <Compass size={40} className="text-blue-500" />

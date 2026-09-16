@@ -165,7 +165,7 @@ const TravelQnA = () => {
 
     return (
         <>
-            <SEOHead title="여행후기 및 Q&A - ConnectTrip" description="여행 후기를 공유하고, 여행 관련 질문과 답변을 나누세요." path="/qna" />
+            <SEOHead title="여행후기 및 Q&A - 커넥트립 ConnectTrip" description="여행 후기를 공유하고, 여행 관련 질문과 답변을 나누세요." path="/qna" />
             <BoardShell
                 id="qna"
                 title="여행후기 및 Q&A"

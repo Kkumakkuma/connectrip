@@ -106,7 +106,7 @@ const Messages = () => {
 
     return (
         <section className="pt-28 pb-20 bg-gray-50 min-h-[80vh]">
-            <SEOHead title="쪽지 - ConnectTrip" description="회원 간 쪽지" />
+            <SEOHead title="쪽지 - 커넥트립 ConnectTrip" description="회원 간 쪽지" />
             <div className="mx-auto px-4 max-w-3xl">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
