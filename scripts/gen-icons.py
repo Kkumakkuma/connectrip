@@ -6,8 +6,8 @@
 크기별 PNG·ICO 를 굽는다. 같은 그림이 검색 결과 파비콘·iOS 홈 아이콘·PWA(any/maskable)·알림 아이콘에 쓰인다.
 
 사용:
-  python scripts/gen-icons.py                           # 기본 = 두 색(청록 하트+금색 비행기, 앱 아이콘·푸터 로고와 동일) → public/ 에 기록
-  python scripts/gen-icons.py --variant mono            # 단색 청록(헤더 로고와 동일)
+  python scripts/gen-icons.py                           # 기본 = 단색 청록(하트·비행기 모두, 헤더 로고와 동일) → public/ 에 기록
+  python scripts/gen-icons.py --variant duo             # 두 색(청록 하트+금색 비행기, 앱 아이콘·푸터 로고와 동일)
   python scripts/gen-icons.py --preview <dir>           # public 은 건드리지 않고 비교 시트만 <dir> 에 생성
 """
 import argparse
@@ -129,7 +129,7 @@ def preview_sheet(variants, path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--variant", choices=["mono", "duo"], default="duo")  # 2026-09-16 쿠마님 선택 = 두 색
+    ap.add_argument("--variant", choices=["mono", "duo"], default="mono")  # 2026-09-16 쿠마님 확정 = 단색(헤더 로고와 일관)
     ap.add_argument("--out", default=os.path.join(ROOT, "public"))
     ap.add_argument("--preview", help="비교 시트만 이 폴더에 생성(public 미기록)")
     args = ap.parse_args()
