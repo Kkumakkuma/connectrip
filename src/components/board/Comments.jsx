@@ -18,6 +18,7 @@ const Comments = ({ api, postId, postOwnerId = null, board = null }) => {
     const { user, profile, isLoggedIn } = useAuth();
     const { requireNickname, nicknameModal } = useNicknameGate();
     const { stillBanned, syncAfterBannedError } = useBannedGuard();
+    const addLockRef = useRef(false);
     const [list, setList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -55,11 +56,17 @@ const Comments = ({ api, postId, postOwnerId = null, board = null }) => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         const content = text.trim();
         // 목록을 받는 중에는 등록하지 않는다 — 늦게 도착한 조회 응답이 방금 등록한 댓글을 지운다
-        if (!content || busy || loading) return;
-        if (board === 'companion' && await stillBanned()) { alert(BANNED_MESSAGE); return; }
-        if (!requireNickname(() => add())) return;
+        if (!content || busy || loading || addLockRef.current) return;
+        // 재확인(await) 동안 다시 눌러 중복 등록되지 않게 잠근다(2026-09-16 codex 검토). busy 가 켜진 뒤 푼다.
+        addLockRef.current = true;
         try {
+            if (board === 'companion' && await stillBanned()) { alert(BANNED_MESSAGE); return; }
+            if (!requireNickname(() => add())) return;
             setBusy(true);
+        } finally {
+            addLockRef.current = false;
+        }
+        try {
             const created = await api.addComment({
                 post_id: postId,
                 user_id: user.id,

@@ -32,6 +32,7 @@ const CompanionBoard = () => {
     const { user, profile, isLoggedIn } = useAuth();
     const { requireNickname, nicknameModal } = useNicknameGate();
     const { stillBanned, syncAfterBannedError } = useBannedGuard();
+    const submitLockRef = useRef(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const region = regionFromSearch(searchParams.toString());
     const q = searchParams.get('q') || '';
@@ -117,12 +118,18 @@ const CompanionBoard = () => {
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (submitting) return;
+        if (submitting || submitLockRef.current) return;
         if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         // 이용 제한 계정은 동행 모집 글을 올릴 수 없다(서버 트리거도 같은 이유로 막는다).
-        if (await stillBanned()) { alert(BANNED_MESSAGE); return; }
-        if (!requireNickname(() => submit())) return;
-        setSubmitting(true);
+        // 재확인(await) 동안 다시 눌러도 중복 등록되지 않게 첫 await 전에 잠그고, submitting 이 켜진 뒤 푼다(2026-09-16 codex 검토).
+        submitLockRef.current = true;
+        try {
+            if (await stillBanned()) { alert(BANNED_MESSAGE); return; }
+            if (!requireNickname(() => submit())) return;
+            setSubmitting(true);
+        } finally {
+            submitLockRef.current = false;
+        }
         try {
             const created = await companionApi.create({
                 region_id: form.region_id,

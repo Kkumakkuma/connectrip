@@ -14,6 +14,7 @@ const NicknameRequiredModal = ({ open, onClose, onSaved }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const inputRef = useRef(null);
+    const boxRef = useRef(null);
     const onCloseRef = useRef(onClose);
     // busyRef: Esc 핸들러는 open 때 한 번 만든 클로저라 busy state 를 못 본다.
     // sessionRef: 창을 열 때마다·닫을 때마다 바뀐다. 저장 응답이 도착했을 때 번호가 다르면(닫혔거나 다시 열린 창)
@@ -29,6 +30,18 @@ const NicknameRequiredModal = ({ open, onClose, onSaved }) => {
         setValue(''); setError(''); setBusy(false);
         // 글쓰기 시트(WriteModal)도 document 에서 Esc 를 듣는다 — 캡처 단계에서 먼저 받아 이 창만 닫는다.
         const onKey = (e) => {
+            // Tab 은 이 창 안에서만 돈다 — 글쓰기 시트 위에 떴을 때 포커스가 아래 시트로 빠지지 않게(2026-09-16 codex 검토)
+            if (e.key === 'Tab' && boxRef.current) {
+                e.stopPropagation();
+                const nodes = [...boxRef.current.querySelectorAll('button:not([disabled]), input:not([disabled])')];
+                if (nodes.length === 0) { e.preventDefault(); return; }
+                const first = nodes[0]; const last = nodes[nodes.length - 1];
+                const active = document.activeElement;
+                if (!boxRef.current.contains(active)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
+                if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+                return;
+            }
             if (e.key !== 'Escape') return;
             e.stopPropagation();
             if (busyRef.current) return; // 저장 중에는 닫지 않는다(닫기 버튼·바깥 클릭과 같은 규칙)
@@ -79,6 +92,7 @@ const NicknameRequiredModal = ({ open, onClose, onSaved }) => {
             onClick={(e) => { e.stopPropagation(); if (!busy) onCloseRef.current?.(); }}
         >
             <div
+                ref={boxRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="nickname-required-title"

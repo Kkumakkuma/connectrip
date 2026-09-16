@@ -221,11 +221,18 @@ const MyPage = () => {
     // "게시판 참여" 스위치: 켜면 그 편 게시판에 들어가고(익명 번호 배정), 끄면 나온다.
     // 서버가 돌려준 행으로 그 줄만 바꾼다(전체 재조회를 하면 목록이 로딩 화면으로 바뀌어 초점이 사라진다).
     const [boardBusyIds, setBoardBusyIds] = useState(() => new Set());
+    const boardLockRef = useRef(new Set());
     const handleToggleBoard = async (flight) => {
-        if (boardBusyIds.has(flight.id)) return;
+        if (boardBusyIds.has(flight.id) || boardLockRef.current.has(flight.id)) return;
         // 이용 제한 계정은 게시판에 들어갈 수 없다(끄는 것은 허용, 서버 트리거도 켤 때만 막는다).
-        if (!flight.board_joined && await stillBanned()) { alert(BANNED_MESSAGE); return; }
-        setBoardBusyIds((prev) => new Set(prev).add(flight.id));
+        // 재확인(await) 동안 다시 눌러도 두 번 바뀌지 않게 잠근다(2026-09-16 codex 검토).
+        boardLockRef.current.add(flight.id);
+        try {
+            if (!flight.board_joined && await stillBanned()) { alert(BANNED_MESSAGE); return; }
+            setBoardBusyIds((prev) => new Set(prev).add(flight.id));
+        } finally {
+            boardLockRef.current.delete(flight.id);
+        }
         try {
             const row = await flightApi.setBoardJoined(flight.id, !flight.board_joined);
             setMyFlights((prev) => prev.map((f) => (f.id === flight.id ? { ...f, ...row } : f)));

@@ -54,8 +54,22 @@ function parseInline(text, lineNo) {
     last = m.index + m[0].length;
   }
   if (last < text.length) nodes.push({ type: 'text', text: text.slice(last) });
+  nodes.forEach((n, idx) => {
+    if (n.type !== 'link') return;
+    // 2026-09-16 codex 검토: ![x](/a) 이미지 문법이 '!' + 링크로, [**굵게**](/a) 가 별표째 조용히 렌더되던 것 → 예외
+    const prev = nodes[idx - 1];
+    if (prev && prev.type === 'text' && prev.text.endsWith('!')) {
+      throw new Error(`[guide] ${lineNo}행: 이미지 문법은 지원하지 않는다 — ${n.text.slice(0, 40)}`);
+    }
+    if (/\*\*|`|\[|<[a-z/!]/i.test(n.text)) {
+      throw new Error(`[guide] ${lineNo}행: 링크 글자 안의 미지원 문법 — ${n.text.slice(0, 40)}`);
+    }
+    // 링크 대상 검증을 빌드 검사(check-seo-surfaces)에만 맡기지 않는다 — 파서·렌더러를 다른 곳에서 써도 javascript: 등이 못 들어가게
+    const why = guideLinkProblem(n.href);
+    if (why) throw new Error(`[guide] ${lineNo}행: ${why}`);
+  });
   for (const n of nodes) {
-    if (n.type === 'text' && /\*\*|`|\]\(|<[a-z/!]/i.test(n.text)) {
+    if (n.type === 'text' && /\*\*|`|\]\(|\[|\]|<[a-z/!]/i.test(n.text)) {
       throw new Error(`[guide] ${lineNo}행: 지원하지 않는 인라인 문법 — ${n.text.slice(0, 40)}`);
     }
   }

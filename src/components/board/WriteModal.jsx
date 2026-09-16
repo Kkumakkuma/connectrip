@@ -24,6 +24,13 @@ const WriteModal = ({ open, title, onClose, children, footer, keepMounted = fals
             const nodes = [...boxRef.current.querySelectorAll(FOCUSABLE)].filter((n) => n.offsetParent !== null || n.classList.contains('sr-only'));
             if (nodes.length === 0) return;
             const first = nodes[0]; const last = nodes[nodes.length - 1];
+            // 포커스가 시트 밖(배경)에 있으면 시트 안으로 되돌린다(2026-09-16 codex 검토).
+            // 단 시트 위에 뜬 다른 팝업(닉네임 설정 창 등, body 포털)에 포커스가 있으면 그 팝업 몫이라 건드리지 않는다.
+            const active = document.activeElement;
+            if (!boxRef.current.contains(active)) {
+                if (active && active.closest && active.closest('[role="dialog"][aria-modal="true"]')) return;
+                e.preventDefault(); (e.shiftKey ? last : first).focus(); return;
+            }
             if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
             else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
         };
@@ -31,9 +38,14 @@ const WriteModal = ({ open, title, onClose, children, footer, keepMounted = fals
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
         const t = setTimeout(() => {
-            const firstField = boxRef.current?.querySelector('input:not([type=radio]):not([type=hidden]), textarea, select, input[type=radio]');
+            // 비활성·안 보이는 입력은 건너뛴다(keepMounted 로 저장 중에 다시 열면 입력이 disabled 라 focus() 가 실패했다, 2026-09-16 codex 검토).
+            const candidates = boxRef.current
+                ? [...boxRef.current.querySelectorAll('input:not([type=radio]):not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), input[type=radio]:not([disabled])')]
+                : [];
+            const firstField = candidates.find((n) => n.offsetParent !== null);
             // 입력칸이 없는 내용(회원 정보 조회 화면 등)은 컨테이너 대신 닫기 버튼에 — 컨테이너에 포커스가 있으면 Tab 트랩이 첫/끝 판정을 못 한다.
-            (firstField || closeBtnRef.current || boxRef.current)?.focus?.();
+            firstField?.focus?.();
+            if (!boxRef.current?.contains(document.activeElement)) (closeBtnRef.current || boxRef.current)?.focus?.();
         }, 30);
         return () => {
             clearTimeout(t);

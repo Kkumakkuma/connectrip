@@ -51,6 +51,16 @@ describe('parseGuideMarkdown', () => {
     expect(() => parseGuideMarkdown('# 하나\n\n# 둘')).toThrow();
   });
 
+  it('이미지·링크 글자 안 미지원 문법·짝 없는 대괄호·위험한 링크도 예외(2026-09-16 codex 검토)', () => {
+    expect(() => parseGuideMarkdown('# 제목\n\n![x](/companion)')).toThrow();
+    expect(() => parseGuideMarkdown('# 제목\n\n[**bold**](/companion)')).toThrow();
+    expect(() => parseGuideMarkdown('# 제목\n\n[unfinished')).toThrow();
+    expect(() => parseGuideMarkdown('# 제목\n\n문장]')).toThrow();
+    expect(() => parseGuideMarkdown('# 제목\n\n[x](javascript:alert%281%29)')).toThrow();
+    expect(() => parseGuideMarkdown('# 제목\n\n[x](https://evil.example/)')).toThrow();
+    expect(() => parseGuideMarkdown('# 제목\n\n느낌표! [동행](/companion)')).not.toThrow();
+  });
+
   it('CRLF 원고도 같은 결과를 낸다', () => {
     expect(parseGuideMarkdown('# 제목\r\n\r\n문단')).toEqual(parseGuideMarkdown('# 제목\n\n문단'));
   });

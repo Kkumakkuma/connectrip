@@ -29,6 +29,9 @@ export function useNicknameGate() {
     // 로그인 전이면 닉네임 창을 띄우지 않는다 — 로그인 안내는 각 화면(isLoggedIn 확인)이 맡는다(제미나이 검토).
     if (!me) return true;
     if (savedForRef.current === me) return true;
+    // 본인 프로필을 아직 못 읽었으면(조회 중·실패) 닉네임 없음으로 단정하지 않는다 — 닉네임 있는 회원에게 설정 창이 뜨던 문제(2026-09-16 codex 검토).
+    // 이 경우 등록은 그대로 보내고, 작성자 이름은 서버 트리거가 profiles.nickname 으로 채운다.
+    if (!profileRef.current) return true;
     return ensureNickname(profileRef.current, () => {
       pendingRef.current = { run: typeof run === 'function' ? run : null, uid: me };
       setOpenFor(me ?? '');
