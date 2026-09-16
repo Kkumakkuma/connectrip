@@ -104,7 +104,7 @@ describe('안내 페이지 11종', () => {
     const links = collectGuideLinks(blocks);
     expect(links.length).toBeGreaterThan(0);
     links.forEach((l) => expect(guideLinkProblem(l.href), l.href).toBeNull());
-    expect(ROUTE_META[path]?.title).toMatch(/\| ConnectTrip$/);
+    expect(ROUTE_META[path]?.title).toMatch(/ - 커넥트립$/);
     expect(ROUTE_META[path]?.description?.length).toBeGreaterThan(20);
     // 사전렌더 HTML 에 원고 글자가 빠짐없이 들어간다
     expect(htmlText(renderGuideHtml(blocks))).toBe(blockText(blocks));
