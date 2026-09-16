@@ -15,20 +15,32 @@ const NicknameRequiredModal = ({ open, onClose, onSaved }) => {
     const [error, setError] = useState('');
     const inputRef = useRef(null);
     const onCloseRef = useRef(onClose);
+    // busyRef: Esc 핸들러는 open 때 한 번 만든 클로저라 busy state 를 못 본다.
+    // sessionRef: 창을 열 때마다·닫을 때마다 바뀐다. 저장 응답이 도착했을 때 번호가 다르면(닫혔거나 다시 열린 창)
+    // 그 응답으로 onSaved 를 부르지 않는다 — 닫았다 다시 연 창에서 이전 요청이 새 등록을 실행하는 경합 방지(2026-09-16 codex 검토).
+    const busyRef = useRef(false);
+    const sessionRef = useRef(0);
     useEffect(() => { onCloseRef.current = onClose; });
 
     useEffect(() => {
         if (!open) return undefined;
+        sessionRef.current += 1;
+        busyRef.current = false;
         setValue(''); setError(''); setBusy(false);
         // 글쓰기 시트(WriteModal)도 document 에서 Esc 를 듣는다 — 캡처 단계에서 먼저 받아 이 창만 닫는다.
         const onKey = (e) => {
             if (e.key !== 'Escape') return;
             e.stopPropagation();
+            if (busyRef.current) return; // 저장 중에는 닫지 않는다(닫기 버튼·바깥 클릭과 같은 규칙)
             onCloseRef.current?.();
         };
         window.addEventListener('keydown', onKey, true);
         const t = setTimeout(() => inputRef.current?.focus(), 30);
-        return () => { clearTimeout(t); window.removeEventListener('keydown', onKey, true); };
+        return () => {
+            sessionRef.current += 1;
+            clearTimeout(t);
+            window.removeEventListener('keydown', onKey, true);
+        };
     }, [open]);
 
     if (!open) return null;
@@ -39,18 +51,25 @@ const NicknameRequiredModal = ({ open, onClose, onSaved }) => {
         const problem = nicknameProblem(n);
         if (problem) { setError(problem); return; }
         if (!user) { setError('로그인이 필요합니다.'); return; }
+        const session = sessionRef.current;
+        const stale = () => session !== sessionRef.current;
+        busyRef.current = true;
         setBusy(true); setError('');
         try {
-            if (await checkNicknameTaken(n)) { setError(messageFor('NICKNAME_TAKEN')); return; }
+            const taken = await checkNicknameTaken(n);
+            if (stale()) return;
+            if (taken) { setError(messageFor('NICKNAME_TAKEN')); return; }
             const after = await updateProfile({ nickname: n });
+            if (stale()) return;
             if (!after || after.nickname !== n) { setError('저장이 반영되지 않았습니다. 새로고침한 뒤 다시 시도해주세요.'); return; }
             onSaved?.(n);
         } catch (err) {
+            if (stale()) return;
             const code = codeFromError(err);
             if (err?.code === '23514') setError('사용할 수 없는 닉네임입니다. 다른 닉네임을 입력해주세요.');
             else setError(messageFor(code, '닉네임을 저장하지 못했습니다.'));
         } finally {
-            setBusy(false);
+            if (!stale()) { busyRef.current = false; setBusy(false); }
         }
     };
 

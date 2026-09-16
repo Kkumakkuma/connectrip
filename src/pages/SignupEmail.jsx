@@ -15,6 +15,7 @@ import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityS
 import { resolveNext, rememberNext } from '../lib/safeNext';
 import { REFERRAL_ENABLED, COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 import AddressInput from '../components/AddressInput';
+import { nicknameProblem } from '../lib/profileEdit';
 
 export default function SignupEmail() {
   const navigate = useNavigate();
@@ -193,6 +194,9 @@ export default function SignupEmail() {
   // 닉네임 중복
   useEffect(() => {
     if (!nickname || nickname.length < 2) { setNicknameStatus(null); return; }
+    // 금칙어·길이는 서버(api/signup NICKNAME_RESERVED/INVALID)와 같은 규칙으로 먼저 거른다 — 중복만 보고 '사용 가능'이라 했다가
+    // 가입 단계에서 거부되던 문제(2026-09-16 codex 검토).
+    if (nicknameProblem(nickname)) { setNicknameStatus('invalid'); return; }
     setNicknameStatus('checking');
     let cancelled = false;
     const t = setTimeout(async () => {
@@ -445,8 +449,8 @@ export default function SignupEmail() {
       loginIdRef.current?.focus();
       return;
     }
-    if (code === 'NICKNAME_TAKEN') {
-      setNicknameStatus('taken');
+    if (code === 'NICKNAME_TAKEN' || code === 'NICKNAME_INVALID' || code === 'NICKNAME_RESERVED') {
+      setNicknameStatus(code === 'NICKNAME_TAKEN' ? 'taken' : 'invalid');
       setError(message);
       nicknameRef.current?.focus();
       return;
@@ -853,11 +857,12 @@ export default function SignupEmail() {
           <Field label="닉네임 (중복 불가)"
             helper={
               !nickname || nickname.length < 2 ? '2자 이상 입력' :
+              nicknameStatus === 'invalid' ? (nicknameProblem(nickname) || '사용할 수 없는 닉네임입니다.') :
               nicknameStatus === 'checking' ? '확인 중...' :
               nicknameStatus === 'taken' ? '이미 사용 중' :
               nicknameStatus === 'available' ? '사용 가능' : null
             }
-            helperColor={nicknameStatus === 'taken' ? '#dc2626' : nicknameStatus === 'available' ? '#16a34a' : '#64748b'}>
+            helperColor={nicknameStatus === 'taken' || nicknameStatus === 'invalid' ? '#dc2626' : nicknameStatus === 'available' ? '#16a34a' : '#64748b'}>
             <input ref={nicknameRef} type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
               placeholder="2~20자" style={inputStyle} autoComplete="off" required maxLength={20} />
           </Field>

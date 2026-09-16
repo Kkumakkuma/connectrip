@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CornerDownRight, Lock, Trash2, X } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { useNicknameGate } from '../../lib/useNicknameGate';
-import { BANNED_MESSAGE, isBannedError, useIsBanned } from '../../lib/banned';
+import { BANNED_MESSAGE, isBannedError, useBannedGuard } from '../../lib/banned';
 import { displayAuthor } from '../../lib/authorName';
 import NicknameRequiredModal from '../NicknameRequiredModal';
 import { replyTargetLabel } from '../../lib/flightBoard';
@@ -17,7 +17,7 @@ import LoginPrompt from '../LoginPrompt';
 const Comments = ({ api, postId, postOwnerId = null, board = null }) => {
     const { user, profile, isLoggedIn } = useAuth();
     const { requireNickname, nicknameModal } = useNicknameGate();
-    const isBanned = useIsBanned();
+    const { stillBanned, syncAfterBannedError } = useBannedGuard();
     const [list, setList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -56,7 +56,7 @@ const Comments = ({ api, postId, postOwnerId = null, board = null }) => {
         const content = text.trim();
         // 목록을 받는 중에는 등록하지 않는다 — 늦게 도착한 조회 응답이 방금 등록한 댓글을 지운다
         if (!content || busy || loading) return;
-        if (board === 'companion' && isBanned) { alert(BANNED_MESSAGE); return; }
+        if (board === 'companion' && await stillBanned()) { alert(BANNED_MESSAGE); return; }
         if (!requireNickname(() => add())) return;
         try {
             setBusy(true);
@@ -72,7 +72,8 @@ const Comments = ({ api, postId, postOwnerId = null, board = null }) => {
             setText(''); setIsPrivate(false); setReplyTo(null);
         } catch (err) {
             console.error('댓글 등록 실패:', err);
-            alert(isBannedError(err) ? BANNED_MESSAGE : '댓글 등록에 실패했습니다.');
+            if (isBannedError(err)) { syncAfterBannedError(); alert(BANNED_MESSAGE); }
+            else alert('댓글 등록에 실패했습니다.');
         } finally {
             setBusy(false);
         }

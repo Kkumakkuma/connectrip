@@ -18,13 +18,13 @@ import { kstDateString } from '../lib/flightBoard';
 import BlockedUsers from './BlockedUsers';
 import SEOHead from './SEOHead';
 import { useAuth } from '../lib/AuthContext';
-import { BANNED_MESSAGE, isBannedError, useIsBanned } from '../lib/banned';
+import { BANNED_MESSAGE, isBannedError, useBannedGuard } from '../lib/banned';
 import { supabase } from '../lib/supabase';
 import { flightApi, pointsApi } from '../lib/db';
 
 const MyPage = () => {
     const { user, profile, isCrew, signOut, fetchProfile } = useAuth();
-    const isBanned = useIsBanned();
+    const { stillBanned, syncAfterBannedError } = useBannedGuard();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -224,14 +224,15 @@ const MyPage = () => {
     const handleToggleBoard = async (flight) => {
         if (boardBusyIds.has(flight.id)) return;
         // 이용 제한 계정은 게시판에 들어갈 수 없다(끄는 것은 허용, 서버 트리거도 켤 때만 막는다).
-        if (!flight.board_joined && isBanned) { alert(BANNED_MESSAGE); return; }
+        if (!flight.board_joined && await stillBanned()) { alert(BANNED_MESSAGE); return; }
         setBoardBusyIds((prev) => new Set(prev).add(flight.id));
         try {
             const row = await flightApi.setBoardJoined(flight.id, !flight.board_joined);
             setMyFlights((prev) => prev.map((f) => (f.id === flight.id ? { ...f, ...row } : f)));
         } catch (err) {
             console.error('게시판 참여 변경 실패:', err);
-            alert(isBannedError(err) ? BANNED_MESSAGE : '게시판 참여 설정을 바꾸지 못했습니다. 다시 시도해 주세요.');
+            if (isBannedError(err)) { syncAfterBannedError(); alert(BANNED_MESSAGE); }
+            else alert('게시판 참여 설정을 바꾸지 못했습니다. 다시 시도해 주세요.');
         } finally {
             setBoardBusyIds((prev) => { const next = new Set(prev); next.delete(flight.id); return next; });
         }
@@ -563,8 +564,8 @@ const MyPage = () => {
                             <Pencil size={14} /> 회원 정보 수정
                         </button>
                     </div>
-                    <WriteModal open={showProfile} title="회원 정보" onClose={() => setShowProfile(false)}>
-                        <ProfileCard embedded />
+                    <WriteModal open={showProfile} keepMounted title="회원 정보" onClose={() => setShowProfile(false)}>
+                        <ProfileCard embedded active={showProfile} />
                     </WriteModal>
 
                     {/* Traveler Point Wallet — POINTS_ENABLED 로 숨김(2026-09-14) */}

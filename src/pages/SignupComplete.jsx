@@ -15,6 +15,7 @@ import { IDENTITY_ENABLED, loadIdentityProof, clearIdentityProof, clearIdentityS
 import { REFERRAL_ENABLED, COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 import { resolveNext, rememberNext } from '../lib/safeNext';
 import AddressInput from '../components/AddressInput';
+import { nicknameProblem } from '../lib/profileEdit';
 
 export default function SignupComplete() {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export default function SignupComplete() {
   const [loginIdStatus, setLoginIdStatus] = useState(null); // 'invalid'|'reserved'|'checking'|'available'|'taken'
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
-  const [nicknameStatus, setNicknameStatus] = useState(null); // 'checking' | 'available' | 'taken' | null
+  const [nicknameStatus, setNicknameStatus] = useState(null); // 'checking' | 'available' | 'taken' | 'invalid' | null
   const [birthdate, setBirthdate] = useState('');
   // 휴대폰번호는 PASS 본인확인 결과로만 채워진다(수동 입력·문자 인증번호 없음).
   const [phone, setPhone] = useState('');
@@ -298,6 +299,11 @@ export default function SignupComplete() {
       setNicknameStatus(null);
       return;
     }
+    // 금칙어·길이는 저장 전에 같은 규칙(profileEdit.nicknameProblem)으로 거른다(2026-09-16 codex 검토, 가입 화면과 동일).
+    if (nicknameProblem(nickname)) {
+      setNicknameStatus('invalid');
+      return;
+    }
     const current = nickname.trim();
     setNicknameStatus('checking');
     let cancelled = false;
@@ -518,6 +524,9 @@ export default function SignupComplete() {
       } else if (msg.includes('NICKNAME_TAKEN')) {
         setNicknameStatus('taken');
         setError('이미 사용 중인 닉네임입니다.');
+      } else if (msg.includes('NICKNAME_RESERVED') || msg.includes('NICKNAME_INVALID')) {
+        setNicknameStatus('invalid');
+        setError(nicknameProblem(nickname) || '사용할 수 없는 닉네임입니다.');
       } else {
         setError(msg || '저장 중 오류가 발생했습니다.');
       }
@@ -706,12 +715,13 @@ export default function SignupComplete() {
             label="닉네임 (중복 불가)"
             helper={
               nickname.length < 2 ? '2자 이상 입력' :
+              nicknameStatus === 'invalid' ? (nicknameProblem(nickname) || '사용할 수 없는 닉네임입니다.') :
               nicknameStatus === 'checking' ? '확인 중...' :
               nicknameStatus === 'taken' ? '이미 사용 중인 닉네임' :
               nicknameStatus === 'available' ? '사용 가능한 닉네임' : null
             }
             helperColor={
-              nicknameStatus === 'taken' ? '#dc2626' :
+              nicknameStatus === 'taken' || nicknameStatus === 'invalid' ? '#dc2626' :
               nicknameStatus === 'available' ? '#16a34a' : '#64748b'
             }
           >

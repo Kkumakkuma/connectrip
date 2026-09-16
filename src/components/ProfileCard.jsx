@@ -67,7 +67,8 @@ function Notice({ tone = 'error', children }) {
 }
 
 // embedded: 마이페이지 팝업(회원 정보 수정 버튼) 안에서 쓸 때 — 카드 테두리·머리글 없이 항목만 그린다(2026-09-15).
-export default function ProfileCard({ embedded = false }) {
+// active: 팝업 안에서 쓸 때 열림 여부(MyPage). 팝업은 닫혀도 카드를 유지하므로(keepMounted) 닫힐 때 비밀번호 입력만 비운다.
+export default function ProfileCard({ embedded = false, active = true }) {
   const { user, profile, isCrew, updateProfile, fetchProfile } = useAuth();
   const [editing, setEditing] = useState(null);      // 'nickname' | 'email' | 'address' | 'password' | null
   const [busy, setBusy] = useState(false);
@@ -103,6 +104,14 @@ export default function ProfileCard({ embedded = false }) {
       .catch(() => { /* 표시용이라 실패는 무시 */ });
     return () => { cancelled = true; };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (active) return;
+    setPwCurrent(''); setPwNew(''); setPwConfirm('');
+    // 저장 중이면 결과를 보여줘야 하므로 행을 닫지 않는다(busy 가 끝난 뒤 다시 열면 결과 안내가 남아 있다).
+    if (!busy) setEditing((cur) => (cur === 'password' ? null : cur));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   useEffect(() => {
     if (resendIn <= 0) return undefined;

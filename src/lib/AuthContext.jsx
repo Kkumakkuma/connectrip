@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
 import { clearIdentityProof } from './identity';
 import { isSyntheticEmail } from './loginId';
+import { isMissingRpcError } from './profileLoad';
 
 const AuthContext = createContext({});
 
@@ -74,7 +75,12 @@ export const AuthProvider = ({ children }) => {
         .rpc('get_my_profile')
         .maybeSingle();
       if (!rpcError) return { data: rpcRows ?? null, failed: false };
-    } catch { /* RPC 미존재(SQL 미적용)면 폴백 */ }
+      // RPC 가 있는데 실패(네트워크·일시 오류)하면 폴백하지 않는다 — 폴백 컬럼엔 profile_completed·login_id 가 없어
+      // 부분 프로필이 가입 완료 회원을 /signup/complete 로 보낸다(2026-09-16 codex 검토). 실패로 돌려 이전 프로필을 유지.
+      if (!isMissingRpcError(rpcError)) return { data: null, failed: true };
+    } catch {
+      return { data: null, failed: true };
+    }
     const { data, error } = await supabase
       .from('profiles')
       .select('id, nickname, avatar_url, user_type, crew_verified, airline_name, bio, created_at')

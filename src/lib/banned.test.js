@@ -19,6 +19,12 @@ describe('isBannedError', () => {
     })).toBe(false);
     expect(isBannedError({ message: 'UNBANNED', code: 'P0001' })).toBe(false);
   });
+  it('다른 오류 설명에 BANNED 단어가 섞여 있어도 이용 제한으로 보지 않는다(식별자 전체 일치)', () => {
+    expect(isBannedError({ code: 'P0001', message: 'OTHER_ERROR', details: 'input contains BANNED' })).toBe(false);
+    expect(isBannedError({ code: 'P0001', message: 'user BANNED word in title' })).toBe(false);
+    expect(isBannedError({ code: 'P0001', message: 'BAD_PARENT' })).toBe(false);
+    expect(isBannedError({ code: 'P0001', message: ' BANNED ' })).toBe(true);
+  });
   it('BANNED 가 없거나 오류가 비면 false', () => {
     expect(isBannedError({ message: 'BLOCKED', code: 'P0001' })).toBe(false);
     expect(isBannedError({ message: 'phone verification required' })).toBe(false);

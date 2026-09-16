@@ -15,13 +15,31 @@ export default function AddressInput({
   const [error, setError] = useState('');
   const layerRef = useRef(null);
   const detailRef = useRef(null);
+  const dialogRef = useRef(null);
+  const closeBtnRef = useRef(null);
+  const returnFocusRef = useRef(null);
 
   const openLayer = useCallback(() => {
     if (disabled) return;
     setError('');
+    // 취소로 닫으면 레이어를 연 버튼·칸으로 포커스를 돌려준다(주소를 고르면 상세 주소 칸으로 간다).
+    returnFocusRef.current = document.activeElement;
     setOpen(true);
   }, [disabled]);
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    const back = returnFocusRef.current;
+    returnFocusRef.current = null;
+    setTimeout(() => { if (back && back.isConnected && typeof back.focus === 'function') back.focus(); }, 0);
+  }, []);
+  // 레이어 끝·처음의 보이지 않는 칸에 포커스가 오면(검색 iframe 에서 Tab 으로 빠져나온 경우 포함) 반대쪽 끝으로 되돌린다.
+  const wrapFocus = useCallback((toStart) => {
+    const box = dialogRef.current;
+    if (!box) return;
+    const nodes = [...box.querySelectorAll('button:not([disabled]), iframe')];
+    const target = toStart ? nodes[0] : nodes[nodes.length - 1];
+    target?.focus?.();
+  }, []);
   const retry = useCallback(() => { setError(''); setAttempt((n) => n + 1); }, []);
 
   // 레이어가 열리면 스크립트를 받아 컨테이너에 임베드한다. 닫히면 컨테이너째 사라지므로 별도 정리는 없다.
@@ -39,6 +57,7 @@ export default function AddressInput({
           oncomplete: (data) => {
             const next = formatDaumAddress(data);
             onSelect({ zipcode: next.zipcode, road: next.road });
+            returnFocusRef.current = null;
             setOpen(false);
             // 레이어가 닫힌 뒤 상세 주소 칸으로 포커스
             setTimeout(() => { if (detailRef.current) detailRef.current.focus(); }, 0);
@@ -63,13 +82,26 @@ export default function AddressInput({
     document.body.style.overflow = 'hidden';
     // Esc 는 우편번호 창만 닫는다. 마이페이지 회원 정보 팝업(WriteModal, document keydown) 안에서도 쓰이므로
     // 캡처 단계에서 먼저 받아 전파를 끊는다(2026-09-15) — 안 그러면 Esc 한 번에 팝업까지 같이 닫힌다.
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+    // Tab 도 여기서 가둔다(2026-09-16 codex 검토): 바깥 팝업의 Tab 트랩이 레이어 뒤에 가려진 회원 정보 칸으로 옮기지 않게.
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); close(); return; }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      e.stopPropagation();
+      const nodes = [...dialogRef.current.querySelectorAll('button:not([disabled]), iframe')];
+      if (nodes.length === 0) return;
+      const first = nodes[0]; const last = nodes[nodes.length - 1];
+      if (!dialogRef.current.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', onKey, true);
+    const t = setTimeout(() => closeBtnRef.current?.focus(), 0);
     return () => {
+      clearTimeout(t);
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKey, true);
     };
-  }, [open]);
+  }, [open, close]);
 
   const readOnlyStyle = { ...inputStyle, cursor: disabled ? 'not-allowed' : 'pointer', background: '#f8fafc' };
 
@@ -104,6 +136,7 @@ export default function AddressInput({
 
       {open && (
         <div
+          ref={dialogRef}
           role="dialog" aria-modal="true" aria-label="주소 검색"
           onClick={(e) => { if (e.target === e.currentTarget) close(); }}
           style={{
@@ -111,6 +144,7 @@ export default function AddressInput({
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, overflow: 'hidden',
           }}
         >
+          <span tabIndex={0} aria-hidden="true" onFocus={() => wrapFocus(false)} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 }} />
           <div
             style={{
               // 높이는 100vh 가 아니라 부모(fixed inset:0) 기준 % — 모바일 브라우저 툴바가 보일 때 100vh 는 실제 보이는 영역보다 커서
@@ -123,6 +157,7 @@ export default function AddressInput({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #e2e8f0' }}>
               <strong style={{ fontSize: 15, color: '#0f172a' }}>주소 검색</strong>
               <button
+                ref={closeBtnRef}
                 type="button" onClick={close} aria-label="닫기"
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4, color: '#475569', display: 'inline-flex' }}
               >
@@ -152,6 +187,7 @@ export default function AddressInput({
               )}
             </div>
           </div>
+          <span tabIndex={0} aria-hidden="true" onFocus={() => wrapFocus(true)} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0 }} />
         </div>
       )}
     </div>
