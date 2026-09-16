@@ -28,9 +28,9 @@ export const BASE_URL = 'https://www.connecttrip.co.kr';
 // (index, follow)을 그대로 둔다.
 export const ROUTE_META = {
   '/': {
-    title: '커넥트립 ConnectTrip - 여행자부터 승무원까지 모두를 연결하는 여행 플랫폼',
+    title: '커넥트립 ConnectTrip - 여행자와 승무원을 연결하는 여행 플랫폼',
     description:
-      '커넥트립(ConnectTrip) - 동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자부터 승무원까지 모두를 연결하는 여행 정보 공유 플랫폼.',
+      '커넥트립(ConnectTrip) - 동행 찾기, 여행 Q&A, 물품거래, 승무원 추천까지. 여행자와 승무원을 연결하는 여행 플랫폼.',
   },
   '/companion': {
     title: '여행 동행자 모집 - 커넥트립 ConnectTrip',
