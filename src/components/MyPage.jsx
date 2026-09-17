@@ -21,6 +21,7 @@ import { useAuth } from '../lib/AuthContext';
 import { BANNED_MESSAGE, isBannedError, useBannedGuard } from '../lib/banned';
 import { supabase } from '../lib/supabase';
 import { flightApi, pointsApi } from '../lib/db';
+import { validateFlightNumber } from '../lib/flightNumber';
 
 const MyPage = () => {
     const { user, profile, isCrew, signOut, fetchProfile } = useAuth();
@@ -192,9 +193,11 @@ const MyPage = () => {
         e.preventDefault();
         if (!flightDate || !flightNumber || !user) return;
 
-        // 칭찬매칭이 편명+날짜 정확 일치라 오타 방지: 항공편명 형식 검증(예: KE081)
-        if (!/^[A-Z]{2}[0-9]{1,4}$/i.test(flightNumber.trim())) {
-            alert('편명 형식을 확인해주세요 (예: KE081)');
+        // 칭찬매칭이 편명+날짜 정확 일치라 오타 하나가 사람을 못 만나게 만든다.
+        // 형식뿐 아니라 실제 등록된 항공사 부호인지까지 본다(src/lib/flightNumber.js).
+        const checked = validateFlightNumber(flightNumber);
+        if (!checked.ok) {
+            alert(checked.reason);
             return;
         }
 
@@ -202,7 +205,7 @@ const MyPage = () => {
         try {
             await flightApi.register({
                 user_id: user.id,
-                flight_number: flightNumber.toUpperCase(),
+                flight_number: checked.value,
                 flight_date: flightDate,
                 user_type: isCrew ? 'crew' : 'passenger',
             });
@@ -280,9 +283,10 @@ const MyPage = () => {
 
     // Edit flight
     const handleEditFlight = async (flightId, newNumber, newDate) => {
-        // 등록 폼과 동일하게 편명 형식 검증(오타 방지)
-        if (!/^[A-Z]{2}[0-9]{1,4}$/i.test((newNumber || '').trim())) {
-            alert('편명 형식을 확인해주세요 (예: KE081)');
+        // 등록 폼과 같은 검사를 쓴다(규칙이 갈리면 플래너가 넣어준 편을 못 고치는 일이 생긴다)
+        const checkedEdit = validateFlightNumber(newNumber);
+        if (!checkedEdit.ok) {
+            alert(checkedEdit.reason);
             return;
         }
         try {
@@ -310,7 +314,7 @@ const MyPage = () => {
 
             // flight_schedules 업데이트
             const { error: updErr } = await supabase.from('flight_schedules').update({
-                flight_number: newNumber.toUpperCase(),
+                flight_number: checkedEdit.value,
                 flight_date: newDate
             }).eq('id', flightId);
             if (updErr) throw updErr;
@@ -912,11 +916,11 @@ const MyPage = () => {
                                     />
                                 </div>
                                 <div style={{ flex: '1 1 160px', minWidth: '140px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#4b5563', marginBottom: '6px' }}>항공 편명 (예: KE081)</label>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#4b5563', marginBottom: '6px' }}>항공 편명 (예: KE081, 7C2604)</label>
                                     <input
                                         type="text"
                                         required
-                                        placeholder="KE081"
+                                        placeholder="KE081 / 7C2604"
                                         value={flightNumber}
                                         onChange={(e) => setFlightNumber(e.target.value.toUpperCase())}
                                         style={{
@@ -1195,7 +1199,7 @@ const MyPage = () => {
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-600 mb-1">항공 편명</label>
                                         <input type="text" value={editingFlight.flight_number}
-                                            placeholder="KE081"
+                                            placeholder="KE081 / 7C2604"
                                             onChange={(e) => setEditingFlight({ ...editingFlight, flight_number: e.target.value.toUpperCase() })}
                                             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none" />
                                     </div>

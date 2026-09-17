@@ -4,7 +4,11 @@ import { extractFlightNumber, isDuplicateFlight, offerFlightSchedule, canonFligh
 describe('flightSchedule — 항공권 티켓에서 마이페이지 비행 스케줄 등록 제안', () => {
   it('편명은 바코드 우선, 없으면 제목에서 찾는다', () => {
     expect(extractFlightNumber({ bcbp: { flight: 'KE81' }, title: 'OZ102 ICN→NRT' })).toBe('KE81');
-    expect(extractFlightNumber({ bcbp: null, title: 'KE081 ICN→JFK' })).toBe('KE081');
+    // 추출 결과도 저장 형식(canonical)으로 맞춘다 — 선행 0 이 남으면 같은 편이 둘로 갈린다
+    expect(extractFlightNumber({ bcbp: null, title: 'KE081 ICN→JFK' })).toBe('KE81');
+    // 운항 구분자(접미 영문)를 흘리지 않는다
+    expect(extractFlightNumber({ bcbp: { flight: 'KE081A' } })).toBe('KE81A');
+    expect(extractFlightNumber({ title: 'KE081 A ICN→JFK' })).toBe('KE81A');
     expect(extractFlightNumber({ title: 'ke 123 인천→도쿄' })).toBe('KE123');
     expect(extractFlightNumber({ title: '7C1234 제주항공' })).toBe('7C1234');
     expect(extractFlightNumber({ title: '호텔 바우처 2026' })).toBeNull();
