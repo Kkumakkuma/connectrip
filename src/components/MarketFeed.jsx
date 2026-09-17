@@ -11,9 +11,15 @@ import ContinentBadge from './board/ContinentBadge';
 // type: 'sell' | 'share'. share 는 대륙 말머리(ContinentBar, ?region=)로 거른다.
 const MarketFeed = ({
     type, items, stats = {}, loading, error, onRetry, onWrite, isLoggedIn, initialQuery = '',
+    // query·onQuery 를 받으면 부모(URL ?q=)가 검색어를 들고, 안 받으면 예전처럼 내부 state 를 쓴다.
+    // 내부 state 로만 두면 새로고침·링크 공유·뒤로가기에서 검색어가 사라졌다(2026-09-17 검색 점검).
+    query: queryProp, onQuery,
     region = null, onRegion,
 }) => {
-    const [query, setQuery] = useState(initialQuery || '');
+    const [innerQuery, setInnerQuery] = useState(initialQuery || '');
+    const controlled = typeof queryProp === 'string' && typeof onQuery === 'function';
+    const query = controlled ? queryProp : innerQuery;
+    const setQuery = controlled ? onQuery : setInnerQuery;
     const [onlyActive, setOnlyActive] = useState(true);
     const isShare = type === 'share';
 

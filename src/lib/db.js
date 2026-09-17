@@ -534,7 +534,8 @@ export const destinationsApi = {
       .range((page - 1) * limit, page * limit - 1);
     if (regionId) query = query.eq('region_id', regionId);
     const term = searchTerm(q);
-    if (term) query = query.or(ilikeOr(['name', 'description'], term));
+    // 승무원 한줄평(crew_comment)에만 든 단어로도 찾을 수 있어야 한다(2026-09-17 검색 점검)
+    if (term) query = query.or(ilikeOr(['name', 'description', 'crew_comment'], term));
     const { data, count, error } = await query;
     if (error) throw error;
     return { data: flattenDestination(data || []), count: count || 0 };

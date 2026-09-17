@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
 import CrewBadge from '../components/CrewBadge';
 import ListState from '../components/ListState';
+import { ITINERARY_ENABLED } from '../lib/featureFlags';
 
 // fields = 검색 대상 컬럼(모든 게시판 본문은 content 로 통일됨),
 // bodyField = 결과 카드에 본문 미리보기로 보여줄 컬럼,
@@ -32,6 +33,8 @@ const BOARDS = [
   // 커진다. 카드가 쓰는 컬럼만 적고, 아래 쿼리가 board.select 를 읽는다(둘 중 하나만 고치면 무효).
   {
     key: 'itinerary_posts', label: '여행 일정', icon: MapIcon, color: 'teal', link: '/itinerary',
+    // 게시판이 꺼져 있으면 라우트가 없어 결과를 눌러도 NotFound 가 된다(2026-09-17 검색 점검)
+    enabled: ITINERARY_ENABLED,
     fields: ['title', 'content'], bodyField: 'content',
     select: 'id,created_at,title,content,author_name,country,user_id',
     detail: (item) => `/itinerary/${item.id}`,
@@ -49,9 +52,11 @@ const Search = () => {
   const requestIdRef = useRef(0);
 
   const doSearch = useCallback(async () => {
-    // PostgREST .or() 필터에 검색어를 직접 보간하므로 특수문자를 제거해
-    // 쿼리 깨짐/주입 표면을 차단한다. ( % , ( ) \ * )
-    const safe = query.replace(/[%,()\\*]/g, ' ').trim();
+    // PostgREST .or() 필터에 검색어를 직접 보간하므로 특수문자를 제거해 쿼리 깨짐·주입 표면을 막는다.
+    // ilike 와일드카드(%, _)와 PostgREST or() 파싱을 깨는 문자를 지운다.
+    // _ 가 남으면 '한 글자 아무거나'로 동작하고, 따옴표가 남으면 파싱 실패로 조용히 0건이 된다
+    // (2026-09-17 검색 점검).
+    const safe = query.replace(/[%_,()\\*"']/g, ' ').replace(/\s+/g, ' ').trim();
     // 새 요청 시작: 이전 in-flight 응답은 이 시점부터 무효.
     const reqId = ++requestIdRef.current;
 
@@ -71,6 +76,7 @@ const Search = () => {
     const outcomes = await Promise.all(
       BOARDS.map(async (board) => {
         try {
+          if (board.enabled === false) return true;
           const orFilter = board.fields.map((f) => `${f}.ilike.%${safe}%`).join(',');
           // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
           const authorEmbed = board.key === 'market_listings'

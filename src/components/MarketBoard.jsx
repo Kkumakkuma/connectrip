@@ -136,7 +136,10 @@ const MarketBoard = () => {
     };
 
     const ql = q.toLowerCase();
-    const filtered = items.filter((i) => !ql || (i.title || '').toLowerCase().includes(ql) || (i.content || '').toLowerCase().includes(ql));
+    // 검색 대상은 판매·나눔 탭(MarketFeed)과 같은 필드로 맞춘다 — 같은 장터인데 탭마다
+    // 거래 장소로 검색이 되다 안 되다 했다(2026-09-17 검색 점검)
+    const filtered = items.filter((i) => !ql
+        || [i.title, i.location, i.content, i.country].some((v) => (v || '').toLowerCase().includes(ql)));
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
     const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
     useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
@@ -156,7 +159,8 @@ const MarketBoard = () => {
                 {isFeed ? (
                     <MarketFeed
                         type={mode}
-                        initialQuery={q}
+                        query={qInput}
+                        onQuery={setQInput}
                         items={items}
                         stats={stats}
                         loading={loading}
