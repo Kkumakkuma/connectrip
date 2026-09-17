@@ -95,6 +95,22 @@ export default function TripBoard() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [activeWarning, setActiveWarning] = useState(null);
   const [addSeed, setAddSeed] = useState(null);
+
+  // 지도 중심. 그 날짜에 담은 곳이 없으면 지도가 서울 시청(하드코딩 폴백)으로 떨어졌다 —
+  // 코타키나발루 일정인데 서울이 보였다(2026-09-17 쿠마님 9944).
+  // 쓸 수 있는 좌표가 이미 있다: 여행의 다른 날짜 핀, 그리고 planner_trips 의 목적지 좌표.
+  const mapCenter = useMemo(() => {
+    const valid = (places || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng));
+    if (valid.length) {
+      const lat = valid.reduce((a, p) => a + p.lat, 0) / valid.length;
+      const lng = valid.reduce((a, p) => a + p.lng, 0) / valid.length;
+      return { lat, lng };
+    }
+    if (Number.isFinite(trip?.dest_lat) && Number.isFinite(trip?.dest_lng)) {
+      return { lat: trip.dest_lat, lng: trip.dest_lng };
+    }
+    return null;
+  }, [places, trip?.dest_lat, trip?.dest_lng]);
   const [dayWindow, setDayWindow] = useState(() => readDayWindow(tripId));
   const [shareUrl, setShareUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -723,6 +739,7 @@ export default function TripBoard() {
           <MapSurface
             className="h-[42dvh] w-full overflow-hidden rounded-md border border-hairline lg:h-[calc(100dvh-18rem)]"
             pins={pins}
+            center={mapCenter}
             hasGoogleData={tripHasGoogle}
             provenance={catalogStatus}
             route
@@ -733,7 +750,7 @@ export default function TripBoard() {
             }}
           />
           <p className="mt-2 text-xs text-muted">
-            지도를 길게 누르면 그 자리의 좌표로 장소를 담을 수 있습니다.
+            찾는 곳이 검색에 없으면 지도에서 그 자리를 길게 눌러 담으세요.
           </p>
         </div>
 
@@ -746,10 +763,7 @@ export default function TripBoard() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
-                setAddSeed(null);
-                setSheet('add');
-              }}
+              onClick={() => setSheet('search')}
             >
               <Plus size={16} aria-hidden="true" />
               장소 추가

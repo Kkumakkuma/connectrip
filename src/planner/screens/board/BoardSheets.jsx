@@ -28,13 +28,12 @@ const MAX_SPAN_DAYS = 60;
 export function AddPlaceSheet({ open, initial, targetLabel, saving, onClose, onSubmit }) {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
-  const [lat, setLat] = useState(() =>
-    Number.isFinite(initial?.lat) ? initial.lat.toFixed(6) : ''
-  );
-  const [lng, setLng] = useState(() =>
-    Number.isFinite(initial?.lng) ? initial.lng.toFixed(6) : ''
-  );
   const [error, setError] = useState('');
+  // 좌표는 화면에 보여주지 않는다 — 지도에서 찍은 자리를 그대로 쓴다(2026-09-17 쿠마님 9949·9951:
+  // "좌표 입력을 없애, 누가 좌표를 가지고 찾냐"). 이름으로 찾는 건 하단 "장소 검색"이 맡는다.
+  const lat = Number(initial?.lat);
+  const lng = Number(initial?.lng);
+  const hasPoint = Number.isFinite(lat) && Number.isFinite(lng);
 
   const handleSubmit = () => {
     const trimmed = name.trim();
@@ -42,21 +41,15 @@ export function AddPlaceSheet({ open, initial, targetLabel, saving, onClose, onS
       setError('장소 이름을 넣어 주세요.');
       return;
     }
-    const latNum = Number(lat);
-    const lngNum = Number(lng);
-    if (!Number.isFinite(latNum) || latNum < -90 || latNum > 90) {
-      setError('위도는 -90에서 90 사이 숫자입니다.');
-      return;
-    }
-    if (!Number.isFinite(lngNum) || lngNum < -180 || lngNum > 180) {
-      setError('경도는 -180에서 180 사이 숫자입니다.');
+    if (!hasPoint) {
+      setError('지도에서 담을 자리를 길게 눌러 주세요.');
       return;
     }
     onSubmit({
       name: trimmed.slice(0, 200),
       address: address.trim() ? address.trim().slice(0, 300) : null,
-      lat: latNum,
-      lng: lngNum,
+      lat,
+      lng,
     });
   };
 
@@ -93,23 +86,7 @@ export function AddPlaceSheet({ open, initial, targetLabel, saving, onClose, onS
           hangulFix
           onChange={(e) => setAddress(e.target.value)}
         />
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="위도"
-            inputMode="decimal"
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-          />
-          <Input
-            label="경도"
-            inputMode="decimal"
-            value={lng}
-            onChange={(e) => setLng(e.target.value)}
-          />
-        </div>
-        <p className="text-xs text-muted">
-          지도를 길게 누르면 그 지점의 좌표가 채워집니다. 좌표를 직접 고쳐도 됩니다.
-        </p>
+        <p className="text-xs text-muted">지도에서 길게 누른 자리로 담습니다.</p>
         {error && (
           <p role="alert" className="text-sm text-error">
             {error}
