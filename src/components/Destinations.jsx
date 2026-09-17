@@ -24,7 +24,8 @@ import SEOHead from './SEOHead';
 
 const PAGE = 24;
 const EMPTY_FORM = { region_id: '', name: '', desc: '', crewComment: '', image_url: '' };
-const FALLBACK_IMG = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800&auto=format&fit=crop';
+// 외부(unsplash) 주소를 쓰면 앱에서 못 받아 로고로 떨어진다(2026-09-17 앱 점검)
+const FALLBACK_IMG = '/boards/recommend.webp';
 
 // 화면에 보여줄 좋아요 수 = 레거시 카운터 + post_likes 서버 집계.
 // 좋아요는 post_likes(toggle_post_like RPC)만 센다 — 상세 페이지와 같은 숫자. 옛 destinations.likes_count 는 더하지 않는다(codex 지적).

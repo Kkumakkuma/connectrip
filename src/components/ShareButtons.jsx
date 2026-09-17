@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Share2, Link, MessageCircle, X as XIcon, Check } from 'lucide-react';
+import { publicUrl } from '../lib/api';
 
 // 카카오 SDK(85.5kB)를 index.html 에서 빼고 여기서 필요할 때만 받는다. 실사용처는 이 컴포넌트뿐이고
 // ShareButtons 는 lazy 라우트에만 들어가므로, 전 페이지 초기 로딩에서 이 요청이 통째로 빠진다.
@@ -26,7 +27,8 @@ const ShareButtons = ({ title, description, url }) => {
   const [copied, setCopied] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
-  const shareUrl = url || window.location.href;
+  // 앱에서는 window.location.href 가 https://localhost/... 라 그대로 공유하면 못 여는 주소가 나간다
+  const shareUrl = publicUrl(url || window.location.href);
   const shareTitle = title || 'ConnectTrip';
   const shareDesc = description || '여행자부터 승무원까지 모두를 연결하는 여행 플랫폼';
 

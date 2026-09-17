@@ -18,3 +18,9 @@ VITE_ITINERARY_ENABLED=true
 # 여기에 VITE_PORTONE_* 를 다시 쓰지 말 것. Vite 는 .env 다음에 .env.app 을 읽어 뒤가 이기므로,
 # 빈 값으로 적어 두면 앱 번들의 IDENTITY_ENABLED 가 false 가 되어 PASS 버튼이 잠긴다(앱 가입 불가).
 # 값은 .env 에서 그대로 상속된다 — 실키로 교체할 때도 .env 한 곳만 고친다.
+
+# 2026-09-17: 앱 빌드는 로컬에서 도는데 이 키들이 Vercel 환경변수에만 있어서 빈 값으로 구워졌다.
+# 그 결과 앱 플래너 지도가 항상 "지도를 불러올 수 없습니다"로 떨어졌다(웹은 정상).
+# ⚠ 구글 콘솔에서 이 브라우저 키의 리퍼러 허용 목록에 https://localhost/* 를 넣어야 앱에서 뜬다.
+VITE_GOOGLE_MAPS_BROWSER_KEY=AIzaSyBWEj7OwOm-sA5okNYl91oWrikphAf-KKg
+VITE_GOOGLE_MAPS_MAP_ID=5e4eb32505aebf125162770d

@@ -34,13 +34,13 @@ export const HERO_DESCRIPTION =
 //   publicVisible: 로그인하지 않은 방문자에게도 보이는 카드인가. 프리렌더는 이 값이 true 인 것만 굽는다
 //   (CREW 전용은 승무원 로그인, 홍보·후기는 PROMO_REVIEWS_ENABLED 가 켜져야 화면에 뜬다).
 export const HOME_CATEGORIES = [
-    { id: 'companion', name: '여행 동행자 모집', desc: '함께 떠날 마음 맞는 동행자를 찾아보세요.', image: 'https://images.unsplash.com/photo-1527631746610-bca00a040d60?q=80&w=800&auto=format&fit=crop', path: '/companion', publicVisible: true },
-    { id: 'qna', name: '여행후기 및 Q&A', desc: '생생한 여행 후기를 공유하고, 궁금한 건 바로 질문하세요.', image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800&auto=format&fit=crop', path: '/qna', publicVisible: true },
-    { id: 'market', name: '물품거래 및 나눔', desc: '여행 용품을 나누고 필요한 물건을 저렴하게 구하세요.', image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?q=80&w=800&auto=format&fit=crop', path: '/market', publicVisible: true },
-    { id: 'reviews', name: '여행상품 홍보 및 후기', desc: '생생한 여행 후기와 다양한 여행 상품을 만나보세요.', image: 'https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?q=80&w=800&auto=format&fit=crop', path: '/reviews', publicVisible: false },
-    { id: 'recommend', name: '승무원 추천지', desc: '현직 승무원이 전하는 진짜 맛집과 숨은 명소입니다.', image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800&auto=format&fit=crop', path: '/recommend', publicVisible: true },
+    { id: 'companion', name: '여행 동행자 모집', desc: '함께 떠날 마음 맞는 동행자를 찾아보세요.', image: '/boards/companion.webp', path: '/companion', publicVisible: true },
+    { id: 'qna', name: '여행후기 및 Q&A', desc: '생생한 여행 후기를 공유하고, 궁금한 건 바로 질문하세요.', image: '/boards/qna.webp', path: '/qna', publicVisible: true },
+    { id: 'market', name: '물품거래 및 나눔', desc: '여행 용품을 나누고 필요한 물건을 저렴하게 구하세요.', image: '/boards/market.webp', path: '/market', publicVisible: true },
+    { id: 'reviews', name: '여행상품 홍보 및 후기', desc: '생생한 여행 후기와 다양한 여행 상품을 만나보세요.', image: '/boards/reviews.webp', path: '/reviews', publicVisible: false },
+    { id: 'recommend', name: '승무원 추천지', desc: '현직 승무원이 전하는 진짜 맛집과 숨은 명소입니다.', image: '/boards/recommend.webp', path: '/recommend', publicVisible: true },
     // 여행 일정 게시판은 첫 화면 카드에 넣지 않는다(2026-09-04 쿠마님). 상단 메뉴 "여행 플래너 → 여행 일정 게시판"으로만.
-    { id: 'crew', name: 'CREW 전용', desc: '승무원끼리 정보를 공유하고 특별 할인 혜택을 확인하세요.', image: 'https://images.unsplash.com/photo-1570710891163-6d3b5c47248b?q=80&w=800&auto=format&fit=crop', path: '/crew', publicVisible: false },
+    { id: 'crew', name: 'CREW 전용', desc: '승무원끼리 정보를 공유하고 특별 할인 혜택을 확인하세요.', image: '/boards/crew.webp', path: '/crew', publicVisible: false },
 ];
 
 // 로그인하지 않은 방문자에게 보이는 카드인가. CategoryBoard(화면)와 prerender-seo.mjs(크롤러 본문)가

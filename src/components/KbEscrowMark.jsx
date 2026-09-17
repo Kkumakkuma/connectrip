@@ -49,6 +49,9 @@ const KbEscrowMark = ({ className = '' }) => {
                     width="80"
                     height="80"
                     style={{ border: 0 }}
+                    // 마크는 KB 서버에서 직접 받아야 하는 이미지라 자체 호스팅으로 옮기지 않는다.
+                    // 다만 못 받으면 앱 전 화면 푸터에 깨진 이미지가 남으므로 조용히 숨긴다(2026-09-17).
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
             </a>
         </span>

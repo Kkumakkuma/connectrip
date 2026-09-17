@@ -13,6 +13,9 @@ export default function AddressInput({
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // 검색 스크립트를 못 받으면 주소를 채울 길이 아예 없어져 가입이 막힌다(주소는 필수 항목).
+  // 그때만 우편번호·도로명을 직접 칠 수 있게 연다(2026-09-17 앱 점검).
+  const [manual, setManual] = useState(false);
   const layerRef = useRef(null);
   const detailRef = useRef(null);
   const dialogRef = useRef(null);
@@ -109,9 +112,11 @@ export default function AddressInput({
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <input
-          type="text" value={zipcode} readOnly placeholder="우편번호" aria-label="우편번호"
-          inputMode="numeric" onClick={openLayer}
-          style={{ ...readOnlyStyle, flex: '0 0 120px', minWidth: 0 }}
+          type="text" value={zipcode} readOnly={!manual} placeholder="우편번호" aria-label="우편번호"
+          inputMode="numeric" maxLength={5}
+          onClick={manual ? undefined : openLayer}
+          onChange={manual ? (e) => onSelect({ zipcode: e.target.value.replace(/[^0-9]/g, ''), road }) : undefined}
+          style={{ ...(manual ? inputStyle : readOnlyStyle), flex: '0 0 120px', minWidth: 0 }}
         />
         <button
           type="button" onClick={openLayer} disabled={disabled}
@@ -125,9 +130,24 @@ export default function AddressInput({
         </button>
       </div>
       <input
-        type="text" value={road} readOnly placeholder="도로명 주소 (주소 검색으로 입력)" aria-label="도로명 주소"
-        onClick={openLayer} style={{ ...readOnlyStyle, marginBottom: 8 }}
+        type="text" value={road} readOnly={!manual}
+        placeholder={manual ? '도로명 주소 (직접 입력)' : '도로명 주소 (주소 검색으로 입력)'}
+        aria-label="도로명 주소" maxLength={120}
+        onClick={manual ? undefined : openLayer}
+        onChange={manual ? (e) => onSelect({ zipcode, road: e.target.value }) : undefined}
+        style={{ ...(manual ? inputStyle : readOnlyStyle), marginBottom: 8 }}
       />
+      {manual && (
+        <p style={{ margin: '0 0 8px', fontSize: 12, color: '#64748b' }}>
+          주소 검색을 불러오지 못해 직접 입력으로 바꿨습니다.{' '}
+          <button
+            type="button" onClick={() => { setManual(false); setError(''); }}
+            style={{ background: 'none', border: 'none', padding: 0, color: '#2563eb', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            검색으로 되돌리기
+          </button>
+        </p>
+      )}
       <input
         ref={detailRef} type="text" value={detail} onChange={(e) => onDetailChange(e.target.value)}
         placeholder="상세 주소 (동/호수 등)" aria-label="상세 주소" autoComplete="off" maxLength={80}
@@ -177,12 +197,20 @@ export default function AddressInput({
               {error && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20, textAlign: 'center', color: '#b91c1c', fontSize: 13, background: 'white', wordBreak: 'keep-all' }}>
                   <span>{error}</span>
-                  <button
-                    type="button" onClick={retry}
-                    style={{ padding: '8px 16px', borderRadius: 10, background: '#2563eb', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    다시 시도
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <button
+                      type="button" onClick={retry}
+                      style={{ padding: '8px 16px', borderRadius: 10, background: '#2563eb', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      다시 시도
+                    </button>
+                    <button
+                      type="button" onClick={() => { setManual(true); close(); }}
+                      style={{ padding: '8px 16px', borderRadius: 10, background: 'white', color: '#334155', border: '1px solid #cbd5e1', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      직접 입력
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
