@@ -12,6 +12,10 @@ import BoardShell from './board/BoardShell';
 import BoardTabs from './board/BoardTabs';
 import SearchPill from './board/SearchPill';
 import WriteModal from './board/WriteModal';
+import AirlineBar from './board/AirlineBar';
+import AirlineBadge from './board/AirlineBadge';
+import AirlinePicker from './board/AirlinePicker';
+import { airlineTagOf, isAirlineTagId } from '../lib/airlineTags';
 import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
@@ -25,7 +29,9 @@ const TABS = [
 ];
 const CATEGORY_LABEL = { restaurant: '맛집', sightseeing: '관광지', hotel: '숙소/호텔', transport: '교통', tips: '꿀팁', other: '기타', general: '' };
 const PAGE = 10;
-const EMPTY_FORM = { title: '', content: '', category: 'restaurant' };
+const EMPTY_FORM = { title: '', content: '', category: 'restaurant', airline_id: '' };
+// 항공사 말머리는 자유게시판에서만 쓴다(레이오버·할인은 성격이 다르다).
+const AIRLINE_TAB = 'free';
 
 const Gate = ({ tone, icon, title, children }) => (
     <section id="crew-only" className="bg-white min-h-screen pt-28 pb-20">
@@ -45,6 +51,8 @@ const CrewOnly = () => {
     const tabParam = searchParams.get('tab');
     const mode = TABS.some((t) => t.id === tabParam) ? tabParam : 'free';
     const q = searchParams.get('q') || '';
+    const airlineParam = searchParams.get('airline');
+    const airline = mode === AIRLINE_TAB && isAirlineTagId(airlineParam) ? airlineParam : null;
     const [qInput, setQInput] = useState(q);
     const [page, setPage] = useState(1);
     const [posts, setPosts] = useState([]);
@@ -55,6 +63,7 @@ const CrewOnly = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
     const [submitting, setSubmitting] = useState(false);
+    const [pickerError, setPickerError] = useState('');
     const formId = useId();
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
@@ -75,9 +84,18 @@ const CrewOnly = () => {
     useEffect(() => { setQInput((cur) => (cur.trim() === q ? cur : q)); }, [q]);
 
     const setTab = (id) => {
-        setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('tab', id); n.delete('q'); return n; });
+        setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('tab', id); n.delete('q'); n.delete('airline'); return n; });
         setQInput(''); setPage(1);
         setPosts([]); setLoading(true);         // 새 탭 링크가 이전 탭 목록에 붙는 순간을 없앤다
+    };
+
+    const setAirline = (id) => {
+        setSearchParams((prev) => {
+            const n = new URLSearchParams(prev);
+            if (id) n.set('airline', id); else n.delete('airline');
+            return n;
+        });
+        setPage(1);
     };
 
     const load = useCallback(async () => {
@@ -85,7 +103,7 @@ const CrewOnly = () => {
         const reqId = ++reqRef.current;
         try {
             setLoading(true); setError(null);
-            const data = await crewApi.getAll(mode) || [];
+            const data = await crewApi.getAll(mode, airline) || [];
             if (reqId !== reqRef.current) return;
             setPosts(data);
             if (data.length) {
@@ -101,21 +119,27 @@ const CrewOnly = () => {
         } finally {
             if (reqId === reqRef.current) setLoading(false);
         }
-    }, [mode, isCrew, user?.id]);
+    }, [mode, airline, isCrew, user?.id]);
 
     useEffect(() => { load(); }, [load]);
-    useEffect(() => { setPage(1); }, [q, mode]);
+    useEffect(() => { setPage(1); }, [q, mode, airline]);
 
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting) return;
+        if (mode === AIRLINE_TAB && !airlineTagOf(form.airline_id)) {
+            setPickerError('말머리를 선택해주세요.');
+            return;
+        }
+        setPickerError('');
         if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             const created = await crewApi.create({
                 title: form.title.trim(), content: form.content.trim(), post_type: mode,
                 category: mode === 'layover' ? form.category : 'general',
+                airline_id: mode === AIRLINE_TAB ? form.airline_id : null,
                 author_name: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
             });
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
@@ -175,8 +199,9 @@ const CrewOnly = () => {
             <BoardShell
                 id="crew-only"
                 title="CREW 전용"
-                action={<button type="button" onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }} className="btn-air-primary"><Plus size={16} /> 글쓰기</button>}
+                action={<button type="button" onClick={() => { setForm(EMPTY_FORM); setPickerError(''); setShowModal(true); }} className="btn-air-primary"><Plus size={16} /> 글쓰기</button>}
                 tabs={<BoardTabs items={TABS} value={mode} onChange={setTab} />}
+                bar={mode === AIRLINE_TAB ? <AirlineBar value={airline} onChange={setAirline} /> : null}
                 search={<SearchPill value={qInput} onChange={setQInput} placeholder="제목, 내용 검색" className="max-w-md" />}
             >
                 {loading || error ? (
@@ -194,6 +219,7 @@ const CrewOnly = () => {
                                         <Link to={postPath('crew', post.id)} className="block py-4 sm:py-5 group">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 {cat && <span className="inline-flex items-center rounded-full bg-surface-soft text-ink text-[11px] font-bold px-2 py-0.5 whitespace-nowrap flex-shrink-0">{cat}</span>}
+                                                {mode === AIRLINE_TAB && <AirlineBadge airlineId={post.airline_id} className="flex-shrink-0" />}
                                                 <h3 className="min-w-0 flex-1 truncate text-[16px] font-bold text-ink tracking-[-0.01em] group-hover:underline underline-offset-4 decoration-hairline">{post.title}</h3>
                                             </div>
                                             <div className="mt-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px] text-muted">
@@ -233,6 +259,13 @@ const CrewOnly = () => {
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
                         <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={100} required />
                     </div>
+                    {mode === AIRLINE_TAB && (
+                        <AirlinePicker
+                            value={form.airline_id}
+                            onChange={(id) => { setForm((f) => ({ ...f, airline_id: id })); setPickerError(''); }}
+                            error={pickerError}
+                        />
+                    )}
                     {mode === 'layover' && (
                         <div>
                             <label htmlFor={`${formId}-category`} className="block text-sm font-bold text-ink mb-1.5">카테고리</label>

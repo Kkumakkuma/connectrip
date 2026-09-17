@@ -9,6 +9,9 @@ import Comments from '../components/board/Comments';
 import { displayAuthor } from '../lib/authorName';
 import ContinentBadge from '../components/board/ContinentBadge';
 import ContinentPicker from '../components/board/ContinentPicker';
+import AirlineBadge from '../components/board/AirlineBadge';
+import AirlinePicker from '../components/board/AirlinePicker';
+import { airlineTagOf } from '../lib/airlineTags';
 import WriteModal from '../components/board/WriteModal';
 import ListState from '../components/ListState';
 import ImageUpload from '../components/ImageUpload';
@@ -24,7 +27,7 @@ const CREW_CATEGORY = { restaurant: '맛집', sightseeing: '관광지', hotel: '
 const TITLE_LABEL = { destination: '장소명' };
 const BODY_LABEL = { destination: '간단한 설명', review: '후기 내용', qna: '질문 내용' };
 const BODY_MAX = { destination: 200, companion: 3000 };
-const EMPTY_FORM = { title: '', content: '', extra: '', country: '', date: '', members: '', image_url: '', region_id: '', category: 'restaurant' };
+const EMPTY_FORM = { title: '', content: '', extra: '', country: '', date: '', members: '', image_url: '', region_id: '', airline_id: '', category: 'restaurant' };
 // qna_posts 를 board 컬럼으로 나눠 쓰는 두 게시판 — 주소의 게시판과 글의 board 가 다를 수 있다
 const QNA_BOARDS = ['qna', 'free'];
 
@@ -154,6 +157,7 @@ const PostDetail = () => {
             members: post.members_needed ? String(post.members_needed) : '',
             image_url: config.imageField ? (post[config.imageField] || '') : '',
             region_id: post.region_id || '',
+            airline_id: post.airline_id || '',
             category: post.category && CREW_CATEGORY[post.category] ? post.category : 'restaurant',
         });
         setEditing(true);
@@ -163,11 +167,14 @@ const PostDetail = () => {
         e.preventDefault();
         if (submitting || uploading) return;
         if (config.hasRegion && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        const usesAirline = config.hasAirline && p?.post_type === config.airlinePostType;
+        if (usesAirline && !airlineTagOf(form.airline_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         const patch = {
             [config.titleField]: form.title.trim(),
             [config.bodyField]: form.content.trim(),
         };
         if (config.hasRegion) patch.region_id = form.region_id;
+        if (usesAirline) patch.airline_id = form.airline_id;
         if (config.extraField) patch[config.extraField] = form.extra.trim();
         if (config.imageField) patch[config.imageField] = form.image_url || null;
         if (config.key === 'companion') {
@@ -226,6 +233,7 @@ const PostDetail = () => {
                         <header className="mt-4">
                             <div className="flex items-center gap-1.5 flex-wrap mb-2">
                                 {config.hasRegion && <ContinentBadge regionId={p.region_id} />}
+                                {config.hasAirline && p.post_type === config.airlinePostType && <AirlineBadge airlineId={p.airline_id} />}
                                 {config.hasStatus && (
                                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${p.status === 'closed' ? 'bg-surface-strong text-muted' : 'bg-rausch-soft text-rausch'}`}>
                                         {COMPANION_STATUS[p.status] || COMPANION_STATUS.open}
@@ -314,6 +322,13 @@ const PostDetail = () => {
                     }
                 >
                     <form id={`${formId}-form`} onSubmit={submitEdit} className="space-y-5">
+                        {config.hasAirline && p?.post_type === config.airlinePostType && (
+                            <AirlinePicker
+                                value={form.airline_id}
+                                onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, airline_id: id })); }}
+                                error={pickerError}
+                            />
+                        )}
                         {config.hasRegion && (
                             <ContinentPicker
                                 name={`${formId}-continent`}

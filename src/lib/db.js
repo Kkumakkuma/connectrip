@@ -359,13 +359,15 @@ export const qnaApi = {
 // ============================================================
 
 export const crewApi = {
-  async getAll(postType = null) {
+  // airlineId: 자유게시판 항공사 말머리 필터(2026-09-17). null 이면 전체.
+  async getAll(postType = null, airlineId = null) {
     let query = supabase.from('crew_posts')
       .select('*, crew_comments(count), profiles(user_type, crew_verified)')
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
     if (postType) query = query.eq('post_type', postType);
+    if (airlineId) query = query.eq('airline_id', airlineId);
     const { data, error } = await query;
     if (error) throw error;
     return flattenCrew(data);

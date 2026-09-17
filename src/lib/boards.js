@@ -33,6 +33,8 @@ export const BOARDS = {
     likeTable: 'crew_posts', reportType: 'crew',
     titleField: 'title', bodyField: 'content', imageField: 'image_url', comments: crewApi,
     hasRegion: false, crewOnly: true,
+    // 자유게시판(post_type='free') 글만 항공사 말머리를 쓴다(2026-09-17)
+    hasAirline: true, airlinePostType: 'free',
   },
   destination: {
     key: 'destination', label: '승무원 추천지', listPath: '/recommend', api: destinationsApi,
