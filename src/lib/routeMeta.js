@@ -154,7 +154,12 @@ export const ROUTE_META = {
 //
 // /planner/s/ (공유 토큰)는 여기 넣지 않는다 — 화면 자체가 noindex, nofollow 로 나가고,
 // robots 로 막으면 크롤러가 그 meta 를 읽지도 못한다.
+// /app.html 은 SPA 폴백 사본이다. vercel.json 의 rewrites 가 프리렌더하지 않은 경로에 돌려주는
+// 파일이고 scripts/prerender-seo.mjs 가 굽는다. 파일 주소 자체는 색인 대상이 아니다(2026-09-17).
+// ⚠ 이 배열 안에는 주석을 넣지 않는다 — check-seo-surfaces.mjs 가 쉼표로 잘라 읽어서 주석의
+//    쉼표 하나에 바로 뒤 항목이 통째로 사라진다(실측).
 export const ROBOTS_DISALLOW = [
+  '/app.html',
   '/admin',
   '/mypage',
   '/points',

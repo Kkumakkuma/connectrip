@@ -7,6 +7,7 @@ import NotificationBell from './NotificationBell';
 import ChatBadge from './ChatBadge';
 import SearchBar from './SearchBar';
 import { ITINERARY_ENABLED, PLANNER_ENABLED, PROMO_REVIEWS_ENABLED, COMMENDATION_ENABLED } from '../lib/featureFlags';
+import { SITE_NAME } from '../lib/homeContent';
 
 
 const Navbar = () => {
@@ -105,7 +106,7 @@ const Navbar = () => {
               width/height 는 로드 전 종횡비 예약용(CLS 방지)이고, 실제 크기는 아래 className 이 정한다. */}
           <img
             src="/connectrip-logo-v2.webp"
-            alt="커넥트립 ConnectTrip"
+            alt={SITE_NAME}
             width={438}
             height={112}
             decoding="async"

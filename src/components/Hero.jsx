@@ -1,7 +1,12 @@
+import { Fragment } from 'react';
 import { motion } from 'framer-motion';
 import { Plane } from 'lucide-react';
 
+import { HERO_BADGE, HERO_DESCRIPTION, HERO_TITLE_LINES } from '../lib/homeContent';
+
 // 첫 화면 히어로(2026-09-07 에어비앤비 톤): 사진 위 큰 제목 하나, 여백을 넓게. 문구는 기존 그대로.
+// 문구 자체는 src/lib/homeContent.js 가 단일 출처다 — 프리렌더(scripts/prerender-seo.mjs)가
+// 크롤러용 홈 본문을 같은 값으로 굽기 때문에 여기에 직접 적지 않는다(2026-09-17).
 const Hero = () => (
     <section className="relative w-full overflow-hidden min-h-[70vh] sm:min-h-[76vh] flex items-center pt-24 pb-16">
         <div
@@ -11,14 +16,18 @@ const Hero = () => (
         <div className="max-w-content mx-auto px-4 sm:px-6 relative z-10 text-white w-full">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }} className="max-w-3xl">
                 <span className="inline-flex items-center gap-2 px-3.5 py-1.5 mb-5 rounded-full bg-white/15 backdrop-blur-sm border border-white/30 text-[13px] font-semibold">
-                    <Plane size={14} aria-hidden="true" /> 현직 승무원 인증 커뮤니티
+                    <Plane size={14} aria-hidden="true" /> {HERO_BADGE}
                 </span>
                 <h1 className="text-[34px] sm:text-[48px] lg:text-[56px] font-extrabold tracking-[-0.03em] leading-[1.15] mb-5" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.35)' }}>
-                    여행자부터 승무원까지 모두를 연결하는,<br />특별한 여행 플랫폼
+                    {HERO_TITLE_LINES.map((line, i) => (
+                        <Fragment key={line}>
+                            {i > 0 && <br />}
+                            {line}
+                        </Fragment>
+                    ))}
                 </h1>
                 <p className="text-[15px] sm:text-[18px] text-white/90 leading-relaxed max-w-2xl">
-                    동행 찾기부터 알짜배기 정보, 알뜰한 거래까지 여행에 필요한 것들을 한곳에 모았습니다.
-                    현직 승무원들의 노하우와 함께 나만의 여행을 만들어보세요.
+                    {HERO_DESCRIPTION}
                 </p>
             </motion.div>
         </div>

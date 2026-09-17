@@ -1,7 +1,9 @@
+import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { PAYMENTS_ENABLED, FAMILY_SITES_ENABLED } from '../lib/featureFlags';
 import { BUSINESS_INFO, isBusinessValueFilled } from '../lib/businessInfo';
 import KbEscrowMark from './KbEscrowMark';
+import { BRAND_TAGLINE_LINES } from '../lib/homeContent';
 
 // 패밀리 사이트(자기 자신 커넥트립 제외). 새 탭으로 이동한다.
 const FAMILY_SITES = [
@@ -33,8 +35,12 @@ const Footer = () => {
                         }}
                     />
                     <p style={{ opacity: 0.7, textAlign: 'center', maxWidth: '500px' }}>
-                        우리는 여행을 통해 세상을 더 넓게 보고, 새로운 경험을 선물합니다.<br />
-                        당신의 다음 여행을 커넥트립과 함께하세요.
+                        {BRAND_TAGLINE_LINES.map((line, i) => (
+                            <Fragment key={line}>
+                                {i > 0 && <br />}
+                                {line}
+                            </Fragment>
+                        ))}
                     </p>
                     <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                         <Link to="/terms" className="footer-link" style={{ color: 'white', opacity: 0.8, transition: '0.3s', fontSize: '0.9rem' }}>

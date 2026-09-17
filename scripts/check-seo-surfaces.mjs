@@ -21,6 +21,15 @@ import {
   guideLinkProblem,
   parseGuideMarkdown,
 } from '../src/lib/guide.js';
+// 예전에는 이 파일들을 문자열로 읽어 쉼표로 잘라 배열을 흉내 냈다. 배열 안 주석의 쉼표 하나에
+// 바로 뒤 항목이 통째로 사라지는 파서였다(2026-09-17 실측 — /app.html 이 없는 것으로 읽혔다).
+// prerender-seo.mjs 가 이미 같은 모듈을 node 로 import 하므로 여기서도 그대로 읽는다.
+import {
+  BASE_URL as ROUTE_BASE_URL,
+  PRERENDER_EXCLUDED_PATHS,
+  PRERENDER_EXTRA_PATHS,
+  ROBOTS_DISALLOW,
+} from '../src/lib/routeMeta.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const publicDir = join(root, 'public');
@@ -35,28 +44,12 @@ const routeMetaSrc = await readFile(join(root, 'src', 'lib', 'routeMeta.js'), 'u
 const indexHtml = await readFile(join(root, 'index.html'), 'utf8');
 const vercelJson = await readFile(join(root, 'vercel.json'), 'utf8');
 
-// routeMeta 는 JSX 를 import 하지 않는 순수 모듈이지만, 빌드 전 단계라 그냥 문자열로 읽는다.
-function arrayLiteral(name) {
-  const head = 'export const ' + name + ' = [';
-  const at = routeMetaSrc.indexOf(head);
-  if (at === -1) return null;
-  const end = routeMetaSrc.indexOf('];', at);
-  if (end === -1) return null;
-  const body = routeMetaSrc.slice(at + head.length, end);
-  return body.split(',').map((x) => x.trim()).filter((x) => x.startsWith(String.fromCharCode(39)))
-    .map((x) => x.slice(1, x.lastIndexOf(String.fromCharCode(39))));
-}
-
-const baseMatch = routeMetaSrc.match(/export const BASE_URL = '([^']+)'/);
-const BASE = baseMatch ? baseMatch[1] : null;
+const BASE = ROUTE_BASE_URL;
 if (!BASE) problems.push('routeMeta.js 에서 BASE_URL 을 찾지 못했습니다.');
 
-const disallow = arrayLiteral('ROBOTS_DISALLOW');
-const excluded = arrayLiteral('PRERENDER_EXCLUDED_PATHS');
-const extraPaths = arrayLiteral('PRERENDER_EXTRA_PATHS');
-if (!disallow) problems.push('routeMeta.js 에서 ROBOTS_DISALLOW 를 찾지 못했습니다.');
-if (!excluded) problems.push('routeMeta.js 에서 PRERENDER_EXCLUDED_PATHS 를 찾지 못했습니다.');
-if (!extraPaths) problems.push('routeMeta.js 에서 PRERENDER_EXTRA_PATHS 를 찾지 못했습니다.');
+const disallow = ROBOTS_DISALLOW;
+const excluded = PRERENDER_EXCLUDED_PATHS;
+const extraPaths = PRERENDER_EXTRA_PATHS;
 
 const robotsDisallow = Array.from(robots.matchAll(/^Disallow:\s*(\S+)\s*$/gm)).map((m) => m[1]);
 

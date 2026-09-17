@@ -1,18 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { PROMO_REVIEWS_ENABLED } from '../lib/featureFlags';
+import { HOME_CATEGORIES as CATEGORIES, isPublicHomeCategory } from '../lib/homeContent';
 
 // 첫 화면 게시판 카드(2026-09-07 에어비앤비 톤): 4:3 이미지 + 제목 + 한 줄, 흰 카드·hairline·hover 그림자.
 // 카드 자체가 앵커라 크롤러가 따라가고 키보드로도 들어간다.
-const CATEGORIES = [
-    { id: 'companion', name: '여행 동행자 모집', desc: '함께 떠날 마음 맞는 동행자를 찾아보세요.', image: 'https://images.unsplash.com/photo-1527631746610-bca00a040d60?q=80&w=800&auto=format&fit=crop', path: '/companion' },
-    { id: 'qna', name: '여행후기 및 Q&A', desc: '생생한 여행 후기를 공유하고, 궁금한 건 바로 질문하세요.', image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800&auto=format&fit=crop', path: '/qna' },
-    { id: 'market', name: '물품거래 및 나눔', desc: '여행 용품을 나누고 필요한 물건을 저렴하게 구하세요.', image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?q=80&w=800&auto=format&fit=crop', path: '/market' },
-    { id: 'reviews', name: '여행상품 홍보 및 후기', desc: '생생한 여행 후기와 다양한 여행 상품을 만나보세요.', image: 'https://images.unsplash.com/photo-1488190211105-8b0e65b80b4e?q=80&w=800&auto=format&fit=crop', path: '/reviews' },
-    { id: 'recommend', name: '승무원 추천지', desc: '현직 승무원이 전하는 진짜 맛집과 숨은 명소입니다.', image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800&auto=format&fit=crop', path: '/recommend' },
-    // 여행 일정 게시판은 첫 화면 카드에 넣지 않는다(2026-09-04 쿠마님). 상단 메뉴 "여행 플래너 → 여행 일정 게시판"으로만.
-    { id: 'crew', name: 'CREW 전용', desc: '승무원끼리 정보를 공유하고 특별 할인 혜택을 확인하세요.', image: 'https://images.unsplash.com/photo-1570710891163-6d3b5c47248b?q=80&w=800&auto=format&fit=crop', path: '/crew' },
-];
+// 카드 목록은 src/lib/homeContent.js 가 단일 출처다 — 프리렌더(scripts/prerender-seo.mjs)가
+// 크롤러용 홈 본문을 같은 값으로 굽기 때문에 여기서 따로 정의하지 않는다.
 
 // 보이는 카드 수에 맞춘 열 수 — 마지막 줄에 카드 하나만 덩그러니 남는 3+1 배치를 막는다(2026-09-07 쿠마님).
 // 폭 구간은 셋이다. 모바일(~640) 2열 고정, 태블릿·노트북(640~1280) 중간 열, 데스크톱(1280~) 한 줄.
@@ -34,9 +28,9 @@ const GRID_COLS = {
 const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
     const { isLoggedIn, isCrew } = useAuth();
     const list = CATEGORIES.filter((cat) => {
-        if (cat.id === 'reviews' && !PROMO_REVIEWS_ENABLED) return false;   // 여행상품 홍보 및 후기 — 초창기 숨김(2026-09-06)
+        // CREW 전용만 로그인 상태를 본다. 나머지 공개 여부 판정은 프리렌더(크롤러 본문)와 같은 함수를 쓴다.
         if (cat.id === 'crew') return isLoggedIn && isCrew;
-        return true;
+        return isPublicHomeCategory(cat, { promoReviewsEnabled: PROMO_REVIEWS_ENABLED });
     });
     const gridCols = GRID_COLS[list.length] || 'sm:grid-cols-3';
     // 모바일은 2열 고정. 홀수면 마지막 카드가 한 줄을 다 쓰게(가로 2:1) 해서 반쪽 줄을 없앤다.

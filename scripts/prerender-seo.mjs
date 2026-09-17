@@ -36,6 +36,15 @@ import {
   normalizeRoutePath,
 } from '../src/lib/routeMeta.js';
 import { guideFileForPath, isGuidePath, parseGuideMarkdown, renderGuideHtml } from '../src/lib/guide.js';
+import {
+  BRAND_TAGLINE_LINES,
+  HERO_BADGE,
+  HERO_DESCRIPTION,
+  HERO_TITLE_LINES,
+  HOME_CATEGORIES,
+  SITE_NAME,
+  isPublicHomeCategory,
+} from '../src/lib/homeContent.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC_DIR = path.join(projectRoot, 'public');
@@ -43,6 +52,10 @@ const SITEMAP_PATH = path.join(PUBLIC_DIR, 'sitemap.xml');
 const GUIDE_DIR = path.join(projectRoot, 'src', 'content', 'guide');
 const DIST_DIR = path.join(projectRoot, 'dist');
 const DIST_INDEX = path.join(DIST_DIR, 'index.html');
+const DIST_APP_FALLBACK = path.join(DIST_DIR, 'app.html');
+const FEATURE_FLAGS_PATH = path.join(projectRoot, 'src', 'lib', 'featureFlags.js');
+// 홈 noscript 블록 표지. 이미 구운 index.html 을 다시 입력으로 받는 사고(프리렌더 단독 재실행)를 잡는다.
+const HOME_BODY_MARKER = '<noscript data-home-body="1">';
 
 // index.html 인라인 서비스워커 정리 스크립트의 표지. 사본에서 빠지면 옛 sw.js 캐시가 되살아난다(설계 §3.5).
 const SW_CLEANUP_MARKER = 'navigator.serviceWorker.getRegistrations';
@@ -195,6 +208,44 @@ function buildRouteHtml(baseHtml, routePath, meta, bodyHtml) {
   return html;
 }
 
+// 홈 <noscript> 본문. 화면 문구(Navbar·Hero·CategoryBoard·Footer)와 같은 src/lib/homeContent.js 를 읽는다.
+//
+// 왜 noscript 인가 (2026-09-17):
+// 안내 페이지처럼 #root 안에 구우면 React 가 부팅하기 전 잠깐 스타일 없는 본문이 비쳤다가 사라진다.
+// 홈은 첫인상 화면이라 그 깜빡임을 받아들일 수 없어서, JS 를 실행하지 못한 크롤러가 읽는 noscript 로 넣는다.
+// 숨김 텍스트가 아니라 JS 없는 환경에서 실제로 보이는 폴백이고, 사람·봇을 UA 로 가르지 않는다.
+// (네이버 Yeti 도 JS 렌더링을 한다고 공식 문서에 적혀 있다. 다만 2026-09-17 실측에서 우리 홈의
+//  네이버 색인 스냅샷에는 렌더링된 본문이 없었다 — 렌더링이 지연되거나 실패하는 경우의 보험이다.)
+// 문구·링크는 화면에 있는 것만 넣는다(안내 페이지는 화면 어디에도 링크가 없어 넣지 않는다).
+async function homeNoscriptHtml() {
+  // 화면의 기능 플래그와 어긋나면 크롤러만 보는 카드가 생긴다. featureFlags.js 는 import.meta.env 를 써서
+  // node 가 import 할 수 없으므로 값을 읽어서 판정에 넘긴다.
+  const flagsSrc = await readFile(FEATURE_FLAGS_PATH, 'utf8');
+  const flagMatch = flagsSrc.match(/export const PROMO_REVIEWS_ENABLED = (true|false);/);
+  if (!flagMatch) {
+    throw new Error('[prerender-seo] featureFlags.js 에서 PROMO_REVIEWS_ENABLED 를 읽지 못했다.');
+  }
+  const promoReviewsEnabled = flagMatch[1] === 'true';
+
+  const cards = HOME_CATEGORIES.filter((cat) => isPublicHomeCategory(cat, { promoReviewsEnabled }))
+    .map(
+      (cat) =>
+        `<li><a href="${escapeAttr(cat.path)}">${escapeText(cat.name)}</a> ${escapeText(cat.desc)}</li>`
+    )
+    .join('');
+  return (
+    HOME_BODY_MARKER +
+    '<p>' + escapeText(SITE_NAME) + '</p>' +
+    '<p>' + escapeText(HERO_BADGE) + '</p>' +
+    '<h1>' + escapeText(HERO_TITLE_LINES.join(' ')) + '</h1>' +
+    '<p>' + escapeText(HERO_DESCRIPTION) + '</p>' +
+    '<h2>게시판</h2>' +
+    '<ul>' + cards + '</ul>' +
+    '<p>' + escapeText(BRAND_TAGLINE_LINES.join(' ')) + '</p>' +
+    '</noscript>'
+  );
+}
+
 async function guideBodyHtml(routePath) {
   const file = guideFileForPath(routePath);
   let source;
@@ -216,6 +267,11 @@ async function main() {
   if (!baseHtml.includes(SW_CLEANUP_MARKER)) {
     throw new Error('[prerender-seo] dist/index.html 에 서비스워커 정리 스크립트가 없다. index.html 을 확인할 것.');
   }
+  // 이미 홈 본문이 박힌 사본을 입력으로 받으면(vite build 없이 이 스크립트만 다시 돌린 경우)
+  // 그 본문이 경로별 사본과 app.html 로 번져 나간다. 덮어쓰지 말고 세운다.
+  if (baseHtml.includes(HOME_BODY_MARKER)) {
+    throw new Error('[prerender-seo] dist/index.html 에 이미 홈 본문이 있다. vite build 부터 다시 실행할 것.');
+  }
 
   const routePaths = await readSitemapPaths();
   for (const extra of PRERENDER_EXTRA_PATHS) {
@@ -227,10 +283,10 @@ async function main() {
   const skipped = [];
 
   for (const routePath of routePaths) {
-    // 루트는 dist/index.html 자체다. 이미 홈 canonical 을 선언하고 있고, 프리렌더하지 않은
-    // 나머지 경로의 SPA 폴백으로도 쓰이므로 덮어쓰지 않는다.
+    // 루트는 dist/index.html 자체라 사본을 만들지 않는다. 메타는 이미 홈 값이고,
+    // 크롤러용 본문은 아래에서 noscript 로 덧댄다(2026-09-17).
     if (routePath === '/') {
-      skipped.push(`/ (dist/index.html 원본 유지)`);
+      skipped.push(`/ (dist/index.html 본체에 noscript 본문 추가)`);
       continue;
     }
     if (routePath.startsWith('/guide/') && !isGuidePath(routePath)) {
@@ -259,6 +315,20 @@ async function main() {
     written.push(bodyHtml ? `${routePath}(본문)` : routePath);
   }
 
+  // SPA 폴백 사본(본문 없음). vercel.json 의 rewrites 가 프리렌더하지 않은 경로를 이 파일로 보낸다.
+  // dist/index.html 에 홈 본문을 넣는 순간 그 파일이 모든 경로의 폴백이 되어 /companion 같은 화면까지
+  // 홈 본문을 받는다(크롤러 눈에는 중복 본문). 그래서 본문 없는 원본을 따로 남긴다.
+  await writeFile(DIST_APP_FALLBACK, baseHtml, 'utf8');
+
+  // 홈 본문. 빈 #root 를 못 찾으면 본문 없는 홈이 조용히 배포되므로 빌드를 세운다.
+  if (!baseHtml.includes(ROOT_PLACEHOLDER)) {
+    throw new Error(`[prerender-seo] dist/index.html 에서 ${ROOT_PLACEHOLDER} 를 찾지 못해 홈 본문을 넣지 못했다.`);
+  }
+  const homeBody = await homeNoscriptHtml();
+  const homeHtml = baseHtml.replace(ROOT_PLACEHOLDER, () => `${ROOT_PLACEHOLDER}${homeBody}`);
+  await writeFile(DIST_INDEX, homeHtml, 'utf8');
+
+  console.log(`[prerender-seo] 홈 noscript 본문 ${homeHtml.length - baseHtml.length}자 추가, SPA 폴백 app.html 생성`);
   console.log(`[prerender-seo] 정적 HTML ${written.length}개 생성: ${written.join(', ')}`);
   if (skipped.length) console.log(`[prerender-seo] 건너뜀 ${skipped.length}개: ${skipped.join(', ')}`);
 }
