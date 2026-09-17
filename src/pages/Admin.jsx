@@ -35,12 +35,13 @@ const Admin = () => {
   // 네비 드롭다운 ?tab=(reports/commendations/users/stats) 반영
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
-    if (tab && ['reports', ...(COMMENDATION_ENABLED ? ['commendations'] : []), 'users', 'stats'].includes(tab)) setActiveTab(tab);
+    if (tab && ['reports', ...(COMMENDATION_ENABLED ? ['commendations'] : []), 'users', 'airlines', 'stats'].includes(tab)) setActiveTab(tab);
   }, [location]);
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState(null);
   const [commendations, setCommendations] = useState([]);
+  const [airlineRequests, setAirlineRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userSearch, setUserSearch] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
@@ -63,6 +64,11 @@ const Admin = () => {
       } else if (activeTab === 'stats') {
         const data = await adminApi.getStats();
         setStats(data);
+      } else if (activeTab === 'airlines') {
+        const { data, error: aErr } = await supabase.from('airline_requests')
+          .select('*').order('created_at', { ascending: false }).limit(200);
+        if (aErr) throw aErr;
+        setAirlineRequests(data || []);
       } else if (activeTab === 'commendations') {
         // 답례품 발송에 승객 휴대폰이 필요한데 profiles 는 PII 컬럼이 잠겨 있어 RPC 로 받는다.
         const { data, error: cErr } = await supabase.rpc('admin_get_commendation_reviews');
@@ -348,6 +354,8 @@ const Admin = () => {
     // 칭찬 인증 — 2026-09-14 쿠마님 지시로 숨김. featureFlags.COMMENDATION_ENABLED 로 켠다.
     ...(COMMENDATION_ENABLED ? [{ id: 'commendations', label: '칭찬 인증', icon: CheckCircle }] : []),
     { id: 'users', label: '회원 관리', icon: Users },
+    // 외항사 승무원이 보낸 "내 항공사 추가 요청"(2026-09-17). 확인하고 목록에 넣으면 그 도메인으로 인증이 열린다.
+    { id: 'airlines', label: '항공사 요청', icon: Plane },
     { id: 'stats', label: '통계', icon: BarChart3 },
   ];
 
@@ -866,6 +874,53 @@ const Admin = () => {
                           )}
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 항공사 추가 요청 — 외항사 승무원이 가입 화면에서 보낸 것(2026-09-17) */}
+              {activeTab === 'airlines' && (
+                <div className="p-4 md:p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">항공사 추가 요청</h2>
+                  <p className="text-sm text-gray-500 mb-6">
+                    승무원 인증은 등록된 회사 메일 도메인으로만 됩니다. 아래 도메인이 그 항공사 직원 메일이 맞는지 확인한 뒤
+                    src/lib/airlines.js 의 AIRLINE_DOMAINS 와 DB airline_domains 에 넣으면 그 도메인으로 인증이 열립니다.
+                  </p>
+                  {airlineRequests.length === 0 ? (
+                    <p className="text-gray-500 py-10 text-center">들어온 요청이 없습니다.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-200">
+                            <th className="py-2 pr-4 font-bold whitespace-nowrap">요청일</th>
+                            <th className="py-2 pr-4 font-bold whitespace-nowrap">항공사</th>
+                            <th className="py-2 pr-4 font-bold whitespace-nowrap">도메인</th>
+                            <th className="py-2 pr-4 font-bold whitespace-nowrap">이메일</th>
+                            <th className="py-2 font-bold whitespace-nowrap">상태</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {airlineRequests.map((r) => (
+                            <tr key={r.id} className="border-b border-gray-100">
+                              <td className="py-2.5 pr-4 whitespace-nowrap text-gray-500">{new Date(r.created_at).toLocaleDateString('ko-KR')}</td>
+                              <td className="py-2.5 pr-4 font-semibold text-gray-900">{r.airline_name}</td>
+                              <td className="py-2.5 pr-4 font-mono text-gray-700">{r.domain}</td>
+                              <td className="py-2.5 pr-4 text-gray-700 break-all">{r.email}</td>
+                              <td className="py-2.5 whitespace-nowrap">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                                  r.status === 'added' ? 'bg-green-50 text-green-700'
+                                    : r.status === 'rejected' ? 'bg-gray-100 text-gray-600'
+                                      : 'bg-amber-50 text-amber-700'
+                                }`}>
+                                  {r.status === 'added' ? '등록함' : r.status === 'rejected' ? '반려' : '확인 전'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

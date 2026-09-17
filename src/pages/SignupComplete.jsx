@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Phone, MapPin, CheckCircle, Loader2, Gift, Plane, Shield, Calendar } from 'lucide-react';
-import { getAirlineInfo } from '../lib/airlines';
+import { getAirlineInfo, requestAirline } from '../lib/airlines';
 import AirlineLogo from '../components/AirlineLogo';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -66,6 +66,21 @@ export default function SignupComplete() {
   const [verifiedAirlineEmail, setVerifiedAirlineEmail] = useState('');
   // 승무원 회사 이메일 인증에 성공한 클라이언트만 가입을 완성할 수 있도록 서버가 준 일회성 소비 토큰
   const [airlineOtpToken, setAirlineOtpToken] = useState('');
+  // 목록에 없는 항공사 추가 요청(2026-09-17 쿠마님 9892) — 외항사 승무원이 가입을 포기하지 않게
+  const [reqOpen, setReqOpen] = useState(false);
+  const [reqName, setReqName] = useState('');
+  const [reqSending, setReqSending] = useState(false);
+  const [reqDone, setReqDone] = useState(false);
+  const [reqError, setReqError] = useState('');
+
+  const submitAirlineRequest = async () => {
+    if (reqSending) return;
+    setReqSending(true); setReqError('');
+    const r = await requestAirline({ airlineName: reqName, email: airlineEmail });
+    setReqSending(false);
+    if (!r.ok) { setReqError(r.reason); return; }
+    setReqDone(true);
+  };
   // 휴대폰 본인확인(PASS) 증빙 — OAuth·이메일확인 ON 경로도 예외 없이 본인확인을 마쳐야 폼이 열린다.
   // SignupEmail 에서 마친 증빙은 같은 세션 스토리지 키(1시간)로 이어받는다.
   const [identityProof, setIdentityProof] = useState(() => (IDENTITY_ENABLED ? loadIdentityProof() : null));
@@ -639,6 +654,47 @@ export default function SignupComplete() {
               {airlineEmailError && (
                 <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>
                   ⚠️ {airlineEmailError}
+                </div>
+              )}
+              {/* 목록에 없는 항공사(주로 외항사) — 여기서 끝나지 않게 추가 요청을 받는다 */}
+              {!airlineInfo && airlineEmail.includes('@') && !airlineEmailVerified && (
+                <div style={{ marginTop: 8, padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, color: '#334155', lineHeight: 1.6 }}>
+                  {reqDone ? (
+                    <span style={{ color: '#15803d', fontWeight: 600 }}>
+                      요청을 받았습니다. 확인 후 등록되면 적어주신 회사 이메일로 알려드립니다. 지금은 여행자로 가입하시고, 등록된 뒤에 마이페이지에서 승무원 인증을 하시면 됩니다.
+                    </span>
+                  ) : !reqOpen ? (
+                    <>
+                      <div style={{ marginBottom: 8 }}>
+                        아직 등록되지 않은 항공사입니다. 외항사에 다니시면 항공사를 추가해 달라고 요청하실 수 있습니다.
+                      </div>
+                      <button type="button" onClick={() => { setReqOpen(true); setReqError(''); }}
+                        style={{ padding: '8px 12px', borderRadius: 8, background: 'white', border: '1px solid #cbd5e1', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                        내 항공사 추가 요청
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: 8, fontWeight: 600 }}>내 항공사 추가 요청</div>
+                      <input type="text" value={reqName} onChange={(e) => { setReqName(e.target.value); setReqError(''); }}
+                        placeholder="항공사 이름 (예: 싱가포르항공)"
+                        style={{ ...inputStyle, width: '100%', marginBottom: 8 }} maxLength={80} autoComplete="off" />
+                      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                        회사 이메일: {airlineEmail || '(위에 입력한 주소)'} — 확인 후 등록되면 이 주소로 알려드립니다.
+                      </div>
+                      {reqError && <div style={{ color: '#b91c1c', fontSize: 12, marginBottom: 8 }}>{reqError}</div>}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={submitAirlineRequest} disabled={reqSending || !reqName.trim()}
+                          style={{ padding: '8px 12px', borderRadius: 8, background: reqSending || !reqName.trim() ? '#cbd5e1' : '#7c3aed', color: 'white', border: 'none', fontWeight: 600, cursor: reqSending || !reqName.trim() ? 'default' : 'pointer', fontSize: 13 }}>
+                          {reqSending ? '보내는 중...' : '요청 보내기'}
+                        </button>
+                        <button type="button" onClick={() => setReqOpen(false)}
+                          style={{ padding: '8px 12px', borderRadius: 8, background: 'white', border: '1px solid #cbd5e1', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                          취소
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               {airlineEmailSent && !airlineEmailVerified && (
