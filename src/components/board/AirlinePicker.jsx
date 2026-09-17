@@ -8,8 +8,7 @@ const AirlinePicker = ({ value, onChange, name = 'airline', label = '말머리',
     const errId = useId();
     return (
         <fieldset aria-describedby={error ? errId : undefined} aria-invalid={error ? 'true' : undefined}>
-            <legend className="block text-sm font-bold text-ink mb-1">{label}</legend>
-            <p className="text-[12px] text-muted mb-2">글이 다루는 항공사를 고르세요. 특정 항공사와 상관없는 글이면 공통입니다.</p>
+            <legend className="block text-sm font-bold text-ink mb-2">{label}</legend>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {AIRLINE_TAGS.map((a) => {
                     const on = value === a.id;

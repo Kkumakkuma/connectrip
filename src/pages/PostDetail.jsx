@@ -168,13 +168,12 @@ const PostDetail = () => {
         if (submitting || uploading) return;
         if (config.hasRegion && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         const usesAirline = config.hasAirline && p?.post_type === config.airlinePostType;
-        if (usesAirline && !airlineTagOf(form.airline_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         const patch = {
             [config.titleField]: form.title.trim(),
             [config.bodyField]: form.content.trim(),
         };
         if (config.hasRegion) patch.region_id = form.region_id;
-        if (usesAirline) patch.airline_id = form.airline_id;
+        if (usesAirline) patch.airline_id = airlineTagOf(form.airline_id) ? form.airline_id : null;
         if (config.extraField) patch[config.extraField] = form.extra.trim();
         if (config.imageField) patch[config.imageField] = form.image_url || null;
         if (config.key === 'companion') {

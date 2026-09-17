@@ -63,7 +63,6 @@ const CrewOnly = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
     const [submitting, setSubmitting] = useState(false);
-    const [pickerError, setPickerError] = useState('');
     const formId = useId();
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
@@ -128,18 +127,13 @@ const CrewOnly = () => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting) return;
-        if (mode === AIRLINE_TAB && !airlineTagOf(form.airline_id)) {
-            setPickerError('말머리를 선택해주세요.');
-            return;
-        }
-        setPickerError('');
         if (!requireNickname(() => submit())) return;
         setSubmitting(true);
         try {
             const created = await crewApi.create({
                 title: form.title.trim(), content: form.content.trim(), post_type: mode,
                 category: mode === 'layover' ? form.category : 'general',
-                airline_id: mode === AIRLINE_TAB ? form.airline_id : null,
+                airline_id: mode === AIRLINE_TAB && airlineTagOf(form.airline_id) ? form.airline_id : null,
                 author_name: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
             });
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
@@ -199,7 +193,7 @@ const CrewOnly = () => {
             <BoardShell
                 id="crew-only"
                 title="CREW 전용"
-                action={<button type="button" onClick={() => { setForm(EMPTY_FORM); setPickerError(''); setShowModal(true); }} className="btn-air-primary"><Plus size={16} /> 글쓰기</button>}
+                action={<button type="button" onClick={() => { setForm(EMPTY_FORM); setShowModal(true); }} className="btn-air-primary"><Plus size={16} /> 글쓰기</button>}
                 tabs={<BoardTabs items={TABS} value={mode} onChange={setTab} />}
                 bar={mode === AIRLINE_TAB ? <AirlineBar value={airline} onChange={setAirline} /> : null}
                 search={<SearchPill value={qInput} onChange={setQInput} placeholder="제목, 내용 검색" className="max-w-md" />}
@@ -262,8 +256,7 @@ const CrewOnly = () => {
                     {mode === AIRLINE_TAB && (
                         <AirlinePicker
                             value={form.airline_id}
-                            onChange={(id) => { setForm((f) => ({ ...f, airline_id: id })); setPickerError(''); }}
-                            error={pickerError}
+                            onChange={(id) => setForm((f) => ({ ...f, airline_id: id }))}
                         />
                     )}
                     {mode === 'layover' && (
