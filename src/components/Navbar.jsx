@@ -38,6 +38,8 @@ const Navbar = () => {
     { name: '여행후기 및 Q&A', to: '/qna', sub: [
       { name: '📝 여행 후기', to: '/qna?tab=review' },
       { name: '❓ Q&A 게시판', to: '/qna?tab=qna' },
+      // 자유게시판 탭은 TravelQnA 에 있는데 메뉴에서 빠져 있어 들어갈 길이 없었다(2026-09-17 쿠마님 9894)
+      { name: '💬 자유게시판', to: '/qna?tab=free' },
     ]},
     { name: '물품거래 및 나눔', to: '/market', sub: [
       { name: '🛍️ 물품팔아요', to: '/market?tab=sell' },
