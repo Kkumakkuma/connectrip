@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, Users, ShoppingBag, HelpCircle, Shield, Map as MapIcon } from 'lucide-react';
+import { Search as SearchIcon, Loader2, Users, ShoppingBag, HelpCircle, Shield, Map as MapIcon, BookOpen, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
@@ -16,6 +16,18 @@ const BOARDS = [
   { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content', detail: (item) => `/market/${item.id}` },
   { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', detail: (item) => `/post/${item.board === 'free' ? 'free' : 'qna'}/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
   { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', detail: (item) => `/post/crew/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
+  // 여행 후기·승무원 추천지가 전체 검색에서 빠져 있었다(2026-09-17 실측 — 게시판 안에서는 검색되는데
+  // 상단 검색에는 안 잡혔다). reviews 는 후기(type='review')만 본다 — 홍보 글은 화면이 숨겨져 있다.
+  {
+    key: 'reviews', label: '여행 후기', icon: BookOpen, color: 'rose', link: '/qna?tab=review',
+    detail: (item) => `/post/review/${item.id}`, fields: ['title', 'description'], bodyField: 'description',
+    eq: { type: 'review' },
+  },
+  {
+    key: 'destinations', label: '승무원 추천지', icon: MapPin, color: 'teal', link: '/recommend',
+    detail: (item) => `/post/destination/${item.id}`, titleField: 'name',
+    fields: ['name', 'description'], bodyField: 'description',
+  },
   // itinerary_posts 는 snapshot(jsonb = 여행 전체)을 갖고 있어 '*' 로 받으면 검색 응답이 통째로
   // 커진다. 카드가 쓰는 컬럼만 적고, 아래 쿼리가 board.select 를 읽는다(둘 중 하나만 고치면 무효).
   {
@@ -64,10 +76,13 @@ const Search = () => {
           const authorEmbed = board.key === 'market_listings'
             ? '*, profiles!market_listings_user_id_fkey(user_type, crew_verified)'
             : `${board.select || '*'}, profiles(user_type, crew_verified)`;
-          const { data, error } = await supabase
+          let req = supabase
             .from(board.key)
             .select(authorEmbed)
-            .or(orFilter)
+            .or(orFilter);
+          // 같은 테이블에 성격이 다른 글이 섞인 보드(reviews = 후기/홍보)는 걸러서 본다
+          for (const [col, val] of Object.entries(board.eq || {})) req = req.eq(col, val);
+          const { data, error } = await req
             .order('created_at', { ascending: false })
             .limit(10);
           if (error) throw error;
@@ -143,6 +158,7 @@ const Search = () => {
                 amber: 'bg-amber-100 text-amber-600',
                 purple: 'bg-purple-100 text-purple-600',
                 teal: 'bg-teal-100 text-teal-600',
+                rose: 'bg-rose-100 text-rose-600',
               };
 
               return (
@@ -186,7 +202,7 @@ const Search = () => {
                           className="w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors"
                         >
                           <h4 className="font-semibold text-gray-900 mb-1 line-clamp-1">
-                            {item.title}
+                            {item[board.titleField || 'title']}
                           </h4>
                           {body && (
                             <p className="text-sm text-gray-500 line-clamp-2">{body}</p>
