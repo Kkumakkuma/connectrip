@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPinned, Plus, RotateCcw, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, MapPinned, Plus, RotateCcw, TriangleAlert, LocateFixed } from 'lucide-react';
 import { useAuth } from '../../lib/AuthContext';
 import { useNicknameGate } from '../../lib/useNicknameGate';
 import NicknameRequiredModal from '../../components/NicknameRequiredModal';
@@ -9,6 +9,7 @@ import Card from '../kit/Card';
 import EmptyState from '../kit/EmptyState';
 import { ToastStack } from '../kit/Toast';
 import MapSurface from '../providers/MapSurface';
+import { canLocate, getMyLocation } from '../lib/myLocation';
 import SourceAttribution from '../providers/SourceAttribution';
 import DayTabs, { UNASSIGNED_ID } from './board/DayTabs';
 import PlaceList from './board/PlaceList';
@@ -96,9 +97,21 @@ export default function TripBoard() {
   const [activeWarning, setActiveWarning] = useState(null);
   const [addSeed, setAddSeed] = useState(null);
 
-  // 지도 중심. 그 날짜에 담은 곳이 없으면 지도가 서울 시청(하드코딩 폴백)으로 떨어졌다 —
-  // 코타키나발루 일정인데 서울이 보였다(2026-09-17 쿠마님 9944).
-  // 쓸 수 있는 좌표가 이미 있다: 여행의 다른 날짜 핀, 그리고 planner_trips 의 목적지 좌표.
+  // 내 위치. 지도를 열 때 한 번 물어보고, "내 위치" 버튼이 다시 부른다.
+  // 권한을 거부하거나 못 잡으면 null 로 남고 아래 우선순위가 다음 후보로 넘어간다.
+  const [myLoc, setMyLoc] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    getMyLocation().then((c) => { if (alive && c) setMyLoc(c); });
+    return () => { alive = false; };
+  }, []);
+
+  // 지도 중심 우선순위(2026-09-17 쿠마님 9944·9955):
+  //   ① 여행에 담은 장소들 — 지도를 여는 이유가 그것이다(그 날짜 핀은 FitBounds 가 더 정확히 잡는다)
+  //   ② 내 위치 — "내 위치에서 시작해야 편하지 않냐"
+  //   ③ 여행 목적지(planner_trips.dest_lat/lng)
+  //   ④ 지도 모듈의 기본값(서울)
+  // 예전에는 center 를 아예 안 넘겨서 코타키나발루 일정인데 서울이 보였다.
   const mapCenter = useMemo(() => {
     const valid = (places || []).filter((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng));
     if (valid.length) {
@@ -106,11 +119,23 @@ export default function TripBoard() {
       const lng = valid.reduce((a, p) => a + p.lng, 0) / valid.length;
       return { lat, lng };
     }
+    if (myLoc) return myLoc;
     if (Number.isFinite(trip?.dest_lat) && Number.isFinite(trip?.dest_lng)) {
       return { lat: trip.dest_lat, lng: trip.dest_lng };
     }
     return null;
-  }, [places, trip?.dest_lat, trip?.dest_lng]);
+  }, [places, myLoc, trip?.dest_lat, trip?.dest_lng]);
+
+  // "내 위치" 버튼 — 눌렀을 때만 다시 물어본다(권한 거부 상태면 안내).
+  const [locating, setLocating] = useState(false);
+  const goMyLocation = useCallback(async () => {
+    if (locating) return;
+    setLocating(true);
+    const c = await getMyLocation({ force: true });
+    setLocating(false);
+    if (c) setMyLoc({ ...c });
+    else alert('위치를 가져오지 못했습니다. 휴대폰 설정에서 커넥트립의 위치 권한을 허용해 주세요.');
+  }, [locating]);
   const [dayWindow, setDayWindow] = useState(() => readDayWindow(tripId));
   const [shareUrl, setShareUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -735,7 +760,19 @@ export default function TripBoard() {
       />
 
       <div className="lg:grid lg:grid-cols-[64%_1fr] lg:items-start lg:gap-5">
-        <div className="mb-4 lg:sticky lg:top-24 lg:mb-0">
+        <div className="relative mb-4 lg:sticky lg:top-24 lg:mb-0">
+          {canLocate() && (
+            <button
+              type="button"
+              onClick={goMyLocation}
+              disabled={locating}
+              aria-label="내 위치로 이동"
+              className="absolute right-3 top-3 z-[400] inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/95 px-3 py-2 text-[13px] font-semibold text-ink shadow-sm backdrop-blur transition-colors hover:bg-white disabled:opacity-60"
+            >
+              <LocateFixed size={15} aria-hidden="true" />
+              {locating ? '찾는 중' : '내 위치'}
+            </button>
+          )}
           <MapSurface
             className="h-[42dvh] w-full overflow-hidden rounded-md border border-hairline lg:h-[calc(100dvh-18rem)]"
             pins={pins}

@@ -47,4 +47,18 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 지도를 내 위치에서 시작하고 "내 위치" 버튼을 쓰기 위한 권한(2026-09-17 쿠마님 9955).
+         WebView 의 navigator.geolocation 만 쓰므로 @capacitor/geolocation 플러그인은 없어도 된다 —
+         Capacitor 브리지(BridgeWebChromeClient.onGeolocationPermissionsShowPrompt)가 런타임 권한을
+         직접 요청한다. 다만 매니페스트에 선언이 없으면 안드로이드가 요청 자체를 즉시 거부한다.
+         정확한 위치는 필요 없어 COARSE 만으로도 동작하지만, 지도 이동 정확도를 위해 FINE 도 둔다. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <!-- 안드로이드 13(API 33)부터 알림을 보내려면 런타임 권한이 필요하다. 지금은 앱 내 알림함만
+         쓰지만, 기기 푸시를 켤 때 앱을 다시 배포하지 않아도 되도록 선언만 미리 둔다. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>
