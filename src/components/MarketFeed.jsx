@@ -23,15 +23,13 @@ const MarketFeed = ({
     const [onlyActive, setOnlyActive] = useState(true);
     const isShare = type === 'share';
 
-    const visible = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        return (items || []).filter((it) => {
-            if (onlyActive && it.status === 'sold') return false;
-            if (isShare && region && it.region_id !== region) return false;
-            if (!q) return true;
-            return [it.title, it.location, it.content, it.country].some((v) => (v || '').toLowerCase().includes(q));
-        });
-    }, [items, query, onlyActive, isShare, region]);
+    // 검색어 필터는 서버가 한다(2026-09-17, db.js marketApi.getAll) — 여기서는 판매완료 숨김과
+    // 나눔 대륙 말머리만 거른다. 화면에서 거르면 목록 상한(300) 밖의 글이 검색에서 빠진다.
+    const visible = useMemo(() => (items || []).filter((it) => {
+        if (onlyActive && it.status === 'sold') return false;
+        if (isShare && region && it.region_id !== region) return false;
+        return true;
+    }), [items, onlyActive, isShare, region]);
 
     return (
         <div>

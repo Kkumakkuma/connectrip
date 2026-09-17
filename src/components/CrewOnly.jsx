@@ -102,7 +102,7 @@ const CrewOnly = () => {
         const reqId = ++reqRef.current;
         try {
             setLoading(true); setError(null);
-            const data = await crewApi.getAll(mode, airline) || [];
+            const data = await crewApi.getAll(mode, airline, q) || [];
             if (reqId !== reqRef.current) return;
             setPosts(data);
             if (data.length) {
@@ -118,7 +118,7 @@ const CrewOnly = () => {
         } finally {
             if (reqId === reqRef.current) setLoading(false);
         }
-    }, [mode, airline, isCrew, user?.id]);
+    }, [mode, airline, q, isCrew, user?.id]);
 
     useEffect(() => { load(); }, [load]);
     useEffect(() => { setPage(1); }, [q, mode, airline]);
@@ -147,8 +147,8 @@ const CrewOnly = () => {
         }
     };
 
-    const ql = q.toLowerCase();
-    const filtered = posts.filter((p) => !ql || (p.title || '').toLowerCase().includes(ql) || (p.content || '').toLowerCase().includes(ql));
+    // 검색은 서버가 한다(2026-09-17)
+    const filtered = posts;
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
     useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);   // 마지막 글 삭제로 빈 페이지에 고립되지 않게
 

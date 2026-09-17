@@ -81,7 +81,7 @@ const MarketBoard = () => {
         const reqId = ++reqRef.current;
         try {
             setLoading(true); setError(null);
-            const data = await marketApi.getAll(mode) || [];
+            const data = await marketApi.getAll(mode, q) || [];
             if (reqId !== reqRef.current) return;
             setItems(data);
             if (mode === 'sell' || mode === 'share') {
@@ -95,7 +95,7 @@ const MarketBoard = () => {
         } finally {
             if (reqId === reqRef.current) setLoading(false);
         }
-    }, [mode]);
+    }, [mode, q]);
 
     useEffect(() => { load(); }, [load]);
     useEffect(() => { setPage(1); }, [q, mode]);
@@ -135,11 +135,8 @@ const MarketBoard = () => {
         }
     };
 
-    const ql = q.toLowerCase();
-    // 검색 대상은 판매·나눔 탭(MarketFeed)과 같은 필드로 맞춘다 — 같은 장터인데 탭마다
-    // 거래 장소로 검색이 되다 안 되다 했다(2026-09-17 검색 점검)
-    const filtered = items.filter((i) => !ql
-        || [i.title, i.location, i.content, i.country].some((v) => (v || '').toLowerCase().includes(ql)));
+    // 검색은 서버가 한다(2026-09-17) — 탭마다 대상 필드가 다르던 것도 db.js 한 곳으로 모았다
+    const filtered = items;
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
     const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
     useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);

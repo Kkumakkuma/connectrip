@@ -92,7 +92,7 @@ const TravelQnA = () => {
         const reqId = ++reqRef.current;
         try {
             setLoading(true); setError(null);
-            const data = mode === 'review' ? await reviewsApi.getAll(region, 'review') : await qnaApi.getAll(mode);
+            const data = mode === 'review' ? await reviewsApi.getAll(region, 'review', q) : await qnaApi.getAll(mode, q);
             if (reqId !== reqRef.current) return;
             setPosts(data || []);
             if (data?.length) {
@@ -108,7 +108,7 @@ const TravelQnA = () => {
         } finally {
             if (reqId === reqRef.current) setLoading(false);
         }
-    }, [mode, region, user?.id]);
+    }, [mode, region, user?.id, q]);
 
     useEffect(() => { load(); }, [load]);
     useEffect(() => { setPage(1); }, [q, region, mode]);
@@ -155,8 +155,8 @@ const TravelQnA = () => {
         }
     };
 
-    const ql = q.toLowerCase();
-    const filtered = posts.filter((p) => !ql || (p.title || '').toLowerCase().includes(ql) || (p.content || p.description || '').toLowerCase().includes(ql));
+    // 검색은 서버가 한다(2026-09-17) — 목록을 받아 거르면 LIST_FETCH_LIMIT 밖의 글이 조용히 빠진다
+    const filtered = posts;
     const perPage = mode === 'review' ? PAGE_REVIEW : PAGE_QNA;
     const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
     const paged = filtered.slice((page - 1) * perPage, page * perPage);

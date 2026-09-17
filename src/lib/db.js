@@ -119,7 +119,7 @@ export const companionApi = {
 // ============================================================
 
 export const marketApi = {
-  async getAll(type = null) {
+  async getAll(type = null, q = '') {
     // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
     let query = supabase.from('market_listings')
       .select('*, profiles!market_listings_user_id_fkey(user_type, crew_verified)')
@@ -128,6 +128,8 @@ export const marketApi = {
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
     if (type) query = query.eq('type', type);
+    const term = searchTerm(q);
+    if (term) query = query.or(ilikeOr(['title', 'location', 'content', 'country'], term));
     const { data, error } = await query;
     if (error) throw error;
     return data;
@@ -268,14 +270,19 @@ export const qnaApi = {
   // 예전엔 모든 글의 모든 댓글 + 댓글마다 profiles 조인까지 한 응답에 실려 내려왔다.
   // 이제 집계 임베드(qna_comments(count))로 개수만 받고, 본문은 getComments 로 따로 받는다.
   // board: 'qna'(질문) | 'free'(자유게시판, 2026-09-14). 같은 테이블을 board 컬럼으로 나눠 쓴다.
-  async getAll(board = 'qna') {
-    const { data, error } = await supabase
+  // q: 검색어. 화면에서 목록을 받아 거르면 LIST_FETCH_LIMIT(300) 밖의 글이 검색에서 조용히
+  // 빠지므로 서버에서 건다(2026-09-17). 동행·추천지가 쓰던 방식과 같다.
+  async getAll(board = 'qna', q = '') {
+    let query = supabase
       .from('qna_posts')
       .select('*, qna_comments(count), profiles(user_type, crew_verified)')
       .eq('board', board)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
+    const term = searchTerm(q);
+    if (term) query = query.or(ilikeOr(['title', 'content'], term));
+    const { data, error } = await query;
     if (error) throw error;
     // PostgREST 집계 임베드는 [{ count: n }] 형태로 온다. 호출부가 그 형태를 알 필요가
     // 없도록 comment_count 로 펴서 내리고, 본문이 없는 qna_comments 키는 제거한다.
@@ -360,7 +367,7 @@ export const qnaApi = {
 
 export const crewApi = {
   // airlineId: 자유게시판 항공사 말머리 필터(2026-09-17). null 이면 전체.
-  async getAll(postType = null, airlineId = null) {
+  async getAll(postType = null, airlineId = null, q = '') {
     let query = supabase.from('crew_posts')
       .select('*, crew_comments(count), profiles(user_type, crew_verified)')
       .order('created_at', { ascending: false })
@@ -368,6 +375,8 @@ export const crewApi = {
       .limit(LIST_FETCH_LIMIT);
     if (postType) query = query.eq('post_type', postType);
     if (airlineId) query = query.eq('airline_id', airlineId);
+    const term = searchTerm(q);
+    if (term) query = query.or(ilikeOr(['title', 'content'], term));
     const { data, error } = await query;
     if (error) throw error;
     return flattenCrew(data);
@@ -446,7 +455,7 @@ const REVIEW_SELECT = '*, review_comments(count), profiles(nickname, user_type, 
 const flattenReview = ({ review_comments: commentAgg, ...post }) => ({ ...post, comment_count: commentAgg?.[0]?.count ?? 0 });
 
 export const reviewsApi = {
-  async getAll(regionId = null, type = null) {
+  async getAll(regionId = null, type = null, q = '') {
     let query = supabase.from('reviews')
       .select(REVIEW_SELECT)
       .order('created_at', { ascending: false })
@@ -454,6 +463,8 @@ export const reviewsApi = {
       .limit(LIST_FETCH_LIMIT);
     if (regionId) query = query.eq('region_id', regionId);
     if (type) query = query.eq('type', type);
+    const term = searchTerm(q);
+    if (term) query = query.or(ilikeOr(['title', 'description'], term));
     const { data, error } = await query;
     if (error) throw error;
     return (data || []).map(flattenReview);
