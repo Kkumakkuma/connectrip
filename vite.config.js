@@ -54,6 +54,11 @@ export default defineConfig(({ mode }) => {
   // process 전역을 새로 열지 않아도 된다.
   const env = loadEnv(mode, r('./'), 'VITE_')
   const plannerOn = env.VITE_PLANNER_ENABLED === 'true'
+  // 앱 빌드(mode=app)에서 구글 지도 브라우저 키가 비면 지도가 항상 "불러올 수 없습니다"로 죽는다(2026-09-17 실사고).
+  // 키는 git 제외 파일 .env.app.local 에만 있으므로(2026-09-18 시크릿 스캐닝 경보 후 이동) 없으면 조용히 빈 값으로 굽지 말고 여기서 멈춘다.
+  if (mode === 'app' && plannerOn && !String(env.VITE_GOOGLE_MAPS_BROWSER_KEY || '').trim()) {
+    throw new Error('[build:app] VITE_GOOGLE_MAPS_BROWSER_KEY 가 비어 있다. travelers-hub/.env.app.local 에 키를 넣고 다시 빌드할 것 (.env.app 주석 참고).')
+  }
 
   return {
     plugins: [react(), ...(mode === 'app' ? [stripWebOnlyFromAppBuild()] : [])],

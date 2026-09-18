@@ -25,4 +25,5 @@ VITE_ITINERARY_ENABLED=true
 # 2026-09-18: 키 값은 이 파일에 두지 않는다 — 이 리포는 공개라 GitHub 시크릿 스캐닝 경보(#1)가 왔다.
 #   VITE_GOOGLE_MAPS_BROWSER_KEY 와 VITE_GOOGLE_MAPS_MAP_ID 는 같은 폴더의 .env.app.local(git 제외, .env* 규칙)에 둔다.
 #   Vite 가 mode=app 일 때 .env.app 다음에 .env.app.local 을 읽으므로 빌드 결과는 같다.
-#   새 PC 에서는 `vercel env pull` 로 받아 .env.app.local 에 넣는다.
+#   새 PC 에서는 `vercel env pull --environment=production .env.vercel.tmp` 로 받아 두 줄만 .env.app.local 에 옮겨 적고 tmp 는 지운다
+#   (vercel env pull 의 기본 출력 파일은 .env.local 이라 파일명을 꼭 지정). 키가 비면 vite.config.js 가 앱 빌드를 멈춘다.
