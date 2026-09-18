@@ -22,5 +22,7 @@ VITE_ITINERARY_ENABLED=true
 # 2026-09-17: 앱 빌드는 로컬에서 도는데 이 키들이 Vercel 환경변수에만 있어서 빈 값으로 구워졌다.
 # 그 결과 앱 플래너 지도가 항상 "지도를 불러올 수 없습니다"로 떨어졌다(웹은 정상).
 # ⚠ 구글 콘솔에서 이 브라우저 키의 리퍼러 허용 목록에 https://localhost/* 를 넣어야 앱에서 뜬다.
-VITE_GOOGLE_MAPS_BROWSER_KEY=AIzaSyBWEj7OwOm-sA5okNYl91oWrikphAf-KKg
-VITE_GOOGLE_MAPS_MAP_ID=5e4eb32505aebf125162770d
+# 2026-09-18: 키 값은 이 파일에 두지 않는다 — 이 리포는 공개라 GitHub 시크릿 스캐닝 경보(#1)가 왔다.
+#   VITE_GOOGLE_MAPS_BROWSER_KEY 와 VITE_GOOGLE_MAPS_MAP_ID 는 같은 폴더의 .env.app.local(git 제외, .env* 규칙)에 둔다.
+#   Vite 가 mode=app 일 때 .env.app 다음에 .env.app.local 을 읽으므로 빌드 결과는 같다.
+#   새 PC 에서는 `vercel env pull` 로 받아 .env.app.local 에 넣는다.
