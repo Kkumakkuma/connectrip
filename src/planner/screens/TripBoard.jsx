@@ -102,7 +102,10 @@ export default function TripBoard() {
   const [myLoc, setMyLoc] = useState(null);
   useEffect(() => {
     let alive = true;
-    getMyLocation().then((c) => { if (alive && c) setMyLoc(c); });
+    getMyLocation().then(({ coords }) => {
+      // 그 사이 "내 위치" 버튼이 먼저 값을 넣었으면 늦게 온 자동 요청이 덮어쓰지 않는다(codex 지적).
+      if (alive && coords) setMyLoc((prev) => prev ?? coords);
+    });
     return () => { alive = false; };
   }, []);
 
@@ -126,16 +129,6 @@ export default function TripBoard() {
     return null;
   }, [places, myLoc, trip?.dest_lat, trip?.dest_lng]);
 
-  // "내 위치" 버튼 — 눌렀을 때만 다시 물어본다(권한 거부 상태면 안내).
-  const [locating, setLocating] = useState(false);
-  const goMyLocation = useCallback(async () => {
-    if (locating) return;
-    setLocating(true);
-    const c = await getMyLocation({ force: true });
-    setLocating(false);
-    if (c) setMyLoc({ ...c });
-    else alert('위치를 가져오지 못했습니다. 휴대폰 설정에서 커넥트립의 위치 권한을 허용해 주세요.');
-  }, [locating]);
   const [dayWindow, setDayWindow] = useState(() => readDayWindow(tripId));
   const [shareUrl, setShareUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -144,6 +137,33 @@ export default function TripBoard() {
   const pushToast = useCallback((tone, message) => {
     setToasts((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, tone, message }]);
   }, []);
+
+  // "내 위치" 버튼 — 눌렀을 때만 다시 잰다. 지도가 핀 범위를 잡고 있어도 focus 로 그 자리로 옮긴다(2026-09-18:
+  // 전에는 center 만 바꿔서 핀이 하나라도 있으면 아무 반응이 없었다). 실패 이유별로 안내를 달리 한다.
+  const [locating, setLocating] = useState(false);
+  const [meFocus, setMeFocus] = useState(null); // { lat, lng, n } — n 이 바뀔 때마다 지도가 옮겨 간다
+  const goMyLocation = useCallback(async () => {
+    if (locating) return;
+    setLocating(true);
+    // 앱 WebView 는 권한 상태를 늘 'prompt' 로 주기 때문에 기본값(60초)이면 실내처럼 위치를 못 잡는 곳에서
+    // "찾는 중"이 1분간 걸린다(gemini 지적). 사용자가 직접 누른 경우는 15초 — 권한 창을 읽고 누를 시간은 되고,
+    // 못 잡으면 안내로 넘어간다. 화면을 열 때의 자동 요청은 배경이라 기본값 그대로 둔다.
+    const { coords, error } = await getMyLocation({ force: true, timeoutMs: 15000 });
+    setLocating(false);
+    if (coords) {
+      setMyLoc({ ...coords });
+      setMeFocus((prev) => ({ ...coords, n: (prev?.n ?? 0) + 1 }));
+      return;
+    }
+    pushToast(
+      'error',
+      error === 'denied'
+        ? '위치 권한이 꺼져 있습니다. 휴대폰 설정에서 커넥트립의 위치 권한을 허용해 주세요.'
+        : error === 'unsupported'
+          ? '이 기기에서는 위치를 쓸 수 없습니다.'
+          : '위치를 확인하지 못했습니다. 위치(GPS)가 켜져 있는지 확인하고 다시 눌러 주세요.'
+    );
+  }, [locating, pushToast]);
 
   // 장소에 붙이는 티켓(2026-09-06 쿠마님). 목록·업로드·확인 시트·전체화면 상태는 이 훅이 들고, 장소 시트가 닫혀도 흐름은 이어진다.
   // 티켓은 getTrip 결과에 섞지 않는다 — 그 결과가 기기 사본(buildLocalSnapshot)·내보내기로 흐른다.
@@ -777,6 +797,8 @@ export default function TripBoard() {
             className="h-[42dvh] w-full overflow-hidden rounded-md border border-hairline lg:h-[calc(100dvh-18rem)]"
             pins={pins}
             center={mapCenter}
+            me={myLoc}
+            focus={meFocus}
             hasGoogleData={tripHasGoogle}
             provenance={catalogStatus}
             route

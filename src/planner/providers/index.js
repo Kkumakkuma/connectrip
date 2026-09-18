@@ -11,6 +11,8 @@
 //
 // 지도 컴포넌트 공통 인터페이스 — 어느 제공자를 쓰든 이 props 만 받는다.
 //   center      { lat, lng }            초기 중심. 핀이 있으면 핀 범위가 우선한다.
+//   me          { lat, lng } | null     내 위치(파란 점). 그리기만 하고 시야는 옮기지 않는다.
+//   focus       { lat, lng, n } | null  n 이 바뀔 때마다 그 좌표로 시야를 옮긴다("내 위치" 버튼). 핀이 있어도 옮긴다.
 //   pins        [{ id, lat, lng, label, selected }]
 //   route       boolean                 핀을 순서대로 잇는 선을 그릴지
 //   onLongPress ({ lat, lng }) => void  빈 곳을 길게 눌러 핀을 만들 때

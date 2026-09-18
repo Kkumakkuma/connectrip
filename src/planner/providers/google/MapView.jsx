@@ -30,6 +30,7 @@ if (!MAP_ID_ENV && typeof console !== 'undefined') {
 const FALLBACK_CENTER = { lat: 37.5663, lng: 126.9779 }; // 서울 시청. 위치 권한은 쓰지 않는다(1차 범위 밖).
 const DEFAULT_ZOOM = 13;
 const MAX_FIT_ZOOM = 16;
+const FOCUS_ZOOM = 15; // "내 위치" 로 옮길 때 최소 확대 — 동네가 보이는 정도
 const FIT_PADDING = 40;
 const LONG_PRESS_MS = 600;
 const MOVE_TOLERANCE_PX = 10;
@@ -94,6 +95,23 @@ function FitBounds({ pins, center }) {
       map.setZoom(DEFAULT_ZOOM);
     }
   }, [map, pins, center]);
+
+  return null;
+}
+
+// "내 위치" 버튼 — focus.n 이 바뀔 때마다 그 좌표로 옮긴다(2026-09-18). FitBounds 는 핀이 있으면 center 를
+// 무시하므로, 핀이 있는 일정에서 버튼이 아무 반응이 없었다. 사용자가 직접 누른 이동은 핀 범위보다 이긴다.
+function Focus({ focus }) {
+  const map = useMap();
+  const lastRef = useRef(0);
+
+  useEffect(() => {
+    if (!map || !focus || !isNum(focus.lat) || !isNum(focus.lng)) return;
+    if (focus.n === lastRef.current) return;
+    lastRef.current = focus.n;
+    map.panTo({ lat: focus.lat, lng: focus.lng });
+    map.setZoom(Math.max(map.getZoom() ?? 0, FOCUS_ZOOM));
+  }, [map, focus]);
 
   return null;
 }
@@ -173,6 +191,8 @@ function LongPressLayer({ longPressRef, lastFireRef }) {
 export default function MapView({
   center,
   pins = [],
+  me = null,
+  focus = null,
   route = false,
   onLongPress,
   onPinClick,
@@ -281,7 +301,19 @@ export default function MapView({
           {route && valid.length >= 2 && (
             <Polyline path={valid.map((p) => ({ lat: p.lat, lng: p.lng }))} {...ROUTE_STYLE} />
           )}
+          {me && isNum(me.lat) && isNum(me.lng) && (
+            <AdvancedMarker
+              position={{ lat: me.lat, lng: me.lng }}
+              anchorLeft="-50%"
+              anchorTop="-50%"
+              title="내 위치"
+              zIndex={3}
+            >
+              <span className="ct-me-dot" role="img" aria-label="내 위치" />
+            </AdvancedMarker>
+          )}
           <FitBounds pins={valid} center={center} />
+          <Focus focus={focus} />
           <LongPressLayer longPressRef={longPressRef} lastFireRef={lastFireRef} />
         </GoogleMap>
       </APIProvider>

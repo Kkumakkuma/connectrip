@@ -20,6 +20,7 @@ const FALLBACK_LAT = 37.5663;
 const FALLBACK_LNG = 126.9779;
 const DEFAULT_ZOOM = 13;
 const MAX_FIT_ZOOM = 16;
+const FOCUS_ZOOM = 15; // "내 위치" 로 옮길 때 최소 확대 — 동네가 보이는 정도
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -34,9 +35,21 @@ function pinIcon(label, selected) {
   });
 }
 
+// 내 위치(파란 점). 숫자 없이 작게 — 순번 핀과 헷갈리지 않게.
+function meIcon() {
+  return L.divIcon({
+    className: 'ct-me-icon',
+    html: '<span class="ct-me-dot"></span>',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
 export default function MapView({
   center,
   pins = [],
+  me = null,
+  focus = null,
   route = false,
   onLongPress,
   onPinClick,
@@ -45,6 +58,9 @@ export default function MapView({
   const boxRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
+  const meLayerRef = useRef(null); // 내 위치 점은 핀 레이어와 따로 둔다(핀을 다시 그릴 때 같이 지워지지 않게)
+  const lastFocusRef = useRef(0);
+  const focusRetryRef = useRef(null); // 애니메이션 중이라 버려진 setView 를 moveend 뒤 한 번 더 적용하는 리스너
   // 좌표 구성이 바뀔 때만 시야를 다시 맞춘다 — 핀을 고르기만 해도 지도가 튀면 쓰기 어렵다.
   const lastFitRef = useRef('');
   // 콜백은 ref 로 받는다. deps 에 직접 넣으면 부모가 인라인 함수를 넘길 때마다 지도가 다시 만들어진다.
@@ -75,8 +91,10 @@ export default function MapView({
     L.tileLayer(TILE_URL, { maxZoom: 19, attribution: ATTRIBUTION }).addTo(map);
 
     const group = L.layerGroup().addTo(map);
+    const meGroup = L.layerGroup().addTo(map);
     mapRef.current = map;
     layerRef.current = group;
+    meLayerRef.current = meGroup;
 
     // 길게 누르기 = leaflet 의 contextmenu(모바일 롱탭·마우스 우클릭이 모두 여기로 온다).
     map.on('contextmenu', (event) => {
@@ -95,7 +113,10 @@ export default function MapView({
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
+      meLayerRef.current = null;
       lastFitRef.current = '';
+      lastFocusRef.current = 0;
+      focusRetryRef.current = null;
     };
   }, []);
 
@@ -140,6 +161,41 @@ export default function MapView({
       map.setView([center.lat, center.lng], DEFAULT_ZOOM);
     }
   }, [valid, route, center]);
+
+  // 내 위치 점. 그리기만 하고 시야는 옮기지 않는다.
+  useEffect(() => {
+    const group = meLayerRef.current;
+    if (!group) return;
+    group.clearLayers();
+    if (me && isNum(me.lat) && isNum(me.lng)) {
+      L.marker([me.lat, me.lng], { icon: meIcon(), interactive: false, keyboard: false, alt: '내 위치' }).addTo(group);
+    }
+  }, [me]);
+
+  // "내 위치" 버튼 — focus.n 이 바뀔 때마다 그 좌표로 옮긴다(2026-09-18). 핀 범위 맞춤보다 사용자가 누른 이동이 이긴다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focus || !isNum(focus.lat) || !isNum(focus.lng)) return;
+    if (focus.n === lastFocusRef.current) return;
+    lastFocusRef.current = focus.n;
+    if (focusRetryRef.current) {
+      map.off('moveend', focusRetryRef.current);
+      focusRetryRef.current = null;
+    }
+    const target = L.latLng(focus.lat, focus.lng);
+    const apply = () => map.setView(target, Math.max(map.getZoom(), FOCUS_ZOOM));
+    apply();
+    // leaflet 은 줌 애니메이션 중이면 setView 를 조용히 버린다(_tryAnimatedZoom 이 true 만 돌려줌 — codex 지적).
+    // 적용이 안 됐으면(중심이 아직 멀면) 진행 중인 이동이 끝난 뒤 한 번 더 적용한다. 리스너는 다음 focus·언마운트에서 정리.
+    if (map.getCenter().distanceTo(target) > 5) {
+      const retry = () => {
+        focusRetryRef.current = null;
+        apply();
+      };
+      focusRetryRef.current = retry;
+      map.once('moveend', retry);
+    }
+  }, [focus]);
 
   return (
     // isolate 로 스태킹 컨텍스트를 만든다 — leaflet 내부 pane 의 z-index(400~700)가
