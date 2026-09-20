@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 import { normalizeLoginId, synthEmail } from '../lib/loginId';
 import { resolveNext, rememberNext, nextQuery } from '../lib/safeNext';
 import SEOHead from '../components/SEOHead';
+import { isNativeApp } from '../lib/native';
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -13,6 +14,8 @@ const Signup = () => {
     const location = useLocation();
     const { signIn, isLoggedIn } = useAuth();
     const [mode, setMode] = useState(searchParams.get('mode') === 'login' ? 'login' : 'signup');
+    // '로그인 상태 유지' — 안 켜면 몇 시간 자리를 비웠을 때 자동 로그아웃(AuthContext·sessionPolicy). 앱에서는 표시하지 않는다.
+    const [keepLogin, setKeepLogin] = useState(false);
     // 초대링크(?ref=코드)로 진입 시 유형 선택 후에도 추천코드를 이어서 전달
     const refParam = searchParams.get('ref');
     const refQuery = refParam ? `&ref=${encodeURIComponent(refParam)}` : '';
@@ -68,7 +71,7 @@ const Signup = () => {
         setError('');
         try {
             // Auth 는 아이디를 모른다 — 합성 주소로 로그인한다(화면에는 노출하지 않는다).
-            await signIn(synthEmail(id), password);
+            await signIn(synthEmail(id), password, { keep: keepLogin });
             navigate(resolveNextTarget());
             window.scrollTo(0, 0);
         } catch (err) {
@@ -212,6 +215,18 @@ const Signup = () => {
                                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                             </button>
                                         </div>
+                                        {!isNativeApp() && (
+                                            <label className="flex items-center gap-2 text-sm text-gray-600 select-none cursor-pointer w-fit">
+                                                <input
+                                                    type="checkbox"
+                                                    name="keep_login"
+                                                    checked={keepLogin}
+                                                    onChange={(e) => setKeepLogin(e.target.checked)}
+                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                로그인 상태 유지
+                                            </label>
+                                        )}
                                         <button
                                             type="submit"
                                             disabled={loading}

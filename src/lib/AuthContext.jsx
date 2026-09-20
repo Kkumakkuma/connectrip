@@ -3,6 +3,8 @@ import { supabase } from './supabase';
 import { clearIdentityProof } from './identity';
 import { isSyntheticEmail } from './loginId';
 import { isMissingRpcError } from './profileLoad';
+import { isNativeApp } from './native';
+import { LAST_ACTIVE_KEY, TOUCH_THROTTLE_MS, clearSessionPolicy, getLastActive, isIdleExpired, setKeepLogin, touchActivity } from './sessionPolicy';
 
 const AuthContext = createContext({});
 
@@ -52,6 +54,8 @@ const shouldWaitForSession = () => hasStoredSession() || hasAuthCallbackInUrl();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  // 첫 렌더에 URL 에 인증 토큰이 실려 있었는가(OAuth 복귀·복구 링크). 메인 effect 가 곧 해시를 지우므로 지금 잡아 둔다.
+  const authCallbackRef = useRef(hasAuthCallbackInUrl());
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(shouldWaitForSession);
   // 프로필 조회(get_my_profile RPC)는 네트워크 왕복이라 세션 확인과 분리한다.
@@ -234,6 +238,12 @@ export const AuthProvider = ({ children }) => {
         // 설정 화면으로 보낸다 — 비밀번호 재설정 플로우(2026-07-20 신설).
         // sessionStorage 플래그 = ResetPassword 가 '복구 링크로 온 세션'만 허용하는 근거
         // (일반 로그인 세션의 무검증 비번 변경 차단 — codex 지적)
+        // 방금 성립한 세션에만 활동 시각을 남긴다. 비밀번호 로그인은 signIn() 이 찍고, OAuth 복귀·복구 링크는
+        // 첫 렌더 때 URL 에 인증 토큰이 실려 있었을 때(authCallbackRef)만 SIGNED_IN 에서 찍는다.
+        // ⚠ supabase-js 는 새로고침으로 세션을 '복원'할 때도 SIGNED_IN 을 쏜다(preview E2E 실측) — 거기서 찍으면
+        // 정책 도입 전 세션까지 기록이 생겨 아래 "기록 없음 = 배포 전 세션" 정리가 무력화된다.
+        // TOKEN_REFRESHED 도 같은 이유로 남기지 않는다.
+        if (_event === 'PASSWORD_RECOVERY' || (_event === 'SIGNED_IN' && authCallbackRef.current)) touchActivity();
         if (_event === 'PASSWORD_RECOVERY') {
           try { sessionStorage.setItem('ct_pw_recovery', '1'); } catch { /* 무시 */ }
           if (window.location.pathname !== '/reset-password') {
@@ -286,9 +296,13 @@ export const AuthProvider = ({ children }) => {
   // 가입 함수는 두지 않는다 — 계정 생성은 서버(POST /api/signup)가 증빙(PASS·이메일 OTP)을 검증한 뒤 한다.
   // 브라우저에서 직접 Auth 계정을 만들 수 있으면 남의 아이디의 합성 주소를 선점할 수 있어서다(2026-09-05).
 
-  const signIn = async (email, password) => {
+  // keep: 로그인 폼의 '로그인 상태 유지'. 세션이 저장되기 전에 선택을 기록해야 이번 로그인부터 적용된다(sessionPolicy).
+  const signIn = async (email, password, { keep = false } = {}) => {
+    // 앱은 정책을 적용하지 않으므로 저장값도 '유지'로 맞춘다(웹뷰-브라우저가 스토리지를 공유하는 환경 대비, agy 검토).
+    setKeepLogin(isNativeApp() ? true : keep);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    touchActivity();
     return data;
   };
 
@@ -308,6 +322,7 @@ export const AuthProvider = ({ children }) => {
     // 로컬 세션 먼저 강제 초기화.
     // 진행 중이던 프로필 응답이 뒤늦게 도착해 로그아웃 후 프로필을 되살리지 않게 무효화한다.
     invalidateProfileRequests();
+    clearSessionPolicy(); // 다음 사람이 이전 로그인의 '유지' 선택·활동 시각을 물려받지 않게
     setUser(null);
     setProfile(null);
     setProfileLoading(false);
@@ -319,6 +334,53 @@ export const AuthProvider = ({ children }) => {
       console.error('signOut exception:', err);
     }
   };
+
+  // 비활동 자동 로그아웃 (2026-09-20, 쿠마님 지시 10061 — "몇 시간 자리를 비우면 로그아웃이 돼야지").
+  // '로그인 상태 유지'를 안 켠 세션은 마지막 활동으로부터 IDLE_LIMIT_MS(sessionPolicy) 가 지나면 로컬 로그아웃한다.
+  // 브라우저를 닫아 둔 시간도 활동이 없는 시간이라, 닫았다가 몇 시간 뒤 열면 여기서 풀린다.
+  // 앱(Capacitor)은 로그인이 유지되는 게 관행이라 적용하지 않는다.
+  // signOut 은 렌더마다 새로 만들어지는 함수라 ref 로 최신 것을 잡는다(deps 에 넣으면 매 렌더 재구독).
+  const signOutRef = useRef(null);
+  useEffect(() => { signOutRef.current = signOut; });
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (!userId || isNativeApp()) return undefined;
+    // 활동 기록이 없는 로그인 세션 = 정책 도입 전(배포 전)에 로그인해 둔 것(새 세션은 SIGNED_IN 때 기록된다).
+    // 쿠마님 요구("어제 로그인했으면 풀려야")대로 첫 접속 때 한 번 정리한다. 다만 저장이 안 되는 환경(사생활 모드)이면
+    // 정책을 돌릴 수 없으니 그대로 둔다 — touchActivity() 가 false 를 돌려주는 경우.
+    if (getLastActive() === null) {
+      if (touchActivity()) signOutRef.current?.();
+      return undefined;
+    }
+    let lastTouch = 0;
+    const touch = () => {
+      const now = Date.now();
+      if (now - lastTouch < TOUCH_THROTTLE_MS) return;
+      lastTouch = now;
+      touchActivity(now);
+    };
+    const check = () => { if (isIdleExpired()) signOutRef.current?.(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    // scroll 은 버블링이 안 돼 내부 스크롤 컨테이너를 못 잡는다 → capture 로 잡고, PC 휠 읽기(wheel)도 활동으로 친다(agy 검토).
+    const events = ['pointerdown', 'keydown', 'touchstart', 'scroll', 'wheel'];
+    events.forEach((e) => window.addEventListener(e, touch, { passive: true, capture: true }));
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    window.addEventListener('pageshow', check); // bfcache(뒤로가기 복원)는 마운트·focus 없이 화면만 돌아온다
+    // 다른 탭이 만료로 로그아웃하면 활동 기록이 지워진다 → 이 탭도 바로 판정(supabase 도 토큰 storage 이벤트를 듣지만 한 박자 빠르게)
+    const onStorage = (e) => { if (e.key === LAST_ACTIVE_KEY && !e.newValue) check(); };
+    window.addEventListener('storage', onStorage);
+    const timer = setInterval(check, 60 * 1000); // 탭을 켜 둔 채 자리를 비운 경우
+    check(); // 닫았다가 다시 연 경우 — 첫 렌더에서 바로 판정
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, touch, { capture: true }));
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', check);
+      window.removeEventListener('pageshow', check);
+      window.removeEventListener('storage', onStorage);
+      clearInterval(timer);
+    };
+  }, [userId]);
 
   const updateProfile = async (updates) => {
     if (!user) return;
