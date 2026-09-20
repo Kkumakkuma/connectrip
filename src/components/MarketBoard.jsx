@@ -1,7 +1,7 @@
 import { displayAuthor } from '../lib/authorName';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ShoppingBag, Heart, Gift, MapPin, Plus, Search, Users } from 'lucide-react';
+import { ShoppingBag, Heart, Gift, MapPin, Plus, PackageSearch, Users } from 'lucide-react';
 import MarketFeed from './MarketFeed';
 import MarketListingForm from './MarketListingForm';
 import Pagination from './Pagination';
@@ -24,7 +24,8 @@ import ListState from './ListState';
 
 const TABS = [
     { id: 'sell', label: '물품팔아요', icon: ShoppingBag },
-    { id: 'buy', label: '물품구해요', icon: Search },
+    // 돋보기(Search)는 바로 옆 검색창과 같은 모양이라 헷갈렸다(2026-09-20 쿠마님 캡처) → 물건을 찾는 PackageSearch.
+    { id: 'buy', label: '물품구해요', icon: PackageSearch },
     { id: 'share', label: '무료 나눔', icon: Gift },
     { id: 'groupbuy', label: '공동구매', icon: Users },
 ];
