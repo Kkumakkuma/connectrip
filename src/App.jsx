@@ -16,6 +16,7 @@ import AnalyticsTracker from './components/AnalyticsTracker';
 import Footer from './components/Footer';
 import AppSplash from './components/AppSplash'; // 앱 오프닝 모션(웹 no-op)
 import { isNativeApp } from './lib/native';
+import PushBridge from './components/PushBridge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, Loader2 } from 'lucide-react';
 
@@ -248,6 +249,7 @@ function App() {
       <ProfileCompleteGate />
       <RouteResetGuard />
       <AnalyticsTracker />
+      <PushBridge />
       <div className="App">
         <Navbar />
         {/* 승무원 인증 만료 임박·만료 안내(해당자에게만 렌더). 없으면 요소 자체가 없어 기존 레이아웃 그대로다. */}

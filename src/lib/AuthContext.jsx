@@ -4,6 +4,7 @@ import { clearIdentityProof } from './identity';
 import { isSyntheticEmail } from './loginId';
 import { isMissingRpcError } from './profileLoad';
 import { isNativeApp } from './native';
+import { unregisterPush } from './push';
 import { LAST_ACTIVE_KEY, TOUCH_THROTTLE_MS, clearSessionPolicy, getLastActive, isIdleExpired, setKeepLogin, touchActivity } from './sessionPolicy';
 
 const AuthContext = createContext({});
@@ -328,6 +329,8 @@ export const AuthProvider = ({ children }) => {
     setProfileLoading(false);
     setProfileError(false);
     try {
+      // 앱: 이 기기의 푸시 토큰을 서버에서 지운다 — RPC 가 세션을 쓰므로 auth.signOut 전에. 3초 상한(로그아웃을 막지 않게).
+      if (isNativeApp()) await Promise.race([unregisterPush(), new Promise((r) => setTimeout(r, 3000))]);
       const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) console.error('signOut error:', error.message);
     } catch (err) {
