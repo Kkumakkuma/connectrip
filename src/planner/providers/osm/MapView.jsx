@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { ROUTE_HALO, dashArrayFor, legendEntries, routeSegments } from '../../lib/routeStyle';
-import RouteLegend from '../RouteLegend';
+import { ROUTE_HALO, dashArrayFor, routeSegments } from '../../lib/routeStyle';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -60,7 +59,6 @@ export default function MapView({
 }) {
   const boxRef = useRef(null);
   const segments = useMemo(() => (route ? routeSegments(pins, legs) : []), [route, pins, legs]);
-  const legend = useMemo(() => legendEntries(segments), [segments]);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const meLayerRef = useRef(null); // 내 위치 점은 핀 레이어와 따로 둔다(핀을 다시 그릴 때 같이 지워지지 않게)
@@ -207,15 +205,11 @@ export default function MapView({
   return (
     // isolate 로 스태킹 컨텍스트를 만든다 — leaflet 내부 pane 의 z-index(400~700)가
     // 바텀시트(z-70)·토스트(z-80) 위로 올라오지 않게 가둔다.
-    // Leaflet 이 boxRef 안을 통째로 쓰므로 범례는 바깥 래퍼에 얹는다(래퍼가 크기·테두리, 지도 div 가 그 안을 채움).
-    <div className={`relative isolate ${className}`}>
-      <div
-        ref={boxRef}
-        className="absolute inset-0"
-        role="application"
-        aria-label="여행 일정 지도"
-      />
-      <RouteLegend entries={legend} />
-    </div>
+    <div
+      ref={boxRef}
+      className={`isolate ${className}`}
+      role="application"
+      aria-label="여행 일정 지도"
+    />
   );
 }

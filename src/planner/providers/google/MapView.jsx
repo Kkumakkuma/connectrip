@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { APIProvider, AdvancedMarker, Map as GoogleMap, Polyline, useMap } from '@vis.gl/react-google-maps';
-import { ROUTE_HALO, legendEntries, routeSegments } from '../../lib/routeStyle';
-import RouteLegend from '../RouteLegend';
+import { ROUTE_HALO, routeSegments } from '../../lib/routeStyle';
 import MapNotice from '../MapNotice';
 
 // 구글 지도 (설계 §4, 2026-09-05 구현 — 교차검토 v2 반영). providers/index.js 의 공통 인터페이스를 그대로 구현한다.
@@ -201,7 +200,6 @@ export default function MapView({
   className = '',
 }) {
   const segments = useMemo(() => (route ? routeSegments(pins, legs) : []), [route, pins, legs]);
-  const legend = useMemo(() => legendEntries(segments), [segments]);
   // 콜백은 ref 로 받는다. 부모가 인라인 함수를 넘겨도 지도가 다시 만들어지지 않게(OSM 과 같다).
   const longPressRef = useRef(onLongPress);
   const pinClickRef = useRef(onPinClick);
@@ -260,7 +258,7 @@ export default function MapView({
 
   return (
     // isolate: 구글 지도 내부 요소의 z-index 가 바텀시트(z-70)·토스트(z-80) 위로 올라오지 않게 가둔다.
-    <div className={`relative isolate ${className}`} role="application" aria-label="여행 일정 지도">
+    <div className={`isolate ${className}`} role="application" aria-label="여행 일정 지도">
       <APIProvider
         apiKey={BROWSER_KEY}
         language="ko"
@@ -324,7 +322,6 @@ export default function MapView({
           <LongPressLayer longPressRef={longPressRef} lastFireRef={lastFireRef} />
         </GoogleMap>
       </APIProvider>
-      <RouteLegend entries={legend} />
     </div>
   );
 }

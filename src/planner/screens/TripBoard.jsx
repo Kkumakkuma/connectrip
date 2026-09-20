@@ -9,6 +9,8 @@ import Card from '../kit/Card';
 import EmptyState from '../kit/EmptyState';
 import { ToastStack } from '../kit/Toast';
 import MapSurface from '../providers/MapSurface';
+import RouteLegend from '../providers/RouteLegend';
+import { legendEntries, routeSegments } from '../lib/routeStyle';
 import { canLocate, getMyLocation } from '../lib/myLocation';
 import SourceAttribution from '../providers/SourceAttribution';
 import DayTabs, { UNASSIGNED_ID } from './board/DayTabs';
@@ -414,6 +416,9 @@ export default function TripBoard() {
     [dayPlaces, selectedPlaceId, catalog]
   );
 
+  // 지도 아래 범례 — 실제로 그려진 이동수단만(routeStyle). 지도 안에 두면 구글 로고·하단 액션바에 가려진다(2026-09-20 실측).
+  const routeLegend = useMemo(() => legendEntries(routeSegments(pins, legs)), [pins, legs]);
+
   // 여행 전체(모든 날짜·보관함)에 구글 출처 핀이 있는지. MapSurface 의 역방향 가드가 본다.
   const tripHasGoogle = useMemo(
     () => places.some((p) => p.catalog_id && catalog.get(p.catalog_id)?.provider === 'google'),
@@ -809,6 +814,7 @@ export default function TripBoard() {
               setSheet('add');
             }}
           />
+          <RouteLegend entries={routeLegend} />
           <p className="mt-2 text-xs text-muted">
             찾는 곳이 검색에 없으면 지도에서 그 자리를 길게 눌러 담으세요.
           </p>
