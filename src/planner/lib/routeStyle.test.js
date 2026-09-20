@@ -43,6 +43,23 @@ describe('routeStyle', () => {
     expect(seg[0].mode).toBe('WALK'); expect(seg[1].mode).toBeNull();
   });
 
+  it('구글 경로 좌표(polyline)가 있는 구간은 실제 길로, 없거나 깨졌으면 직선으로 그린다', () => {
+    const pins = [{ id: 'a', lat: 38.5, lng: -120.2 }, { id: 'b', lat: 43.252, lng: -126.453 }, { id: 'c', lat: 44, lng: -127 }];
+    // 구글 문서 예시 벡터: (38.5,-120.2) (40.7,-120.95) (43.252,-126.453)
+    const legs = [{ mode: 'WALK', polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' }, { mode: 'TRANSIT', polyline: '가나' }];
+    const [s1, s2] = routeSegments(pins, legs);
+    expect(s1.real).toBe(true);
+    expect(s1.path[0]).toEqual({ lat: 38.5, lng: -120.2 });                  // 양 끝은 핀 좌표로 닫는다
+    expect(s1.path[s1.path.length - 1]).toEqual({ lat: 43.252, lng: -126.453 });
+    expect(s1.path).toHaveLength(5);
+    expect(s1.path[2]).toEqual({ lat: 40.7, lng: -120.95 });
+    expect(s2.real).toBe(false);
+    expect(s2.path).toEqual([{ lat: 43.252, lng: -126.453 }, { lat: 44, lng: -127 }]);
+    const [s3] = routeSegments(pins.slice(0, 2), [{ mode: 'WALK' }]);        // polyline 없음 → 직선
+    expect(s3.real).toBe(false);
+    expect(s3.path).toHaveLength(2);
+  });
+
   it('범례는 실제로 그려진 모드만, 표 순서대로', () => {
     const seg = routeSegments([P(1, 1), P(2, 2), P(3, 3), P(4, 4)], [{ mode: 'TRANSIT' }, { mode: 'WALK' }, { mode: 'TRANSIT' }]);
     expect(legendEntries(seg).map((e) => e.mode)).toEqual(['WALK', 'TRANSIT']);

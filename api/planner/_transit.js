@@ -68,6 +68,7 @@ export function summarizeTransitSteps(route) {
 export const TRANSIT_FIELD_MASK = [
   'routes.duration',
   'routes.distanceMeters',
+  'routes.polyline.encodedPolyline',   // 지도에 실제 길을 그린다(2026-09-20 쿠마님: "걷는 경로인데 왜 직선이냐")
   'routes.legs.steps.travelMode',
   'routes.legs.steps.staticDuration',
   'routes.legs.steps.transitDetails.stopCount',

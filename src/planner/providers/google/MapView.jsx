@@ -301,10 +301,10 @@ export default function MapView({
             );
           })}
           {segments.map((s) => (
-            <Polyline key={`${s.key}-halo`} path={[s.a, s.b]} zIndex={1} {...routeProps(s.style, true)} />
+            <Polyline key={`${s.key}-halo`} path={s.path} zIndex={1} {...routeProps(s.style, true)} />
           ))}
           {segments.map((s) => (
-            <Polyline key={s.key} path={[s.a, s.b]} zIndex={2} {...routeProps(s.style)} />
+            <Polyline key={s.key} path={s.path} zIndex={2} {...routeProps(s.style)} />
           ))}
           {me && isNum(me.lat) && isNum(me.lng) && (
             <AdvancedMarker

@@ -1,7 +1,7 @@
 // 저장된 이동시간(legs) 정규화 — 서버 스냅샷은 `day.legs = items 배열`, 로컬 스냅샷·보드는 `{v, mode, fp, items}` 봉투를 쓴다
 // (codex 9/6: 공유 응답의 배열형이 SnapshotView 에서 통째로 사라지던 문제). 순수 함수(vitest).
 
-export const LEGS_VERSION = 2;   // 2 = 대중교통 구간에 steps(노선·정류장 요약) 포함(2026-09-06)
+export const LEGS_VERSION = 3;   // 2 = 대중교통 구간에 steps(노선·정류장 요약) 포함(2026-09-06), 3 = 구글 구간에 경로 좌표 polyline(2026-09-20)
 
 /** 배열형·봉투형 모두 items 배열로. 아니면 빈 배열. */
 export function legItems(legs) {
@@ -30,12 +30,11 @@ export function normalizeLegs(legs, placeCount) {
   return legsValid(items, n) ? { items, stale: false } : { items, stale: true };
 }
 
-/** 저장된 legs 가 최신 형식인가. v2 미만인데 구글이 준 대중교통 구간이 있으면 한 번 다시 계산할 대상(추정·도보만이면 그대로). */
+/** 저장된 legs 가 최신 형식인가. 구버전인데 구글(캐시)이 준 구간이 있으면 한 번 다시 계산할 대상(경로 좌표·요약을 채운다). 추정만이면 그대로. */
 export function legsCurrent(legs) {
   if (!legs || typeof legs !== 'object' || Array.isArray(legs)) return false;
   if (Number(legs.v) >= LEGS_VERSION) return true;
-  const items = legItems(legs);
-  return !items.some((it) => it?.mode === 'TRANSIT' && it?.source && it.source !== 'estimate');
+  return !legItems(legs).some((it) => it?.source === 'google' || it?.source === 'cache');
 }
 
 /** 구간 출처에 구글이 있는가(지도 없는 화면의 출처 표시용). */

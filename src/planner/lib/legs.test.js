@@ -30,10 +30,12 @@ describe('legItems / normalizeLegs', () => {
 });
 
 describe('legsCurrent', () => {
-  it('v2 는 최신, 구버전은 구글 대중교통 구간이 있을 때만 재계산 대상', () => {
-    expect(legsCurrent({ v: 2, items: items3 })).toBe(true);
+  it('v3 는 최신, 구버전은 구글(캐시) 구간이 있을 때만 재계산 대상(경로 좌표를 채운다)', () => {
+    expect(legsCurrent({ v: 3, items: items3 })).toBe(true);
+    expect(legsCurrent({ v: 2, items: items3 })).toBe(false);      // v2 에 구글 구간 → 경로 좌표 채우러 재계산
     expect(legsCurrent({ items: items3 })).toBe(false);            // cache TRANSIT 있음 → 재계산
-    expect(legsCurrent({ items: [items3[0], items3[2]] })).toBe(true);   // 도보·추정만 → 그대로
+    expect(legsCurrent({ v: 2, items: [items3[0]] })).toBe(false); // 구글 도보도 재계산(직선 → 실제 길)
+    expect(legsCurrent({ v: 2, items: [items3[2]] })).toBe(true);  // 추정만 → 그대로
     expect(legsCurrent({ items: [{ ...items3[1], source: 'estimate' }] })).toBe(true);
     expect(legsCurrent(null)).toBe(false);
     expect(legsCurrent(items3)).toBe(false);

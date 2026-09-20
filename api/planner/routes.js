@@ -25,13 +25,19 @@ import { fail, fetchWithTimeout, gate, pickProvider, sha256, googleServerKey } f
 // 화면과 같은 추정식을 쓰려고 그대로 가져온다. 브라우저 의존이 없는 순수 모듈이다.
 import { estimateLeg, haversineMeters, pickMode } from '../../src/planner/lib/travelTime.js';
 import { TRANSIT_FIELD_MASK, summarizeTransitSteps } from './_transit.js';
-import { LEGS_VERSION } from '../../src/planner/lib/legs.js';   // 2 = 대중교통 구간에 steps(노선·정류장 요약) 포함(2026-09-06)
+import { LEGS_VERSION } from '../../src/planner/lib/legs.js';   // 3 = 구글 구간에 경로 좌표 polyline 포함(2026-09-20)
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_LEGS = 30; // 좌표 쌍 모드 상한
 const MAX_DAY_PINS = 200; // 날짜 모드: 여행당 핀 상한과 같다
 const MODES = ['WALK', 'DRIVE', 'TRANSIT'];
 const GOOGLE_ROUTES = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+// 도보·차량 필드마스크. polyline 은 지도에 실제 길을 그리기 위한 것(2026-09-20 쿠마님: "걷는 경로인데 왜 직선이냐") — 같은 Essentials SKU.
+const BASIC_FIELD_MASK = 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline';
+// 인코딩 폴리라인 길이 상한. 시내 한 구간은 수백~수천 자다. 넘치면 저장하지 않고 직선으로 그린다(planner_days.legs 비대화 방지).
+const MAX_POLYLINE = 8000;
+// 하루(planner_days.legs) 에 싣는 경로 좌표 총량 상한. 넘치면 긴 구간부터 좌표를 떼고 직선으로 둔다(2차 방어선 — agy 검토).
+const DAY_POLYLINE_BUDGET = 60000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // 대중교통 출발 시각. "지금" 기준으로 물으면 서버 시각이 한밤일 때(한국 밤 = 일본·한국 막차 뒤) 구글이 경로를 못 주고
@@ -86,7 +92,7 @@ async function googleRoute(from, to, mode, departureTime = null) {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': key,
-        'X-Goog-FieldMask': mode === 'TRANSIT' ? TRANSIT_FIELD_MASK : 'routes.duration,routes.distanceMeters',
+        'X-Goog-FieldMask': mode === 'TRANSIT' ? TRANSIT_FIELD_MASK : BASIC_FIELD_MASK,
       },
       body: JSON.stringify({
         origin: { location: { latLng: { latitude: from.lat, longitude: from.lng } } },
@@ -114,6 +120,9 @@ async function googleRoute(from, to, mode, departureTime = null) {
     const meters = Number(route.distanceMeters);
     if (!Number.isFinite(seconds) || !Number.isFinite(meters)) return null;
     const leg = { mode, duration_s: Math.round(seconds), distance_m: Math.round(meters), source: 'google' };
+    // 실제 길 좌표(구글 인코딩 폴리라인). 화면이 src/planner/lib/polyline.js 로 풀어 그린다. 없거나 너무 길면 직선.
+    const encoded = route?.polyline?.encodedPolyline;
+    if (typeof encoded === 'string' && encoded.length > 0 && encoded.length <= MAX_POLYLINE) leg.polyline = encoded;
     if (mode === 'TRANSIT') {
       const steps = summarizeTransitSteps(route);
       if (steps) leg.steps = steps;   // 도보만인 경로(구글이 대중교통 없이 답한 경우)는 요약 없음
@@ -136,7 +145,7 @@ async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, 
 
   const { data: cached, error: cacheErr } = await supabase
     .from('planner_route_cache')
-    .select('mode, duration_s, distance_m, steps, fetched_at')
+    .select('mode, duration_s, distance_m, steps, polyline, fetched_at')
     .eq('key_hash', hash)
     .maybeSingle();
   if (cacheErr) return estimate(from, to, mode);
@@ -146,14 +155,22 @@ async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, 
   const cacheLeg = () => {
     const leg = { mode: cached.mode, duration_s: cached.duration_s, distance_m: cached.distance_m, source: 'cache' };
     if (Array.isArray(cached.steps)) leg.steps = cached.steps;   // [] 도 그대로("대중교통 없음 확정", agy 9/6)
+    if (typeof cached.polyline === 'string' && cached.polyline) leg.polyline = cached.polyline;   // '' = 구글이 선을 안 준 것으로 확정
     return leg;
   };
-  const legacyTransit = mode === 'TRANSIT' && cacheFresh && cached.steps == null && googleOpen;
-  if (cacheFresh && !legacyTransit) return cacheLeg();
+  // 옛 캐시(경로 좌표 NULL, 또는 대중교통인데 요약 NULL)는 미스로 본다 — 한 번만 구글을 다시 불러 채운다. 새 조회는 없을 때 ''/[] 로 저장돼 다시 안 부른다.
+  const legacy = cacheFresh && googleOpen && (cached.polyline == null || (mode === 'TRANSIT' && cached.steps == null));
+  if (cacheFresh && !legacy) return cacheLeg();
 
   let leg = googleOpen && !clientGone() ? await googleRoute(from, to, mode, departureTime) : null;
-  // 옛 캐시(요약 없음)를 채우려던 재조회가 실패하면 유효한 캐시값으로 돌아간다 — 추정치로 낮추거나 매번 재조회하지 않는다(agy 9/6)
-  if (!leg && legacyTransit) return cacheLeg();
+  // 옛 캐시를 채우려던 재조회가 실패하면 유효한 캐시값으로 돌아간다 — 추정치로 낮추지 않는다(agy 9/6).
+  // 경로 좌표는 '' 로 확정해 둔다: 요청마다 구글을 다시 부르는 일이 없게(agy 9/20). 30일 TTL 뒤 정상 재조회 때 채워진다.
+  if (!leg && legacy) {
+    if (cached.polyline == null) {
+      try { await supabase.from('planner_route_cache').update({ polyline: '' }).eq('key_hash', hash); } catch { /* 다음 요청에 다시 */ }
+    }
+    return cacheLeg();
+  }
   // 구글이 답을 못 주면(한국의 자동차·도보처럼) 추정으로 떨어진다. 결함이 아니다.
   if (!leg) leg = estimate(from, to, mode);
 
@@ -166,10 +183,28 @@ async function computeLeg(supabase, { provider, googleOpen, clientGone }, from, 
       distance_m: leg.distance_m,
       // 대중교통 요약. 구글이 도보만 답한 구간은 빈 배열로 남겨 "요약 없음이 확정" 임을 표시(옛 캐시 NULL 과 구분 → 재조회 안 함)
       steps: leg.mode === 'TRANSIT' ? (leg.steps || []) : null,
+      polyline: leg.polyline || '',   // 구글이 선을 안 준 구간은 '' 로 "없음 확정"(옛 캐시 NULL 과 구분 → 재조회 안 함)
       fetched_at: new Date().toISOString(),
     });
   }
   return leg;
+}
+
+// 하루 legs 의 경로 좌표 총량이 상한을 넘으면 긴 구간부터 좌표를 뗀다(그 구간은 직선). 캐시에는 그대로 있어 다음에 다시 쓸 수 있다.
+export function trimPolylines(items, budget = DAY_POLYLINE_BUDGET) {
+  let total = 0;
+  for (const it of items) total += typeof it.polyline === 'string' ? it.polyline.length : 0;
+  if (total <= budget) return items;
+  const order = items
+    .map((it, i) => ({ i, n: typeof it.polyline === 'string' ? it.polyline.length : 0 }))
+    .filter((x) => x.n > 0)
+    .sort((x, y) => y.n - x.n || x.i - y.i);
+  for (const { i, n } of order) {
+    if (total <= budget) break;
+    delete items[i].polyline;
+    total -= n;
+  }
+  return items;
 }
 
 async function dayFingerprint(supabase, dayId) {
@@ -216,6 +251,7 @@ async function handleDay(req, res, supabase, ctx, provider, cfg, dayId, requeste
       : { mode, duration_s: 0, distance_m: 0, source: 'estimate' };
     items.push({ from: i, to: i + 1, ...leg });
   }
+  trimPolylines(items);
 
   // 저장은 DB 함수가 원자적으로 한다: 날짜 행을 잠그고 지문을 다시 읽어 계산 시작 때와 같을 때만 쓴다.
   // (지문 확인과 UPDATE 를 따로 하면 그 사이 핀이 바뀌었을 때 옛 legs 가 트리거의 NULL 을 덮어쓴다 — codex·agy 지적)

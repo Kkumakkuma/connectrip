@@ -32,7 +32,7 @@ function queryOf({ list = { data: [], error: null }, single = { data: null, erro
   return b;
 }
 
-function fakeSupabase({ cacheError = null, day = { id: DAY, user_id: 'u1' }, pins = PINS, fp = 'fp1', saveResult = true, saveError = null } = {}) {
+function fakeSupabase({ cacheError = null, cacheRow = null, day = { id: DAY, user_id: 'u1' }, pins = PINS, fp = 'fp1', saveResult = true, saveError = null } = {}) {
   const calls = [];
   return {
     calls,
@@ -47,11 +47,12 @@ function fakeSupabase({ cacheError = null, day = { id: DAY, user_id: 'u1' }, pin
       let q;
       if (table === 'planner_days') q = queryOf({ single: { data: day, error: null } });
       else if (table === 'planner_places') q = queryOf({ list: { data: pins, error: null } });
-      else q = queryOf({ single: { data: null, error: cacheError } });
+      else q = queryOf({ single: { data: cacheRow, error: cacheError } });
       q.upsert = async (row) => {
         calls.push({ type: 'upsert', table, row });
         return { error: null };
       };
+      q.update = (row) => ({ eq: async (col, val) => { calls.push({ type: 'update', table, row, col, val }); return { error: null }; } });
       return q;
     },
   };
@@ -191,8 +192,78 @@ describe('좌표 쌍 모드(옛 호환) — 구글 제공자', () => {
     expect(res.body.legs[0]).toMatchObject({ duration_s: 120, distance_m: 500 });
     expect(rpcCalls(sb)).toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][1].headers['X-Goog-FieldMask']).toBe('routes.duration,routes.distanceMeters');
-    expect(sb.calls.filter((c) => c.type === 'upsert' && c.table === 'planner_route_cache')).toHaveLength(2);
+    expect(fetchMock.mock.calls[0][1].headers['X-Goog-FieldMask']).toBe('routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline');
+    const ups = sb.calls.filter((c) => c.type === 'upsert' && c.table === 'planner_route_cache');
+    expect(ups).toHaveLength(2);
+    expect(ups[0].row.polyline).toBe('');   // 구글이 선을 안 준 구간은 '' 로 "없음 확정"
+    expect(res.body.legs[0].polyline).toBeUndefined();
+  });
+
+  it('구글이 준 경로 좌표(polyline)는 응답과 캐시에 함께 싣고, 너무 길면 버린다', async () => {
+    const sb = fakeSupabase();
+    const handler = await load({ provider: 'google', supabase: sb });
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ routes: [{ duration: '120s', distanceMeters: 500, polyline: { encodedPolyline: '_p~iF~ps|U_ulLnnqC' } }] }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ routes: [{ duration: '60s', distanceMeters: 100, polyline: { encodedPolyline: 'x'.repeat(8001) } }] }) });
+    const res = mockRes();
+    await handler(post({ legs: [leg(0), leg(1)], mode: 'WALK' }), res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.legs[0].polyline).toBe('_p~iF~ps|U_ulLnnqC');
+    expect(res.body.legs[1].polyline).toBeUndefined();
+    const ups = sb.calls.filter((c) => c.type === 'upsert' && c.table === 'planner_route_cache');
+    expect(ups[0].row.polyline).toBe('_p~iF~ps|U_ulLnnqC');
+    expect(ups[1].row.polyline).toBe('');
+  });
+
+  it('대중교통 필드마스크에도 경로 좌표가 들어 있다', async () => {
+    const { TRANSIT_FIELD_MASK } = await import('./_transit.js');
+    expect(TRANSIT_FIELD_MASK.split(',')).toContain('routes.polyline.encodedPolyline');
+  });
+
+  it('하루 legs 의 경로 좌표 총량이 상한을 넘으면 긴 구간부터 떼어 직선으로 둔다(캐시·응답 duration 은 그대로)', async () => {
+    const { trimPolylines } = await import('./routes.js');
+    const items = [
+      { from: 0, to: 1, polyline: 'a'.repeat(30000) },
+      { from: 1, to: 2, polyline: 'b'.repeat(25000) },
+      { from: 2, to: 3 },
+      { from: 3, to: 4, polyline: 'c'.repeat(10000) },
+    ];
+    trimPolylines(items, 60000);
+    expect(items[0].polyline).toBeUndefined();          // 가장 긴 것부터
+    expect(items[1].polyline).toHaveLength(25000);
+    expect(items[3].polyline).toHaveLength(10000);
+    const small = [{ from: 0, to: 1, polyline: 'a'.repeat(100) }];
+    trimPolylines(small, 60000);
+    expect(small[0].polyline).toHaveLength(100);        // 상한 안이면 손대지 않는다
+  });
+
+  it('캐시: 경로 좌표가 NULL 인 옛 캐시는 한 번 구글을 다시 부르고, 재조회 실패면 캐시값 그대로; 채워진 캐시는 호출 없이 polyline 포함', async () => {
+    const fresh = new Date().toISOString();
+    // 옛 캐시(polyline NULL) + 구글 실패 → 캐시값으로
+    let sb = fakeSupabase({ cacheRow: { mode: 'WALK', duration_s: 90, distance_m: 300, steps: null, polyline: null, fetched_at: fresh } });
+    let handler = await load({ provider: 'google', supabase: sb });
+    fetchMock.mockResolvedValue({ ok: false, status: 500, text: async () => 'boom' });
+    let res = mockRes();
+    await handler(post({ legs: [leg(0)], mode: 'WALK' }), res);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(res.body.legs[0]).toMatchObject({ source: 'cache', duration_s: 90 });
+    expect(res.body.legs[0].polyline).toBeUndefined();
+    // 재조회 실패 → 캐시 polyline 을 '' 로 확정(다음 요청부터 구글을 다시 안 부른다)
+    expect(sb.calls.find((c) => c.type === 'update' && c.table === 'planner_route_cache')).toMatchObject({ row: { polyline: '' }, col: 'key_hash' });
+    // 채워진 캐시('' 포함) → 구글 호출 없음
+    fetchMock.mockClear();
+    sb = fakeSupabase({ cacheRow: { mode: 'WALK', duration_s: 90, distance_m: 300, steps: null, polyline: '_p~iF~ps|U', fetched_at: fresh } });
+    handler = await load({ provider: 'google', supabase: sb });
+    res = mockRes();
+    await handler(post({ legs: [leg(0)], mode: 'WALK' }), res);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.body.legs[0]).toMatchObject({ source: 'cache', polyline: '_p~iF~ps|U' });
+    sb = fakeSupabase({ cacheRow: { mode: 'WALK', duration_s: 90, distance_m: 300, steps: null, polyline: '', fetched_at: fresh } });
+    handler = await load({ provider: 'google', supabase: sb });
+    res = mockRes();
+    await handler(post({ legs: [leg(0)], mode: 'WALK' }), res);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.body.legs[0].polyline).toBeUndefined();
   });
 
   it('캐시 조회 오류 구간은 호출 없이 추정치(fail-closed)', async () => {

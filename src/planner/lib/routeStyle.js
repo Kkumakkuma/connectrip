@@ -1,4 +1,5 @@
 import { TRAVEL_ASSUMPTIONS } from './travelTime';
+import { decodePolyline } from './polyline';
 
 // 지도 경로 색 (2026-09-20, 쿠마님 10067: "도보나 교통으로 나오는 거 색을 구분해서 알아볼 수 있게").
 // 두 지도 제공자(google/osm)·범례·핀 목록 구간 줄이 전부 이 표를 읽는다. 순수 함수(vitest).
@@ -24,7 +25,8 @@ export const dashArrayFor = (dash) => (dash === 'short' ? '6 6' : dash === 'long
  * 핀 배열(원래 순서, 좌표 없는 핀 포함)과 legs(핀 i→i+1)를 받아 그릴 구간 목록을 만든다.
  * 좌표가 없는 핀은 건너뛰고 앞뒤 좌표 있는 핀을 잇는다(기존 동작). 건너뛴 구간은 도보·대중교통이 섞였을 수 있어
  * 모드를 단정하지 않고 기본 스타일로 둔다(agy 검토). key 는 핀 id 기반 — 순서를 끌어 바꿔도 다른 구간이 같은 key 를 안 갖는다.
- * 반환: [{ key, a:{lat,lng}, b:{lat,lng}, mode, style }]
+ * path: 구글이 준 경로 좌표(legs[i].polyline)가 있으면 실제 길(양 끝은 핀 좌표로 닫는다), 없으면 직선 [a, b](추정 구간·옛 저장분).
+ * 반환: [{ key, a:{lat,lng}, b:{lat,lng}, path:[{lat,lng}...], real, mode, style }]
  */
 export function routeSegments(pins, legs) {
   const list = Array.isArray(pins) ? pins : [];
@@ -35,11 +37,18 @@ export function routeSegments(pins, legs) {
   for (let i = 0; i < list.length; i += 1) {
     if (!ok(list[i])) continue;
     if (prev >= 0) {
-      const mode = i - prev === 1 ? items[prev]?.mode || null : null;
+      const leg = i - prev === 1 ? items[prev] : null;
+      const mode = leg?.mode || null;
+      const a = { lat: list[prev].lat, lng: list[prev].lng };
+      const b = { lat: list[i].lat, lng: list[i].lng };
+      const pts = leg && typeof leg.polyline === 'string' ? decodePolyline(leg.polyline) : [];
+      const real = pts.length >= 2;
       out.push({
         key: `${list[prev].id ?? prev}-${list[i].id ?? i}`,
-        a: { lat: list[prev].lat, lng: list[prev].lng },
-        b: { lat: list[i].lat, lng: list[i].lng },
+        a,
+        b,
+        path: real ? [a, ...pts, b] : [a, b],
+        real,
         mode,
         style: routeStyleFor(mode),
       });

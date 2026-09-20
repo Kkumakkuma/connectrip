@@ -145,7 +145,7 @@ export default function MapView({
     // 구간마다 이동수단 색(routeStyle): 도보 초록 짧은 점선, 대중교통 파랑 실선, 차량 주황 긴 점선(2026-09-20 쿠마님).
     // 흰 외곽선(halo)을 먼저 깔아 공원·강 타일 위에서도 보이게 한다(agy 검토).
     segments.forEach((s) => {
-      const line = [[s.a.lat, s.a.lng], [s.b.lat, s.b.lng]];
+      const line = s.path.map((p) => [p.lat, p.lng]);   // 구글 경로 좌표가 있으면 실제 길, 없으면 직선(routeStyle)
       const dashArray = dashArrayFor(s.style.dash);
       L.polyline(line, { color: ROUTE_HALO, weight: s.style.dash ? 6 : 7, opacity: 0.9, dashArray }).addTo(group);
       L.polyline(line, { color: s.style.color, weight: s.style.dash ? 3 : 4, opacity: 0.9, dashArray }).addTo(group);

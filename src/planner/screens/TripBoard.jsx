@@ -362,6 +362,7 @@ export default function TripBoard() {
         distance_m: Number.isFinite(Number(it.distance_m)) ? Number(it.distance_m) : est?.distance_m ?? 0,
         source: it.source || 'estimate',
         ...(Array.isArray(it.steps) ? { steps: it.steps } : {}),   // 대중교통 요약(2026-09-06) — 화면까지 전달(codex)
+        ...(typeof it.polyline === 'string' && it.polyline ? { polyline: it.polyline } : {}),   // 실제 길 좌표(2026-09-20) — 지도가 그린다
       };
     });
   }, [orderDirty, activeDay, estimatedLegs]);
