@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { APIProvider, AdvancedMarker, Map as GoogleMap, Polyline, useMap } from '@vis.gl/react-google-maps';
+import { ROUTE_HALO, legendEntries, routeSegments } from '../../lib/routeStyle';
+import RouteLegend from '../RouteLegend';
 import MapNotice from '../MapNotice';
 
 // 구글 지도 (설계 §4, 2026-09-05 구현 — 교차검토 v2 반영). providers/index.js 의 공통 인터페이스를 그대로 구현한다.
@@ -35,18 +37,17 @@ const FIT_PADDING = 40;
 const LONG_PRESS_MS = 600;
 const MOVE_TOLERANCE_PX = 10;
 const DEDUPE_MS = 1000;
-// OSM 과 같은 점선 경로. 본선은 투명하게 두고 icons 로 점선을 찍는다(구글 Polyline 의 표준 점선 기법).
-const ROUTE_STYLE = {
-  strokeColor: '#1A56DB',
-  strokeOpacity: 0,
-  strokeWeight: 3,
-  icons: [
-    {
-      icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.65, strokeWeight: 3, scale: 3 },
-      offset: '0',
-      repeat: '14px',
-    },
-  ],
+// 경로 선 모양 — 구간마다 이동수단 색(routeStyle). 점선은 본선을 투명하게 두고 icons 로 찍는다(구글 Polyline 의 표준 기법),
+// 실선은 그냥 본선. 흰 외곽선(halo)을 먼저 깔아 공원·강 타일 위에서도 보이게 한다. 2026-09-20 쿠마님: 도보/대중교통 색 구분.
+const dashIcon = (color, weight, dash) => ({
+  strokeColor: color, strokeOpacity: 0, strokeWeight: weight,
+  icons: [{ icon: { path: dash === 'long' ? 'M 0,-2 0,2' : 'M 0,-1 0,1', strokeOpacity: 0.9, strokeWeight: weight, scale: dash === 'long' ? 3 : 3 },
+            offset: '0', repeat: dash === 'long' ? '20px' : '14px' }],
+});
+const routeProps = ({ color, dash }, halo = false) => {
+  const c = halo ? ROUTE_HALO : color;
+  if (dash) return dashIcon(c, halo ? 6 : 3, dash);
+  return { strokeColor: c, strokeOpacity: halo ? 0.9 : 0.9, strokeWeight: halo ? 7 : 4 };
 };
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -194,10 +195,13 @@ export default function MapView({
   me = null,
   focus = null,
   route = false,
+  legs = null,      // [{mode:'WALK'|'TRANSIT'|'DRIVE', ...}] — 핀 i→i+1. 없으면 예전처럼 한 색.
   onLongPress,
   onPinClick,
   className = '',
 }) {
+  const segments = useMemo(() => (route ? routeSegments(pins, legs) : []), [route, pins, legs]);
+  const legend = useMemo(() => legendEntries(segments), [segments]);
   // 콜백은 ref 로 받는다. 부모가 인라인 함수를 넘겨도 지도가 다시 만들어지지 않게(OSM 과 같다).
   const longPressRef = useRef(onLongPress);
   const pinClickRef = useRef(onPinClick);
@@ -256,7 +260,7 @@ export default function MapView({
 
   return (
     // isolate: 구글 지도 내부 요소의 z-index 가 바텀시트(z-70)·토스트(z-80) 위로 올라오지 않게 가둔다.
-    <div className={`isolate ${className}`} role="application" aria-label="여행 일정 지도">
+    <div className={`relative isolate ${className}`} role="application" aria-label="여행 일정 지도">
       <APIProvider
         apiKey={BROWSER_KEY}
         language="ko"
@@ -298,9 +302,12 @@ export default function MapView({
               </AdvancedMarker>
             );
           })}
-          {route && valid.length >= 2 && (
-            <Polyline path={valid.map((p) => ({ lat: p.lat, lng: p.lng }))} {...ROUTE_STYLE} />
-          )}
+          {segments.map((s) => (
+            <Polyline key={`${s.key}-halo`} path={[s.a, s.b]} zIndex={1} {...routeProps(s.style, true)} />
+          ))}
+          {segments.map((s) => (
+            <Polyline key={s.key} path={[s.a, s.b]} zIndex={2} {...routeProps(s.style)} />
+          ))}
           {me && isNum(me.lat) && isNum(me.lng) && (
             <AdvancedMarker
               position={{ lat: me.lat, lng: me.lng }}
@@ -317,6 +324,7 @@ export default function MapView({
           <LongPressLayer longPressRef={longPressRef} lastFireRef={lastFireRef} />
         </GoogleMap>
       </APIProvider>
+      <RouteLegend entries={legend} />
     </div>
   );
 }

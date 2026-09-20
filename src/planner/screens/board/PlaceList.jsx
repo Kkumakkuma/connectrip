@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
 import { ChevronDown, ChevronUp, Clock, GripVertical, MoveRight, TriangleAlert } from 'lucide-react';
 import { hasMoreSteps, transferCount, transitStepsText } from '../../lib/transitText';
+import { routeStyleFor } from '../../lib/routeStyle';
 import Badge from '../../kit/Badge';
 import { formatMoney } from '../../lib/format';
 import { formatClock } from '../../lib/feasibility';
@@ -33,7 +34,9 @@ function LegLine({ leg }) {
   const transfers = transferCount(leg?.steps);
   const more = hasMoreSteps(leg?.steps);   // 12단계 넘어 잘린 경로 — 환승 수는 '이상'으로(agy 9/6)
   const label = `${TRAVEL_ASSUMPTIONS[leg.mode]?.label || '이동'}${!leg.source || leg.source === 'estimate' ? ' 예상' : ''} ${formatDuration(leg.duration_s)} · 약 ${formatDistance(leg.distance_m)}`;
-  if (steps.length === 0) return <span>{label}</span>;
+  // 지도 경로와 같은 색 점 — 목록에서도 어느 구간이 도보/대중교통인지 한눈에(routeStyle, 2026-09-20).
+  const dot = <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 shrink-0 rounded-full align-middle" style={{ background: routeStyleFor(leg.mode).color }} />;
+  if (steps.length === 0) return <span>{dot}{label}</span>;
   return (
     <div className="min-w-0 flex-1">
       <button
@@ -43,7 +46,7 @@ function LegLine({ leg }) {
         onClick={() => setOpen((v) => !v)}
         className="inline-flex max-w-full items-center gap-1 text-left text-xs text-muted"
       >
-        <span className="truncate">{label}{transfers > 0 ? ` · 환승 ${transfers}회${more ? ' 이상' : ''}` : ''}</span>
+        {dot}<span className="truncate">{label}{transfers > 0 ? ` · 환승 ${transfers}회${more ? ' 이상' : ''}` : ''}</span>
         {open ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />}
         <span className="sr-only">{open ? '경로 접기' : '경로 보기'}</span>
       </button>

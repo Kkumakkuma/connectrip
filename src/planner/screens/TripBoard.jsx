@@ -802,6 +802,7 @@ export default function TripBoard() {
             hasGoogleData={tripHasGoogle}
             provenance={catalogStatus}
             route
+            legs={legs}
             onPinClick={openPlace}
             onLongPress={(coords) => {
               setAddSeed(coords);

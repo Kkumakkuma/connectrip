@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { ROUTE_HALO, dashArrayFor, legendEntries, routeSegments } from '../../lib/routeStyle';
+import RouteLegend from '../RouteLegend';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -51,11 +53,14 @@ export default function MapView({
   me = null,
   focus = null,
   route = false,
+  legs = null,      // [{mode:'WALK'|'TRANSIT'|'DRIVE', ...}] — 핀 i→i+1. 없으면 예전처럼 한 색.
   onLongPress,
   onPinClick,
   className = '',
 }) {
   const boxRef = useRef(null);
+  const segments = useMemo(() => (route ? routeSegments(pins, legs) : []), [route, pins, legs]);
+  const legend = useMemo(() => legendEntries(segments), [segments]);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
   const meLayerRef = useRef(null); // 내 위치 점은 핀 레이어와 따로 둔다(핀을 다시 그릴 때 같이 지워지지 않게)
@@ -139,12 +144,14 @@ export default function MapView({
       marker.addTo(group);
     });
 
-    if (route && valid.length >= 2) {
-      L.polyline(
-        valid.map((p) => [p.lat, p.lng]),
-        { color: '#1A56DB', weight: 3, opacity: 0.65, dashArray: '6 6' }
-      ).addTo(group);
-    }
+    // 구간마다 이동수단 색(routeStyle): 도보 초록 짧은 점선, 대중교통 파랑 실선, 차량 주황 긴 점선(2026-09-20 쿠마님).
+    // 흰 외곽선(halo)을 먼저 깔아 공원·강 타일 위에서도 보이게 한다(agy 검토).
+    segments.forEach((s) => {
+      const line = [[s.a.lat, s.a.lng], [s.b.lat, s.b.lng]];
+      const dashArray = dashArrayFor(s.style.dash);
+      L.polyline(line, { color: ROUTE_HALO, weight: s.style.dash ? 6 : 7, opacity: 0.9, dashArray }).addTo(group);
+      L.polyline(line, { color: s.style.color, weight: s.style.dash ? 3 : 4, opacity: 0.9, dashArray }).addTo(group);
+    });
 
     const fitKey = valid.map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('|');
     if (fitKey === lastFitRef.current) return;
@@ -160,7 +167,7 @@ export default function MapView({
     } else if (center && isNum(center.lat) && isNum(center.lng)) {
       map.setView([center.lat, center.lng], DEFAULT_ZOOM);
     }
-  }, [valid, route, center]);
+  }, [valid, route, segments, center]);
 
   // 내 위치 점. 그리기만 하고 시야는 옮기지 않는다.
   useEffect(() => {
@@ -200,11 +207,15 @@ export default function MapView({
   return (
     // isolate 로 스태킹 컨텍스트를 만든다 — leaflet 내부 pane 의 z-index(400~700)가
     // 바텀시트(z-70)·토스트(z-80) 위로 올라오지 않게 가둔다.
-    <div
-      ref={boxRef}
-      className={`isolate ${className}`}
-      role="application"
-      aria-label="여행 일정 지도"
-    />
+    // Leaflet 이 boxRef 안을 통째로 쓰므로 범례는 바깥 래퍼에 얹는다(래퍼가 크기·테두리, 지도 div 가 그 안을 채움).
+    <div className={`relative isolate ${className}`}>
+      <div
+        ref={boxRef}
+        className="absolute inset-0"
+        role="application"
+        aria-label="여행 일정 지도"
+      />
+      <RouteLegend entries={legend} />
+    </div>
   );
 }
