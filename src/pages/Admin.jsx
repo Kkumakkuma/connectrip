@@ -2,14 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Shield, Users, FileText, BarChart3, AlertTriangle, Search,
-  CheckCircle, XCircle, Ban, UserCheck, Loader2, ChevronDown,
-  TrendingUp, Calendar, MessageSquare, ShoppingBag, Plane, HelpCircle,
-  Map as MapIcon
+  Shield, Users, FileText, AlertTriangle, Search, CheckCircle, XCircle, Ban, Loader2, TrendingUp, ShoppingBag, Plane, HelpCircle, Map as MapIcon
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { reportApi, blockApi, adminApi, commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
+import MenuIcon from '../components/MenuIcon';
 import SEOHead from '../components/SEOHead';
 import useScrollHint from '../lib/useScrollHint';
 import { COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
@@ -350,13 +348,13 @@ const Admin = () => {
   };
 
   const tabs = [
-    { id: 'reports', label: '신고 관리', icon: AlertTriangle },
+    { id: 'reports', label: '신고 관리', icon: 'reports' },
     // 칭찬 인증 — 2026-09-14 쿠마님 지시로 숨김. featureFlags.COMMENDATION_ENABLED 로 켠다.
-    ...(COMMENDATION_ENABLED ? [{ id: 'commendations', label: '칭찬 인증', icon: CheckCircle }] : []),
-    { id: 'users', label: '회원 관리', icon: Users },
+    ...(COMMENDATION_ENABLED ? [{ id: 'commendations', label: '칭찬 인증', icon: 'commend' }] : []),
+    { id: 'users', label: '회원 관리', icon: 'users' },
     // 외항사 승무원이 보낸 "내 항공사 추가 요청"(2026-09-17). 확인하고 목록에 넣으면 그 도메인으로 인증이 열린다.
-    { id: 'airlines', label: '항공사 요청', icon: Plane },
-    { id: 'stats', label: '통계', icon: BarChart3 },
+    { id: 'airlines', label: '항공사 요청', icon: 'airlines' },
+    { id: 'stats', label: '통계', icon: 'stats' },
   ];
 
   return (
@@ -440,7 +438,7 @@ const Admin = () => {
                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
               }`}
             >
-              <tab.icon size={18} />
+              <MenuIcon id={tab.icon} size={18} />
               {tab.label}
             </button>
           ))}

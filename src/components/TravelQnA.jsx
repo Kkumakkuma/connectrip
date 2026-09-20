@@ -23,9 +23,9 @@ import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 
 const TABS = [
-    { id: 'review', label: '여행 후기', icon: BookOpen },
-    { id: 'qna', label: 'Q&A', icon: HelpCircle },
-    { id: 'free', label: '자유게시판', icon: MessageSquare },
+    { id: 'review', label: '여행 후기', icon: 'review' },
+    { id: 'qna', label: 'Q&A', icon: 'qna' },
+    { id: 'free', label: '자유게시판', icon: 'free' },
 ];
 const PAGE_REVIEW = 12;
 const PAGE_QNA = 10;

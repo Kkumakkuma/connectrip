@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Lock, Plus, MessageSquare, Plane, Tag, Heart, Loader2 } from 'lucide-react';
+import { Lock, Plus, MessageSquare, Heart, Loader2 } from 'lucide-react';
 import { crewVerificationStatus } from '../lib/crewVerification';
 import { useAuth } from '../lib/AuthContext';
 import { useNicknameGate } from '../lib/useNicknameGate';
@@ -23,9 +23,9 @@ import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 
 const TABS = [
-    { id: 'free', label: '자유게시판', icon: MessageSquare },
-    { id: 'layover', label: '레이오버 정보', icon: Plane },
-    { id: 'deals', label: '할인 혜택', icon: Tag },
+    { id: 'free', label: '자유게시판', icon: 'free' },
+    { id: 'layover', label: '레이오버 정보', icon: 'layover' },
+    { id: 'deals', label: '할인 혜택', icon: 'deals' },
 ];
 const CATEGORY_LABEL = { restaurant: '맛집', sightseeing: '관광지', hotel: '숙소/호텔', transport: '교통', tips: '꿀팁', other: '기타', general: '' };
 const PAGE = 10;

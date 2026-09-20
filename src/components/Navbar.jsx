@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import {
-  Menu, X, User, LogOut,
-  // 드롭다운 아이콘 — 각 게시판 탭(BoardTabs)이 쓰는 lucide 아이콘과 같은 것을 쓴다(2026-09-20).
-  // 이모지는 OS 마다 다르게 그려지고 탭의 라인 아이콘과 톤이 안 맞았다(쿠마님 캡처).
-  BookOpen, HelpCircle, MessageSquare, ShoppingBag, PackageSearch, Gift, Users, Megaphone,
-  Map as MapIcon, ClipboardList, Plane, Tag, AlertTriangle, CheckCircle, BarChart3,
-} from 'lucide-react';
+import { Menu, X, User, LogOut } from 'lucide-react';
+// 드롭다운 아이콘 = 게시판 탭과 같은 컬러 아이콘(MenuIcon, Fluent Emoji). 2026-09-20 쿠마님 지시 —
+// 처음엔 흑백 lucide 로 맞췄다가 "컬러로 예쁘게" 로 정정받아 컬러 SVG 로 양쪽을 통일했다.
+import MenuIcon from './MenuIcon';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../lib/AuthContext';
 import NotificationBell from './NotificationBell';
@@ -42,21 +39,21 @@ const Navbar = () => {
     // 대륙 하위 메뉴는 2026-09-07 통합 게시판(말머리 필터)으로 흡수 — 직접 링크만 둔다.
     { name: '여행 동행자 모집', to: '/companion' },
     { name: '여행후기 및 Q&A', to: '/qna', sub: [
-      { name: '여행 후기', to: '/qna?tab=review', icon: BookOpen },
-      { name: 'Q&A 게시판', to: '/qna?tab=qna', icon: HelpCircle },
+      { name: '여행 후기', to: '/qna?tab=review', icon: 'review' },
+      { name: 'Q&A 게시판', to: '/qna?tab=qna', icon: 'qna' },
       // 자유게시판 탭은 TravelQnA 에 있는데 메뉴에서 빠져 있어 들어갈 길이 없었다(2026-09-17 쿠마님 9894)
-      { name: '자유게시판', to: '/qna?tab=free', icon: MessageSquare },
+      { name: '자유게시판', to: '/qna?tab=free', icon: 'free' },
     ]},
     { name: '물품거래 및 나눔', to: '/market', sub: [
-      { name: '물품팔아요', to: '/market?tab=sell', icon: ShoppingBag },
-      { name: '물품구해요', to: '/market?tab=buy', icon: PackageSearch },
-      { name: '무료 나눔', to: '/market?tab=share', icon: Gift },
-      { name: '공동구매', to: '/market?tab=groupbuy', icon: Users },
+      { name: '물품팔아요', to: '/market?tab=sell', icon: 'sell' },
+      { name: '물품구해요', to: '/market?tab=buy', icon: 'buy' },
+      { name: '무료 나눔', to: '/market?tab=share', icon: 'share' },
+      { name: '공동구매', to: '/market?tab=groupbuy', icon: 'groupbuy' },
     ]},
     // 여행상품 홍보 및 후기 — 초창기라 숨김(2026-09-06 쿠마님). featureFlags.PROMO_REVIEWS_ENABLED 로 켠다.
     ...(PROMO_REVIEWS_ENABLED ? [{ name: '여행상품 홍보 및 후기', to: '/reviews', sub: [
-      { name: '홍보 게시판', to: '/reviews?tab=promo', icon: Megaphone },
-      { name: '후기 게시판', to: '/reviews?tab=review', icon: MessageSquare },
+      { name: '홍보 게시판', to: '/reviews?tab=promo', icon: 'promo' },
+      { name: '후기 게시판', to: '/reviews?tab=review', icon: 'review' },
     ]}] : []),
     { name: '승무원 추천지', to: '/recommend' },
     // 여행 플래너. 네비바만 얹어 놓고 들어갈 길을 안 내면 주소를 직접 쳐야 한다 —
@@ -71,24 +68,24 @@ const Navbar = () => {
           to: '/planner',
           ...(ITINERARY_ENABLED
             ? { sub: [
-                { name: '내 여행', to: '/planner', icon: MapIcon },
-                { name: '여행 일정 게시판', to: '/itinerary', icon: ClipboardList },
+                { name: '내 여행', to: '/planner', icon: 'planner' },
+                { name: '여행 일정 게시판', to: '/itinerary', icon: 'itinerary' },
               ] }
             : {}),
         }]
       : []),
     ...(isCrew ? [{ name: 'CREW 전용', to: '/crew', sub: [
-      { name: '자유게시판', to: '/crew?tab=free', icon: MessageSquare },
-      { name: '레이오버 정보', to: '/crew?tab=layover', icon: Plane },
-      { name: '할인 혜택', to: '/crew?tab=deals', icon: Tag },
+      { name: '자유게시판', to: '/crew?tab=free', icon: 'free' },
+      { name: '레이오버 정보', to: '/crew?tab=layover', icon: 'layover' },
+      { name: '할인 혜택', to: '/crew?tab=deals', icon: 'deals' },
     ]}] : []),
     ...(isAdmin ? [{ name: '관리자', to: '/admin', sub: [
-      { name: '신고 관리', to: '/admin?tab=reports', icon: AlertTriangle },
-      ...(COMMENDATION_ENABLED ? [{ name: '칭찬 인증', to: '/admin?tab=commendations', icon: CheckCircle }] : []),
-      { name: '회원 관리', to: '/admin?tab=users', icon: Users },
+      { name: '신고 관리', to: '/admin?tab=reports', icon: 'reports' },
+      ...(COMMENDATION_ENABLED ? [{ name: '칭찬 인증', to: '/admin?tab=commendations', icon: 'commend' }] : []),
+      { name: '회원 관리', to: '/admin?tab=users', icon: 'users' },
       // 관리자 화면에는 있는데(2026-09-17) 메뉴엔 빠져 있던 탭 — 메뉴와 탭을 같게 맞춘다.
-      { name: '항공사 요청', to: '/admin?tab=airlines', icon: Plane },
-      { name: '통계', to: '/admin?tab=stats', icon: BarChart3 },
+      { name: '항공사 요청', to: '/admin?tab=airlines', icon: 'airlines' },
+      { name: '통계', to: '/admin?tab=stats', icon: 'stats' },
     ]}] : [])
   ];
 
@@ -179,7 +176,7 @@ const Navbar = () => {
                         }}
                         className="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-surface-soft font-medium transition-colors whitespace-nowrap"
                       >
-                        {sub.icon && <sub.icon size={16} strokeWidth={2} className="shrink-0" aria-hidden="true" />}
+                        {sub.icon && <MenuIcon id={sub.icon} size={18} />}
                         {sub.name}
                       </Link>
                     ))}
