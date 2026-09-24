@@ -12,6 +12,11 @@
       "permanent": true
     },
     {
+      "source": "/guide/:region(europe|americas|africa|southeast-asia|asia|oceania)",
+      "destination": "/guide/region/:region",
+      "permanent": true
+    },
+    {
       "source": "/companion/:regionId",
       "destination": "/companion?region=:regionId",
       "permanent": true
