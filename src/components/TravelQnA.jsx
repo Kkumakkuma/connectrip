@@ -13,6 +13,8 @@ import BoardTabs from './board/BoardTabs';
 import ContinentBar from './board/ContinentBar';
 import ContinentBadge from './board/ContinentBadge';
 import ContinentPicker from './board/ContinentPicker';
+import VisibilityPicker from './board/VisibilityPicker';
+import PrivateBadge from './board/PrivateBadge';
 import SearchPill from './board/SearchPill';
 import WriteModal from './board/WriteModal';
 import Pagination from './Pagination';
@@ -29,7 +31,7 @@ const TABS = [
 ];
 const PAGE_REVIEW = 12;
 const PAGE_QNA = 10;
-const EMPTY_FORM = { title: '', content: '', image_url: '', region_id: '' };
+const EMPTY_FORM = { title: '', content: '', image_url: '', region_id: '', is_private: false };
 const WRITE_LABEL = { review: '후기 쓰기', qna: '질문하기', free: '글쓰기' };
 const MODAL_TITLE = { review: '여행 후기 작성', qna: '질문 작성', free: '자유게시판 글쓰기' };
 const CONTENT_LABEL = { review: '후기 내용', qna: '질문 내용', free: '내용' };
@@ -133,6 +135,7 @@ const TravelQnA = () => {
                 created = await reviewsApi.create({
                     user_id: user.id, type: 'review', region_id: form.region_id,
                     title: form.title.trim(), description: form.content.trim(), image_url: form.image_url || null,
+                    is_private: !!form.is_private,            // 나만 보기(2026-09-25) — RLS 로 작성자에게만 보인다
                     author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 });
             } else {
@@ -193,6 +196,7 @@ const TravelQnA = () => {
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 {mode === 'review' && <ContinentBadge regionId={post.region_id} className="flex-shrink-0" />}
+                                                {mode === 'review' && <PrivateBadge isPrivate={post.is_private} className="flex-shrink-0" />}
                                                 <h3 className="min-w-0 flex-1 truncate text-[16px] font-bold text-ink tracking-[-0.01em] group-hover:underline underline-offset-4 decoration-hairline">
                                                     {post.title}
                                                 </h3>
@@ -249,6 +253,9 @@ const TravelQnA = () => {
                             <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
                             <ImageUpload label={null} onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
                         </div>
+                    )}
+                    {mode === 'review' && (
+                        <VisibilityPicker name={`${formId}-visibility`} value={form.is_private} onChange={(v) => setForm((f) => ({ ...f, is_private: v }))} />
                     )}
                 </form>
             </WriteModal>

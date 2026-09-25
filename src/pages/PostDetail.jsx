@@ -12,6 +12,9 @@ import ContinentPicker from '../components/board/ContinentPicker';
 import AirlineBadge from '../components/board/AirlineBadge';
 import AirlinePicker from '../components/board/AirlinePicker';
 import { airlineTagOf } from '../lib/airlineTags';
+import { canSetPrivate, visibilityPatch } from '../lib/postVisibility';
+import VisibilityPicker from '../components/board/VisibilityPicker';
+import PrivateBadge from '../components/board/PrivateBadge';
 import WriteModal from '../components/board/WriteModal';
 import ListState from '../components/ListState';
 import ImageUpload from '../components/ImageUpload';
@@ -27,7 +30,7 @@ const CREW_CATEGORY = { restaurant: '맛집', sightseeing: '관광지', hotel: '
 const TITLE_LABEL = { destination: '장소명' };
 const BODY_LABEL = { destination: '간단한 설명', review: '후기 내용', qna: '질문 내용' };
 const BODY_MAX = { destination: 200, companion: 3000 };
-const EMPTY_FORM = { title: '', content: '', extra: '', country: '', date: '', members: '', image_url: '', region_id: '', airline_id: '', category: 'restaurant' };
+const EMPTY_FORM = { title: '', content: '', extra: '', country: '', date: '', members: '', image_url: '', region_id: '', airline_id: '', category: 'restaurant', is_private: false };
 // qna_posts 를 board 컬럼으로 나눠 쓰는 두 게시판 — 주소의 게시판과 글의 board 가 다를 수 있다
 const QNA_BOARDS = ['qna', 'free'];
 
@@ -159,6 +162,7 @@ const PostDetail = () => {
             region_id: post.region_id || '',
             airline_id: post.airline_id || '',
             category: post.category && CREW_CATEGORY[post.category] ? post.category : 'restaurant',
+            is_private: !!post.is_private,
         });
         setEditing(true);
     };
@@ -182,6 +186,7 @@ const PostDetail = () => {
             patch.members_needed = form.members.trim();
         }
         if (config.key === 'crew' && post?.post_type === 'layover') patch.category = form.category;
+        if (canSetPrivate(config, post)) Object.assign(patch, visibilityPatch(post.is_private, form.is_private));
         const from = routeKey;
         setSubmitting(true);
         try {
@@ -213,6 +218,7 @@ const PostDetail = () => {
             <SEOHead
                 title={p ? `${title} - ${config.label} - 커넥트립 ConnectTrip` : 'ConnectTrip'}
                 description={body ? String(body).slice(0, 120) : undefined}
+                robots={p?.is_private ? 'noindex, nofollow' : undefined}
             />
             <div className="max-w-3xl mx-auto px-4 sm:px-6">
                 <Link to={config ? config.listPath : '/'} className="btn-air-link inline-flex items-center gap-1">
@@ -232,6 +238,7 @@ const PostDetail = () => {
                         <header className="mt-4">
                             <div className="flex items-center gap-1.5 flex-wrap mb-2">
                                 {config.hasRegion && <ContinentBadge regionId={p.region_id} />}
+                                {config.hasVisibility && <PrivateBadge isPrivate={p.is_private} />}
                                 {config.hasAirline && p.post_type === config.airlinePostType && <AirlineBadge airlineId={p.airline_id} />}
                                 {config.hasStatus && (
                                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${p.status === 'closed' ? 'bg-surface-strong text-muted' : 'bg-rausch-soft text-rausch'}`}>
@@ -286,7 +293,8 @@ const PostDetail = () => {
                             >
                                 <Heart size={16} fill={like.liked ? 'currentColor' : 'none'} /> {like.count || 0}
                             </button>
-                            <ShareButtons title={title} description={body} />
+                            {/* 나만 보기 글은 남이 열 수 없는 링크라 공유를 감춘다 */}
+                            {!p.is_private && <ShareButtons title={title} description={body} />}
                             {!isOwner && <ReportButton postId={p.id} boardType={config.reportType} reportedUserId={p.user_id} />}
                             {isOwner && (
                                 <span className="ml-auto flex items-center gap-1 flex-wrap">
@@ -386,6 +394,9 @@ const PostDetail = () => {
                                 {form.image_url && <img src={form.image_url} alt="" className="w-full max-h-48 object-contain rounded-sm bg-surface-soft mb-2" />}
                                 <ImageUpload label={null} onUpload={(url) => { if (url !== undefined) setForm((f) => ({ ...f, image_url: url || '' })); }} onUploadingChange={setUploading} />
                             </div>
+                        )}
+                        {canSetPrivate(config, p) && (
+                            <VisibilityPicker name={`${formId}-visibility`} value={form.is_private} onChange={(v) => setForm((f) => ({ ...f, is_private: v }))} />
                         )}
                     </form>
                 </WriteModal>

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
 import CrewBadge from '../components/CrewBadge';
+import PrivateBadge from '../components/board/PrivateBadge';
 import ListState from '../components/ListState';
 import { ITINERARY_ENABLED } from '../lib/featureFlags';
 
@@ -208,6 +209,8 @@ const Search = () => {
                           className="w-full text-left px-6 py-4 hover:bg-gray-50 transition-colors"
                         >
                           <h4 className="font-semibold text-gray-900 mb-1 line-clamp-1">
+                            {/* 나만 보기 후기는 RLS 로 작성자 본인 검색에만 나온다 — 본인에게 표시만 한다 */}
+                            <PrivateBadge isPrivate={item.is_private} className="mr-1.5 align-middle" />
                             {item[board.titleField || 'title']}
                           </h4>
                           {body && (

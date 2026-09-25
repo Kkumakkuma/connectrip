@@ -774,7 +774,9 @@ const KEYWORD_BOARDS = [
   { table: 'market_listings', path: '/market', type: 'market' },
   // reviews 테이블은 "여행상품 홍보 및 후기"(숨김 중)와 "여행후기 및 Q&A"의 여행 후기 탭이 함께 쓴다 — 알림은 유지한다.
   // 숨김 동안 /reviews 링크는 App.jsx 가 /qna?tab=review 로 보낸다(agy 9/6: 통째로 빼면 후기 알림까지 끊긴다).
-  { table: 'reviews', path: PROMO_REVIEWS_ENABLED ? '/reviews' : '/qna?tab=review', type: 'reviews' },
+  // 나만 보기 후기(2026-09-25)는 뺀다 — 작성자 본인 세션엔 RLS 로 보여서, 안 거르면 자기 비공개 글에
+  // "키워드의 새 글" 토스트가 뜬다(agy·codex 검토). LIMIT 전에 걸러야 공개 글이 밀려나지 않는다.
+  { table: 'reviews', path: PROMO_REVIEWS_ENABLED ? '/reviews' : '/qna?tab=review', type: 'reviews', eq: { is_private: false } },
   { table: 'destinations', path: '/recommend', type: 'destinations' },
   // author_name 포함은 의도적이다 — 기존 5개 보드가 전부 author_name 을 매칭 대상으로 삼고
   // 있어서(KEYWORD_SKIP_FIELDS 에도 없다) 여기서만 빼면 보드별 매칭 범위가 갈라진다.
@@ -810,10 +812,12 @@ export const keywordAlertsApi = {
     await Promise.all(
       KEYWORD_BOARDS.map(async (board) => {
         try {
-          const { data, error } = await supabase
+          let query = supabase
             .from(board.table)
             .select(board.select || '*')
-            .gt('created_at', sinceIso)
+            .gt('created_at', sinceIso);
+          for (const [col, val] of Object.entries(board.eq || {})) query = query.eq(col, val);
+          const { data, error } = await query
             .order('created_at', { ascending: false })
             .limit(20);
           if (error || !data) return;

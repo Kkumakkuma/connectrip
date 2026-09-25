@@ -1,8 +1,11 @@
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart } from 'lucide-react';
+import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart, Pencil } from 'lucide-react';
 import ShareButtons from './ShareButtons';
+import VisibilityPicker from './board/VisibilityPicker';
+import PrivateBadge from './board/PrivateBadge';
+import { postPath } from '../lib/boards';
 import CrewBadge from './CrewBadge';
 import AuthorActions from './AuthorActions';
 import ReportButton from './ReportButton';
@@ -25,6 +28,8 @@ const regions = [
     { id: 'oceania', name: '오세아니아', icon: '🦘', desc: '호주/뉴질랜드 캠핑카 투어 할인', image: 'https://images.unsplash.com/photo-1523482580672-f109ba8cb9be?q=80&w=800&auto=format&fit=crop' },
 ];
 
+const EMPTY_FORM = { title: '', content: '', image_url: '', is_private: false };
+
 // 클릭으로만 열리던 카드에 키보드 조작(Enter/Space)을 붙인다.
 // 지역 선택은 URL 이 아니라 컴포넌트 내부 state 로 동작해서 Link 로 바꾸면 기능이 깨진다.
 // 그래서 앵커화 대신 button 역할만 부여해 키보드 접근을 연다.
@@ -43,7 +48,7 @@ const Promotions = () => {
     const [selectedRegion, setSelectedRegion] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-    const [formData, setFormData] = useState({ title: '', content: '', image_url: '' });
+    const [formData, setFormData] = useState(EMPTY_FORM);
     const [searchQuery, setSearchQuery] = useState('');
     const [posts, setPosts] = useState([]);
     const [likes, setLikes] = useState({});
@@ -103,9 +108,11 @@ const Promotions = () => {
                 title: formData.title,
                 description: formData.content,
                 image_url: formData.image_url || null,
+                // 나만 보기(2026-09-25)는 후기만 — 홍보 글은 DB CHECK(reviews_private_only_review)가 막는다
+                is_private: mode === 'review' ? !!formData.is_private : false,
                 author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
             });
-            setFormData({ title: '', content: '', image_url: '' });
+            setFormData(EMPTY_FORM);
             setShowModal(false);
             fetchPosts(selectedRegion.id, mode);
         } catch (err) {
@@ -289,6 +296,7 @@ const Promotions = () => {
                                             </div>
                                             <div className="p-6">
                                                 <div className="flex items-center gap-2 mb-2">
+                                                    <PrivateBadge isPrivate={item.is_private} className="flex-shrink-0" />
                                                     <h3 className="text-xl font-bold truncate">{item.title}</h3>
                                                     <button onClick={() => handleToggleLike(item.id)} className={`flex items-center gap-1 text-sm font-bold flex-shrink-0 transition-colors ${likes[item.id]?.liked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-500'}`}>
                                                         <Heart size={15} fill={likes[item.id]?.liked ? 'currentColor' : 'none'} /> {likes[item.id]?.count || 0}
@@ -305,9 +313,16 @@ const Promotions = () => {
                                                         <span className="whitespace-nowrap flex-shrink-0">{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                                                     </div>
                                                     <div className="flex items-center gap-1">
-                                                        <ShareButtons title={item.title} description={item.description} />
+                                                        {/* 나만 보기 글은 남이 열 수 없는 링크라 공유를 감춘다 */}
+                                                        {!item.is_private && <ShareButtons title={item.title} description={item.description} />}
                                                         {user?.id !== item.user_id && (
                                                             <ReportButton postId={item.id} boardType={mode === 'promotion' ? 'promotion' : 'review'} reportedUserId={item.user_id} />
+                                                        )}
+                                                        {/* 후기 수정(공개 설정 포함)은 공용 상세 화면에서 한다. 홍보 글은 기존대로 삭제만(agy 9/25) */}
+                                                        {user?.id === item.user_id && mode === 'review' && (
+                                                            <Link to={postPath('review', item.id)} className="text-gray-400 hover:text-gray-700 transition-colors" aria-label="수정" title="수정">
+                                                                <Pencil size={16} aria-hidden="true" />
+                                                            </Link>
                                                         )}
                                                         {user?.id === item.user_id && (
                                                             <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-600 transition-colors">
@@ -362,9 +377,13 @@ const Promotions = () => {
                                 <div>
                                     {/* ImageUpload 가 자체 label 을 가지고 있어, 바깥 문구는 label 이 아닌 제목으로 둔다 */}
                                     <span className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</span>
-                                    <ImageUpload label={null} onUpload={(url) => setFormData({ ...formData, image_url: url })} />
+                                    {/* 함수형 갱신 — 업로드 도중 바꾼 공개 설정·입력값을 업로드 완료 콜백이 옛 값으로 되돌리지 않게(codex 9/25) */}
+                                    <ImageUpload label={null} onUpload={(url) => setFormData((f) => ({ ...f, image_url: url }))} />
                                     {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
                                 </div>
+                                {mode === 'review' && (
+                                    <VisibilityPicker name={`${formId}-visibility`} value={formData.is_private} onChange={(v) => setFormData((f) => ({ ...f, is_private: v }))} />
+                                )}
                                 <div className="flex gap-3 pt-4">
                                     <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
                                     <button

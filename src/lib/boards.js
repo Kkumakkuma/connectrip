@@ -15,6 +15,8 @@ export const BOARDS = {
     likeTable: 'reviews', reportType: 'review',
     titleField: 'title', bodyField: 'description', imageField: 'image_url', comments: reviewsApi,
     hasRegion: true,
+    // 공개 / 나만 보기(2026-09-25). 후기(type='review')만 — src/lib/postVisibility.js
+    hasVisibility: true,
   },
   qna: {
     key: 'qna', label: 'Q&A', listPath: '/qna?tab=qna', api: qnaApi,
