@@ -8,9 +8,9 @@ import NicknameRequiredModal from './NicknameRequiredModal';
 import { qnaApi, reviewsApi, postLikeApi } from '../lib/db';
 import { postPath } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
-import { useDraft } from '../lib/useDraft';
-import { draftKey, isBlankDraft } from '../lib/draftStore';
-import { DraftNotice, DraftSaveButton } from './board/DraftBar';
+import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
+import { DRAFT_SPECS } from '../lib/draftForms';
+import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import BoardShell from './board/BoardShell';
 import BoardTabs from './board/BoardTabs';
 import ContinentBar from './board/ContinentBar';
@@ -35,13 +35,6 @@ const TABS = [
 const PAGE_REVIEW = 12;
 const PAGE_QNA = 10;
 const EMPTY_FORM = { title: '', content: '', image_url: '', region_id: '', is_private: false };
-// 임시저장(2026-09-25): 이 칸에 글자가 하나라도 있으면 저장한다(말머리·공개 설정만 고른 건 빈 원고)
-const DRAFT_FIELDS = ['title', 'content', 'image_url'];
-const isBlankForm = (v) => isBlankDraft(v, DRAFT_FIELDS);
-const pickDraft = (d) => ({
-    title: String(d.title || ''), content: String(d.content || ''), image_url: String(d.image_url || ''),
-    region_id: String(d.region_id || ''), is_private: !!d.is_private,
-});
 const WRITE_LABEL = { review: '후기 쓰기', qna: '질문하기', free: '글쓰기' };
 const MODAL_TITLE = { review: '여행 후기 작성', qna: '질문 작성', free: '자유게시판 글쓰기' };
 const CONTENT_LABEL = { review: '후기 내용', qna: '질문 내용', free: '내용' };
@@ -72,14 +65,9 @@ const TravelQnA = () => {
     const [submitting, setSubmitting] = useState(false);
     const [pickerError, setPickerError] = useState('');
     const formId = useId();
-    // 탭(후기·Q&A·자유)마다 따로 임시저장한다
-    const draft = useDraft({
-        key: draftKey(user?.id, 'qna', mode),
-        open: showModal,
-        value: form,
-        isEmpty: isBlankForm,
-        onRestore: (d) => setForm((f) => ({ ...f, ...pickDraft(d) })),
-    });
+    // 임시저장(2026-09-25): 탭(후기·Q&A·자유)마다 따로. "임시저장" 버튼으로 서버에 저장, 글쓰기 창 위 "불러오기"로 고른다.
+    const drafts = usePostDrafts({ board: `qna:${mode}`, open: showModal, userId: user?.id });
+    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.qna, form, setForm, blocked: uploading || submitting });
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
     useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -143,10 +131,10 @@ const TravelQnA = () => {
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (submitting || uploading) return;
+        if (submitting || uploading || drafts.busy) return;
         if (mode === 'review' && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         if (!requireNickname(() => submit())) return;
-        const submitDraftKey = draft.key;   // 응답이 늦게 와도 이 원고의 임시저장본만 지운다
+        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         setSubmitting(true);
         try {
             let created;
@@ -163,7 +151,7 @@ const TravelQnA = () => {
                     author_name: profile?.nickname || null, user_id: user.id,
                 });
             }
-            draft.clear(submitDraftKey);
+            drafts.consume(draftTicket);
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
             if (modeRef.current === mode) {
                 if (mode === 'review' && region && region !== created.region_id) setRegion(created.region_id);
@@ -253,14 +241,14 @@ const TravelQnA = () => {
                     <>
                         <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
                         <span className="flex items-center gap-2">
-                            <DraftSaveButton savedAt={draft.savedAt} onSave={draft.saveNow} disabled={submitting} />
-                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
+                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
                         </span>
                     </>
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                    <DraftNotice restoredAt={draft.restoredAt} discardDisabled={uploading} onDiscard={() => { draft.discard(); setForm({ ...EMPTY_FORM, region_id: mode === 'review' ? (region || '') : '' }); }} />
+                    <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />
                     {mode === 'review' && (
                         <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     )}

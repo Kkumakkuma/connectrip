@@ -16,9 +16,9 @@ import AirlineBar from './board/AirlineBar';
 import AirlineBadge from './board/AirlineBadge';
 import AirlinePicker from './board/AirlinePicker';
 import { airlineTagOf, isAirlineTagId } from '../lib/airlineTags';
-import { useDraft } from '../lib/useDraft';
-import { draftKey, isBlankDraft } from '../lib/draftStore';
-import { DraftNotice, DraftSaveButton } from './board/DraftBar';
+import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
+import { DRAFT_SPECS } from '../lib/draftForms';
+import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
@@ -33,13 +33,8 @@ const TABS = [
 const CATEGORY_LABEL = { restaurant: '맛집', sightseeing: '관광지', hotel: '숙소/호텔', transport: '교통', tips: '꿀팁', other: '기타', general: '' };
 const PAGE = 10;
 const EMPTY_FORM = { title: '', content: '', category: 'restaurant', airline_id: '' };
-// 임시저장(2026-09-25): 분류·항공사만 고른 건 빈 원고
-const isBlankForm = (v) => isBlankDraft(v, ['title', 'content']);
-const pickDraft = (d) => ({
-    title: String(d.title || ''), content: String(d.content || ''),
-    category: CATEGORY_LABEL[d.category] && d.category !== 'general' ? d.category : 'restaurant',
-    airline_id: String(d.airline_id || ''),
-});
+// 임시저장에서 불러온 분류가 레이오버 분류가 아니면 기본값으로(2026-09-25)
+const fixCategory = (f) => ({ ...f, category: CATEGORY_LABEL[f.category] && f.category !== 'general' ? f.category : 'restaurant' });
 // 항공사 말머리는 자유게시판에서만 쓴다(레이오버·할인은 성격이 다르다).
 const AIRLINE_TAB = 'free';
 
@@ -74,14 +69,9 @@ const CrewOnly = () => {
     const [form, setForm] = useState(EMPTY_FORM);
     const [submitting, setSubmitting] = useState(false);
     const formId = useId();
-    // 탭(자유·레이오버·할인)마다 따로 임시저장한다
-    const draft = useDraft({
-        key: draftKey(user?.id, 'crew', mode),
-        open: showModal,
-        value: form,
-        isEmpty: isBlankForm,
-        onRestore: (d) => setForm((f) => ({ ...f, ...pickDraft(d) })),
-    });
+    // 임시저장(2026-09-25): 탭(자유·레이오버·할인)마다 따로. "임시저장" 버튼으로 서버에 저장, 창 위 "불러오기"로 고른다
+    const drafts = usePostDrafts({ board: `crew:${mode}`, open: showModal, userId: user?.id });
+    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.crew, form, setForm: (f) => setForm(fixCategory(f)), blocked: submitting });
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
     useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -144,9 +134,9 @@ const CrewOnly = () => {
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (submitting) return;
+        if (submitting || drafts.busy) return;
         if (!requireNickname(() => submit())) return;
-        const submitDraftKey = draft.key;   // 응답이 늦게 와도 이 원고의 임시저장본만 지운다
+        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         setSubmitting(true);
         try {
             const created = await crewApi.create({
@@ -155,7 +145,7 @@ const CrewOnly = () => {
                 airline_id: mode === AIRLINE_TAB && airlineTagOf(form.airline_id) ? form.airline_id : null,
                 author_name: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
             });
-            draft.clear(submitDraftKey);
+            drafts.consume(draftTicket);
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
             if (modeRef.current === mode) { setPosts((prev) => [created, ...prev]); setPage(1); }
             setShowModal(false);
@@ -265,14 +255,14 @@ const CrewOnly = () => {
                     <>
                         <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
                         <span className="flex items-center gap-2">
-                            <DraftSaveButton savedAt={draft.savedAt} onSave={draft.saveNow} disabled={submitting} />
-                            <button type="submit" form={`${formId}-form`} disabled={submitting} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
+                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
                         </span>
                     </>
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                    <DraftNotice restoredAt={draft.restoredAt} onDiscard={() => { draft.discard(); setForm(EMPTY_FORM); }} />
+                    <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting} />
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
                         <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={100} required />

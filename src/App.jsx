@@ -42,6 +42,7 @@ const CrewOnly = lazy(() => import('./components/CrewOnly'));
 const Promotions = PROMO_REVIEWS_ENABLED ? lazy(() => import('./components/Promotions')) : null;
 const CompanionBoard = lazy(() => import('./components/CompanionBoard'));
 import RegionRedirect from './components/board/RegionRedirect';
+import { purgeLegacyLocalDrafts } from './lib/postDrafts';
 // 여행 일정 게시판. 플래너와 달리 앱에도 실린다(앱은 게시판 + 가져오기만 갖는다).
 const ItineraryBoard = lazy(() => import('./components/ItineraryBoard'));
 const ItineraryPost = lazy(() => import('./components/ItineraryPost'));
@@ -96,6 +97,9 @@ function App() {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
   };
+
+  // 글쓰기 임시저장 v1(2026-09-25 약 1시간, 이 기기 localStorage)이 남긴 원고를 지운다 — v2 는 서버 저장이다.
+  useEffect(() => { purgeLegacyLocalDrafts(); }, []);
 
   // 안드로이드 하드웨어 뒤로가기 (앱 전용) — 히스토리가 있으면 back, 루트면 앱 종료.
   // @capacitor/app 은 네이티브에서만 동적 import 해 웹 번들 비대화를 막는다.

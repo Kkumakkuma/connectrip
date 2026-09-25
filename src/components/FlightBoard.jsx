@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { MessageSquare, Send, Trash2, Loader2, Lock, Flag, EyeOff, CornerDownRight, X } from 'lucide-react';
 import { flightBoardApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
-import { useDraft } from '../lib/useDraft';
-import { draftKey, isBlankDraft } from '../lib/draftStore';
-import { DraftNotice, DraftSaveButton } from './board/DraftBar';
+import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
+import { DRAFT_SPECS } from '../lib/draftForms';
+import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import { REPORT_REASONS } from '../lib/reportReasons';
 import { kstDateString, boardStatus, boardTitle, boardErrorMessage } from '../lib/flightBoard';
 
@@ -56,16 +56,14 @@ const FlightBoard = ({ flight }) => {
     const memberType = data.member_type || flight.user_type || 'passenger';
     const writable = data.eligible && data.writable;
 
-    // 임시저장(2026-09-25): 편·날짜마다 한 건. 쓸 수 있는 동안 입력칸 내용을 저장하고 다시 열면 불러온다.
+    // 임시저장(2026-09-25): 편·날짜별. "임시저장" 버튼으로 서버에 저장, 입력칸 위 "불러오기"로 고른다.
+    // 범위(scope)는 DB 형식 '<편명>:<YYYY-MM-DD>' — 맞지 않으면 임시저장을 끈다.
     const { user } = useAuth();
-    const draftValue = useMemo(() => ({ content }), [content]);
-    const draft = useDraft({
-        key: draftKey(user?.id, 'flight', flight.flight_number, flight.flight_date),
-        open: !!writable,
-        value: draftValue,
-        isEmpty: (v) => isBlankDraft(v, ['content']),
-        onRestore: (d) => setContent(String(d.content || '').slice(0, 1000)),
-    });
+    const draftScope = `${String(flight.flight_number || '').replace(/[\s-]+/g, '').toUpperCase()}:${String(flight.flight_date || '').slice(0, 10)}`;
+    const draftBoard = /^[A-Z0-9]{2,8}:\d{4}-\d{2}-\d{2}$/.test(draftScope) ? 'flight' : null;
+    const draftForm = useMemo(() => ({ content }), [content]);
+    const drafts = usePostDrafts({ board: draftBoard, scope: draftScope, open: !!writable, userId: user?.id });
+    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.flight, form: draftForm, setForm: (f) => setContent(f.content), blocked: posting });
 
     const fetchBoard = useCallback(async () => {
         try {
@@ -86,12 +84,12 @@ const FlightBoard = ({ flight }) => {
 
     const handlePost = async () => {
         const body = content.trim();
-        if (!body || posting) return;
-        const submitDraftKey = draft.key;
+        if (!body || posting || drafts.busy) return;
+        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 올리면 그 버전만 지운다
         setPosting(true);
         try {
             await flightBoardApi.createPost(flight.flight_number, flight.flight_date, body);
-            draft.clear(submitDraftKey);
+            drafts.consume(draftTicket);
             setContent('');
             await fetchBoard();
         } catch (err) {
@@ -197,9 +195,9 @@ const FlightBoard = ({ flight }) => {
 
             {writable && (
                 <div className="mb-3">
-                    {draft.restoredAt && (
+                    {drafts.enabled && (drafts.status === 'error' || drafts.items.length > 0) && (
                         <div className="mb-2">
-                            <DraftNotice restoredAt={draft.restoredAt} onDiscard={() => { draft.discard(); setContent(''); }} />
+                            <DraftLoadBar compact drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={posting} />
                         </div>
                     )}
                     <textarea
@@ -215,10 +213,10 @@ const FlightBoard = ({ flight }) => {
                     <div className="flex items-center justify-between mt-1.5">
                         <span className="text-[11px] text-gray-400">{content.length}/1000</span>
                         <span className="flex items-center gap-1">
-                        <DraftSaveButton compact savedAt={draft.savedAt} onSave={draft.saveNow} disabled={posting || !content.trim()} />
+                        <DraftSaveButton compact drafts={drafts} onSave={saveDraft} disabled={posting || !content.trim()} />
                         <button
                             onClick={handlePost}
-                            disabled={posting || !content.trim()}
+                            disabled={posting || drafts.busy || !content.trim()}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
                         >
                             {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}

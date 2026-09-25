@@ -5,7 +5,6 @@ import { isSyntheticEmail } from './loginId';
 import { isMissingRpcError } from './profileLoad';
 import { isNativeApp } from './native';
 import { unregisterPush } from './push';
-import { removeUserDrafts } from './draftStore';
 import { LAST_ACTIVE_KEY, TOUCH_THROTTLE_MS, clearSessionPolicy, getLastActive, isIdleExpired, setKeepLogin, touchActivity } from './sessionPolicy';
 
 const AuthContext = createContext({});
@@ -320,10 +319,7 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  // purgeDrafts: 사용자가 로그아웃 버튼을 직접 눌렀을 때만 true — 이 기기에 남은 이 계정의 글쓰기 임시저장본을 지운다
-  // (공용 PC, 2026-09-25 codex 검토). 비활동 자동 로그아웃(signOutRef)은 인자 없이 불러 쓰던 글을 남긴다.
-  const signOut = async ({ purgeDrafts = false } = {}) => {
-    if (purgeDrafts && user?.id) removeUserDrafts(user.id);
+  const signOut = async () => {
     // 로컬 세션 먼저 강제 초기화.
     // 진행 중이던 프로필 응답이 뒤늦게 도착해 로그아웃 후 프로필을 되살리지 않게 무효화한다.
     invalidateProfileRequests();

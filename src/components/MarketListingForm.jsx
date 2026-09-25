@@ -2,18 +2,16 @@ import { useId, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import ImageUpload from './ImageUpload';
 import ContinentPicker from './board/ContinentPicker';
-import { DraftNotice, DraftSaveButton } from './board/DraftBar';
+import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import { marketApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
 import { useNicknameGate } from '../lib/useNicknameGate';
 import NicknameRequiredModal from './NicknameRequiredModal';
 import { continentOf } from '../lib/continents';
-import { useDraft } from '../lib/useDraft';
-import { draftKey, isBlankDraft } from '../lib/draftStore';
+import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
+import { DRAFT_SPECS } from '../lib/draftForms';
 
 const MAX_IMAGES = 5;
-// 임시저장(2026-09-25): 새 글 등록에만. 거래 유형·말머리만 고른 건 빈 원고.
-const isBlankListing = (v) => isBlankDraft(v, ['title', 'price', 'location', 'country', 'content', 'images']);
 
 // 당근식 등록/수정 폼(판매 sell · 나눔 share, 2026-09-07 에어비앤비 톤). 사진 최대 5장.
 // 나눔은 대륙 말머리(ContinentPicker) 필수. initial 이 있으면 수정 모드(marketApi.update), 없으면 등록(marketApi.create).
@@ -34,36 +32,27 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
     const [uploading, setUploading] = useState(false);
     const [pickerError, setPickerError] = useState('');
 
+    // 임시저장(2026-09-25): 새 글 등록에만(수정 폼에는 없다). 폼은 모달이 열려 있는 동안만 떠 있다.
     const isNew = !initial?.id;
-    const draftValue = useMemo(
+    const draftForm = useMemo(
         () => ({ title, price, location, transactionType, country, regionId, content, images }),
         [title, price, location, transactionType, country, regionId, content, images],
     );
-    // 폼이 떠 있는 동안(=모달이 열려 있는 동안) 저장. 닫히면 언마운트되며 바로 저장한다.
-    const draft = useDraft({
-        key: isNew ? draftKey(user?.id, 'market', mode) : null,
-        open: true,
-        value: draftValue,
-        isEmpty: isBlankListing,
-        onRestore: (d) => {
-            setTitle(String(d.title || ''));
-            setPrice(String(d.price || '').replace(/[^0-9]/g, '').slice(0, 9));
-            setLocation(String(d.location || ''));
-            setTransactionType(d.transactionType === 'delivery' ? 'delivery' : 'direct');
-            setCountry(String(d.country || ''));
-            if (d.regionId) setRegionId(String(d.regionId));
-            setContent(String(d.content || ''));
-            setImages(Array.isArray(d.images) ? d.images.filter((u) => typeof u === 'string' && u).slice(0, MAX_IMAGES) : []);
-        },
-    });
+    // 불러오기는 폼 전체를 그 원고로 바꾼다(말머리가 비어 있으면 지금 보고 있는 대륙)
+    const setDraftForm = (f) => {
+        setTitle(f.title); setPrice(f.price); setLocation(f.location); setTransactionType(f.transactionType);
+        setCountry(f.country); setRegionId(f.regionId || defaultRegion || ''); setContent(f.content); setImages(f.images);
+    };
+    const drafts = usePostDrafts({ board: isNew ? `market:${mode}` : null, open: true, userId: user?.id });
+    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.listing, form: draftForm, setForm: setDraftForm, blocked: uploading || submitting });
 
     const submit = async (e) => {
         e?.preventDefault?.();
-        if (submitting || uploading) return;
+        if (submitting || uploading || drafts.busy) return;
         if (isShare && !continentOf(regionId)) { setPickerError('말머리를 선택해 주세요.'); return; }
         // 닉네임 확인은 새 글 등록에만 한다. 옛 글 수정은 막지 않는다(서버가 작성자명을 닉네임 또는 '회원'으로 저장).
         if (!initial?.id && !requireNickname(() => submit())) return;
-        const submitDraftKey = draft.key;   // 응답이 늦게 와도 이 원고의 임시저장본만 지운다
+        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         setSubmitting(true);
         try {
             const digits = String(price || '').replace(/[^0-9]/g, '');
@@ -87,7 +76,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
                 item = await marketApi.update(initial.id, patch);
             } else {
                 item = await marketApi.create({ ...patch, type: isShare ? 'share' : 'sell', author: profile?.nickname || null, user_id: user.id });
-                draft.clear(submitDraftKey);
+                drafts.consume(draftTicket);
             }
             onDone?.(item);
         } catch (err) {
@@ -102,17 +91,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
 
     return (
         <form onSubmit={submit} className="space-y-5">
-            {isNew && (
-                <DraftNotice
-                    restoredAt={draft.restoredAt}
-                    discardDisabled={uploading}
-                    onDiscard={() => {
-                        draft.discard();
-                        setTitle(''); setPrice(''); setLocation(''); setTransactionType('direct'); setCountry('');
-                        setRegionId(defaultRegion || ''); setContent(''); setImages([]);
-                    }}
-                />
-            )}
+            {isNew && <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />}
             {isShare && <ContinentPicker name={`${formId}-continent`} value={regionId} error={pickerError} onChange={(id) => { setPickerError(''); setRegionId(id); }} />}
 
             <div>
@@ -182,8 +161,8 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
             <div className="flex items-center justify-between gap-3 pt-1">
                 <button type="button" onClick={onCancel} className="btn-air-link">취소</button>
                 <span className="flex items-center gap-2">
-                {isNew && <DraftSaveButton savedAt={draft.savedAt} onSave={draft.saveNow} disabled={submitting} />}
-                <button type="submit" disabled={submitting || uploading} className="btn-air-primary">
+                {isNew && <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />}
+                <button type="submit" disabled={submitting || uploading || drafts.busy} className="btn-air-primary">
                     {submitting ? '저장 중...' : uploading ? '사진 올리는 중...' : initial?.id ? '수정' : '등록'}
                 </button>
                 </span>
