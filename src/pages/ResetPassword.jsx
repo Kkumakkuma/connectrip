@@ -90,7 +90,7 @@ const ResetPassword = () => {
                         <p className="text-gray-600 mb-6">비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.</p>
                         <button
                             onClick={() => navigate('/signup?mode=login')}
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-xl font-semibold"
+                            className="w-full btn-air-primary btn-air-lg"
                         >
                             로그인하러 가기
                         </button>
@@ -105,7 +105,7 @@ const ResetPassword = () => {
                         </p>
                         <button
                             onClick={() => navigate('/forgot-password')}
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-xl font-semibold"
+                            className="w-full btn-air-primary btn-air-lg"
                         >
                             재설정 메일 다시 받기
                         </button>
@@ -151,7 +151,7 @@ const ResetPassword = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all disabled:opacity-50"
+                                className="w-full btn-air-primary btn-air-lg"
                             >
                                 {loading ? '변경 중...' : '비밀번호 변경'}
                             </button>

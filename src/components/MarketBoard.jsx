@@ -234,7 +234,7 @@ const MarketBoard = () => {
                 onClose={closeWrite}
                 footer={isFeed ? null : (
                     <>
-                        <button type="button" onClick={closeWrite} className="btn-air-link">취소</button>
+                        <button type="button" onClick={closeWrite} className="btn-air-secondary">취소</button>
                         <span className="flex items-center gap-2">
                             <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
                             <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>

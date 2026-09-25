@@ -120,11 +120,7 @@ export default function AddressInput({
         />
         <button
           type="button" onClick={openLayer} disabled={disabled}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px', borderRadius: 10,
-            background: disabled ? '#94a3b8' : '#2563eb', color: 'white', border: 'none', fontWeight: 600,
-            cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-          }}
+          className="btn-air-secondary" style={{ flexShrink: 0 }}
         >
           <Search size={15} /> 주소 검색
         </button>
@@ -142,7 +138,7 @@ export default function AddressInput({
           주소 검색을 불러오지 못해 직접 입력으로 바꿨습니다.{' '}
           <button
             type="button" onClick={() => { setManual(false); setError(''); }}
-            style={{ background: 'none', border: 'none', padding: 0, color: '#2563eb', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+            style={{ background: 'none', border: 'none', padding: 0, color: '#222222', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
           >
             검색으로 되돌리기
           </button>
@@ -200,13 +196,13 @@ export default function AddressInput({
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                     <button
                       type="button" onClick={retry}
-                      style={{ padding: '8px 16px', borderRadius: 10, background: '#2563eb', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}
+                      className="btn-air-primary"
                     >
                       다시 시도
                     </button>
                     <button
                       type="button" onClick={() => { setManual(true); close(); }}
-                      style={{ padding: '8px 16px', borderRadius: 10, background: 'white', color: '#334155', border: '1px solid #cbd5e1', fontWeight: 600, cursor: 'pointer' }}
+                      className="btn-air-secondary"
                     >
                       직접 입력
                     </button>

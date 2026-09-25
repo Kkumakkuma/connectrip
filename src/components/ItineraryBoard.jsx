@@ -173,7 +173,7 @@ const ItineraryBoard = () => {
                     <button
                       onClick={() => runImport(post.id)}
                       disabled={importingId === post.id}
-                      className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-air-primary"
                     >
                       {importingId === post.id ? (
                         <Loader2 size={16} className="animate-spin" aria-hidden="true" />

@@ -84,13 +84,13 @@ const PushPermission = () => {
             <div className="flex gap-2 mt-4">
               <button
                 onClick={handleDismiss}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+                className="flex-1 btn-air-secondary"
               >
                 나중에
               </button>
               <button
                 onClick={handleAllow}
-                className="flex-1 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors"
+                className="flex-1 btn-air-primary"
               >
                 허용
               </button>

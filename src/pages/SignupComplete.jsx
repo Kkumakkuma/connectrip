@@ -644,10 +644,7 @@ export default function SignupComplete() {
                   autoComplete="off" maxLength={100} />
                 <button type="button" onClick={sendAirlineEmailCode}
                   disabled={!airlineInfo || airlineEmailVerified || airlineEmailSending}
-                  style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                    background: airlineEmailVerified ? '#d1fae5' : airlineEmailSending ? '#94a3b8' : !airlineInfo ? '#cbd5e1' : '#7c3aed',
-                    color: airlineEmailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
-                    cursor: airlineEmailVerified || airlineEmailSending || !airlineInfo ? 'default' : 'pointer' }}>
+                  className="btn-air-secondary">
                   {airlineEmailVerified ? '인증 완료' : airlineEmailSending ? '전송 중...' : airlineEmailSent ? '재전송' : '인증번호 받기'}
                 </button>
               </div>
@@ -669,7 +666,7 @@ export default function SignupComplete() {
                         아직 등록되지 않은 항공사입니다. 외항사에 다니시면 항공사를 추가해 달라고 요청하실 수 있습니다.
                       </div>
                       <button type="button" onClick={() => { setReqOpen(true); setReqError(''); }}
-                        style={{ padding: '8px 12px', borderRadius: 8, background: 'white', border: '1px solid #cbd5e1', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                        className="btn-air-secondary btn-air-sm">
                         내 항공사 추가 요청
                       </button>
                     </>
@@ -685,11 +682,11 @@ export default function SignupComplete() {
                       {reqError && <div style={{ color: '#b91c1c', fontSize: 12, marginBottom: 8 }}>{reqError}</div>}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button type="button" onClick={submitAirlineRequest} disabled={reqSending || !reqName.trim()}
-                          style={{ padding: '8px 12px', borderRadius: 8, background: reqSending || !reqName.trim() ? '#cbd5e1' : '#7c3aed', color: 'white', border: 'none', fontWeight: 600, cursor: reqSending || !reqName.trim() ? 'default' : 'pointer', fontSize: 13 }}>
+                          className="btn-air-primary btn-air-sm">
                           {reqSending ? '보내는 중...' : '요청 보내기'}
                         </button>
                         <button type="button" onClick={() => setReqOpen(false)}
-                          style={{ padding: '8px 12px', borderRadius: 8, background: 'white', border: '1px solid #cbd5e1', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                          className="btn-air-secondary btn-air-sm">
                           취소
                         </button>
                       </div>
@@ -705,9 +702,7 @@ export default function SignupComplete() {
                     style={{ ...inputStyle, flex: 1 }}
                     autoComplete="off" maxLength={6} inputMode="numeric" />
                   <button type="button" onClick={verifyAirlineEmailCode} disabled={airlineEmailVerifying}
-                    style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                      background: airlineEmailVerifying ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', fontWeight: 600,
-                      cursor: airlineEmailVerifying ? 'wait' : 'pointer' }}>
+                    className="btn-air-primary">
                     {airlineEmailVerifying ? '확인 중...' : '인증'}
                   </button>
                 </div>
@@ -881,13 +876,7 @@ export default function SignupComplete() {
           <button
             type="submit"
             disabled={saving || !canSubmit()}
-            style={{
-              width: '100%', padding: '14px', borderRadius: 12,
-              background: canSubmit() && !saving ? '#2563eb' : '#cbd5e1',
-              color: 'white', border: 'none', fontWeight: 700, fontSize: 16,
-              cursor: canSubmit() && !saving ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}
+            className="w-full btn-air-primary btn-air-lg"
           >
             {saving && <Loader2 size={16} className="spin" />}
             {saving ? '저장 중...' : '회원가입 완료'}
@@ -901,7 +890,7 @@ export default function SignupComplete() {
 }
 
 const inputStyle = {
-  width: '100%', padding: '11px 14px', borderRadius: 10,
+  width: '100%', padding: '11px 14px', borderRadius: 8,
   border: '1.5px solid #e2e8f0', fontSize: 14,
   background: 'white',
 };

@@ -317,7 +317,7 @@ const ItineraryPost = () => {
             <button
               onClick={() => runImport(post.id)}
               disabled={importingId === post.id}
-              className="w-full sm:w-auto justify-center flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto btn-air-primary"
             >
               {importingId === post.id ? (
                 <Loader2 size={18} className="animate-spin" aria-hidden="true" />

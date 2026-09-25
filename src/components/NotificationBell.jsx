@@ -369,7 +369,7 @@ const NotificationBell = () => {
                               aria-checked={on}
                               aria-label={row.label}
                               onClick={() => handleTogglePref(row.key)}
-                              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-blue-600' : 'bg-gray-300'}`}
+                              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-ink' : 'bg-gray-300'}`}
                             >
                               <span
                                 className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${on ? 'translate-x-5' : ''}`}

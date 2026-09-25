@@ -161,7 +161,7 @@ const ForgotPassword = () => {
                         <button
                             type="button"
                             onClick={() => navigate('/signup?mode=login')}
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all"
+                            className="w-full btn-air-primary btn-air-lg"
                         >
                             로그인하러 가기
                         </button>
@@ -198,7 +198,7 @@ const ForgotPassword = () => {
                                 </div>
                                 <button
                                     type="submit"
-                                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all"
+                                    className="w-full btn-air-primary btn-air-lg"
                                 >
                                     본인확인으로 계속
                                 </button>
@@ -255,7 +255,7 @@ const ForgotPassword = () => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all disabled:opacity-50"
+                                    className="w-full btn-air-primary btn-air-lg"
                                 >
                                     {loading ? '변경 중...' : '비밀번호 변경'}
                                 </button>

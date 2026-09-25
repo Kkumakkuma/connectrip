@@ -253,7 +253,7 @@ const CrewOnly = () => {
                 onClose={() => requestClose(() => setShowModal(false))}
                 footer={
                     <>
-                        <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-link">취소</button>
+                        <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-secondary">취소</button>
                         <span className="flex items-center gap-2">
                             <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting} />
                             <button type="submit" form={`${formId}-form`} disabled={submitting || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>

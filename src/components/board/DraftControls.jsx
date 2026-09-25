@@ -22,7 +22,7 @@ export const DraftLoadBar = ({ drafts, onLoad, onRemove, disabled = false, compa
         return (
             <div className={`flex items-center justify-between gap-3 rounded-md bg-surface-soft ${compact ? 'px-3 py-2' : 'px-3.5 py-2.5'}`}>
                 <p className="text-[13px] text-body">임시저장 목록을 불러오지 못했어요</p>
-                <button type="button" onClick={drafts.refresh} className="btn-air-link !text-[13px] whitespace-nowrap">다시 시도</button>
+                <button type="button" onClick={drafts.refresh} className="btn-air-secondary btn-air-sm">다시 시도</button>
             </div>
         );
     }
@@ -37,7 +37,7 @@ export const DraftLoadBar = ({ drafts, onLoad, onRemove, disabled = false, compa
                     onClick={() => drafts.setShowList((v) => !v)}
                     disabled={disabled}
                     aria-expanded={open}
-                    className="btn-air-link !text-[13px] whitespace-nowrap disabled:opacity-50"
+                    className="btn-air-secondary btn-air-sm"
                 >
                     {open ? '닫기' : '불러오기'}
                 </button>
@@ -91,7 +91,7 @@ export const DraftSaveButton = ({ drafts, onSave, disabled = false, compact = fa
     const label = flash ? '저장됨' : drafts.busy ? '저장 중...' : '임시저장';
     if (compact) {
         return (
-            <button type="button" onClick={click} disabled={disabled || drafts.busy} className="px-2 py-1.5 text-xs font-bold text-gray-500 hover:text-gray-800 whitespace-nowrap disabled:opacity-50" aria-live="polite">
+            <button type="button" onClick={click} disabled={disabled || drafts.busy} className="btn-air-secondary btn-air-sm" aria-live="polite">
                 {label}
             </button>
         );
@@ -99,7 +99,7 @@ export const DraftSaveButton = ({ drafts, onSave, disabled = false, compact = fa
     return (
         <span className="inline-flex items-center gap-2">
             <span className="hidden sm:inline text-[12px] text-muted whitespace-nowrap">{drafts.savedAt ? `${hhmm(drafts.savedAt)} 저장됨` : ''}</span>
-            <button type="button" onClick={click} disabled={disabled || drafts.busy} className="btn-air-secondary !py-2 whitespace-nowrap disabled:opacity-50" aria-live="polite">
+            <button type="button" onClick={click} disabled={disabled || drafts.busy} className="btn-air-secondary" aria-live="polite">
                 {label}
             </button>
         </span>
@@ -138,9 +138,9 @@ export const DraftCloseDialog = ({ open, saving, onSave, onDiscard, onCancel }) 
             >
                 <p id="draft-close-title" className="text-[16px] font-bold text-ink">임시저장하시겠습니까?</p>
                 <div className="mt-5 flex items-center justify-end gap-2 flex-wrap">
-                    <button type="button" onClick={onCancel} className="btn-air-link">취소</button>
-                    <button type="button" onClick={onDiscard} disabled={saving} className="btn-air-secondary !py-2 disabled:opacity-50">저장 안 함</button>
-                    <button ref={saveRef} type="button" onClick={onSave} disabled={saving} className="btn-air-primary disabled:opacity-50">{saving ? '저장 중...' : '임시저장'}</button>
+                    <button type="button" onClick={onCancel} className="btn-air-secondary">취소</button>
+                    <button type="button" onClick={onDiscard} disabled={saving} className="btn-air-secondary">저장 안 함</button>
+                    <button ref={saveRef} type="button" onClick={onSave} disabled={saving} className="btn-air-primary">{saving ? '저장 중...' : '임시저장'}</button>
                 </div>
             </div>
         </div>,

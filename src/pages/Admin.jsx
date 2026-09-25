@@ -261,7 +261,7 @@ const Admin = () => {
           <p className="text-gray-500 mb-8">네트워크 상태를 확인한 뒤 다시 시도해주세요.</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"
+            className="btn-air-primary"
           >
             다시 시도
           </button>
@@ -282,7 +282,7 @@ const Admin = () => {
           <p className="text-gray-500 mb-8">관리자 계정으로 로그인해주세요.</p>
           <button
             onClick={() => navigate('/')}
-            className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+            className="btn-air-primary"
           >
             홈으로 돌아가기
           </button>

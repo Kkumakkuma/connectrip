@@ -27,7 +27,7 @@ class ErrorBoundary extends Component {
           <p style={{ color: '#666', marginBottom: '16px' }}>{this.state.error?.message}</p>
           <button
             onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
-            style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
+            className="btn-air-primary"
           >
             Reload
           </button>

@@ -22,18 +22,10 @@ import {
 const RESEND_SECONDS = 60;
 
 const inputStyle = {
-  width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14,
+  width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 14,
   background: 'white', color: '#0f172a', outline: 'none', boxSizing: 'border-box',
 };
-const primaryBtn = (disabled) => ({
-  padding: '10px 16px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 14, color: 'white',
-  background: disabled ? '#94a3b8' : '#2563eb', cursor: disabled ? 'not-allowed' : 'pointer',
-  display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-});
-const ghostBtn = {
-  padding: '10px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: 'white', color: '#475569',
-  fontWeight: 600, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-};
+// 버튼은 index.css 의 btn-air-primary / btn-air-secondary (2026-09-25 버튼 통일)
 
 function Row({ label, value, hint, actionLabel, onAction, editing, children }) {
   return (
@@ -45,7 +37,7 @@ function Row({ label, value, hint, actionLabel, onAction, editing, children }) {
           {hint && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, wordBreak: 'keep-all' }}>{hint}</div>}
         </div>
         {actionLabel && !editing && (
-          <button type="button" onClick={onAction} style={ghostBtn} aria-label={`${label} ${actionLabel}`}>
+          <button type="button" onClick={onAction} className="btn-air-secondary" aria-label={`${label} ${actionLabel}`}>
             <Pencil size={14} /> {actionLabel}
           </button>
         )}
@@ -320,10 +312,10 @@ export default function ProfileCard({ embedded = false, active = true }) {
           {nickStatus === 'taken' && '이미 사용 중인 닉네임입니다.'}
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button type="button" onClick={saveNickname} disabled={busy || nickStatus === 'checking' || nickStatus === 'taken'} style={primaryBtn(busy || nickStatus === 'checking' || nickStatus === 'taken')}>
+          <button type="button" onClick={saveNickname} disabled={busy || nickStatus === 'checking' || nickStatus === 'taken'} className="btn-air-primary">
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
           </button>
-          <button type="button" onClick={close} style={ghostBtn} disabled={busy}><X size={14} /> 취소</button>
+          <button type="button" onClick={close} className="btn-air-secondary" disabled={busy}><X size={14} /> 취소</button>
         </div>
       </Row>
 
@@ -336,7 +328,7 @@ export default function ProfileCard({ embedded = false, active = true }) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <input type="email" value={newEmail} onChange={(e) => { setNewEmail(e.target.value); setEmailSent(false); setEmailCode(''); }}
               aria-label="새 이메일" placeholder="새 이메일 주소" style={{ ...inputStyle, flex: '1 1 200px' }} autoComplete="email" disabled={busy} />
-            <button type="button" onClick={sendEmailCode} disabled={busy || resendIn > 0} style={primaryBtn(busy || resendIn > 0)}>
+            <button type="button" onClick={sendEmailCode} disabled={busy || resendIn > 0} className="btn-air-secondary">
               {emailSent ? (resendIn > 0 ? `재발송 ${resendIn}초` : '재발송') : '인증번호 받기'}
             </button>
           </div>
@@ -344,18 +336,18 @@ export default function ProfileCard({ embedded = false, active = true }) {
             <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               <input type="text" inputMode="numeric" value={emailCode} onChange={(e) => setEmailCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
                 aria-label="이메일 인증번호" placeholder="인증번호 6자리" style={{ ...inputStyle, flex: '1 1 160px' }} autoComplete="one-time-code" disabled={busy} />
-              <button type="button" onClick={confirmEmailCode} disabled={busy || emailCode.length !== 6} style={primaryBtn(busy || emailCode.length !== 6)}>
+              <button type="button" onClick={confirmEmailCode} disabled={busy || emailCode.length !== 6} className="btn-air-primary">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 확인하고 변경
               </button>
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
             {emailToken && (
-              <button type="button" onClick={retryEmailChange} disabled={busy} style={primaryBtn(busy)}>
+              <button type="button" onClick={retryEmailChange} disabled={busy} className="btn-air-primary">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 변경 다시 시도
               </button>
             )}
-            <button type="button" onClick={close} style={ghostBtn} disabled={busy}><X size={14} /> 취소</button>
+            <button type="button" onClick={close} className="btn-air-secondary" disabled={busy}><X size={14} /> 취소</button>
           </div>
         </Row>
       )}
@@ -366,10 +358,10 @@ export default function ProfileCard({ embedded = false, active = true }) {
           onSelect={({ zipcode, road }) => setAddr((a) => ({ ...a, zipcode, road }))}
           onDetailChange={(v) => setAddr((a) => ({ ...a, detail: v }))} disabled={busy} />
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <button type="button" onClick={saveAddress} disabled={busy} style={primaryBtn(busy)}>
+          <button type="button" onClick={saveAddress} disabled={busy} className="btn-air-primary">
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} 저장
           </button>
-          <button type="button" onClick={close} style={ghostBtn} disabled={busy}><X size={14} /> 취소</button>
+          <button type="button" onClick={close} className="btn-air-secondary" disabled={busy}><X size={14} /> 취소</button>
         </div>
       </Row>
 
@@ -382,10 +374,10 @@ export default function ProfileCard({ embedded = false, active = true }) {
             <input type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} aria-label="새 비밀번호 확인" placeholder="새 비밀번호 확인" style={inputStyle} autoComplete="new-password" disabled={busy} />
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button type="button" onClick={savePassword} disabled={busy} style={primaryBtn(busy)}>
+            <button type="button" onClick={savePassword} disabled={busy} className="btn-air-primary">
               {busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} 비밀번호 변경
             </button>
-            <button type="button" onClick={close} style={ghostBtn} disabled={busy}><X size={14} /> 취소</button>
+            <button type="button" onClick={close} className="btn-air-secondary" disabled={busy}><X size={14} /> 취소</button>
           </div>
         </Row>
       )}

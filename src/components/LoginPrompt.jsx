@@ -35,7 +35,7 @@ const LoginPrompt = ({ isOpen, onClose, next }) => {
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+              className="flex-1 btn-air-secondary"
             >
               취소
             </button>
@@ -45,7 +45,7 @@ const LoginPrompt = ({ isOpen, onClose, next }) => {
                 navigate(`/signup${nextQuery(next, { first: true })}`);
                 window.scrollTo(0, 0);
               }}
-              className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+              className="flex-1 btn-air-primary"
             >
               회원가입
             </button>

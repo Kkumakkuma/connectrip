@@ -66,15 +66,7 @@ const CrewRenewalBanner = () => {
                     </span>
                     <Link
                         to="/mypage#crew-renewal"
-                        style={{
-                            padding: '0.35rem 0.85rem',
-                            borderRadius: 999,
-                            background: tone.text,
-                            color: 'white',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            whiteSpace: 'nowrap',
-                        }}
+                        className="btn-air-primary btn-air-sm"
                     >
                         갱신하기
                     </Link>

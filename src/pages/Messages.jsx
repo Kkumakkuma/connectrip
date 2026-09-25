@@ -111,7 +111,7 @@ const Messages = () => {
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Link to="/chat" className="px-3 py-1.5 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100">대화</Link>
-                        <span className="px-3 py-1.5 rounded-lg text-sm font-bold bg-blue-600 text-white">쪽지</span>
+                        <span className="px-3 py-1.5 rounded-lg text-sm font-bold bg-ink text-white">쪽지</span>
                     </div>
                 </div>
 
@@ -168,7 +168,7 @@ const Messages = () => {
                                                 <p className="text-sm text-gray-800 whitespace-pre-wrap break-words bg-gray-50 rounded-xl p-3">{row.content}</p>
                                                 <div className="flex items-center gap-2 mt-2 text-xs">
                                                     {row.other_id && (
-                                                        <button type="button" onClick={() => { setCompose({ toId: row.other_id, toName: row.other_name }); setText(''); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold">
+                                                        <button type="button" onClick={() => { setCompose({ toId: row.other_id, toName: row.other_name }); setText(''); }} className="btn-air-primary btn-air-sm">
                                                             <Send size={12} /> 답장
                                                         </button>
                                                     )}
@@ -209,8 +209,8 @@ const Messages = () => {
                         <div className="flex items-center justify-between mt-2">
                             <span className="text-[11px] text-gray-400">{text.length}/1000</span>
                             <div className="flex gap-2">
-                                <button type="button" onClick={() => setCompose(null)} className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">취소</button>
-                                <button type="button" onClick={send} disabled={sending || !text.trim()} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50">
+                                <button type="button" onClick={() => setCompose(null)} className="btn-air-secondary btn-air-sm">취소</button>
+                                <button type="button" onClick={send} disabled={sending || !text.trim()} className="btn-air-primary btn-air-sm">
                                     {sending ? '보내는 중...' : '보내기'}
                                 </button>
                             </div>

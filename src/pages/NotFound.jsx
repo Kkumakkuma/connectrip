@@ -17,7 +17,7 @@ const NotFound = () => {
         </p>
         <Link
           to="/"
-          className="inline-flex items-center justify-center px-8 py-3 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-colors shadow-md"
+          className="btn-air-primary"
         >
           홈으로 돌아가기
         </Link>

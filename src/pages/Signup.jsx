@@ -121,7 +121,7 @@ const Signup = () => {
                                         onClick={() => navigate(`/signup/email?type=traveler${refQuery}${nextQ}`)}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
-                                        className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-blue-500 transition-all group text-left"
+                                        className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-ink transition-all group text-left"
                                     >
                                         <div className="flex flex-col items-center text-center space-y-4">
                                             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -132,7 +132,7 @@ const Signup = () => {
                                                 여행 동행자를 찾고, 여행 정보를 공유하며, 다양한 여행 관련 서비스를 이용할 수 있습니다.
                                             </p>
                                             <div className="pt-4">
-                                                <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-full font-semibold">
+                                                <div className="btn-air-secondary group-hover:bg-[#f7f7f7]">
                                                     <span>여행자로 가입</span>
                                                     <ArrowRight size={16} />
                                                 </div>
@@ -145,7 +145,7 @@ const Signup = () => {
                                         onClick={() => navigate(`/signup/email?type=crew${refQuery}${nextQ}`)}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
-                                        className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-purple-500 transition-all group text-left"
+                                        className="bg-white rounded-3xl p-8 shadow-2xl border-2 border-gray-200 hover:border-ink transition-all group text-left"
                                     >
                                         <div className="flex flex-col items-center text-center space-y-4">
                                             <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -156,7 +156,7 @@ const Signup = () => {
                                                 승무원 전용 커뮤니티, 여행지 추천, CREW 전용 소통 공간을 이용할 수 있습니다.
                                             </p>
                                             <div className="pt-4">
-                                                <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-600 px-4 py-2 rounded-full font-semibold">
+                                                <div className="btn-air-secondary group-hover:bg-[#f7f7f7]">
                                                     <span>승무원으로 가입</span>
                                                     <ArrowRight size={16} />
                                                 </div>
@@ -230,7 +230,7 @@ const Signup = () => {
                                         <button
                                             type="submit"
                                             disabled={loading}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all hover:scale-105 shadow-md hover:shadow-lg disabled:opacity-50 disabled:hover:scale-100"
+                                            className="w-full btn-air-primary btn-air-lg"
                                         >
                                             {loading ? '처리 중...' : '로그인'}
                                         </button>

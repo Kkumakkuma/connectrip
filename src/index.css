@@ -228,13 +228,20 @@ a {
 .btn-air-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
   background-color: #fff; color: #222; font-weight: 700; font-size: 14px;
-  padding: 0.6rem 1.1rem; border-radius: 8px; border: 1px solid #222; transition: background-color .15s ease;
+  padding: calc(0.65rem - 1px) 1.1rem; border-radius: 8px; border: 1px solid #222; /* 테두리 1px 만큼 줄여 primary 와 높이를 맞춘다 */ transition: background-color .15s ease;
   white-space: nowrap;
 }
 .btn-air-secondary:hover { background-color: #f7f7f7; }
 .btn-air-secondary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-air-link { font-weight: 700; font-size: 14px; color: #222; text-decoration: underline; text-underline-offset: 3px; padding: 0.5rem 0.25rem; border-radius: 6px; }
 .btn-air-link:hover { background-color: #f7f7f7; }
+/* 작은 버튼: 목록 줄 안·입력창 옆처럼 좁은 자리. btn-air-primary / btn-air-secondary 와 함께 쓴다(2026-09-25 버튼 통일).
+   secondary 는 테두리 1px 만큼 세로 패딩을 줄여 primary 와 높이를 맞춘다. */
+.btn-air-sm { padding: 0.4rem 0.8rem; font-size: 13px; }
+.btn-air-secondary.btn-air-sm { padding: calc(0.4rem - 1px) 0.8rem; }
+/* 큰 버튼: 로그인·가입·비밀번호 화면처럼 폭 가득 채우는 마지막 단계 버튼 */
+.btn-air-lg { padding: 0.875rem 1.25rem; font-size: 16px; }
+.btn-air-secondary.btn-air-lg { padding: calc(0.875rem - 1px) 1.25rem; }
 .input-air {
   width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px; border: 1px solid #dddddd; background: #fff; color: #222;
   font-size: 15px; outline: none; transition: border-color .15s ease, box-shadow .15s ease;

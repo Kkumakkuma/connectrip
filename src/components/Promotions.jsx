@@ -282,7 +282,7 @@ const Promotions = () => {
                                             <p className="text-gray-500 text-sm mt-1">{selectedRegion.desc}</p>
                                         </div>
                                     </div>
-                                    <button onClick={handleWriteClick} className={`flex items-center gap-2 px-6 py-3 ${mode === 'promotion' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-xl font-bold transition-colors`}>
+                                    <button onClick={handleWriteClick} className="btn-air-primary">
                                         <Plus size={20} /> {mode === 'promotion' ? '홍보 등록' : '후기 작성'}
                                     </button>
                                 </div>
@@ -360,7 +360,7 @@ const Promotions = () => {
                                     <p className="text-gray-500 text-lg">현재 등록된 {mode === 'promotion' ? '홍보' : '후기'}가 없습니다.</p>
                                     <p className="text-gray-400 text-sm mt-2">첫 번째 게시글을 작성해보세요!</p>
                                     {isLoggedIn && (
-                                        <button onClick={handleWriteClick} className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                                        <button onClick={handleWriteClick} className="mt-6 btn-air-primary">
                                             <Plus size={18} /> {mode === 'promotion' ? '홍보 등록' : '후기 작성'}
                                         </button>
                                     )}
@@ -404,18 +404,15 @@ const Promotions = () => {
                                 {mode === 'review' && (
                                     <VisibilityPicker name={`${formId}-visibility`} value={formData.is_private} onChange={(v) => setFormData((f) => ({ ...f, is_private: v }))} />
                                 )}
-                                <div className="flex justify-end">
-                                    <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
-                                </div>
-                                <div className="flex gap-3 pt-2">
-                                    <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
-                                    <button
-                                        type="submit"
-                                        disabled={submitting || uploading || drafts.busy}
-                                        className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {submitting ? '등록 중...' : '등록하기'}
-                                    </button>
+                                {/* 하단 버튼: 다른 게시판 글쓰기 창과 같은 배치(취소 | 임시저장 · 등록) — 2026-09-25 버튼 통일 */}
+                                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                    <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-secondary">취소</button>
+                                    <span className="flex items-center gap-2">
+                                        <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
+                                        <button type="submit" disabled={submitting || uploading || drafts.busy} className="btn-air-primary">
+                                            {submitting ? '등록 중...' : '등록하기'}
+                                        </button>
+                                    </span>
                                 </div>
                             </form>
                         </motion.div>

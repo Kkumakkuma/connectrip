@@ -179,7 +179,7 @@ const Comments = ({ api, postId, postOwnerId = null, board = null }) => {
                         disabled={loading}
                         className="input-air flex-1 min-w-0 !py-2 text-sm"
                     />
-                    <button type="button" onClick={add} disabled={busy || loading} className="btn-air-secondary !py-2">등록</button>
+                    <button type="button" onClick={add} disabled={busy || loading} className="btn-air-primary !py-2">등록</button>
                 </div>
                 <label className="flex items-center gap-1.5 text-[12px] text-muted select-none cursor-pointer">
                     <input type="checkbox" checked={isPrivate || !!replyTo?.isPrivate} disabled={!!replyTo?.isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />

@@ -53,7 +53,7 @@ const BlockedUsers = () => {
         return (
             <div className="py-12 text-center">
                 <p className="text-gray-500 mb-4">{error}</p>
-                <button onClick={fetchBlocks} className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors">
+                <button onClick={fetchBlocks} className="btn-air-primary">
                     다시 시도
                 </button>
             </div>
@@ -93,7 +93,7 @@ const BlockedUsers = () => {
                                 <button
                                     onClick={() => handleUnblock(row.blocked_id, name)}
                                     disabled={busyId === row.blocked_id}
-                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-bold text-gray-600 hover:text-blue-600 hover:border-blue-300 transition-colors flex-shrink-0 disabled:opacity-50"
+                                    className="btn-air-secondary btn-air-sm flex-shrink-0"
                                 >
                                     {busyId === row.blocked_id
                                         ? <Loader2 size={14} className="animate-spin" />

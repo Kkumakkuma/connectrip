@@ -9,9 +9,6 @@ import NicknameRequiredModal from './NicknameRequiredModal';
 import { companionApi, postLikeApi } from '../lib/db';
 import { postPath, COMPANION_STATUS } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
-import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
-import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import BoardShell from './board/BoardShell';
 import ContinentBar from './board/ContinentBar';
 import ContinentBadge from './board/ContinentBadge';
@@ -50,12 +47,8 @@ const CompanionBoard = () => {
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
     const [submitting, setSubmitting] = useState(false);
-    const [checking, setChecking] = useState(false);   // 등록 전 이용 제한 확인 중 — 임시저장·불러오기를 막는다(codex 9/25)
     const [pickerError, setPickerError] = useState('');
     const formId = useId();
-    // 임시저장(2026-09-25): "임시저장" 버튼으로 서버에 저장, 글쓰기 창 위 "불러오기"로 고른다
-    const drafts = usePostDrafts({ board: 'companion', open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.companion, form, setForm, blocked: submitting || checking });
     const reqRef = useRef(0);
 
     // 검색어 입력 → 300ms 뒤 URL ?q= 반영(공유·뒤로가기 보존)
@@ -125,20 +118,17 @@ const CompanionBoard = () => {
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (submitting || submitLockRef.current || drafts.busy) return;
+        if (submitting || submitLockRef.current) return;
         if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
-        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         // 이용 제한 계정은 동행 모집 글을 올릴 수 없다(서버 트리거도 같은 이유로 막는다).
         // 재확인(await) 동안 다시 눌러도 중복 등록되지 않게 첫 await 전에 잠그고, submitting 이 켜진 뒤 푼다(2026-09-16 codex 검토).
         submitLockRef.current = true;
-        setChecking(true);
         try {
             if (await stillBanned()) { alert(BANNED_MESSAGE); return; }
             if (!requireNickname(() => submit())) return;
             setSubmitting(true);
         } finally {
             submitLockRef.current = false;
-            setChecking(false);
         }
         try {
             const created = await companionApi.create({
@@ -152,7 +142,6 @@ const CompanionBoard = () => {
                 author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 user_id: user.id,
             });
-            drafts.consume(draftTicket);
             if ((!region || region === created.region_id) && !q && page === 1) {
                 setPosts((prev) => [created, ...prev].slice(0, PAGE));
                 setCount((c) => c + 1);
@@ -236,19 +225,15 @@ const CompanionBoard = () => {
             <WriteModal
                 open={showModal}
                 title="동행자 모집글 작성"
-                onClose={() => requestClose(() => setShowModal(false))}
+                onClose={() => setShowModal(false)}
                 footer={
                     <>
-                        <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-link">취소</button>
-                        <span className="flex items-center gap-2">
-                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || checking} />
-                            <button type="submit" form={`${formId}-form`} disabled={submitting || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
-                        </span>
+                        <button type="button" onClick={() => setShowModal(false)} className="btn-air-secondary">취소</button>
+                        <button type="submit" form={`${formId}-form`} disabled={submitting} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
                     </>
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                    <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || checking} />
                     <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
@@ -274,7 +259,6 @@ const CompanionBoard = () => {
                     </div>
                 </form>
             </WriteModal>
-            <DraftCloseDialog {...closeDialog} />
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
             <NicknameRequiredModal {...nicknameModal} />
         </>

@@ -587,7 +587,7 @@ const MyPage = () => {
                             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#1f2937' }}>회원 정보</h3>
                         </div>
                         <button type="button" onClick={() => setShowProfile(true)} aria-haspopup="dialog" aria-expanded={showProfile}
-                            style={{ padding: '10px 16px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: 'white', color: '#0f172a', fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                            className="btn-air-secondary">
                             <Pencil size={14} /> 회원 정보 수정
                         </button>
                     </div>
@@ -858,12 +858,12 @@ const MyPage = () => {
 
                                 {/* 추천코드 */}
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 10 }}>
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f3ff', border: '1.5px dashed #a855f7', borderRadius: 12, padding: '0.75rem', fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.15em', color: '#6d28d9', wordBreak: 'keep-all' }}>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f3ff', border: '1.5px dashed #a855f7', borderRadius: 8, padding: '0.75rem', fontSize: '1.4rem', fontWeight: 800, letterSpacing: '0.15em', color: '#6d28d9', wordBreak: 'keep-all' }}>
                                         {referralCode}
                                     </div>
                                     <button
                                         onClick={() => copyText(referralCode, 'code')}
-                                        style={{ padding: '0 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                                        className="btn-air-secondary">
                                         {refCopied === 'code' ? <CheckCircle size={16} /> : <Copy size={16} />}
                                         {refCopied === 'code' ? '복사됨' : '코드 복사'}
                                     </button>
@@ -871,18 +871,18 @@ const MyPage = () => {
 
                                 {/* 초대링크 */}
                                 <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: '0 0.9rem', fontSize: '0.85rem', color: '#374151', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0 0.9rem', fontSize: '0.85rem', color: '#374151', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{inviteLink}</span>
                                     </div>
                                     <button
                                         onClick={() => copyText(inviteLink, 'link')}
-                                        style={{ padding: '0.6rem 14px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: 12, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                                        className="btn-air-secondary">
                                         {refCopied === 'link' ? <CheckCircle size={16} /> : <Copy size={16} />}
                                         {refCopied === 'link' ? '복사됨' : '링크'}
                                     </button>
                                     <button
                                         onClick={shareInvite}
-                                        style={{ padding: '0.6rem 14px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: 'white', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                                        className="btn-air-primary">
                                         <Share2 size={16} /> 공유
                                     </button>
                                 </div>
@@ -953,21 +953,7 @@ const MyPage = () => {
                                 <button
                                     type="submit"
                                     disabled={registering}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '0.6rem 1.2rem',
-                                        background: '#2563eb',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '0.75rem',
-                                        fontWeight: '700',
-                                        fontSize: '0.9rem',
-                                        cursor: registering ? 'not-allowed' : 'pointer',
-                                        opacity: registering ? 0.5 : 1,
-                                        transition: 'background 0.2s'
-                                    }}
+                                    className="btn-air-primary"
                                 >
                                     {registering ? (
                                         <div style={{ width: '16px', height: '16px', border: '2px solid white', borderTop: '2px solid transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
@@ -1054,7 +1040,7 @@ const MyPage = () => {
                                                         style={{
                                                             position: 'relative', display: 'inline-flex', height: '24px', width: '44px',
                                                             alignItems: 'center', borderRadius: '12px', border: 'none',
-                                                            background: flight.board_joined ? '#22c55e' : '#d1d5db',
+                                                            background: flight.board_joined ? '#222222' : '#d1d5db',
                                                             cursor: boardBusyIds.has(flight.id) ? 'wait' : 'pointer', transition: 'background 0.2s', padding: 0
                                                         }}
                                                     >
@@ -1063,7 +1049,7 @@ const MyPage = () => {
                                                             transition: 'transform 0.2s', transform: flight.board_joined ? 'translateX(24px)' : 'translateX(4px)'
                                                         }} />
                                                     </button>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: '600', color: flight.board_joined ? '#16a34a' : '#9ca3af' }}>
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: '600', color: flight.board_joined ? '#222222' : '#9ca3af' }}>
                                                         게시판 참여
                                                     </span>
                                                 </div>
@@ -1072,12 +1058,7 @@ const MyPage = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => setBoardFlight(flight)}
-                                                        style={{
-                                                            display: 'flex', alignItems: 'center', gap: '4px',
-                                                            padding: '4px 10px', borderRadius: '8px', border: 'none',
-                                                            fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
-                                                            background: '#ecfdf5', color: '#059669', transition: 'all 0.2s'
-                                                        }}
+                                                        className="btn-air-secondary btn-air-sm"
                                                     >
                                                         <MessageSquare size={12} />
                                                         게시판
@@ -1086,12 +1067,7 @@ const MyPage = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => setEditingFlight({ id: flight.id, flight_number: flight.flight_number, flight_date: flight.flight_date })}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '4px',
-                                                        padding: '4px 10px', borderRadius: '8px', border: 'none',
-                                                        fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
-                                                        background: '#eff6ff', color: '#3b82f6', transition: 'all 0.2s'
-                                                    }}
+                                                    className="btn-air-secondary btn-air-sm"
                                                     title="스케줄 수정"
                                                 >
                                                     <Settings size={12} />
@@ -1100,12 +1076,7 @@ const MyPage = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleDeleteFlight(flight.id)}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '4px',
-                                                        padding: '4px 10px', borderRadius: '8px', border: 'none',
-                                                        fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
-                                                        background: '#fef2f2', color: '#ef4444', transition: 'all 0.2s'
-                                                    }}
+                                                    className="btn-air-secondary btn-air-sm"
                                                     title="스케줄 삭제"
                                                 >
                                                     <Trash2 size={12} />
@@ -1140,9 +1111,9 @@ const MyPage = () => {
                                         style={{
                                             flex: 1,
                                             padding: '0.75rem 0.5rem',
-                                            borderRadius: '0.75rem',
+                                            borderRadius: 8,
                                             border: 'none',
-                                            background: isActive ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'transparent',
+                                            background: isActive ? '#222222' : 'transparent',
                                             color: isActive ? 'white' : '#6b7280',
                                             fontSize: 'clamp(0.78rem, 3.2vw, 0.85rem)',
                                             fontWeight: isActive ? '700' : '500',
@@ -1228,9 +1199,9 @@ const MyPage = () => {
                                     </div>
                                     <div className="flex gap-3">
                                         <button onClick={() => setEditingFlight(null)}
-                                            className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50">취소</button>
+                                            className="flex-1 btn-air-secondary">취소</button>
                                         <button onClick={() => handleEditFlight(editingFlight.id, editingFlight.flight_number, editingFlight.flight_date)}
-                                            className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold">저장</button>
+                                            className="flex-1 btn-air-primary">저장</button>
                                     </div>
                                 </div>
                             </motion.div>
@@ -1408,14 +1379,14 @@ const MyPage = () => {
                                 <button
                                     onClick={() => setShowDeleteModal(false)}
                                     disabled={deleting}
-                                    className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                    className="flex-1 btn-air-secondary"
                                 >
                                     취소
                                 </button>
                                 <button
                                     onClick={handleDeleteAccount}
                                     disabled={deleting || deleteConfirmText.trim() !== '탈퇴'}
-                                    className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex-1 btn-air-primary"
                                 >
                                     {deleting ? '처리 중...' : '탈퇴하기'}
                                 </button>

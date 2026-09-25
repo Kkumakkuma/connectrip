@@ -226,7 +226,7 @@ const FlightBoard = ({ flight, closeGuardRef = null }) => {
                         <button
                             onClick={handlePost}
                             disabled={posting || drafts.busy || !content.trim()}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                            className="btn-air-primary btn-air-sm"
                         >
                             {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                             올리기
@@ -241,7 +241,7 @@ const FlightBoard = ({ flight, closeGuardRef = null }) => {
             ) : error ? (
                 <div className="py-6 text-center">
                     <p className="text-xs text-gray-500 mb-2">{error}</p>
-                    <button onClick={fetchBoard} className="px-3 py-1.5 rounded-lg bg-gray-100 text-xs font-bold text-gray-600">다시 시도</button>
+                    <button onClick={fetchBoard} className="btn-air-secondary btn-air-sm">다시 시도</button>
                 </div>
             ) : !data.eligible ? (
                 <p className="py-6 text-center text-xs text-gray-400">게시판에 들어갈 수 없습니다.</p>
@@ -385,8 +385,8 @@ const FlightBoard = ({ flight, closeGuardRef = null }) => {
                             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 focus:border-red-400 outline-none text-sm resize-none"
                         />
                         <div className="flex gap-2">
-                            <button type="button" onClick={() => setReport(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">취소</button>
-                            <button type="submit" disabled={reportBusy || !reportReason} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold disabled:opacity-50">
+                            <button type="button" onClick={() => setReport(null)} className="flex-1 btn-air-secondary">취소</button>
+                            <button type="submit" disabled={reportBusy || !reportReason} className="flex-1 btn-air-primary">
                                 {reportBusy ? '접수 중...' : '신고하기'}
                             </button>
                         </div>

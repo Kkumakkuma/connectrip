@@ -589,10 +589,7 @@ export default function SignupEmail() {
         <CheckCircle size={64} color="#16a34a" style={{ margin: '0 auto 20px' }} />
         <h1 style={{ fontSize: 22, color: '#1a365d', marginBottom: 12 }}>회원가입 완료</h1>
         <p style={{ color: '#334155', marginBottom: 20 }}>{successMsg}</p>
-        <button onClick={() => navigate('/signup?mode=login')} style={{
-          background: '#2563eb', color: 'white', padding: '12px 28px', borderRadius: 10,
-          border: 'none', fontWeight: 600, cursor: 'pointer',
-        }}>로그인 페이지로</button>
+        <button onClick={() => navigate('/signup?mode=login')} className="btn-air-primary">로그인 페이지로</button>
       </div>
     );
   }
@@ -672,10 +669,7 @@ export default function SignupEmail() {
                 </div>
                 <button type="button" onClick={sendAirlineEmailCode}
                   disabled={!airlineInfo || airlineEmailVerified || airlineEmailSending}
-                  style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                    background: airlineEmailVerified ? '#d1fae5' : airlineEmailSending ? '#94a3b8' : !airlineInfo ? '#cbd5e1' : '#7c3aed',
-                    color: airlineEmailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
-                    cursor: airlineEmailVerified || airlineEmailSending || !airlineInfo ? 'default' : 'pointer' }}>
+                  className="btn-air-secondary">
                   {airlineEmailVerified ? '인증 완료' : airlineEmailSending ? '전송 중...' : airlineEmailSent ? '재전송' : '인증번호 받기'}
                 </button>
               </div>
@@ -706,9 +700,7 @@ export default function SignupEmail() {
                     style={{ ...inputStyle, flex: 1 }}
                     autoComplete="off" maxLength={6} inputMode="numeric" />
                   <button type="button" onClick={verifyAirlineEmailCode} disabled={airlineEmailVerifying}
-                    style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                      background: airlineEmailVerifying ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', fontWeight: 600,
-                      cursor: airlineEmailVerifying ? 'wait' : 'pointer' }}>
+                    className="btn-air-primary">
                     {airlineEmailVerifying ? '확인 중...' : '인증'}
                   </button>
                 </div>
@@ -790,10 +782,7 @@ export default function SignupEmail() {
                 autoComplete="email" required maxLength={100} />
               <button type="button" onClick={sendEmailCode}
                 disabled={!email || emailStatus !== 'available' || emailVerified || emailSending}
-                style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                  background: emailVerified ? '#d1fae5' : emailSending ? '#94a3b8' : (!email || emailStatus !== 'available') ? '#cbd5e1' : '#2563eb',
-                  color: emailVerified ? '#065f46' : 'white', border: 'none', fontWeight: 600,
-                  cursor: emailVerified || emailSending || !email || emailStatus !== 'available' ? 'default' : 'pointer' }}>
+                className="btn-air-secondary">
                 {emailVerified ? '인증 완료' : emailSending ? '전송 중...' : emailSent ? '재전송' : '인증번호 받기'}
               </button>
             </div>
@@ -810,9 +799,7 @@ export default function SignupEmail() {
                   style={{ ...inputStyle, flex: 1 }}
                   autoComplete="off" maxLength={6} inputMode="numeric" />
                 <button type="button" onClick={verifyEmailCode} disabled={emailVerifying}
-                  style={{ padding: '0 14px', borderRadius: 10, whiteSpace: 'nowrap',
-                    background: emailVerifying ? '#94a3b8' : '#16a34a', color: 'white', border: 'none', fontWeight: 600,
-                    cursor: emailVerifying ? 'wait' : 'pointer' }}>
+                  className="btn-air-primary">
                   {emailVerifying ? '확인 중...' : '인증'}
                 </button>
               </div>
@@ -932,11 +919,7 @@ export default function SignupEmail() {
           )}
 
           <button type="submit" disabled={submitting || !canSubmit()}
-            style={{ width: '100%', padding: 14, borderRadius: 12,
-              background: canSubmit() && !submitting ? '#2563eb' : '#cbd5e1',
-              color: 'white', border: 'none', fontWeight: 700, fontSize: 16,
-              cursor: canSubmit() && !submitting ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            className="w-full btn-air-primary btn-air-lg">
             {submitting && <Loader2 size={16} className="spin" />}
             {submitting ? '가입 중...' : '회원가입 완료'}
           </button>
@@ -954,7 +937,7 @@ export default function SignupEmail() {
 }
 
 const inputStyle = {
-  width: '100%', padding: '11px 14px', borderRadius: 10,
+  width: '100%', padding: '11px 14px', borderRadius: 8,
   border: '1.5px solid #e2e8f0', fontSize: 14, background: 'white',
 };
 // 본인확인으로 확정돼 수정할 수 없는 값(이름·생년월일·휴대폰)

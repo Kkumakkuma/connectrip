@@ -213,19 +213,19 @@ const MarketDetail = () => {
                 <div className="mx-auto px-4 max-w-3xl py-2.5 flex items-center gap-3">
                     {isOwner ? (
                         <>
-                            <button type="button" onClick={bump} disabled={busy || item.status === 'sold'} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 disabled:opacity-50">끌어올리기</button>
-                            <button type="button" onClick={() => setEditing(true)} className="px-3 py-2.5 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">수정</button>
-                            <button type="button" onClick={remove} className="px-3 py-2.5 rounded-xl border border-red-200 text-sm font-bold text-red-600">삭제</button>
+                            <button type="button" onClick={bump} disabled={busy || item.status === 'sold'} className="btn-air-secondary">끌어올리기</button>
+                            <button type="button" onClick={() => setEditing(true)} className="btn-air-secondary">수정</button>
+                            <button type="button" onClick={remove} className="btn-air-secondary">삭제</button>
                             <Link to={`/market?tab=${isShare ? 'share' : 'sell'}`} className="ml-auto text-xs font-bold text-gray-400">목록</Link>
                         </>
                     ) : (
                         <>
-                            <button type="button" onClick={toggleFav} disabled={!isLoggedIn || busy} aria-pressed={!!stats.mine_fav} aria-label="찜" className={`p-2.5 rounded-xl border ${stats.mine_fav ? 'border-red-200 text-red-500 bg-red-50' : 'border-gray-200 text-gray-500'}`}>
+                            <button type="button" onClick={toggleFav} disabled={!isLoggedIn || busy} aria-pressed={!!stats.mine_fav} aria-label="찜" className={`p-2.5 rounded-lg border ${stats.mine_fav ? 'border-red-200 text-red-500 bg-red-50' : 'border-gray-200 text-gray-500'}`}>
                                 <Heart size={20} fill={stats.mine_fav ? 'currentColor' : 'none'} />
                             </button>
                             <span className={`text-base font-extrabold ${isShare ? 'text-pink-600' : 'text-gray-900'}`}>{priceLabel(item)}</span>
                             <span className="ml-auto flex items-center gap-2">
-                                <button type="button" onClick={openChat} disabled={busy || !isLoggedIn || item.status === 'sold'} className={`flex items-center gap-1 px-4 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 ${isShare ? 'bg-pink-500' : 'bg-blue-600'}`}>
+                                <button type="button" onClick={openChat} disabled={busy || !isLoggedIn || item.status === 'sold'} className="btn-air-primary">
                                     <MessageCircle size={16} /> 채팅하기
                                 </button>
                             </span>

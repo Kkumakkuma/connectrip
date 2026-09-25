@@ -165,7 +165,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-1">
-                <button type="button" onClick={() => requestClose(() => onCancel?.())} className="btn-air-link">취소</button>
+                <button type="button" onClick={() => requestClose(() => onCancel?.())} className="btn-air-secondary">취소</button>
                 <span className="flex items-center gap-2">
                 {isNew && <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />}
                 <button type="submit" disabled={submitting || uploading || drafts.busy} className="btn-air-primary">

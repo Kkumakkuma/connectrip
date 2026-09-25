@@ -74,9 +74,7 @@ export default function IdentityVerifyStep({
         </p>
       )}
       <button type="button" onClick={start} disabled={busy || disabled}
-        style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none',
-          background: (busy || disabled) ? '#94a3b8' : accent, color: 'white', fontWeight: 700, fontSize: 15,
-          cursor: disabled ? 'not-allowed' : busy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        className="w-full btn-air-primary btn-air-lg">
         {busy ? <Loader2 size={16} className="spin" /> : <Smartphone size={16} />}
         {disabled ? '본인확인 준비 중' : busy ? '확인 중...' : 'PASS로 본인확인'}
       </button>

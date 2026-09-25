@@ -92,15 +92,8 @@ const KeywordSettings = () => {
                 <button
                     type="submit"
                     disabled={keywords.length >= 10}
-                    style={{
-                        padding: '0 1.2rem',
-                        background: keywords.length >= 10 ? '#ccc' : 'var(--primary-color)',
-                        color: 'white',
-                        borderRadius: '12px',
-                        fontWeight: 'bold',
-                        border: 'none',
-                        cursor: keywords.length >= 10 ? 'not-allowed' : 'pointer'
-                    }}
+                    aria-label="키워드 추가"
+                    className="btn-air-primary"
                 >
                     <Plus size={20} />
                 </button>

@@ -156,7 +156,7 @@ const FindLoginId = () => {
                         <button
                             type="button"
                             onClick={() => navigate('/signup?mode=login')}
-                            className="mt-6 w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all"
+                            className="mt-6 w-full btn-air-primary btn-air-lg"
                         >
                             로그인하기
                         </button>
@@ -182,7 +182,7 @@ const FindLoginId = () => {
                                 <button
                                     type="button"
                                     onClick={() => navigate('/signup')}
-                                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all"
+                                    className="w-full btn-air-primary btn-air-lg"
                                 >
                                     회원가입하기
                                 </button>
@@ -204,7 +204,7 @@ const FindLoginId = () => {
                                 <button
                                     type="button"
                                     onClick={() => lookup(proofToken)}
-                                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-4 rounded-xl font-semibold transition-all"
+                                    className="w-full btn-air-primary btn-air-lg"
                                 >
                                     다시 시도
                                 </button>

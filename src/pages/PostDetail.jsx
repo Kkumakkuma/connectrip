@@ -321,7 +321,7 @@ const PostDetail = () => {
                     onClose={() => setEditing(false)}
                     footer={
                         <>
-                            <button type="button" onClick={() => setEditing(false)} className="btn-air-link">취소</button>
+                            <button type="button" onClick={() => setEditing(false)} className="btn-air-secondary">취소</button>
                             <button type="submit" form={`${formId}-form`} disabled={submitting || uploading} className="btn-air-primary">
                                 {submitting ? '저장 중...' : uploading ? '사진 올리는 중...' : '저장'}
                             </button>

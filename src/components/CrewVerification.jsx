@@ -229,7 +229,7 @@ const CrewVerification = ({ style }) => {
                     <button
                         type="button"
                         onClick={() => { setFormOpen(true); setDone(''); }}
-                        style={{ padding: '0.6rem 1.1rem', borderRadius: 12, background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', fontWeight: 700, fontSize: '0.85rem' }}
+                        className="btn-air-secondary"
                     >
                         지금 갱신하기
                     </button>
@@ -258,12 +258,7 @@ const CrewVerification = ({ style }) => {
                                 type="button"
                                 onClick={sendCode}
                                 disabled={!airlineInfo || sending || submitting}
-                                style={{
-                                    padding: '0 14px', borderRadius: 12, whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.85rem',
-                                    background: !airlineInfo || sending || submitting ? '#cbd5e1' : '#7c3aed',
-                                    color: 'white', border: 'none',
-                                    cursor: !airlineInfo || sending || submitting ? 'default' : 'pointer',
-                                }}
+                                className="btn-air-secondary"
                             >
                                 {sending ? '전송 중...' : sent ? '재전송' : '인증번호 받기'}
                             </button>
@@ -298,11 +293,7 @@ const CrewVerification = ({ style }) => {
                                     type="button"
                                     onClick={verifyAndRenew}
                                     disabled={submitting}
-                                    style={{
-                                        padding: '0 16px', borderRadius: 12, whiteSpace: 'nowrap', fontWeight: 700, fontSize: '0.85rem',
-                                        background: submitting ? '#94a3b8' : '#16a34a', color: 'white', border: 'none',
-                                        cursor: submitting ? 'wait' : 'pointer',
-                                    }}
+                                    className="btn-air-primary"
                                 >
                                     {submitting ? '확인 중...' : otpToken ? '다시 시도' : '확인'}
                                 </button>
@@ -333,7 +324,7 @@ const CrewVerification = ({ style }) => {
                             <button
                                 type="button"
                                 onClick={() => { setFormOpen(false); setErr(''); resetOtp(); }}
-                                style={{ marginTop: 10, padding: '0.45rem 0.9rem', borderRadius: 10, background: 'white', color: '#6b7280', border: '1px solid #e5e7eb', fontWeight: 600, fontSize: '0.8rem' }}
+                                className="btn-air-secondary btn-air-sm" style={{ marginTop: 10 }}
                             >
                                 닫기
                             </button>

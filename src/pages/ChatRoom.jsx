@@ -292,7 +292,7 @@ const ChatRoom = () => {
                             <>
                                 {hasOlder && (
                                     <p className="text-center">
-                                        <button type="button" onClick={loadOlder} disabled={loadingOlder} className="px-3 py-1 rounded-full text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
+                                        <button type="button" onClick={loadOlder} disabled={loadingOlder} className="btn-air-secondary btn-air-sm">
                                             {loadingOlder ? '불러오는 중...' : '이전 대화 보기'}
                                         </button>
                                     </p>
@@ -330,7 +330,7 @@ const ChatRoom = () => {
                                     disabled={loading || !!error}
                                     className="flex-1 px-3 py-2 text-sm rounded-xl border border-gray-200 focus:border-blue-400 outline-none resize-none max-h-32"
                                 />
-                                <button type="button" onClick={send} disabled={sending || !text.trim() || loading || !!error} className="p-2.5 rounded-xl bg-blue-600 text-white disabled:opacity-50" aria-label="보내기">
+                                <button type="button" onClick={send} disabled={sending || !text.trim() || loading || !!error} className="btn-air-primary !p-2.5" aria-label="보내기">
                                     <Send size={16} />
                                 </button>
                             </div>

@@ -142,14 +142,14 @@ const ReportButton = ({ postId, boardType, reportedUserId }) => {
                       <button
                         type="button"
                         onClick={() => setShowModal(false)}
-                        className="flex-1 px-4 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="flex-1 btn-air-secondary"
                       >
                         취소
                       </button>
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="flex-1 px-4 py-3 rounded-xl bg-red-500 text-white font-bold hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 btn-air-primary"
                       >
                         {submitting ? <Loader2 size={18} className="animate-spin" /> : <Flag size={18} />}
                         신고하기
