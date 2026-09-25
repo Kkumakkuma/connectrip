@@ -1,8 +1,8 @@
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import ImageUpload from './ImageUpload';
 import ContinentPicker from './board/ContinentPicker';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import { marketApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
 import { useNicknameGate } from '../lib/useNicknameGate';
@@ -15,7 +15,8 @@ const MAX_IMAGES = 5;
 
 // 당근식 등록/수정 폼(판매 sell · 나눔 share, 2026-09-07 에어비앤비 톤). 사진 최대 5장.
 // 나눔은 대륙 말머리(ContinentPicker) 필수. initial 이 있으면 수정 모드(marketApi.update), 없으면 등록(marketApi.create).
-const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone, onCancel }) => {
+// closeGuardRef: 부모(모달)가 X·바깥·Esc 로 닫을 때 이 폼에 먼저 묻는다(임시저장 안 한 내용이 있으면 확인창).
+const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone, onCancel, closeGuardRef = null }) => {
     const { user, profile } = useAuth();
     const { requireNickname, nicknameModal } = useNicknameGate();
     const formId = useId();
@@ -44,7 +45,12 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
         setCountry(f.country); setRegionId(f.regionId || defaultRegion || ''); setContent(f.content); setImages(f.images);
     };
     const drafts = usePostDrafts({ board: isNew ? `market:${mode}` : null, open: true, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.listing, form: draftForm, setForm: setDraftForm, blocked: uploading || submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.listing, form: draftForm, setForm: setDraftForm, blocked: uploading || submitting });
+    useEffect(() => {
+        if (!closeGuardRef) return undefined;
+        closeGuardRef.current = requestClose;
+        return () => { closeGuardRef.current = null; };
+    });
 
     const submit = async (e) => {
         e?.preventDefault?.();
@@ -159,7 +165,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-1">
-                <button type="button" onClick={onCancel} className="btn-air-link">취소</button>
+                <button type="button" onClick={() => requestClose(() => onCancel?.())} className="btn-air-link">취소</button>
                 <span className="flex items-center gap-2">
                 {isNew && <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />}
                 <button type="submit" disabled={submitting || uploading || drafts.busy} className="btn-air-primary">
@@ -168,6 +174,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
                 </span>
             </div>
             <NicknameRequiredModal {...nicknameModal} />
+            <DraftCloseDialog {...closeDialog} />
         </form>
     );
 };

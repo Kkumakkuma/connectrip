@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Trash2 } from 'lucide-react';
 
 // 글쓰기 임시저장 v2 화면(2026-09-25). 동작은 src/lib/usePostDrafts.js.
@@ -102,5 +103,47 @@ export const DraftSaveButton = ({ drafts, onSave, disabled = false, compact = fa
                 {label}
             </button>
         </span>
+    );
+};
+
+// 창을 닫으려 할 때 임시저장 안 한 내용이 있으면 묻는다(2026-09-25 쿠마님 지시 "임시저장 하시겠습니까 하고 물어보던가").
+// [임시저장] = 저장하고 닫기, [저장 안 함] = 그냥 닫기, [취소]·Esc·바깥 = 계속 쓰기.
+// 글쓰기 시트(z-70)·같은 편 게시판 팝업(z-110) 위에 뜨도록 z-130. role=dialog aria-modal 이라 WriteModal 의 포커스 가둠이 비켜 준다.
+export const DraftCloseDialog = ({ open, saving, onSave, onDiscard, onCancel }) => {
+    const saveRef = useRef(null);
+    const cancelRef = useRef(onCancel);
+    useEffect(() => { cancelRef.current = onCancel; });
+    useEffect(() => {
+        if (!open) return undefined;
+        const prev = document.activeElement;
+        const t = setTimeout(() => saveRef.current?.focus(), 0);
+        // 캡처 단계에서 Esc 를 먼저 받아 글쓰기 시트의 Esc(=닫기 요청)로 번지지 않게 한다
+        const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); cancelRef.current?.(); } };
+        window.addEventListener('keydown', onKey, true);
+        return () => {
+            clearTimeout(t);
+            window.removeEventListener('keydown', onKey, true);
+            if (prev && typeof prev.focus === 'function') prev.focus();
+        };
+    }, [open]);
+    if (!open) return null;
+    return createPortal(
+        <div className="fixed inset-0 z-[130] bg-black/40 flex items-center justify-center p-4" onClick={onCancel}>
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="draft-close-title"
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5"
+            >
+                <p id="draft-close-title" className="text-[16px] font-bold text-ink">임시저장하시겠습니까?</p>
+                <div className="mt-5 flex items-center justify-end gap-2 flex-wrap">
+                    <button type="button" onClick={onCancel} className="btn-air-link">취소</button>
+                    <button type="button" onClick={onDiscard} disabled={saving} className="btn-air-secondary !py-2 disabled:opacity-50">저장 안 함</button>
+                    <button ref={saveRef} type="button" onClick={onSave} disabled={saving} className="btn-air-primary disabled:opacity-50">{saving ? '저장 중...' : '임시저장'}</button>
+                </div>
+            </div>
+        </div>,
+        document.body
     );
 };

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useEffect, useState, useId } from 'react';
+import { useEffect, useRef, useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, TicketPercent, Plus, X, Search, Megaphone, MessageCircle, Trash2, User, Heart, Pencil } from 'lucide-react';
 import ShareButtons from './ShareButtons';
@@ -8,7 +8,7 @@ import PrivateBadge from './board/PrivateBadge';
 import { postPath } from '../lib/boards';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import CrewBadge from './CrewBadge';
 import AuthorActions from './AuthorActions';
 import ReportButton from './ReportButton';
@@ -62,7 +62,16 @@ const Promotions = () => {
     const formId = useId(); // label-input 연결용 접두사
     // 임시저장(2026-09-25) — 홍보·후기 탭별로 따로. "임시저장" 버튼으로 서버에 저장, 작성 창 위 "불러오기"로 고른다
     const drafts = usePostDrafts({ board: mode === 'promotion' || mode === 'review' ? `promo:${mode}` : null, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.promo, form: formData, setForm: setFormData, blocked: submitting || uploading });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.promo, form: formData, setForm: setFormData, blocked: submitting || uploading });
+    // 작성 창은 직접 만든 모달이라 Esc 를 따로 받는다 — 닫기 전에 임시저장 여부를 묻는다(2026-09-25)
+    const closeReqRef = useRef(null);
+    useEffect(() => { closeReqRef.current = () => requestClose(() => setShowModal(false)); });
+    useEffect(() => {
+        if (!showModal) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') closeReqRef.current?.(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [showModal]);
 
     useEffect(() => {
         setMode('main');
@@ -365,11 +374,11 @@ const Promotions = () => {
             {/* 글 작성 모달 */}
             <AnimatePresence>
                 {showModal && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => requestClose(() => setShowModal(false))}>
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={(e) => e.stopPropagation()} className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-2xl font-bold">{mode === 'promotion' ? '여행 상품 홍보하기' : '여행 후기 작성하기'}</h3>
-                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
+                                <button onClick={() => requestClose(() => setShowModal(false))} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />
@@ -399,7 +408,7 @@ const Promotions = () => {
                                     <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
                                 </div>
                                 <div className="flex gap-3 pt-2">
-                                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
+                                    <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
                                     <button
                                         type="submit"
                                         disabled={submitting || uploading || drafts.busy}
@@ -414,6 +423,7 @@ const Promotions = () => {
                 )}
             </AnimatePresence>
 
+            <DraftCloseDialog {...closeDialog} />
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
             <NicknameRequiredModal {...nicknameModal} />
         </section>

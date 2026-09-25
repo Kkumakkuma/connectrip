@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DRAFT_FORKED_MESSAGE, draftErrorMessage, draftsApi, draftTitle, newDraftId } from './postDrafts';
+import { draftErrorMessage, draftsApi, draftTitle, newDraftId } from './postDrafts';
 
 // 글쓰기 임시저장 v2 훅(2026-09-25). 서버 저장 + 불러오기. 자동 저장·자동 복원은 없다.
 //
 //   const drafts = usePostDrafts({ board: 'qna:review', open: showModal, userId: user?.id });
 //   - open 이 켜질 때마다(=글쓰기 창을 열 때마다) 빈 새 글 상태로 시작하고 그 게시판 임시저장 목록만 읽어 둔다.
-//   - drafts.save(data) = "임시저장" 버튼. 불러왔거나 이미 저장한 원고면 그 건을 고치고, 새 글이면 새 건.
+//   - drafts.save(data) = "임시저장" 버튼. 불러왔거나 이미 저장한 원고면 그 건을 덮어쓰고(다른 기기에서 먼저
+//     고쳤어도 마지막 저장이 이긴다 — 쿠마님 결정), 새 글이면 새 건.
 //   - drafts.load(item) = 목록에서 고른 원고의 data 를 돌려준다(폼 채우기는 부르는 쪽).
 //   - 등록: 요청 전에 const t = drafts.ticket() 로 잡아 두고, 성공하면 drafts.consume(t) — 불러온 그 버전만 지운다.
 //   - 창을 닫거나(open=false) 계정·게시판이 바뀌면 늦게 온 응답은 버린다(세대 번호).
@@ -17,6 +18,7 @@ export function usePostDrafts({ board, scope = '', open, userId }) {
     const [current, setCurrent] = useState(null);     // { id, rev } — 이 창에서 불러왔거나 저장한 원고
     const [savedAt, setSavedAt] = useState(null);
     const [busy, setBusy] = useState(false);
+    const [session, setSession] = useState(0);        // 창을 열 때마다 +1 — useDraftActions 가 "마지막 저장본" 기준을 새로 잡는다
     const gen = useRef(0);
     const ctx = useRef({ board, scope });
     const currentRef = useRef(null);
@@ -57,6 +59,7 @@ export function usePostDrafts({ board, scope = '', open, userId }) {
             setCurrent(null);
             setSavedAt(null);
             setBusy(false);
+            setSession((n) => n + 1);
             refresh();
         });
         return () => { alive = false; gen.current += 1; };
@@ -71,7 +74,7 @@ export function usePostDrafts({ board, scope = '', open, userId }) {
         const cur = currentRef.current;
         if (!pendingId.current) pendingId.current = newDraftId();
         try {
-            const res = await draftsApi.save({ id: cur?.id, rev: cur?.rev, newId: pendingId.current, board: b, scope: s, title: draftTitle(data), data });
+            const res = await draftsApi.save({ id: cur?.id, newId: pendingId.current, board: b, scope: s, title: draftTitle(data), data });
             if (g !== gen.current) return null;
             currentRef.current = { id: res.row.id, rev: res.row.revision };
             setCurrent(currentRef.current);
@@ -137,18 +140,40 @@ export function usePostDrafts({ board, scope = '', open, userId }) {
             .finally(() => { if (g === gen.current) refresh(); });
     }, [refresh]);
 
-    return { enabled, items, status, showList, setShowList, current, savedAt, busy, refresh, save, load, remove, ticket, consume };
+    return { enabled, session, items, status, showList, setShowList, current, savedAt, busy, refresh, save, load, remove, ticket, consume };
 }
 
-// 게시판 쪽 공통 동작(저장·불러오기·삭제 + 안내). spec = draftForms.js 의 DRAFT_SPECS.x
+// 게시판 쪽 공통 동작(저장·불러오기·삭제·닫기 확인). spec = draftForms.js 의 DRAFT_SPECS.x
 //   blocked: 사진을 올리는 중·등록 중에는 저장·불러오기를 막는다(업로드가 끝나며 다른 원고에 사진이 붙지 않게).
+//   requestClose(close): 창 닫기(X·취소·바깥·Esc) 대신 부른다. 임시저장 안 한 내용이 있으면
+//     "임시저장하시겠습니까?" 창(closeDialog)을 띄운다 — 2026-09-25 쿠마님 지시. 등록 성공 뒤 닫기는 그냥 닫는다.
+//   dirty 인 동안은 브라우저 창·탭 닫기·새로고침에도 브라우저 기본 확인창을 띄운다(beforeunload).
 export function useDraftActions({ drafts, spec, form, setForm, blocked = false }) {
+    // 닫기 확인 요청. 창을 연 세션에 묶어 둔다 — 등록이 끝나 창이 닫히면(세션 종료) 남은 요청은 무효(codex 9/25).
+    const [ask, setAsk] = useState(null);                                      // { session, close }
+    const askRef = useRef(null);                                               // 저장 도중 취소하면 무효화
+    // 마지막으로 저장·불러온 내용. 그 원고(id)가 지금 창의 원고일 때만 기준이 된다 — 목록에서 지우거나
+    // 등록해 원고가 사라지면 다시 "저장 안 한 내용"으로 본다(codex 9/25).
+    const [snap, setSnap] = useState({ session: -1, id: null, json: null });
+    const json = JSON.stringify(spec.toData(form));
+    const saved = snap.session === drafts.session && snap.id && snap.id === drafts.current?.id ? snap.json : null;
+    const dirty = !!drafts.enabled && !spec.isBlank(form) && json !== saved;
+
+    useEffect(() => {
+        if (!dirty) return undefined;
+        const onBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [dirty]);
+
     const saveDraft = async () => {
         if (blocked) return null;
         if (spec.isBlank(form)) { alert('임시저장할 내용이 없어요.'); return null; }
+        const data = spec.toData(form);
+        const session = drafts.session;
         try {
-            const res = await drafts.save(spec.toData(form));
-            if (res?.mode === 'forked') alert(DRAFT_FORKED_MESSAGE);
+            const res = await drafts.save(data);
+            if (res) setSnap({ session, id: res.row.id, json: JSON.stringify(data) });
             return res;
         } catch (err) {
             console.error('임시저장 실패:', err);
@@ -159,7 +184,9 @@ export function useDraftActions({ drafts, spec, form, setForm, blocked = false }
     const loadDraft = (item) => {
         if (blocked || drafts.busy) return;
         if (!spec.isBlank(form) && !window.confirm('작성 중인 내용 대신 불러올까요?')) return;
-        setForm(spec.fromData(drafts.load(item)));
+        const next = spec.fromData(drafts.load(item));
+        setSnap({ session: drafts.session, id: item.id, json: JSON.stringify(spec.toData(next)) });
+        setForm(next);
     };
     const removeDraft = async (item) => {
         if (drafts.busy) return;
@@ -171,5 +198,31 @@ export function useDraftActions({ drafts, spec, form, setForm, blocked = false }
             alert('지우지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
         }
     };
-    return { saveDraft, loadDraft, removeDraft };
+    const requestClose = (close) => {
+        if (!dirty) { close(); return; }
+        const req = { session: drafts.session, close };
+        askRef.current = req;
+        setAsk(req);
+    };
+    const dismiss = () => { askRef.current = null; setAsk(null); };
+    const live = !!ask && ask.session === drafts.session && !!drafts.enabled;
+    const closeDialog = {
+        open: live,
+        saving: drafts.busy,
+        onSave: async () => {
+            const req = askRef.current;
+            const res = await saveDraft();
+            if (!res) return;                      // 저장 실패면 창을 그대로 둔다(안내는 saveDraft 가 띄움)
+            if (askRef.current !== req || !req) return;   // 저장 도중 취소했으면 닫지 않는다
+            dismiss();
+            req.close();
+        },
+        onDiscard: () => {
+            const req = askRef.current;
+            dismiss();
+            req?.close();
+        },
+        onCancel: dismiss,
+    };
+    return { saveDraft, loadDraft, removeDraft, requestClose, closeDialog, dirty };
 }

@@ -17,7 +17,7 @@ import { marketApi } from '../lib/db';
 import { regionFromSearch } from '../lib/continents';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import BoardShell from './board/BoardShell';
 import BoardTabs from './board/BoardTabs';
 import SearchPill from './board/SearchPill';
@@ -61,7 +61,7 @@ const MarketBoard = () => {
     const formId = useId();
     // 임시저장(2026-09-25) — 구해요·공동구매 폼(탭별). 판매·나눔은 MarketListingForm 이 따로 한다.
     const drafts = usePostDrafts({ board: mode === 'buy' || mode === 'groupbuy' ? `market:${mode}` : null, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.market, form, setForm, blocked: uploading || submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.market, form, setForm, blocked: uploading || submitting });
     const reqRef = useRef(0);
 
     useEffect(() => {
@@ -153,6 +153,13 @@ const MarketBoard = () => {
     useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
     const canWrite = mode !== 'groupbuy' || profile?.role === 'admin';
     const isFeed = mode === 'sell' || mode === 'share';
+    // 창 닫기(X·취소·바깥·Esc): 임시저장 안 한 내용이 있으면 먼저 묻는다. 판매·나눔은 폼(MarketListingForm)이 직접 판단한다.
+    const listingGuard = useRef(null);
+    const closeWrite = () => {
+        const close = () => setShowModal(false);
+        if (isFeed && listingGuard.current) listingGuard.current(close);
+        else requestClose(close);
+    };
 
     return (
         <>
@@ -224,10 +231,10 @@ const MarketBoard = () => {
             <WriteModal
                 open={showModal}
                 title={mode === 'sell' ? '물품 등록' : mode === 'buy' ? '구매 요청 등록' : mode === 'groupbuy' ? '공동구매 모집' : '나눔 물품 등록'}
-                onClose={() => setShowModal(false)}
+                onClose={closeWrite}
                 footer={isFeed ? null : (
                     <>
-                        <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
+                        <button type="button" onClick={closeWrite} className="btn-air-link">취소</button>
                         <span className="flex items-center gap-2">
                             <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
                             <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
@@ -241,6 +248,7 @@ const MarketBoard = () => {
                         defaultRegion={region}
                         onDone={(item) => { setItems((prev) => [item, ...prev]); setShowModal(false); }}
                         onCancel={() => setShowModal(false)}
+                        closeGuardRef={listingGuard}
                     />
                 ) : (
                     <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
@@ -272,6 +280,7 @@ const MarketBoard = () => {
                     </form>
                 )}
             </WriteModal>
+            <DraftCloseDialog {...closeDialog} />
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
             <NicknameRequiredModal {...nicknameModal} />
         </>

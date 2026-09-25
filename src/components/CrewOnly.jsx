@@ -18,7 +18,7 @@ import AirlinePicker from './board/AirlinePicker';
 import { airlineTagOf, isAirlineTagId } from '../lib/airlineTags';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
@@ -71,7 +71,7 @@ const CrewOnly = () => {
     const formId = useId();
     // 임시저장(2026-09-25): 탭(자유·레이오버·할인)마다 따로. "임시저장" 버튼으로 서버에 저장, 창 위 "불러오기"로 고른다
     const drafts = usePostDrafts({ board: `crew:${mode}`, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.crew, form, setForm: (f) => setForm(fixCategory(f)), blocked: submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.crew, form, setForm: (f) => setForm(fixCategory(f)), blocked: submitting });
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
     useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -250,10 +250,10 @@ const CrewOnly = () => {
             <WriteModal
                 open={showModal}
                 title={mode === 'layover' ? '레이오버 정보 작성' : mode === 'deals' ? '할인 정보 등록' : '글쓰기'}
-                onClose={() => setShowModal(false)}
+                onClose={() => requestClose(() => setShowModal(false))}
                 footer={
                     <>
-                        <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
+                        <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-link">취소</button>
                         <span className="flex items-center gap-2">
                             <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting} />
                             <button type="submit" form={`${formId}-form`} disabled={submitting || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
@@ -287,6 +287,7 @@ const CrewOnly = () => {
                     </div>
                 </form>
             </WriteModal>
+            <DraftCloseDialog {...closeDialog} />
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
             <NicknameRequiredModal {...nicknameModal} />
         </>

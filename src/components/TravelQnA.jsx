@@ -10,7 +10,7 @@ import { postPath } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import BoardShell from './board/BoardShell';
 import BoardTabs from './board/BoardTabs';
 import ContinentBar from './board/ContinentBar';
@@ -67,7 +67,7 @@ const TravelQnA = () => {
     const formId = useId();
     // 임시저장(2026-09-25): 탭(후기·Q&A·자유)마다 따로. "임시저장" 버튼으로 서버에 저장, 글쓰기 창 위 "불러오기"로 고른다.
     const drafts = usePostDrafts({ board: `qna:${mode}`, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.qna, form, setForm, blocked: uploading || submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.qna, form, setForm, blocked: uploading || submitting });
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
     useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -236,10 +236,10 @@ const TravelQnA = () => {
             <WriteModal
                 open={showModal}
                 title={MODAL_TITLE[mode]}
-                onClose={() => setShowModal(false)}
+                onClose={() => requestClose(() => setShowModal(false))}
                 footer={
                     <>
-                        <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
+                        <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-link">취소</button>
                         <span className="flex items-center gap-2">
                             <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
                             <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
@@ -271,6 +271,7 @@ const TravelQnA = () => {
                     )}
                 </form>
             </WriteModal>
+            <DraftCloseDialog {...closeDialog} />
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
             <NicknameRequiredModal {...nicknameModal} />
         </>

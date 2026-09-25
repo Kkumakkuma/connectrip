@@ -11,7 +11,7 @@ import { regionFromSearch, continentOf } from '../lib/continents';
 import { crewVerificationStatus } from '../lib/crewVerification';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import BoardShell from './board/BoardShell';
 import ContinentBar from './board/ContinentBar';
 import ContinentBadge from './board/ContinentBadge';
@@ -92,7 +92,7 @@ const Destinations = () => {
     const formId = useId();
     // 임시저장(2026-09-25): "임시저장" 버튼으로 서버에 저장, 글쓰기 창 위 "불러오기"로 고른다
     const drafts = usePostDrafts({ board: 'destination', open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.destination, form, setForm, blocked: uploading || submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.destination, form, setForm, blocked: uploading || submitting });
     const reqRef = useRef(0);
 
     const crewExpired = isLoggedIn && isCrew && crewVerificationStatus(profile).state === 'expired';
@@ -241,10 +241,10 @@ const Destinations = () => {
             <WriteModal
                 open={showModal}
                 title="숨은 명소 추천"
-                onClose={() => setShowModal(false)}
+                onClose={() => requestClose(() => setShowModal(false))}
                 footer={
                     <>
-                        <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
+                        <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-link">취소</button>
                         <span className="flex items-center gap-2">
                             <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
                             <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
@@ -273,6 +273,7 @@ const Destinations = () => {
                     </div>
                 </form>
             </WriteModal>
+            <DraftCloseDialog {...closeDialog} />
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
             <NicknameRequiredModal {...nicknameModal} />
         </>

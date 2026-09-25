@@ -11,7 +11,7 @@ import { postPath, COMPANION_STATUS } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import BoardShell from './board/BoardShell';
 import ContinentBar from './board/ContinentBar';
 import ContinentBadge from './board/ContinentBadge';
@@ -55,7 +55,7 @@ const CompanionBoard = () => {
     const formId = useId();
     // 임시저장(2026-09-25): "임시저장" 버튼으로 서버에 저장, 글쓰기 창 위 "불러오기"로 고른다
     const drafts = usePostDrafts({ board: 'companion', open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.companion, form, setForm, blocked: submitting || checking });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.companion, form, setForm, blocked: submitting || checking });
     const reqRef = useRef(0);
 
     // 검색어 입력 → 300ms 뒤 URL ?q= 반영(공유·뒤로가기 보존)
@@ -236,10 +236,10 @@ const CompanionBoard = () => {
             <WriteModal
                 open={showModal}
                 title="동행자 모집글 작성"
-                onClose={() => setShowModal(false)}
+                onClose={() => requestClose(() => setShowModal(false))}
                 footer={
                     <>
-                        <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
+                        <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-link">취소</button>
                         <span className="flex items-center gap-2">
                             <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || checking} />
                             <button type="submit" form={`${formId}-form`} disabled={submitting || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
@@ -274,6 +274,7 @@ const CompanionBoard = () => {
                     </div>
                 </form>
             </WriteModal>
+            <DraftCloseDialog {...closeDialog} />
             <LoginPrompt isOpen={showLoginPrompt} onClose={() => setShowLoginPrompt(false)} />
             <NicknameRequiredModal {...nicknameModal} />
         </>

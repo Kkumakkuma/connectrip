@@ -4,7 +4,7 @@ import { flightBoardApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
-import { DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import { REPORT_REASONS } from '../lib/reportReasons';
 import { kstDateString, boardStatus, boardTitle, boardErrorMessage } from '../lib/flightBoard';
 
@@ -34,7 +34,8 @@ const submitOnEnter = (fn) => (e) => {
     fn();
 };
 
-const FlightBoard = ({ flight }) => {
+// closeGuardRef: 이 게시판을 띄운 팝업(마이페이지)이 닫힐 때 먼저 묻는다(임시저장 안 한 내용이 있으면 확인창).
+const FlightBoard = ({ flight, closeGuardRef = null }) => {
     const [data, setData] = useState(EMPTY);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -63,7 +64,7 @@ const FlightBoard = ({ flight }) => {
     const draftBoard = /^[A-Z0-9]{2,8}:\d{4}-\d{2}-\d{2}$/.test(draftScope) ? 'flight' : null;
     const draftForm = useMemo(() => ({ content }), [content]);
     const drafts = usePostDrafts({ board: draftBoard, scope: draftScope, open: !!writable, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft } = useDraftActions({ drafts, spec: DRAFT_SPECS.flight, form: draftForm, setForm: (f) => setContent(f.content), blocked: posting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.flight, form: draftForm, setForm: (f) => setContent(f.content), blocked: posting });
 
     const fetchBoard = useCallback(async () => {
         try {
@@ -167,6 +168,13 @@ const FlightBoard = ({ flight }) => {
         }
     };
 
+    // 팝업 닫기 확인을 부모에 알려 둔다(아래 조기 반환보다 먼저 — 훅 순서 고정)
+    useEffect(() => {
+        if (!closeGuardRef) return undefined;
+        closeGuardRef.current = requestClose;
+        return () => { closeGuardRef.current = null; };
+    });
+
     if (locked || closed) {
         return (
             <div className="mt-4 p-4 bg-gray-50 rounded-xl text-center">
@@ -180,6 +188,7 @@ const FlightBoard = ({ flight }) => {
 
     return (
         <div className="mt-4 pt-4 border-t border-gray-100">
+            <DraftCloseDialog {...closeDialog} />
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                     <MessageSquare size={15} className="text-blue-500" />

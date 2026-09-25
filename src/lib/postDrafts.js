@@ -21,8 +21,6 @@ export const draftErrorMessage = (err) => {
     return '임시저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
 };
 
-export const DRAFT_FORKED_MESSAGE = '불러온 임시저장 글이 다른 기기에서 고쳐지거나 지워져서, 지금 내용을 새 임시저장 글로 따로 저장했어요.';
-
 const SELECT = 'id, title, data, revision, updated_at';
 
 export const draftsApi = {
@@ -38,49 +36,38 @@ export const draftsApi = {
         return data || [];
     },
 
-    // 저장. 반환 { row, mode: 'updated' | 'created' | 'forked' }.
-    //  - id·rev 가 있으면(불러왔거나 이미 저장한 원고) 그 버전일 때만 고친다.
-    //    그사이 다른 기기에서 고쳤거나 지웠으면(0행) 덮지 않고 newId 로 새 원고를 만든다(forked).
+    // 저장. 반환 { row, mode: 'updated' | 'created' }.
+    //  - id 가 있으면(불러왔거나 이미 저장한 원고) 그 건을 지금 내용으로 덮어쓴다 — 다른 기기에서 먼저 고쳤어도
+    //    마지막 임시저장이 이긴다(2026-09-25 쿠마님 결정: "다시 임시저장하는 거니까 덮어씌워야지").
+    //    그사이 다른 곳에서 지웠으면(0행) 지금 내용을 새 원고로 저장한다.
     //  - newId 는 부르는 쪽이 한 번 만들어 저장이 성공할 때까지 유지한다 — 응답이 끊겨 다시 눌러도
     //    같은 id 라 두 건이 생기지 않는다(23505 면 이미 들어간 그 건을 지금 내용으로 고친다).
-    async save({ id = null, rev = null, newId, board, scope = '', title, data }) {
-        if (id && rev != null) {
+    async save({ id = null, newId, board, scope = '', title, data }) {
+        if (id) {
             const { data: row, error } = await supabase
                 .from('post_drafts')
                 .update({ title, data })
                 .eq('id', id)
-                .eq('revision', rev)
                 .select(SELECT)
                 .maybeSingle();
             if (error) throw error;
             if (row) return { row, mode: 'updated' };
         }
-        const mode = id ? 'forked' : 'created';
         const ins = await supabase
             .from('post_drafts')
             .insert({ id: newId, board, scope, title, data })
             .select(SELECT)
             .single();
-        if (!ins.error) return { row: ins.data, mode };
+        if (!ins.error) return { row: ins.data, mode: 'created' };
         if (ins.error.code === '23505') {
-            // 첫 저장은 들어갔는데 응답만 끊긴 경우. 막 만든 원고(revision 1)일 때만 지금 내용으로 고친다.
-            // 그사이 다른 기기가 고쳤으면(0행) 덮지 않고 새 id 로 따로 저장한다(codex 9/25).
             const { data: row, error } = await supabase
                 .from('post_drafts')
                 .update({ title, data })
                 .eq('id', newId)
-                .eq('revision', 1)
                 .select(SELECT)
                 .maybeSingle();
             if (error) throw error;
-            if (row) return { row, mode };
-            const again = await supabase
-                .from('post_drafts')
-                .insert({ id: newDraftId(), board, scope, title, data })
-                .select(SELECT)
-                .single();
-            if (again.error) throw again.error;
-            return { row: again.data, mode: 'forked' };
+            if (row) return { row, mode: 'created' };
         }
         throw ins.error;
     },

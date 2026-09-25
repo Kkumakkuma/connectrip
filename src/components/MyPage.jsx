@@ -79,6 +79,22 @@ const MyPage = () => {
     const [flightDate, setFlightDate] = useState('');
     const [flightNumber, setFlightNumber] = useState('');
     const [boardFlight, setBoardFlight] = useState(null); // 스케줄 목록의 '게시판' 버튼 → 그 편 게시판 팝업
+    // 팝업 닫기 전에 게시판 입력칸에 임시저장 안 한 글이 있으면 FlightBoard 가 먼저 묻는다(2026-09-25)
+    const boardCloseGuard = useRef(null);
+    const closeBoard = () => {
+        const close = () => setBoardFlight(null);
+        if (boardCloseGuard.current) boardCloseGuard.current(close); else close();
+    };
+    // 팝업은 직접 만든 창이라 Esc 도 closeBoard 로(임시저장 확인창이 떠 있으면 확인창이 먼저 받아 막는다)
+    const closeBoardRef = useRef(closeBoard);
+    useEffect(() => { closeBoardRef.current = closeBoard; });
+    const boardOpen = !!boardFlight;
+    useEffect(() => {
+        if (!boardOpen) return undefined;
+        const onKey = (e) => { if (e.key === 'Escape') closeBoardRef.current(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [boardOpen]);
     const [registering, setRegistering] = useState(false);
     const [myFlights, setMyFlights] = useState([]);
     const [flightsLoading, setFlightsLoading] = useState(true);
@@ -1159,7 +1175,7 @@ const MyPage = () => {
                             {activeTab === 'keywords' && <KeywordSettings />}
                             {activeTab === 'blocks' && <BlockedUsers />}
                             {boardFlight && createPortal(
-                                <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4" onClick={() => setBoardFlight(null)}>
+                                <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4" onClick={closeBoard}>
                                     <div
                                         role="dialog"
                                         aria-modal="true"
@@ -1171,11 +1187,11 @@ const MyPage = () => {
                                             <h3 className="text-base font-extrabold text-gray-800">
                                                 {boardFlight.flight_number} <span className="text-sm font-semibold text-gray-500 ml-1">{boardFlight.flight_date}</span>
                                             </h3>
-                                            <button type="button" onClick={() => setBoardFlight(null)} className="p-1.5 hover:bg-gray-100 rounded-full" aria-label="닫기">
+                                            <button type="button" onClick={closeBoard} className="p-1.5 hover:bg-gray-100 rounded-full" aria-label="닫기">
                                                 <X size={18} />
                                             </button>
                                         </div>
-                                        <FlightBoard flight={boardFlight} />
+                                        <FlightBoard flight={boardFlight} closeGuardRef={boardCloseGuard} />
                                     </div>
                                 </div>,
                                 document.body
