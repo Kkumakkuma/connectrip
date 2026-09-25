@@ -353,7 +353,7 @@ const MyPage = () => {
             // 성공: 개인정보 파기 완료 → 즉시 로그아웃 후 홈으로
             alert('회원탈퇴가 완료되었습니다. 그동안 이용해주셔서 감사합니다.');
             setShowDeleteModal(false);
-            await signOut();
+            await signOut({ purgeDrafts: true });   // 탈퇴한 계정의 글쓰기 임시저장본도 이 기기에서 지운다
             navigate('/');
             window.scrollTo(0, 0);
         } catch (err) {
@@ -1324,7 +1324,7 @@ const MyPage = () => {
             <div className="mt-8 text-center">
                 <button
                     onClick={async () => {
-                        await signOut();
+                        await signOut({ purgeDrafts: true });   // 직접 로그아웃 = 이 기기의 글쓰기 임시저장본도 지운다
                         navigate('/');
                         window.scrollTo(0, 0);
                     }}

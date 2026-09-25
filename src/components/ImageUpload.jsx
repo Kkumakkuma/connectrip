@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 import { storageApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
@@ -100,10 +100,16 @@ function loadImageElement(file) {
 // onUploadingChange: 업로드 중 여부를 부모에 알림(업로드 끝나기 전 저장 방지)
 // label: 컴포넌트가 직접 그리는 제목. 쓰는 쪽에서 이미 '사진 (…)' 같은 제목을 달았으면 null 을 넘겨 끈다
 // (안 그러면 '사진 (0/5)' 바로 아래 '이미지 첨부'가 또 나온다 — 2026-09-07 모바일 실측).
-const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUpload = false, onUploadingChange, label = '이미지 첨부' }) => {
+// currentUrl: 폼이 들고 있는 사진 주소(임시저장 복원 등, 2026-09-25). 넘기면 그 사진을 미리보기로 보이고
+// 폼 값이 바뀌면 따라간다. 넘기지 않으면(undefined) 예전처럼 이 컴포넌트가 올린 사진만 보인다.
+const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUpload = false, onUploadingChange, label = '이미지 첨부', currentUrl }) => {
   const { user } = useAuth();
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState(currentUrl || null);
   const [uploading, setUploading] = useState(false);
+  useEffect(() => {
+    if (currentUrl === undefined || uploading) return;
+    setPreview(currentUrl || null);
+  }, [currentUrl, uploading]);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 

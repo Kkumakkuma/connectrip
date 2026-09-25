@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { MessageSquare, Send, Trash2, Loader2, Lock, Flag, EyeOff, CornerDownRight, X } from 'lucide-react';
 import { flightBoardApi } from '../lib/db';
+import { useAuth } from '../lib/AuthContext';
+import { useDraft } from '../lib/useDraft';
+import { draftKey, isBlankDraft } from '../lib/draftStore';
+import { DraftNotice, DraftSaveButton } from './board/DraftBar';
 import { REPORT_REASONS } from '../lib/reportReasons';
 import { kstDateString, boardStatus, boardTitle, boardErrorMessage } from '../lib/flightBoard';
 
@@ -52,6 +56,17 @@ const FlightBoard = ({ flight }) => {
     const memberType = data.member_type || flight.user_type || 'passenger';
     const writable = data.eligible && data.writable;
 
+    // 임시저장(2026-09-25): 편·날짜마다 한 건. 쓸 수 있는 동안 입력칸 내용을 저장하고 다시 열면 불러온다.
+    const { user } = useAuth();
+    const draftValue = useMemo(() => ({ content }), [content]);
+    const draft = useDraft({
+        key: draftKey(user?.id, 'flight', flight.flight_number, flight.flight_date),
+        open: !!writable,
+        value: draftValue,
+        isEmpty: (v) => isBlankDraft(v, ['content']),
+        onRestore: (d) => setContent(String(d.content || '').slice(0, 1000)),
+    });
+
     const fetchBoard = useCallback(async () => {
         try {
             setLoading(true);
@@ -72,9 +87,11 @@ const FlightBoard = ({ flight }) => {
     const handlePost = async () => {
         const body = content.trim();
         if (!body || posting) return;
+        const submitDraftKey = draft.key;
         setPosting(true);
         try {
             await flightBoardApi.createPost(flight.flight_number, flight.flight_date, body);
+            draft.clear(submitDraftKey);
             setContent('');
             await fetchBoard();
         } catch (err) {
@@ -180,6 +197,11 @@ const FlightBoard = ({ flight }) => {
 
             {writable && (
                 <div className="mb-3">
+                    {draft.restoredAt && (
+                        <div className="mb-2">
+                            <DraftNotice restoredAt={draft.restoredAt} onDiscard={() => { draft.discard(); setContent(''); }} />
+                        </div>
+                    )}
                     <textarea
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
@@ -192,6 +214,8 @@ const FlightBoard = ({ flight }) => {
                     />
                     <div className="flex items-center justify-between mt-1.5">
                         <span className="text-[11px] text-gray-400">{content.length}/1000</span>
+                        <span className="flex items-center gap-1">
+                        <DraftSaveButton compact savedAt={draft.savedAt} onSave={draft.saveNow} disabled={posting || !content.trim()} />
                         <button
                             onClick={handlePost}
                             disabled={posting || !content.trim()}
@@ -200,6 +224,7 @@ const FlightBoard = ({ flight }) => {
                             {posting ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
                             올리기
                         </button>
+                        </span>
                     </div>
                 </div>
             )}

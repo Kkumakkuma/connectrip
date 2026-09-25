@@ -9,6 +9,9 @@ import { destinationsApi, postLikeApi } from '../lib/db';
 import { postPath } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
 import { crewVerificationStatus } from '../lib/crewVerification';
+import { useDraft } from '../lib/useDraft';
+import { draftKey, isBlankDraft } from '../lib/draftStore';
+import { DraftNotice, DraftSaveButton } from './board/DraftBar';
 import BoardShell from './board/BoardShell';
 import ContinentBar from './board/ContinentBar';
 import ContinentBadge from './board/ContinentBadge';
@@ -24,6 +27,9 @@ import SEOHead from './SEOHead';
 
 const PAGE = 24;
 const EMPTY_FORM = { region_id: '', name: '', desc: '', crewComment: '', image_url: '' };
+// 임시저장(2026-09-25): 말머리만 고른 건 빈 원고
+const isBlankForm = (v) => isBlankDraft(v, ['name', 'desc', 'crewComment', 'image_url']);
+const pickDraft = (d) => Object.fromEntries(Object.keys(EMPTY_FORM).map((k) => [k, String(d[k] ?? '')]));
 // 외부(unsplash) 주소를 쓰면 앱에서 못 받아 로고로 떨어진다(2026-09-17 앱 점검)
 const FALLBACK_IMG = '/boards/recommend.webp';
 
@@ -87,6 +93,13 @@ const Destinations = () => {
     const [submitting, setSubmitting] = useState(false);
     const [pickerError, setPickerError] = useState('');
     const formId = useId();
+    const draft = useDraft({
+        key: draftKey(user?.id, 'destination'),
+        open: showModal,
+        value: form,
+        isEmpty: isBlankForm,
+        onRestore: (d) => setForm((f) => ({ ...f, ...pickDraft(d) })),
+    });
     const reqRef = useRef(0);
 
     const crewExpired = isLoggedIn && isCrew && crewVerificationStatus(profile).state === 'expired';
@@ -161,6 +174,7 @@ const Destinations = () => {
         if (!canWrite) { alert('승무원 인증을 마친 회원만 명소를 추천할 수 있습니다.'); setShowModal(false); return; }
         if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         if (!requireNickname(() => submit())) return;
+        const submitDraftKey = draft.key;   // 응답이 늦게 와도 이 원고의 임시저장본만 지운다
         setSubmitting(true);
         try {
             const created = await destinationsApi.create({
@@ -171,6 +185,7 @@ const Destinations = () => {
                 crew_comment: form.crewComment.trim(),
                 image_url: form.image_url || null,
             });
+            draft.clear(submitDraftKey);
             if ((!region || region === created.region_id) && !q && page === 1) {
                 setItems((prev) => [created, ...prev]);
                 setCount((c) => c + 1);
@@ -237,11 +252,15 @@ const Destinations = () => {
                 footer={
                     <>
                         <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
-                        <button type="submit" form={`${formId}-form`} disabled={submitting || uploading} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
+                        <span className="flex items-center gap-2">
+                            <DraftSaveButton savedAt={draft.savedAt} onSave={draft.saveNow} disabled={submitting} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
+                        </span>
                     </>
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
+                    <DraftNotice restoredAt={draft.restoredAt} discardDisabled={uploading} onDiscard={() => { draft.discard(); setForm({ ...EMPTY_FORM, region_id: region || '' }); }} />
                     <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     <div>
                         <label htmlFor={`${formId}-name`} className="block text-sm font-bold text-ink mb-1.5">장소명</label>
@@ -257,7 +276,7 @@ const Destinations = () => {
                     </div>
                     <div>
                         <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                        <ImageUpload label={null} onUpload={(url) => { if (url !== undefined) setForm((f) => ({ ...f, image_url: url })); }} onUploadingChange={setUploading} />
+                        <ImageUpload label={null} currentUrl={form.image_url} onUpload={(url) => { if (url !== undefined) setForm((f) => ({ ...f, image_url: url })); }} onUploadingChange={setUploading} />
                     </div>
                 </form>
             </WriteModal>

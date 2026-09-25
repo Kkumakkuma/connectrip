@@ -9,6 +9,9 @@ import NicknameRequiredModal from './NicknameRequiredModal';
 import { companionApi, postLikeApi } from '../lib/db';
 import { postPath, COMPANION_STATUS } from '../lib/boards';
 import { regionFromSearch, continentOf } from '../lib/continents';
+import { useDraft } from '../lib/useDraft';
+import { draftKey, isBlankDraft } from '../lib/draftStore';
+import { DraftNotice, DraftSaveButton } from './board/DraftBar';
 import BoardShell from './board/BoardShell';
 import ContinentBar from './board/ContinentBar';
 import ContinentBadge from './board/ContinentBadge';
@@ -23,6 +26,9 @@ import SEOHead from './SEOHead';
 
 const PAGE = 20;
 const EMPTY_FORM = { region_id: '', title: '', country: '', date: '', members: '', content: '' };
+// 임시저장(2026-09-25): 말머리만 고른 건 빈 원고
+const isBlankForm = (v) => isBlankDraft(v, ['title', 'country', 'date', 'members', 'content']);
+const pickDraft = (d) => Object.fromEntries(Object.keys(EMPTY_FORM).map((k) => [k, String(d[k] ?? '')]));
 const STATUS_CLASS = { open: 'bg-rausch-soft text-rausch', closed: 'bg-surface-soft text-muted' };
 
 // 여행 동행자 모집 — 통합 게시판(2026-09-07). 대륙은 말머리(ContinentBar 필터, 글쓰기 시 ContinentPicker 필수).
@@ -49,6 +55,13 @@ const CompanionBoard = () => {
     const [submitting, setSubmitting] = useState(false);
     const [pickerError, setPickerError] = useState('');
     const formId = useId();
+    const draft = useDraft({
+        key: draftKey(user?.id, 'companion'),
+        open: showModal,
+        value: form,
+        isEmpty: isBlankForm,
+        onRestore: (d) => setForm((f) => ({ ...f, ...pickDraft(d) })),
+    });
     const reqRef = useRef(0);
 
     // 검색어 입력 → 300ms 뒤 URL ?q= 반영(공유·뒤로가기 보존)
@@ -120,6 +133,7 @@ const CompanionBoard = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting || submitLockRef.current) return;
         if (!continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        const submitDraftKey = draft.key;   // 응답이 늦게 와도 이 원고의 임시저장본만 지운다
         // 이용 제한 계정은 동행 모집 글을 올릴 수 없다(서버 트리거도 같은 이유로 막는다).
         // 재확인(await) 동안 다시 눌러도 중복 등록되지 않게 첫 await 전에 잠그고, submitting 이 켜진 뒤 푼다(2026-09-16 codex 검토).
         submitLockRef.current = true;
@@ -142,6 +156,7 @@ const CompanionBoard = () => {
                 author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 user_id: user.id,
             });
+            draft.clear(submitDraftKey);
             if ((!region || region === created.region_id) && !q && page === 1) {
                 setPosts((prev) => [created, ...prev].slice(0, PAGE));
                 setCount((c) => c + 1);
@@ -229,11 +244,15 @@ const CompanionBoard = () => {
                 footer={
                     <>
                         <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
-                        <button type="submit" form={`${formId}-form`} disabled={submitting} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
+                        <span className="flex items-center gap-2">
+                            <DraftSaveButton savedAt={draft.savedAt} onSave={draft.saveNow} disabled={submitting} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
+                        </span>
                     </>
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
+                    <DraftNotice restoredAt={draft.restoredAt} onDiscard={() => { draft.discard(); setForm({ ...EMPTY_FORM, region_id: region || '' }); }} />
                     <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>

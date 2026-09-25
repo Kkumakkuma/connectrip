@@ -15,6 +15,9 @@ import { useNicknameGate } from '../lib/useNicknameGate';
 import NicknameRequiredModal from './NicknameRequiredModal';
 import { marketApi } from '../lib/db';
 import { regionFromSearch } from '../lib/continents';
+import { useDraft } from '../lib/useDraft';
+import { draftKey, isBlankDraft } from '../lib/draftStore';
+import { DraftNotice, DraftSaveButton } from './board/DraftBar';
 import BoardShell from './board/BoardShell';
 import BoardTabs from './board/BoardTabs';
 import SearchPill from './board/SearchPill';
@@ -33,6 +36,9 @@ const TABS = [
 ];
 const PAGE = 12;
 const EMPTY_FORM = { title: '', price: '', location: '', content: '', image_url: '' };
+// 임시저장(2026-09-25) — 구해요·공동구매 폼. 판매·나눔은 MarketListingForm 이 따로 한다.
+const isBlankForm = (v) => isBlankDraft(v, Object.keys(EMPTY_FORM));
+const pickDraft = (d) => Object.fromEntries(Object.keys(EMPTY_FORM).map((k) => [k, String(d[k] ?? '')]));
 
 // 물품거래 및 나눔(2026-09-07 에어비앤비 톤). 탭 4개: 판매·나눔은 당근식 MarketFeed(나눔은 대륙 말머리 필터),
 // 구해요·공동구매는 카드 그리드. ?tab= / ?region= / ?q= 동기.
@@ -56,6 +62,13 @@ const MarketBoard = () => {
     const [uploading, setUploading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const formId = useId();
+    const draft = useDraft({
+        key: mode === 'buy' || mode === 'groupbuy' ? draftKey(user?.id, 'market', mode) : null,
+        open: showModal,
+        value: form,
+        isEmpty: isBlankForm,
+        onRestore: (d) => setForm((f) => ({ ...f, ...pickDraft(d) })),
+    });
     const reqRef = useRef(0);
 
     useEffect(() => {
@@ -115,6 +128,7 @@ const MarketBoard = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         if (submitting || uploading) return;
         if (!requireNickname(() => submit())) return;
+        const submitDraftKey = draft.key;   // 응답이 늦게 와도 이 원고의 임시저장본만 지운다
         setSubmitting(true);
         try {
             const digits = String(form.price || '').replace(/[^0-9]/g, '');
@@ -127,6 +141,7 @@ const MarketBoard = () => {
             if (mode === 'buy') listing.budget = digits ? Number(digits) : null;
             if (mode === 'groupbuy') listing.price = digits ? Number(digits) : null;
             const created = await marketApi.create(listing);
+            draft.clear(submitDraftKey);
             setItems((prev) => [created, ...prev]);
             setPage(1);
             setShowModal(false);
@@ -220,7 +235,10 @@ const MarketBoard = () => {
                 footer={isFeed ? null : (
                     <>
                         <button type="button" onClick={() => setShowModal(false)} className="btn-air-link">취소</button>
-                        <button type="submit" form={`${formId}-form`} disabled={submitting || uploading} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
+                        <span className="flex items-center gap-2">
+                            <DraftSaveButton savedAt={draft.savedAt} onSave={draft.saveNow} disabled={submitting} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
+                        </span>
                     </>
                 )}
             >
@@ -233,6 +251,7 @@ const MarketBoard = () => {
                     />
                 ) : (
                     <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
+                        <DraftNotice restoredAt={draft.restoredAt} discardDisabled={uploading} onDiscard={() => { draft.discard(); setForm(EMPTY_FORM); }} />
                         <div>
                             <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
                             <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={80} required />
@@ -250,7 +269,7 @@ const MarketBoard = () => {
                         {mode === 'groupbuy' && (
                             <div>
                                 <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                                <ImageUpload label={null} bucket="images" onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
+                                <ImageUpload label={null} bucket="images" currentUrl={form.image_url} onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
                             </div>
                         )}
                         <div>

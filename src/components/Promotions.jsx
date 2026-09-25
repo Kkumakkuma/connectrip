@@ -6,6 +6,9 @@ import ShareButtons from './ShareButtons';
 import VisibilityPicker from './board/VisibilityPicker';
 import PrivateBadge from './board/PrivateBadge';
 import { postPath } from '../lib/boards';
+import { useDraft } from '../lib/useDraft';
+import { draftKey, isBlankDraft } from '../lib/draftStore';
+import { DraftNotice, DraftSaveButton } from './board/DraftBar';
 import CrewBadge from './CrewBadge';
 import AuthorActions from './AuthorActions';
 import ReportButton from './ReportButton';
@@ -29,6 +32,8 @@ const regions = [
 ];
 
 const EMPTY_FORM = { title: '', content: '', image_url: '', is_private: false };
+const isBlankForm = (v) => isBlankDraft(v, ['title', 'content', 'image_url']);
+const pickDraft = (d) => ({ title: String(d.title || ''), content: String(d.content || ''), image_url: String(d.image_url || ''), is_private: !!d.is_private });
 
 // 클릭으로만 열리던 카드에 키보드 조작(Enter/Space)을 붙인다.
 // 지역 선택은 URL 이 아니라 컴포넌트 내부 state 로 동작해서 Link 로 바꾸면 기능이 깨진다.
@@ -56,6 +61,14 @@ const Promotions = () => {
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false); // 등록 버튼 중복 제출 방지
     const formId = useId(); // label-input 연결용 접두사
+    // 임시저장(2026-09-25) — 홍보·후기 탭별로 따로
+    const draft = useDraft({
+        key: mode === 'promotion' || mode === 'review' ? draftKey(user?.id, 'promo', mode) : null,
+        open: showModal,
+        value: formData,
+        isEmpty: isBlankForm,
+        onRestore: (d) => setFormData((f) => ({ ...f, ...pickDraft(d) })),
+    });
 
     useEffect(() => {
         setMode('main');
@@ -99,6 +112,7 @@ const Promotions = () => {
         // 조기 return 을 모두 지난 뒤에 플래그를 세운다(먼저 세우면 버튼이 영구히 잠긴다).
         if (submitting) return;
         if (!requireNickname(() => handleSubmit())) return;
+        const submitDraftKey = draft.key;   // 응답이 늦게 와도 이 원고의 임시저장본만 지운다
         setSubmitting(true);
         try {
             await reviewsApi.create({
@@ -112,6 +126,7 @@ const Promotions = () => {
                 is_private: mode === 'review' ? !!formData.is_private : false,
                 author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
             });
+            draft.clear(submitDraftKey);
             setFormData(EMPTY_FORM);
             setShowModal(false);
             fetchPosts(selectedRegion.id, mode);
@@ -362,6 +377,7 @@ const Promotions = () => {
                                 <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
+                                <DraftNotice restoredAt={draft.restoredAt} onDiscard={() => { draft.discard(); setFormData(EMPTY_FORM); }} />
                                 <div>
                                     <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품명' : '후기 제목'}</label>
                                     <input id={`${formId}-title`} type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -378,13 +394,16 @@ const Promotions = () => {
                                     {/* ImageUpload 가 자체 label 을 가지고 있어, 바깥 문구는 label 이 아닌 제목으로 둔다 */}
                                     <span className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</span>
                                     {/* 함수형 갱신 — 업로드 도중 바꾼 공개 설정·입력값을 업로드 완료 콜백이 옛 값으로 되돌리지 않게(codex 9/25) */}
-                                    <ImageUpload label={null} onUpload={(url) => setFormData((f) => ({ ...f, image_url: url }))} />
-                                    {formData.image_url && <img src={formData.image_url} alt="미리보기" loading="lazy" decoding="async" className="mt-2 h-32 rounded-xl object-cover" />}
+                                    {/* currentUrl: 임시저장에서 불러온 사진도 업로드 칸 미리보기(지우기 버튼 포함)로 보인다 — 따로 그리던 미리보기는 겹쳐서 뺐다(codex·agy 9/25) */}
+                                    <ImageUpload label={null} currentUrl={formData.image_url} onUpload={(url) => setFormData((f) => ({ ...f, image_url: url }))} />
                                 </div>
                                 {mode === 'review' && (
                                     <VisibilityPicker name={`${formId}-visibility`} value={formData.is_private} onChange={(v) => setFormData((f) => ({ ...f, is_private: v }))} />
                                 )}
-                                <div className="flex gap-3 pt-4">
+                                <div className="flex justify-end">
+                                    <DraftSaveButton savedAt={draft.savedAt} onSave={draft.saveNow} disabled={submitting} />
+                                </div>
+                                <div className="flex gap-3 pt-2">
                                     <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 transition-colors">취소</button>
                                     <button
                                         type="submit"

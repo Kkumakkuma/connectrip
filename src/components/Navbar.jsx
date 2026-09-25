@@ -30,7 +30,7 @@ const Navbar = () => {
   }, []);
 
   const handleLogout = async () => {
-    await signOut();
+    await signOut({ purgeDrafts: true });   // 직접 로그아웃 = 이 기기의 글쓰기 임시저장본도 지운다
     navigate('/');
     window.scrollTo(0, 0);
   };
