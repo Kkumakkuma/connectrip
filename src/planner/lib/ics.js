@@ -1,20 +1,20 @@
-// 스냅샷(설계 §3) → ICS 달력 파일. 순수 함수만 둔다.
+// 캘린더 일정(lib/calendarEvents 가 만든 정규화된 일정) → iCalendar 파일(RFC 5545). 순수 함수만 둔다.
 //
-// npm 의 `ics` 패키지를 쓰지 않는 이유 (설계 §7.2 codex-23 의 지적을 다른 방식으로 해결)
-//   ics@3.x 는 기본 출력이 "실행 기기의 로컬 시각 → UTC" 변환이다. 서울에서 도쿄 여행 일정을
-//   내보내면 10:30 이 09:30 으로 어긋난다. 인자로 UTC 배열을 만들어 넘기려면 여행지 타임존의
-//   오프셋을 우리가 알아야 하는데, 그러려면 IANA 타임존 데이터가 필요하다.
+// 시각 표기 세 가지 (2026-09-27 개편 — 예전에는 전부 부동 시각이었다)
+//   utc      DTSTART:20261001T013000Z   여행지 타임존을 알면 이걸 쓴다. 절대 시각이라 어느 앱·어느 나라에서 봐도 같은 순간이다.
+//   floating DTSTART:20261001T103000    타임존을 모를 때만. "보는 쪽 현지 시각"으로 해석된다.
+//   date     DTSTART;VALUE=DATE:20261001 시각이 없는 일정(종일).
 //
-//   그래서 **부동 시각(floating time)** 으로 쓴다. DTSTART:20261001T103000 처럼 Z 도 TZID 도
-//   붙이지 않으면, 달력 앱은 그 시각을 "보는 기기의 현지 시각"으로 해석한다. 여행자는 현지에서
-//   일정을 보므로 이게 실제로 원하는 동작이다(10:30 에 간다 = 현지 10:30). 변환이 아예 없으니
-//   어긋날 여지도 없다. TZID 를 쓰면 VTIMEZONE 블록을 함께 넣어야 규격에 맞고, 그러려면
-//   타임존 데이터베이스를 번들에 실어야 한다 — 얻는 것에 비해 비싸다.
+//   예전 방식(전부 부동 시각)을 버린 이유: 구글 캘린더는 부동 시각을 가져올 때 **캘린더 설정 시간대**로
+//   고정한다. 서울 캘린더에 파리 10:30 을 넣으면 서울 10:30 으로 박혀 파리에 가면 03:30 으로 보인다.
+//   TZID 를 쓰면 VTIMEZONE 블록을 같이 넣어야 규격에 맞는데(RFC 5545 3.2.19), 타임존 규칙 데이터를
+//   번들에 실어야 한다. UTC 는 VTIMEZONE 없이 규격을 지키고, 오프셋은 lib/timezone 이 Intl 로 계산한다.
 //
-// RFC 5545 에서 지키는 것: CRLF 줄바꿈, 75옥텟 폴딩, 텍스트 이스케이프, UID·DTSTAMP 필수.
+// 지키는 것: CRLF 줄바꿈, 75옥텟 줄 접기(UTF-8 바이트 기준, 글자 중간을 자르지 않음), TEXT 이스케이프,
+// UID·DTSTAMP 필수, VEVENT 가 하나도 없으면 파일을 만들지 않는다(RFC 5545 3.6: 구성요소 1개 이상).
 
 const CRLF = '\r\n';
-const DEFAULT_STAY_MIN = 60;
+const ENCODER = new TextEncoder(); // 줄 접기마다 새로 만들지 않는다
 
 // 텍스트 값 이스케이프. 역슬래시가 먼저다 — 뒤에 하면 우리가 넣은 이스케이프를 또 이스케이프한다.
 export function escapeText(value) {
@@ -25,12 +25,12 @@ export function escapeText(value) {
     .replace(/\r\n|\r|\n/g, '\\n');
 }
 
-// 75옥텟 폴딩. 옥텟 기준이라 한글(UTF-8 3바이트)에서도 규격을 넘지 않는다.
-// 이어지는 줄은 공백 한 칸으로 시작한다.
+// 75옥텟 폴딩. 옥텟 기준이라 한글(UTF-8 3바이트)·이모지(4바이트)에서도 규격을 넘지 않는다.
+// for...of 는 코드 포인트 단위로 돌기 때문에 멀티바이트 글자·서로게이트 쌍이 줄 사이에서 쪼개지지 않는다.
+// 이어지는 줄은 공백 한 칸으로 시작한다(그 한 칸도 75옥텟에 들어간다).
 export function foldLine(line) {
-  const enc = new TextEncoder();
-  const bytes = enc.encode(line);
-  if (bytes.length <= 75) return line;
+  const enc = ENCODER;
+  if (enc.encode(line).length <= 75) return line;
 
   const out = [];
   let cur = '';
@@ -42,7 +42,7 @@ export function foldLine(line) {
       out.push(cur);
       cur = ch;
       curBytes = size;
-      limit = 74; // 이어지는 줄은 앞에 공백 한 칸이 붙는다
+      limit = 74;
     } else {
       cur += ch;
       curBytes += size;
@@ -56,79 +56,62 @@ function pad(n) {
   return String(n).padStart(2, '0');
 }
 
-// 'YYYY-MM-DD' → '20261001'
-function dateValue(dateStr) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || ''));
-  return m ? `${m[1]}${m[2]}${m[3]}` : null;
-}
-
-// 'HH:MM' 또는 'HH:MM:SS' → { h, m }
-function clockParts(value) {
-  const m = /^(\d{1,2}):(\d{2})/.exec(String(value || ''));
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!(h >= 0 && h <= 23) || !(min >= 0 && min <= 59)) return null;
-  return { h, m: min };
-}
-
-// 부동 시각 문자열. 하루를 넘기면 날짜를 넘겨 준다(체류가 자정을 넘는 경우).
-//
-// 달력 산술은 UTC 로 한다. new Date(y, m, d, ...) 와 getHours() 는 실행 환경의 로컬
-// 타임존을 타서, 서머타임 전환일에는 존재하지 않는 시각이 조용히 밀린다(codex 지적).
-// 출력 문자열에는 Z 를 붙이지 않으므로 결과는 여전히 부동 시각이다 — 산술만 중립으로 한다.
-function floatingStamp(dateStr, minutesFromMidnight) {
-  const base = dateValue(dateStr);
-  if (!base) return null;
-  const y = Number(base.slice(0, 4));
-  const mo = Number(base.slice(4, 6));
-  const d = Number(base.slice(6, 8));
-  const dt = new Date(Date.UTC(y, mo - 1, d, 0, minutesFromMidnight, 0, 0));
+/** 절대 시각(ms) → 'YYYYMMDDTHHMMSSZ' */
+export function utcStamp(ms) {
+  const d = new Date(ms);
   return (
-    `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}` +
-    `T${pad(dt.getUTCHours())}${pad(dt.getUTCMinutes())}00`
+    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
+    `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
   );
 }
 
-// 다음 날 'YYYYMMDD' (종일 이벤트의 DTEND 는 배타적이라 하루를 더해야 한다)
-function nextDateValue(dateStr) {
-  const base = dateValue(dateStr);
-  if (!base) return null;
-  const dt = new Date(Date.UTC(Number(base.slice(0, 4)), Number(base.slice(4, 6)) - 1, Number(base.slice(6, 8)) + 1));
-  return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}`;
+// 시각 하나를 속성 줄로. type 이 이상하면 null(그 일정은 통째로 건너뛴다).
+function timeProp(name, t) {
+  if (!t || typeof t.value !== 'string') return null;
+  if (t.type === 'date' && /^\d{8}$/.test(t.value)) return `${name};VALUE=DATE:${t.value}`;
+  if (t.type === 'utc' && /^\d{8}T\d{6}Z$/.test(t.value)) return `${name}:${t.value}`;
+  if (t.type === 'floating' && /^\d{8}T\d{6}$/.test(t.value)) return `${name}:${t.value}`;
+  return null;
 }
 
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
+function eventLines(ev, stamp) {
+  const start = timeProp('DTSTART', ev?.start);
+  if (!start || !ev?.uid) return null;
+  const end = ev.end ? timeProp('DTEND', ev.end) : null;
+  // DTEND 는 DTSTART 와 같은 형식이어야 한다(RFC 5545 3.8.2.2). 섞이면 버린다 — 끝을 모르는 일정이 된다.
+  const endOk = end && ev.end.type === ev.start.type;
 
-function describe(place, currency) {
-  const bits = [];
-  if (place?.address) bits.push(place.address);
-  const cost = Number(place?.cost);
-  if (Number.isFinite(cost) && cost > 0) bits.push(`예상 비용 ${cost.toLocaleString('ko-KR')} ${currency}`);
-  if (place?.note) bits.push(place.note);
-  return bits.join('\n');
+  const lines = ['BEGIN:VEVENT', `UID:${ev.uid}`, `DTSTAMP:${stamp}`];
+  if (ev.lastModified && /^\d{8}T\d{6}Z$/.test(ev.lastModified)) lines.push(`LAST-MODIFIED:${ev.lastModified}`);
+  lines.push(start);
+  if (endOk) lines.push(end);
+  lines.push(`SUMMARY:${escapeText(ev.summary || '일정')}`);
+  if (ev.location) lines.push(`LOCATION:${escapeText(ev.location)}`);
+  if (ev.description) lines.push(`DESCRIPTION:${escapeText(ev.description)}`);
+  const lat = Number(ev.geo?.lat);
+  const lng = Number(ev.geo?.lng);
+  if (ev.geo && Number.isFinite(lat) && Number.isFinite(lng)) {
+    lines.push(`GEO:${Number(lat.toFixed(6))};${Number(lng.toFixed(6))}`);
+  }
+  lines.push('END:VEVENT');
+  return lines;
 }
 
 /**
- * 스냅샷을 ICS 문자열로 만든다.
- * @param {object} snapshot 설계 §3 스냅샷
+ * 일정 목록 → .ics 문자열. 넣을 일정이 하나도 없으면 null.
+ * @param {Array} events lib/calendarEvents 의 buildCalendarEvents 결과
  * @param {object} opts
- * @param {string} opts.uidSeed  UID 를 안정적으로 만들기 위한 씨앗(보통 여행 id)
- * @param {string} opts.stamp    DTSTAMP 값('YYYYMMDDTHHMMSSZ'). 테스트에서 고정하려고 주입받는다.
+ * @param {string} opts.calName X-WR-CALNAME (여행 이름)
+ * @param {string} opts.stamp   DTSTAMP('YYYYMMDDTHHMMSSZ'). 테스트에서 고정하려고 주입받는다.
  */
-export function buildIcs(snapshot, { uidSeed = 'trip', stamp = null } = {}) {
-  const currency = snapshot?.currency || 'KRW';
-  const now =
-    stamp ||
-    (() => {
-      const d = new Date();
-      return (
-        `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
-        `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
-      );
-    })();
+export function buildIcs(events, { calName = '', stamp = null } = {}) {
+  const now = stamp && /^\d{8}T\d{6}Z$/.test(stamp) ? stamp : utcStamp(Date.now());
+  const body = [];
+  (Array.isArray(events) ? events : []).forEach((ev) => {
+    const lines = eventLines(ev, now);
+    if (lines) body.push(...lines);
+  });
+  if (body.length === 0) return null;
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -136,52 +119,27 @@ export function buildIcs(snapshot, { uidSeed = 'trip', stamp = null } = {}) {
     'PRODID:-//ConnectTrip//Planner//KO',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    `X-WR-CALNAME:${escapeText(snapshot?.title || '여행 일정')}`,
+    `X-WR-CALNAME:${escapeText(calName || '여행 일정')}`,
+    ...body,
+    'END:VCALENDAR',
   ];
-
-  asArray(snapshot?.days).forEach((day, dayIdx) => {
-    const date = day?.date;
-    if (!dateValue(date)) return;
-    asArray(day.places).forEach((place, placeIdx) => {
-      const uid = `${uidSeed}-${dayIdx}-${place?.order ?? placeIdx}@connecttrip.co.kr`;
-      const clock = clockParts(place?.planned_time);
-      const ev = ['BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${now}`];
-
-      if (clock) {
-        const startMin = clock.h * 60 + clock.m;
-        const stay = Number(place?.stay_min);
-        const dur = Number.isFinite(stay) && stay > 0 ? stay : DEFAULT_STAY_MIN;
-        ev.push(`DTSTART:${floatingStamp(date, startMin)}`);
-        ev.push(`DTEND:${floatingStamp(date, startMin + dur)}`);
-      } else {
-        // 시각이 없는 핀은 그 날짜의 종일 일정으로 둔다. DTEND 는 배타적이라 다음 날을 쓴다.
-        ev.push(`DTSTART;VALUE=DATE:${dateValue(date)}`);
-        ev.push(`DTEND;VALUE=DATE:${nextDateValue(date)}`);
-      }
-
-      ev.push(`SUMMARY:${escapeText(place?.name || '장소')}`);
-      if (place?.address) ev.push(`LOCATION:${escapeText(place.address)}`);
-      const desc = describe(place, currency);
-      if (desc) ev.push(`DESCRIPTION:${escapeText(desc)}`);
-      const lat = Number(place?.lat);
-      const lng = Number(place?.lng);
-      if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
-        ev.push(`GEO:${lat};${lng}`);
-      }
-      ev.push('END:VEVENT');
-      lines.push(...ev);
-    });
-  });
-
-  lines.push('END:VCALENDAR');
   return lines.map(foldLine).join(CRLF) + CRLF;
 }
 
-// 파일 이름. 확장자를 뺀 본문만 만들고 호출부가 붙인다.
+// 파일 이름 본문. 글자·숫자·공백·-_() 만 남긴다.
+//   앱의 공유 플러그인은 MimeTypeMap.getFileExtensionFromUrl 로 MIME 을 정하는데, 이 함수는 파일 이름에
+//   !~'& 같은 문자가 있으면 확장자를 못 읽어 text/calendar 대신 */* 로 공유한다(캘린더 앱이 목록에서 밀린다).
 export function safeFileBase(title) {
-  const cleaned = String(title || '여행일정')
-    .replace(/[\\/:*?"<>|]/g, ' ')
+  const cleaned = String(title || '')
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N}\s\-_()]/gu, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
-  return cleaned.slice(0, 60) || '여행일정';
+    .trim()
+    .replace(/^[-_.\s]+/, '');
+  return cleaned.slice(0, 60).trim() || '여행일정';
+}
+
+/** 캘린더 파일 이름: '여행이름_커넥트립.ics' */
+export function calendarFileName(title) {
+  return `${safeFileBase(title)}_커넥트립.ics`;
 }

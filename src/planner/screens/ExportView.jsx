@@ -6,35 +6,25 @@ import Card from '../kit/Card';
 import { ToastStack } from '../kit/Toast';
 import { getCatalogEntries, getTrip } from '../api';
 import { buildLocalSnapshot } from '../lib/snapshot';
-import { buildIcs, safeFileBase } from '../lib/ics';
+import { safeFileBase } from '../lib/ics';
+import { saveTextFile } from '../lib/fileSave';
+import { prepareTripCalendar, saveTripCalendar } from '../lib/tripCalendar';
 import SnapshotView from './SnapshotView';
 
 // /planner/t/:tripId/export — 내보내기 (설계 §7.2)
-//   JSON  스냅샷 그대로. 다른 도구로 옮기거나 백업할 때.
-//   ICS   핀 하나가 일정 하나. 달력 앱으로 가져간다.
-//   인쇄  브라우저 인쇄 대화상자를 열어 종이나 PDF 로 저장한다.
+//   캘린더  장소·티켓 하나가 일정 하나(.ics). 구글·삼성·네이버·애플 캘린더로 가져간다(lib/tripCalendar).
+//   JSON    스냅샷 그대로. 다른 도구로 옮기거나 백업할 때.
+//   인쇄    브라우저 인쇄 대화상자를 열어 종이나 PDF 로 저장한다.
 //
-// 파일 저장은 Blob + a[download] 로 한다. 이 화면은 커넥트립 웹에서만 열리므로(앱 빌드에는
-// 플래너가 실리지 않는다) 다운로드가 막히는 환경을 따로 다루지 않는다.
-
-function download(filename, text, mime) {
-  const blob = new Blob([text], { type: `${mime};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // 즉시 해제하면 사파리에서 저장이 취소되는 사례가 있어 한 틱 뒤에 푼다.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+// 파일 저장은 lib/fileSave 가 맡는다 — 웹은 Blob 다운로드, 앱(2026-09-04 부터 플래너가 앱에도 실린다)은
+// 안드로이드 WebView 가 Blob 다운로드를 못 받아서 캐시에 쓰고 공유 창을 연다.
 
 export default function ExportView() {
   const { tripId } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [calendarBusy, setCalendarBusy] = useState(false);
 
   const pushToast = useCallback((message, tone = 'info') => {
     setToasts((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, tone, message }]);
@@ -60,22 +50,39 @@ export default function ExportView() {
   const snapshot = data ? buildLocalSnapshot(data, data.catalog || null) : null;
   const base = safeFileBase(snapshot?.title);
 
-  const onJson = () => {
+  const onJson = async () => {
     if (!snapshot) return;
-    download(`${base}.json`, JSON.stringify(snapshot, null, 2), 'application/json');
-    pushToast('JSON 파일을 저장했습니다.', 'success');
+    try {
+      const result = await saveTextFile({
+        fileName: `${base}.json`,
+        text: JSON.stringify(snapshot, null, 2),
+        mime: 'application/json',
+      });
+      if (result === 'downloaded') pushToast('JSON 파일을 저장했습니다.', 'success');
+    } catch {
+      pushToast('JSON 파일을 만들지 못했습니다.', 'error');
+    }
   };
 
-  const onIcs = () => {
-    if (!snapshot) return;
-    const text = buildIcs(snapshot, { uidSeed: tripId });
-    const eventCount = (text.match(/BEGIN:VEVENT/g) || []).length;
-    if (eventCount === 0) {
-      pushToast('달력으로 내보낼 장소가 없습니다.', 'warning');
-      return;
+  const onIcs = async () => {
+    if (!data?.trip || calendarBusy) return;
+    setCalendarBusy(true);
+    try {
+      // 스냅샷이 아니라 원본 행으로 만든다 — UID 에 장소·티켓 id 가 들어가야 다시 내보내도 같은 일정으로 잡힌다.
+      const file = await prepareTripCalendar({ trip: data.trip, days: data.days || [], places: data.places || [] });
+      if (!file.text) {
+        if (file.ticketsFailed) pushToast('티켓을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'error');
+        else pushToast('캘린더에 넣을 일정이 없습니다. 날짜에 장소를 담아 주세요.', 'info');
+        return;
+      }
+      const result = await saveTripCalendar(file);
+      if (result === 'downloaded') pushToast(`일정 ${file.count}건을 캘린더 파일로 저장했습니다.`, 'success');
+      if (file.ticketsFailed && result !== 'cancelled') pushToast('티켓을 불러오지 못해 장소 일정만 담았습니다.', 'info');
+    } catch {
+      pushToast('캘린더 파일을 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.', 'error');
+    } finally {
+      setCalendarBusy(false);
     }
-    download(`${base}.ics`, text, 'text/calendar');
-    pushToast(`일정 ${eventCount}건을 달력 파일로 저장했습니다.`, 'success');
   };
 
   if (error) {
@@ -115,9 +122,9 @@ export default function ExportView() {
           만든 일정을 파일로 저장하거나 인쇄합니다. 비공개로 표시한 메모는 어떤 형식에도 담기지 않습니다.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" onClick={onIcs}>
+          <Button variant="primary" onClick={onIcs} loading={calendarBusy}>
             <CalendarDays size={16} aria-hidden="true" />
-            달력 파일 (.ics)
+            캘린더로 내보내기 (.ics)
           </Button>
           <Button variant="secondary" onClick={onJson}>
             <FileJson size={16} aria-hidden="true" />
@@ -129,7 +136,7 @@ export default function ExportView() {
           </Button>
         </div>
         <p className="mt-3 text-xs text-muted">
-          달력 파일의 시각은 현지 시각 그대로 들어갑니다. 여행지에서 열면 적어 둔 시각으로 보입니다.
+          시각은 여행지 기준으로 넣습니다. 캘린더 앱은 지금 있는 곳의 시각으로 바꿔 보여 줍니다.
         </p>
       </Card>
 

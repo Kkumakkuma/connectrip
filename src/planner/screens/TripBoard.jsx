@@ -57,6 +57,7 @@ import { latestTimestamp } from '../lib/format';
 import { estimateLegs, totalDurationSeconds } from '../lib/travelTime';
 import { computeDayLegs } from '../api';
 import { readDayWindow, writeDayWindow } from '../lib/dayWindow';
+import { prepareTripCalendar, saveTripCalendar } from '../lib/tripCalendar';
 
 // /planner/t/:tripId — 일정판. 플래너의 중심 화면이다.
 //
@@ -134,6 +135,8 @@ export default function TripBoard() {
   const [dayWindow, setDayWindow] = useState(() => readDayWindow(tripId));
   const [shareUrl, setShareUrl] = useState('');
   const [busy, setBusy] = useState(false);
+  const [calendarBusy, setCalendarBusy] = useState(false); // 캘린더 내보내기 진행 중
+  const calendarBusyRef = useRef(false);
   const [toasts, setToasts] = useState([]);
 
   const pushToast = useCallback((tone, message) => {
@@ -654,6 +657,31 @@ export default function TripBoard() {
     });
   };
 
+  // 캘린더로 내보내기(2026-09-27). 화면에 있는 여행·날짜·장소 + 티켓(서버에서 새로 읽음)으로 .ics 를 만든다.
+  // 저장 경로(runSaving)를 쓰지 않는다 — 실패해도 서버 상태를 다시 읽을 이유가 없다.
+  const handleExportCalendar = async () => {
+    if (!trip || calendarBusyRef.current) return;
+    calendarBusyRef.current = true;
+    setCalendarBusy(true);
+    try {
+      const file = await prepareTripCalendar({ trip, days, places });
+      if (!file.text) {
+        if (file.ticketsFailed) pushToast('error', '티켓을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+        else pushToast('info', '캘린더에 넣을 일정이 없습니다. 날짜에 장소를 담아 주세요.');
+        return;
+      }
+      const result = await saveTripCalendar(file);
+      if (result === 'downloaded') pushToast('success', `일정 ${file.count}건을 캘린더 파일로 저장했습니다.`);
+      if (file.ticketsFailed && result !== 'cancelled') pushToast('info', '티켓을 불러오지 못해 장소 일정만 담았습니다.');
+      setSheet(null);
+    } catch {
+      pushToast('error', '캘린더 파일을 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+    } finally {
+      calendarBusyRef.current = false;
+      setCalendarBusy(false);
+    }
+  };
+
   const handleCopyShare = async (url) => {
     try {
       await navigator.clipboard.writeText(url);
@@ -786,7 +814,8 @@ export default function TripBoard() {
       />
 
       <div className="lg:grid lg:grid-cols-[64%_1fr] lg:items-start lg:gap-5">
-        <div className="relative mb-4 lg:sticky lg:top-24 lg:mb-0">
+        {/* isolate: 지도 조각(leaflet 창 z 400)·"내 위치" 버튼(z-[400])이 바텀시트(z-[70]) 위로 새어 나오지 않게 쌓임 맥락을 가둔다(2026-09-27) */}
+        <div className="relative isolate mb-4 lg:sticky lg:top-24 lg:mb-0">
           {canLocate() && (
             <button
               type="button"
@@ -931,6 +960,8 @@ export default function TripBoard() {
           ticketBusy={tk.busy}
           onUploadTicket={(file) => tk.upload(file, selectedPlace.id)}
           onOpenTicket={(t) => (t.event_date ? tk.open(t) : tk.reconfirm(t))}
+          trip={trip}
+          tripPlaces={places}
         />
       )}
 
@@ -1040,6 +1071,8 @@ export default function TripBoard() {
         onPublish={handlePublish}
         onUnpublish={handleUnpublish}
         onExport={() => navigate(`/planner/t/${tripId}/export`)}
+        onExportCalendar={handleExportCalendar}
+        calendarBusy={calendarBusy}
         onChooseDest={() => setSheet('dest')}
       />
 

@@ -10,6 +10,10 @@ import { UNASSIGNED_ID } from './DayTabs';
 import PlaceReviews from './PlaceReviews';
 import { formatDateWithWeekday } from '../../lib/format';
 import { KIND_LABEL, ticketLabel, validateTicketFile } from '../../lib/ticketFile';
+import { googleCalendarUrl, placeEvent } from '../../lib/calendarEvents';
+import { SITE_ORIGIN } from '../../../lib/api';
+import GoogleCalendarLink from './GoogleCalendarLink';
+import usePlaceZone from './usePlaceZone';
 
 // 핀 상세. 설계 §1.1 대로 페이지가 아니라 바텀시트로 연다.
 // 후기는 장소 카탈로그에 연결된 핀(장소 검색·링크로 담기로 담은 핀)에서만 쓸 수 있다.
@@ -44,6 +48,8 @@ export default function PlaceSheet({
   ticketBusy = false,
   onUploadTicket,
   onOpenTicket,
+  trip = null,          // 구글 캘린더 링크용 — 좌표로 타임존을 못 찾을 때 여행 타임존으로 되돌아간다
+  tripPlaces = [],
 }) {
   // 폼 초기값은 마운트할 때 한 번만 잡는다.
   // 부모(TripBoard)가 `{sheet === 'place' && selectedPlace && <PlaceSheet …/>}` 로 열 때만
@@ -58,8 +64,32 @@ export default function PlaceSheet({
   const [dayId, setDayId] = useState(place?.day_id || UNASSIGNED_ID);
   const [error, setError] = useState('');
   const fileRef = useRef(null);
+  const placeZone = usePlaceZone(place?.lat, place?.lng, trip, tripPlaces);
 
   if (!place) return null;
+
+  // 구글 캘린더 링크는 저장 전 입력값 그대로 만든다(시각을 고치고 바로 누르는 경우). 보관함 장소는 날짜가 없어 숨긴다.
+  const calendarDate = dayId === UNASSIGNED_ID ? null : days.find((d) => d.id === dayId)?.date || null;
+  const stayNum = stayMin === '' ? null : Number(stayMin);
+  const costNum = cost === '' ? null : Number(cost);
+  const calendarUrl =
+    calendarDate && placeZone.ready
+      ? googleCalendarUrl(
+          placeEvent(
+            {
+              ...place,
+              name: name.trim() || place.name,
+              planned_time: plannedTime || null,
+              stay_min: Number.isFinite(stayNum) ? stayNum : null,
+              cost: Number.isFinite(costNum) ? costNum : null,
+              note,
+              note_public: notePublic,
+            },
+            calendarDate,
+            { tripId: place.trip_id, placeZone: placeZone.placeZone, tripZone: placeZone.tripZone, currency, origin: SITE_ORIGIN },
+          ),
+        )
+      : null;
 
   const handleTicketFile = (e) => {
     const file = e.target.files?.[0];
@@ -173,6 +203,8 @@ export default function PlaceSheet({
           options={dayOptions}
           onChange={(e) => setDayId(e.target.value)}
         />
+
+        {calendarUrl && <GoogleCalendarLink url={calendarUrl} />}
 
         <Textarea
           label="메모"

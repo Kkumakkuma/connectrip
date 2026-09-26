@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  CalendarPlus,
   Compass,
   Copy,
   Download,
@@ -309,6 +310,8 @@ export function MoreSheet({
   onPublish,
   onUnpublish,
   onExport,
+  onExportCalendar,
+  calendarBusy = false,
   onChooseDest,
 }) {
   return (
@@ -370,6 +373,15 @@ export function MoreSheet({
             onClick={onUnpublish}
           />
         )}
+
+        {/* 캘린더 내보내기(2026-09-27): 웹은 .ics 파일 저장, 앱은 공유 창에서 캘린더 앱을 고른다. */}
+        <MenuRow
+          icon={CalendarPlus}
+          label={calendarBusy ? '캘린더로 내보내는 중' : '캘린더로 내보내기'}
+          description="구글·삼성·네이버 캘린더에 넣을 수 있는 파일(.ics)을 만듭니다."
+          disabled={busy || calendarBusy}
+          onClick={onExportCalendar}
+        />
 
         <MenuRow
           icon={Download}
