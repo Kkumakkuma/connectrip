@@ -76,7 +76,8 @@ export const DraftLoadBar = ({ drafts, onLoad, onRemove, disabled = false, compa
 };
 
 // 하단: "임시저장" 버튼. 서버 저장이 확인된 뒤에만 잠깐 "저장됨", 넓은 화면은 마지막 저장 시각도.
-export const DraftSaveButton = ({ drafts, onSave, disabled = false, compact = false }) => {
+// busyLabel: 사진을 올리는 동안의 문구('사진 올리는 중 n/N', useDraftActions 의 draftBusyLabel). 있으면 버튼이 잠긴다.
+export const DraftSaveButton = ({ drafts, onSave, disabled = false, compact = false, busyLabel = '' }) => {
     const [flash, setFlash] = useState(false);
     const t = useRef(null);
     useEffect(() => () => clearTimeout(t.current), []);
@@ -88,10 +89,11 @@ export const DraftSaveButton = ({ drafts, onSave, disabled = false, compact = fa
         clearTimeout(t.current);
         t.current = setTimeout(() => setFlash(false), 1500);
     };
-    const label = flash ? '저장됨' : drafts.busy ? '저장 중...' : '임시저장';
+    const label = flash ? '저장됨' : busyLabel || (drafts.busy ? '저장 중...' : '임시저장');
+    const locked = disabled || drafts.busy || !!busyLabel;
     if (compact) {
         return (
-            <button type="button" onClick={click} disabled={disabled || drafts.busy} className="btn-air-secondary btn-air-sm" aria-live="polite">
+            <button type="button" onClick={click} disabled={locked} className="btn-air-secondary btn-air-sm" aria-live="polite">
                 {label}
             </button>
         );
@@ -99,7 +101,7 @@ export const DraftSaveButton = ({ drafts, onSave, disabled = false, compact = fa
     return (
         <span className="inline-flex items-center gap-2">
             <span className="hidden sm:inline text-[12px] text-muted whitespace-nowrap">{drafts.savedAt ? `${hhmm(drafts.savedAt)} 저장됨` : ''}</span>
-            <button type="button" onClick={click} disabled={disabled || drafts.busy} className="btn-air-secondary" aria-live="polite">
+            <button type="button" onClick={click} disabled={locked} className="btn-air-secondary" aria-live="polite">
                 {label}
             </button>
         </span>

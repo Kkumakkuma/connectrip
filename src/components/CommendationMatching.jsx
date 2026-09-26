@@ -10,6 +10,8 @@ import { crewVerificationStatus } from '../lib/crewVerification';
 import { commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import ImageUpload from './ImageUpload';
+import { useImageSave } from '../lib/useImageSave';
+import { notifySaveError } from '../lib/pendingImages';
 import Avatar from './Avatar';
 
 const STATUS_CONFIG = {
@@ -32,8 +34,11 @@ const CommendationMatching = ({ flights = [] }) => {
   // Modals
   const [showScreenshotModal, setShowScreenshotModal] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(null);
-  const [screenshotUrl, setScreenshotUrl] = useState('');
+  // 고른 캡처(대기 사진). 제출을 누를 때 올라간다(2026-09-27 지연 업로드) — 창을 닫으면 서버에 아무것도 남지 않는다.
+  const [screenshot, setScreenshot] = useState('');
+  const [preparing, setPreparing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const photos = useImageSave(user?.id, !!showScreenshotModal);
 
   const [applyingFlight, setApplyingFlight] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -133,17 +138,18 @@ const CommendationMatching = ({ flights = [] }) => {
 
   // 승객: 칭찬 스크린샷 인증 제출 → 관리자 검토 대기
   const handleSubmitScreenshot = async () => {
-    if (!showScreenshotModal || !screenshotUrl) return;
+    if (!showScreenshotModal || !screenshot || submitting || preparing) return;
     setSubmitting(true);
     try {
-      await commendationApi.submitCommendation(showScreenshotModal, screenshotUrl);
+      // 캡처를 먼저 올리고(실패하면 제출하지 않음) 받은 주소로 제출한다. 제출이 실패하면 올린 캡처는 바로 지운다.
+      await photos.run('submit', { shot: screenshot }, ['shot'], (f) => commendationApi.submitCommendation(showScreenshotModal, f.shot));
       setShowScreenshotModal(null);
-      setScreenshotUrl('');
+      setScreenshot('');
       await fetchData();
       alert('칭찬 인증이 접수되었습니다. 확인 후 참여에 감사하는 뜻으로 소정의 답례품을 보내드립니다.');
     } catch (err) {
       console.error('제출 실패:', err);
-      alert('제출에 실패했습니다.');
+      notifySaveError(err, '제출에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -342,7 +348,7 @@ const CommendationMatching = ({ flights = [] }) => {
       {/* 칭찬 스크린샷 제출 모달 */}
       <AnimatePresence>
         {showScreenshotModal && (
-          <Modal onClose={() => { setShowScreenshotModal(null); setScreenshotUrl(''); }}>
+          <Modal onClose={() => { setShowScreenshotModal(null); setScreenshot(''); }}>
             <div className="text-center mb-4">
               <div className="w-14 h-14 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <ImageIcon size={28} className="text-yellow-600" />
@@ -354,11 +360,11 @@ const CommendationMatching = ({ flights = [] }) => {
               </p>
             </div>
             <div className="mb-4">
-              <ImageUpload bucket="images" onUpload={(url) => setScreenshotUrl(url)} />
+              <ImageUpload bucket="images" value={screenshot} onPick={(v) => setScreenshot(v || '')} onPreparingChange={setPreparing} />
             </div>
             <button
               onClick={handleSubmitScreenshot}
-              disabled={!screenshotUrl || submitting}
+              disabled={!screenshot || submitting || preparing}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {submitting ? <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : <Send size={16} />}

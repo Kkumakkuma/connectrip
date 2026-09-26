@@ -19,7 +19,8 @@ import NicknameRequiredModal from './NicknameRequiredModal';
 import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import { TITLE_MAX, bodyMaxOf } from '../lib/postLimits';
-import { useResolvedImages } from '../lib/imageRefs';
+import { useImageSave } from '../lib/useImageSave';
+import { notifySaveError } from '../lib/pendingImages';
 import ResolvedImg from './board/ResolvedImg';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
@@ -55,19 +56,20 @@ const Promotions = () => {
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [formData, setFormData] = useState(EMPTY_FORM);
-    // 이 게시판도 reviews 테이블이라 사진은 비공개 버킷(post-images) 참조로 저장된다(2026-09-26) — 미리보기도 받아서 그린다
-    const [formPreview] = useResolvedImages(formData.image_url ? [formData.image_url] : [], user?.id);
+    // 이 게시판도 reviews 테이블이라 사진은 비공개 버킷(post-images) 참조로 저장된다(2026-09-26) — 미리보기는 ImageUpload 가 받아서 그린다
     const [searchQuery, setSearchQuery] = useState('');
     const [posts, setPosts] = useState([]);
     const [likes, setLikes] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false); // 등록 버튼 중복 제출 방지
-    const [uploading, setUploading] = useState(false);    // 사진 올리는 중엔 등록·임시저장·불러오기를 막는다
+    const [preparing, setPreparing] = useState(false);    // 고른 사진 준비(리사이즈) 중엔 등록·임시저장·불러오기를 막는다
     const formId = useId(); // label-input 연결용 접두사
+    // 사진은 등록·임시저장을 누를 때 올라간다(2026-09-27 지연 업로드)
+    const photos = useImageSave(user?.id, showModal);
     // 임시저장(2026-09-25) — 홍보·후기 탭별로 따로. "임시저장" 버튼으로 서버에 저장, 작성 창 위 "불러오기"로 고른다
     const drafts = usePostDrafts({ board: mode === 'promotion' || mode === 'review' ? `promo:${mode}` : null, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.promo, form: formData, setForm: setFormData, blocked: submitting || uploading });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog, takeTicket, consumeDraft, draftBusyLabel } = useDraftActions({ drafts, spec: DRAFT_SPECS.promo, form: formData, setForm: setFormData, blocked: submitting || preparing || photos.busy, photos });
     // 작성 창은 직접 만든 모달이라 Esc 를 따로 받는다 — 닫기 전에 임시저장 여부를 묻는다(2026-09-25)
     const closeReqRef = useRef(null);
     useEffect(() => { closeReqRef.current = () => requestClose(() => setShowModal(false)); });
@@ -118,29 +120,30 @@ const Promotions = () => {
         e?.preventDefault?.();
         if (!user) return;
         // 조기 return 을 모두 지난 뒤에 플래그를 세운다(먼저 세우면 버튼이 영구히 잠긴다).
-        if (submitting || uploading || drafts.busy) return;
+        if (submitting || preparing || photos.busy || drafts.busy) return;
         if (!requireNickname(() => handleSubmit())) return;
-        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
+        const draftTicket = takeTicket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         setSubmitting(true);
         try {
-            await reviewsApi.create({
+            // 고른 사진을 먼저 올리고(실패하면 등록하지 않음) 받은 참조로 등록한다. 등록이 실패하면 올린 사진은 바로 지운다.
+            const { form: saved } = await photos.run('submit', formData, ['image_url'], (f) => reviewsApi.create({
                 user_id: user.id,
                 region_id: selectedRegion.id,
                 type: mode,
-                title: formData.title,
-                description: formData.content,
-                image_url: formData.image_url || null,
+                title: f.title,
+                description: f.content,
+                image_url: f.image_url || null,
                 // 나만 보기(2026-09-25)는 후기만 — 홍보 글은 DB CHECK(reviews_private_only_review)가 막는다
-                is_private: mode === 'review' ? !!formData.is_private : false,
+                is_private: mode === 'review' ? !!f.is_private : false,
                 author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
-            });
-            drafts.consume(draftTicket);
+            }));
+            consumeDraft(draftTicket, saved);
             setFormData(EMPTY_FORM);
             setShowModal(false);
             fetchPosts(selectedRegion.id, mode);
         } catch (err) {
             console.error('게시글 등록 실패:', err);
-            alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+            notifySaveError(err, '게시글 등록에 실패했습니다. 다시 시도해주세요.');
         } finally {
             setSubmitting(false);
         }
@@ -386,7 +389,7 @@ const Promotions = () => {
                                 <button onClick={() => requestClose(() => setShowModal(false))} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="닫기"><X size={24} aria-hidden="true" /></button>
                             </div>
                             <form onSubmit={handleSubmit} className="space-y-6">
-                                <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />
+                                <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || preparing || photos.busy} />
                                 <div>
                                     <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품명' : '후기 제목'}</label>
                                     <input id={`${formId}-title`} type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} maxLength={TITLE_MAX}
@@ -402,9 +405,9 @@ const Promotions = () => {
                                 <div>
                                     {/* ImageUpload 가 자체 label 을 가지고 있어, 바깥 문구는 label 이 아닌 제목으로 둔다 */}
                                     <span className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</span>
-                                    {/* 함수형 갱신 — 업로드 도중 바꾼 공개 설정·입력값을 업로드 완료 콜백이 옛 값으로 되돌리지 않게(codex 9/25) */}
-                                    {/* currentUrl: 임시저장에서 불러온 사진도 업로드 칸 미리보기(지우기 버튼 포함)로 보인다 — 따로 그리던 미리보기는 겹쳐서 뺐다(codex·agy 9/25) */}
-                                    <ImageUpload label={null} bucket="post-images" currentUrl={formData.image_url ? (formPreview || '') : ''} onUpload={(url) => setFormData((f) => ({ ...f, image_url: url }))} onUploadingChange={setUploading} />
+                                    {/* 함수형 갱신 — 사진 준비 도중 바꾼 공개 설정·입력값을 준비 완료 콜백이 옛 값으로 되돌리지 않게(codex 9/25) */}
+                                    {/* value: 임시저장에서 불러온 사진·고르기만 한 사진 모두 이 칸 미리보기(지우기 버튼 포함)로 보인다. 고른 사진은 등록·임시저장 때 올라간다 */}
+                                    <ImageUpload label={null} bucket="post-images" value={formData.image_url} onPick={(v) => setFormData((f) => ({ ...f, image_url: v || '' }))} onPreparingChange={setPreparing} />
                                 </div>
                                 {mode === 'review' && (
                                     <VisibilityPicker name={`${formId}-visibility`} value={formData.is_private} onChange={(v) => setFormData((f) => ({ ...f, is_private: v }))} />
@@ -413,9 +416,9 @@ const Promotions = () => {
                                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                                     <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-secondary">취소</button>
                                     <span className="flex items-center gap-2">
-                                        <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
-                                        <button type="submit" disabled={submitting || uploading || drafts.busy} className="btn-air-primary">
-                                            {submitting ? '등록 중...' : '등록하기'}
+                                        <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || preparing || photos.busy} busyLabel={draftBusyLabel} />
+                                        <button type="submit" disabled={submitting || preparing || photos.busy || drafts.busy} className="btn-air-primary">
+                                            {submitting ? (photos.label('submit') || '등록 중...') : preparing ? '사진 준비 중...' : '등록하기'}
                                         </button>
                                     </span>
                                 </div>

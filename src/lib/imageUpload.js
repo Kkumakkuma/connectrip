@@ -119,15 +119,27 @@ export const imageFileError = (file) => {
 // 확장자는 파일 이름이 아니라 형식에서 정한다 — 이름에 확장자가 없거나 이상해도 저장소 이름 규칙(image_name_ok)에 맞게.
 const EXT_BY_TYPE = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/heic': 'heic', 'image/heif': 'heif' };
 
+// 고른 사진을 올릴 모양으로 준비한다(리사이즈·압축, 실패하면 원본). 서버에는 보내지 않는다 —
+// 글쓰기 폼은 사진을 고를 때 이것만 하고, 등록·임시저장을 누를 때 uploadPreparedImage 로 올린다(2026-09-27 지연 업로드).
+export async function prepareImageFile(file, { maxDimension = MAX_DIMENSION } = {}) {
+  const resized = await resizeImage(file, maxDimension);
+  return resized || file;
+}
+
 // 한 장 리사이즈 → 업로드. 파일 이름은 저장소 규칙(storage.objects 정책)이 받는 '<내 user id>_<밀리초>_<난수>.<확장자>'(폴더 없음).
 // 여러 장을 연달아 올려도 겹치지 않게 뒤에 임의 문자열을 붙인다.
 // isAlive: 리사이즈하는 사이 창이 닫혔으면 보내지 않도록 호출부가 넘기는 확인 함수(codex 9/26).
 // 반환: 공개 버킷(images)이면 공개 주소, 비공개 버킷(post-images)이면 'sb://post-images/<이름>' 참조.
+// 지금은 프로필 사진(고르는 즉시 저장)만 쓴다. 글쓰기 폼은 prepareImageFile + uploadPreparedImage.
 export async function uploadImageFile(file, { userId, bucket = 'images', maxDimension = MAX_DIMENSION, isAlive = () => true } = {}) {
-  let uploadFile = file;
-  const resized = await resizeImage(file, maxDimension);
-  if (resized) uploadFile = resized;
+  const prepared = await prepareImageFile(file, { maxDimension });
   if (!isAlive()) throw new Error(UPLOAD_CLOSED);
+  return uploadPreparedImage(prepared, { userId, bucket });
+}
+
+// 준비된 파일 한 장을 올린다. 비공개 버킷이면 올린 파일을 사진 캐시에 넣어 둔다 — 등록 직후 상세 화면이 다시 받지 않고 바로 그린다.
+export async function uploadPreparedImage(uploadFile, { userId, bucket = 'images' } = {}) {
+  if (!userId) throw new Error('image-upload-no-user');
   const ext = EXT_BY_TYPE[uploadFile.type] || 'jpg';
   const filePath = `${userId}_${Date.now()}_${randomPart()}.${ext}`;
   await storageApi.upload(bucket, filePath, uploadFile);

@@ -21,6 +21,9 @@ import MultiImageField from '../components/board/MultiImageField';
 import CharCount from '../components/board/CharCount';
 import { IMAGES_MAX, TIP_MAX, TITLE_MAX, bodyMaxOf, imagesOf, imagesPatch } from '../lib/postLimits';
 import { useResolvedImages } from '../lib/imageRefs';
+import { useImageSave } from '../lib/useImageSave';
+import { notifySaveError } from '../lib/pendingImages';
+import { discardRemoved } from '../lib/imageDiscard';
 import { prepareRichDoc } from '../lib/rich/doc';
 import { useDocFonts } from '../lib/rich/fonts';
 import RichBody from '../components/rich/RichBody';
@@ -57,8 +60,10 @@ const PostDetail = () => {
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
     const [pickerError, setPickerError] = useState('');
-    const [uploading, setUploading] = useState(false);
+    const [preparing, setPreparing] = useState(false);   // 고른 사진 준비(리사이즈) 중
     const [submitting, setSubmitting] = useState(false);
+    // 사진은 저장을 누를 때 올라간다(2026-09-27 지연 업로드). 저장이 성공하면 원래 글에서 뺀 사진을 바로 지운다.
+    const photos = useImageSave(user?.id, editing);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const formId = useId();
     const reqRef = useRef(0);   // 라우트가 바뀐 뒤 도착한 이전 조회 응답은 버린다
@@ -174,35 +179,42 @@ const PostDetail = () => {
 
     const submitEdit = async (e) => {
         e.preventDefault();
-        if (submitting || uploading) return;
+        if (submitting || preparing || photos.busy) return;
         if (config.hasRegion && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         const usesAirline = config.hasAirline && p?.post_type === config.airlinePostType;
-        const patch = {
-            [config.titleField]: form.title.trim(),
-            [config.bodyField]: form.content.trim(),
+        const buildPatch = (f) => {
+            const patch = {
+                [config.titleField]: f.title.trim(),
+                [config.bodyField]: f.content.trim(),
+            };
+            if (config.hasRegion) patch.region_id = f.region_id;
+            if (usesAirline) patch.airline_id = airlineTagOf(f.airline_id) ? f.airline_id : null;
+            if (config.extraField) patch[config.extraField] = f.extra.trim();
+            // 사진은 image_urls(전체) + image_url(대표 = 첫 장)을 함께 저장한다
+            if (config.imagesField) Object.assign(patch, imagesPatch(f.images));
+            if (config.key === 'companion') {
+                patch.country = f.country.trim();
+                patch.travel_date = f.date;
+                patch.members_needed = f.members.trim();
+            }
+            if (config.key === 'crew' && post?.post_type === 'layover') patch.category = f.category;
+            if (canSetPrivate(config, post)) Object.assign(patch, visibilityPatch(post.is_private, f.is_private));
+            return patch;
         };
-        if (config.hasRegion) patch.region_id = form.region_id;
-        if (usesAirline) patch.airline_id = airlineTagOf(form.airline_id) ? form.airline_id : null;
-        if (config.extraField) patch[config.extraField] = form.extra.trim();
-        // 사진은 image_urls(전체) + image_url(대표 = 첫 장)을 함께 저장한다
-        if (config.imagesField) Object.assign(patch, imagesPatch(form.images));
-        if (config.key === 'companion') {
-            patch.country = form.country.trim();
-            patch.travel_date = form.date;
-            patch.members_needed = form.members.trim();
-        }
-        if (config.key === 'crew' && post?.post_type === 'layover') patch.category = form.category;
-        if (canSetPrivate(config, post)) Object.assign(patch, visibilityPatch(post.is_private, form.is_private));
+        const before = config.imagesField && post ? imagesOf(post) : [];   // 수정 전 글의 사진
         const from = routeKey;
         setSubmitting(true);
         try {
-            const updated = await config.api.update(id, patch);
+            // 고른 사진을 먼저 올리고(실패하면 저장하지 않음) 받은 참조로 저장한다. 저장이 실패하면 올린 사진은 바로 지운다.
+            const { result: updated, form: saved } = await photos.run('submit', form, config.imagesField ? ['images'] : [], (f) => config.api.update(id, buildPatch(f)));
+            // 저장 성공 — 원래 글에 있다가 뺀 사진을 지운다(다른 곳에서 쓰면 서버가 남긴다)
+            if (config.imagesField) void discardRemoved(before, imagesPatch(saved.images).image_urls, user?.id);
             if (from !== routeRef.current) return;
             setPost(updated);
             setEditing(false);
         } catch (err) {
             console.error('수정 실패:', err);
-            alert('수정에 실패했습니다.');
+            notifySaveError(err, '수정에 실패했습니다.');
         } finally {
             setSubmitting(false);
         }
@@ -373,8 +385,8 @@ const PostDetail = () => {
                     footer={
                         <>
                             <button type="button" onClick={() => setEditing(false)} className="btn-air-secondary">취소</button>
-                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading} className="btn-air-primary">
-                                {submitting ? '저장 중...' : uploading ? '사진 올리는 중...' : '저장'}
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || preparing || photos.busy} className="btn-air-primary">
+                                {submitting ? (photos.label('submit') || '저장 중...') : preparing ? '사진 준비 중...' : '저장'}
                             </button>
                         </>
                     }
@@ -450,7 +462,7 @@ const PostDetail = () => {
                                 onChange={(next) => setForm((f) => ({ ...f, images: typeof next === 'function' ? next(f.images) : next }))}
                                 max={IMAGES_MAX}
                                 bucket={config.privateImages ? 'post-images' : 'images'}
-                                onUploadingChange={setUploading}
+                                onPreparingChange={setPreparing}
                             />
                         )}
                         {canSetPrivate(config, p) && (

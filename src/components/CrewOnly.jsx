@@ -22,6 +22,8 @@ import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftCo
 import MultiImageField from './board/MultiImageField';
 import CharCount from './board/CharCount';
 import { IMAGES_MAX, TITLE_MAX, bodyMaxOf, imagesPatch } from '../lib/postLimits';
+import { useImageSave } from '../lib/useImageSave';
+import { notifySaveError } from '../lib/pendingImages';
 import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
@@ -70,12 +72,14 @@ const CrewOnly = () => {
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
-    const [uploading, setUploading] = useState(false);
+    const [preparing, setPreparing] = useState(false);   // 고른 사진 준비(리사이즈) 중
     const [submitting, setSubmitting] = useState(false);
     const formId = useId();
+    // 사진은 등록·임시저장을 누를 때 올라간다(2026-09-27 지연 업로드)
+    const photos = useImageSave(user?.id, showModal);
     // 임시저장(2026-09-25): 탭(자유·레이오버·할인)마다 따로. "임시저장" 버튼으로 서버에 저장, 창 위 "불러오기"로 고른다
     const drafts = usePostDrafts({ board: `crew:${mode}`, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.crew, form, setForm: (f) => setForm(fixCategory(f)), blocked: uploading || submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog, takeTicket, consumeDraft, draftBusyLabel } = useDraftActions({ drafts, spec: DRAFT_SPECS.crew, form, setForm: (f) => setForm(fixCategory(f)), blocked: preparing || submitting || photos.busy, photos });
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
     useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -138,25 +142,26 @@ const CrewOnly = () => {
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (submitting || uploading || drafts.busy) return;
+        if (submitting || preparing || photos.busy || drafts.busy) return;
         if (!requireNickname(() => submit())) return;
-        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
+        const draftTicket = takeTicket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         setSubmitting(true);
         try {
-            const created = await crewApi.create({
-                title: form.title.trim(), content: form.content.trim(), post_type: mode,
-                ...imagesPatch(form.image_urls),
-                category: mode === 'layover' ? form.category : 'general',
-                airline_id: mode === AIRLINE_TAB && airlineTagOf(form.airline_id) ? form.airline_id : null,
+            // 고른 사진을 먼저 올리고(실패하면 등록하지 않음) 받은 참조로 등록한다. 등록이 실패하면 올린 사진은 바로 지운다.
+            const { result: created, form: saved } = await photos.run('submit', form, ['image_urls'], (f) => crewApi.create({
+                title: f.title.trim(), content: f.content.trim(), post_type: mode,
+                ...imagesPatch(f.image_urls),
+                category: mode === 'layover' ? f.category : 'general',
+                airline_id: mode === AIRLINE_TAB && airlineTagOf(f.airline_id) ? f.airline_id : null,
                 author_name: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
-            });
-            drafts.consume(draftTicket);
+            }));
+            consumeDraft(draftTicket, saved);
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
             if (modeRef.current === mode) { setPosts((prev) => [created, ...prev]); setPage(1); }
             setShowModal(false);
         } catch (err) {
             console.error('게시글 등록 실패:', err);
-            alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+            notifySaveError(err, '게시글 등록에 실패했습니다. 다시 시도해주세요.');
         } finally {
             setSubmitting(false);
         }
@@ -260,14 +265,14 @@ const CrewOnly = () => {
                     <>
                         <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-secondary">취소</button>
                         <span className="flex items-center gap-2">
-                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
-                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
+                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || preparing || photos.busy} busyLabel={draftBusyLabel} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || preparing || photos.busy || drafts.busy} className="btn-air-primary">{submitting ? (photos.label('submit') || '등록 중...') : preparing ? '사진 준비 중...' : '등록'}</button>
                         </span>
                     </>
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                    <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />
+                    <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || preparing || photos.busy} />
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
                         <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={TITLE_MAX} required />
@@ -295,7 +300,7 @@ const CrewOnly = () => {
                         images={form.image_urls}
                         onChange={(next) => setForm((f) => ({ ...f, image_urls: typeof next === 'function' ? next(f.image_urls) : next }))}
                         max={IMAGES_MAX}
-                        onUploadingChange={setUploading}
+                        onPreparingChange={setPreparing}
                         bucket="post-images"
                     />
                 </form>

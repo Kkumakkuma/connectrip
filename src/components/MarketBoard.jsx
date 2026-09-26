@@ -24,6 +24,8 @@ import BoardTabs from './board/BoardTabs';
 import SearchPill from './board/SearchPill';
 import WriteModal from './board/WriteModal';
 import ImageUpload from './ImageUpload';
+import { useImageSave } from '../lib/useImageSave';
+import { notifySaveError } from '../lib/pendingImages';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 import ListState from './ListState';
@@ -57,12 +59,14 @@ const MarketBoard = () => {
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
-    const [uploading, setUploading] = useState(false);
+    const [preparing, setPreparing] = useState(false);   // 고른 사진 준비(리사이즈) 중
     const [submitting, setSubmitting] = useState(false);
     const formId = useId();
+    // 사진은 등록·임시저장을 누를 때 올라간다(2026-09-27 지연 업로드)
+    const photos = useImageSave(user?.id, showModal);
     // 임시저장(2026-09-25) — 구해요·공동구매 폼(탭별). 판매·나눔은 MarketListingForm 이 따로 한다.
     const drafts = usePostDrafts({ board: mode === 'buy' || mode === 'groupbuy' ? `market:${mode}` : null, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.market, form, setForm, blocked: uploading || submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog, takeTicket, consumeDraft, draftBusyLabel } = useDraftActions({ drafts, spec: DRAFT_SPECS.market, form, setForm, blocked: preparing || submitting || photos.busy, photos });
     const reqRef = useRef(0);
 
     useEffect(() => {
@@ -120,28 +124,31 @@ const MarketBoard = () => {
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (submitting || uploading || drafts.busy) return;
+        if (submitting || preparing || photos.busy || drafts.busy) return;
         if (!requireNickname(() => submit())) return;
-        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
+        const draftTicket = takeTicket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         setSubmitting(true);
         try {
-            const digits = String(form.price || '').replace(/[^0-9]/g, '');
-            const listing = {
-                title: form.title.trim(), content: form.content.trim(), type: mode,
-                author: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
-                location: form.location.trim() || null,
-                image_url: form.image_url || null,
-            };
-            if (mode === 'buy') listing.budget = digits ? Number(digits) : null;
-            if (mode === 'groupbuy') listing.price = digits ? Number(digits) : null;
-            const created = await marketApi.create(listing);
-            drafts.consume(draftTicket);
+            // 고른 사진을 먼저 올리고(실패하면 등록하지 않음) 받은 참조로 등록한다. 등록이 실패하면 올린 사진은 바로 지운다.
+            const { result: created, form: saved } = await photos.run('submit', form, ['image_url'], (f) => {
+                const digits = String(f.price || '').replace(/[^0-9]/g, '');
+                const listing = {
+                    title: f.title.trim(), content: f.content.trim(), type: mode,
+                    author: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
+                    location: f.location.trim() || null,
+                    image_url: f.image_url || null,
+                };
+                if (mode === 'buy') listing.budget = digits ? Number(digits) : null;
+                if (mode === 'groupbuy') listing.price = digits ? Number(digits) : null;
+                return marketApi.create(listing);
+            });
+            consumeDraft(draftTicket, saved);
             setItems((prev) => [created, ...prev]);
             setPage(1);
             setShowModal(false);
         } catch (err) {
             console.error('게시글 등록 실패:', err);
-            alert('게시글 등록에 실패했습니다. 다시 시도해주세요.');
+            notifySaveError(err, '게시글 등록에 실패했습니다. 다시 시도해주세요.');
         } finally {
             setSubmitting(false);
         }
@@ -237,8 +244,8 @@ const MarketBoard = () => {
                     <>
                         <button type="button" onClick={closeWrite} className="btn-air-secondary">취소</button>
                         <span className="flex items-center gap-2">
-                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
-                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
+                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || preparing || photos.busy} busyLabel={draftBusyLabel} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || preparing || photos.busy || drafts.busy} className="btn-air-primary">{submitting ? (photos.label('submit') || '등록 중...') : preparing ? '사진 준비 중...' : '등록'}</button>
                         </span>
                     </>
                 )}
@@ -253,7 +260,7 @@ const MarketBoard = () => {
                     />
                 ) : (
                     <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                        <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />
+                        <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || preparing || photos.busy} />
                         <div>
                             <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
                             <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={80} required />
@@ -271,7 +278,7 @@ const MarketBoard = () => {
                         {mode === 'groupbuy' && (
                             <div>
                                 <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                                <ImageUpload label={null} bucket="images" currentUrl={form.image_url} onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
+                                <ImageUpload label={null} bucket="images" value={form.image_url} onPick={(v) => setForm((f) => ({ ...f, image_url: v || '' }))} onPreparingChange={setPreparing} />
                             </div>
                         )}
                         <div>

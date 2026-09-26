@@ -1,6 +1,10 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import ImageUpload from './ImageUpload';
+import PendingImg from './board/PendingImg';
+import { useImageSave } from '../lib/useImageSave';
+import { imageItemKey, isPendingImage, notifySaveError } from '../lib/pendingImages';
+import { discardRemoved } from '../lib/imageDiscard';
 import ContinentPicker from './board/ContinentPicker';
 import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
 import CharCount from './board/CharCount';
@@ -15,6 +19,8 @@ import { DRAFT_SPECS } from '../lib/draftForms';
 const MAX_IMAGES = 5;
 
 // 당근식 등록/수정 폼(판매 sell · 나눔 share, 2026-09-07 에어비앤비 톤). 사진 최대 5장.
+// 사진은 고르기만 하고 등록·수정·임시저장을 누를 때 올린다(2026-09-27 지연 업로드). 수정 저장이 성공하면
+// 원래 글에 있다가 뺀 사진을 바로 지운다(다른 곳에서 쓰면 서버가 남긴다).
 // 나눔은 대륙 말머리(ContinentPicker) 필수. initial 이 있으면 수정 모드(marketApi.update), 없으면 등록(marketApi.create).
 // closeGuardRef: 부모(모달)가 X·바깥·Esc 로 닫을 때 이 폼에 먼저 묻는다(임시저장 안 한 내용이 있으면 확인창).
 const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone, onCancel, closeGuardRef = null }) => {
@@ -31,8 +37,9 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
     const [content, setContent] = useState(initial?.content || '');
     const [images, setImages] = useState(initial?.image_urls?.length ? initial.image_urls : (initial?.image_url ? [initial.image_url] : []));
     const [submitting, setSubmitting] = useState(false);
-    const [uploading, setUploading] = useState(false);
+    const [preparing, setPreparing] = useState(false);   // 고른 사진 준비(리사이즈) 중
     const [pickerError, setPickerError] = useState('');
+    const photos = useImageSave(user?.id);
 
     // 임시저장(2026-09-25): 새 글 등록에만(수정 폼에는 없다). 폼은 모달이 열려 있는 동안만 떠 있다.
     const isNew = !initial?.id;
@@ -46,7 +53,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
         setCountry(f.country); setRegionId(f.regionId || defaultRegion || ''); setContent(f.content); setImages(f.images);
     };
     const drafts = usePostDrafts({ board: isNew ? `market:${mode}` : null, open: true, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.listing, form: draftForm, setForm: setDraftForm, blocked: uploading || submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog, takeTicket, consumeDraft, draftBusyLabel } = useDraftActions({ drafts, spec: DRAFT_SPECS.listing, form: draftForm, setForm: setDraftForm, blocked: preparing || submitting || photos.busy, photos });
     useEffect(() => {
         if (!closeGuardRef) return undefined;
         closeGuardRef.current = requestClose;
@@ -55,40 +62,47 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
 
     const submit = async (e) => {
         e?.preventDefault?.();
-        if (submitting || uploading || drafts.busy) return;
+        if (submitting || preparing || photos.busy || drafts.busy) return;
         if (isShare && !continentOf(regionId)) { setPickerError('말머리를 선택해 주세요.'); return; }
         // 닉네임 확인은 새 글 등록에만 한다. 옛 글 수정은 막지 않는다(서버가 작성자명을 닉네임 또는 '회원'으로 저장).
         if (!initial?.id && !requireNickname(() => submit())) return;
-        const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
+        const draftTicket = takeTicket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
+        const before = initial?.image_urls?.length ? initial.image_urls : (initial?.image_url ? [initial.image_url] : []);
         setSubmitting(true);
         try {
-            const digits = String(price || '').replace(/[^0-9]/g, '');
-            const patch = {
-                title: title.trim(),
-                content: content.trim(),
-                location: location.trim() || null,
-                image_urls: images.slice(0, MAX_IMAGES),
-                image_url: images[0] || null,
-            };
-            if (isShare) {
-                patch.price = 0;
-                patch.country = country.trim();
-                patch.region_id = regionId;
-            } else {
-                patch.price = digits ? Number(digits) : null;
-                patch.transaction_type = transactionType;
-            }
-            let item;
+            // 고른 사진을 먼저 올리고(실패하면 저장하지 않음) 받은 참조로 저장한다. 저장이 실패하면 올린 사진은 바로 지운다.
+            let sent = [];
+            const { result: item, form: saved } = await photos.run('submit', draftForm, ['images'], (f) => {
+                const digits = String(f.price || '').replace(/[^0-9]/g, '');
+                sent = f.images.filter((v) => typeof v === 'string' && v).slice(0, MAX_IMAGES);
+                const patch = {
+                    title: f.title.trim(),
+                    content: f.content.trim(),
+                    location: f.location.trim() || null,
+                    image_urls: sent,
+                    image_url: sent[0] || null,
+                };
+                if (isShare) {
+                    patch.price = 0;
+                    patch.country = f.country.trim();
+                    patch.region_id = f.regionId;
+                } else {
+                    patch.price = digits ? Number(digits) : null;
+                    patch.transaction_type = f.transactionType;
+                }
+                if (initial?.id) return marketApi.update(initial.id, patch);
+                return marketApi.create({ ...patch, type: isShare ? 'share' : 'sell', author: profile?.nickname || null, user_id: user.id });
+            });
             if (initial?.id) {
-                item = await marketApi.update(initial.id, patch);
+                // 수정 저장 성공 — 원래 있다가 뺀 사진을 지운다(서버가 저장한 목록 기준)
+                void discardRemoved(before, Array.isArray(item?.image_urls) ? item.image_urls : sent, user?.id);
             } else {
-                item = await marketApi.create({ ...patch, type: isShare ? 'share' : 'sell', author: profile?.nickname || null, user_id: user.id });
-                drafts.consume(draftTicket);
+                consumeDraft(draftTicket, saved);
             }
             onDone?.(item);
         } catch (err) {
             console.error('장터 저장 실패:', err);
-            alert('저장하지 못했습니다. 다시 시도해 주세요.');
+            notifySaveError(err, '저장하지 못했습니다. 다시 시도해 주세요.');
         } finally {
             setSubmitting(false);
         }
@@ -98,7 +112,7 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
 
     return (
         <form onSubmit={submit} className="space-y-5">
-            {isNew && <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />}
+            {isNew && <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || preparing || photos.busy} />}
             {isShare && <ContinentPicker name={`${formId}-continent`} value={regionId} error={pickerError} onChange={(id) => { setPickerError(''); setRegionId(id); }} />}
 
             <div>
@@ -111,8 +125,10 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
                 {images.length > 0 && (
                     <div className="flex gap-2 flex-wrap mb-2">
                         {images.map((url, idx) => (
-                            <span key={url + idx} className="relative w-20 h-20 rounded-md overflow-hidden bg-surface-strong">
-                                <img src={url} alt="" className="w-full h-full object-cover" />
+                            <span key={imageItemKey(url)} className="relative w-20 h-20 rounded-md overflow-hidden bg-surface-strong">
+                                {isPendingImage(url)
+                                    ? <PendingImg file={url.file} className="w-full h-full object-cover" />
+                                    : <img src={url} alt="" className="w-full h-full object-cover" />}
                                 {idx === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] text-center py-0.5">대표</span>}
                                 <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 text-white" aria-label="사진 삭제"><X size={12} /></button>
                             </span>
@@ -125,9 +141,12 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
                         bucket="images"
                         multiple
                         maxFiles={MAX_IMAGES - images.length}
-                        resetAfterUpload
-                        onUploadingChange={setUploading}
-                        onUpload={(url) => { if (!url) return; setImages((prev) => (prev.length < MAX_IMAGES && !prev.includes(url) ? [...prev, url] : prev)); }}
+                        onPreparingChange={setPreparing}
+                        onPick={(item) => {
+                            if (!item) return;
+                            const key = imageItemKey(item);
+                            setImages((prev) => (prev.length < MAX_IMAGES && !prev.some((v) => imageItemKey(v) === key) ? [...prev, item] : prev));
+                        }}
                     />
                 )}
             </div>
@@ -171,9 +190,9 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
             <div className="flex items-center justify-between gap-3 pt-1">
                 <button type="button" onClick={() => requestClose(() => onCancel?.())} className="btn-air-secondary">취소</button>
                 <span className="flex items-center gap-2">
-                {isNew && <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />}
-                <button type="submit" disabled={submitting || uploading || drafts.busy} className="btn-air-primary">
-                    {submitting ? '저장 중...' : uploading ? '사진 올리는 중...' : initial?.id ? '수정' : '등록'}
+                {isNew && <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || preparing || photos.busy} busyLabel={draftBusyLabel} />}
+                <button type="submit" disabled={submitting || preparing || photos.busy || drafts.busy} className="btn-air-primary">
+                    {submitting ? (photos.label('submit') || '저장 중...') : preparing ? '사진 준비 중...' : initial?.id ? '수정' : '등록'}
                 </button>
                 </span>
             </div>

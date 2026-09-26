@@ -5,7 +5,7 @@ import { IMAGES_MAX } from './postLimits';
 import { isImageRef } from './imageRefs';
 
 const str = (v) => (v == null ? '' : String(v));
-// 사진 값: 공개 주소(http/https) 또는 비공개 참조(sb://post-images/…, 후기·CREW 2026-09-26). blob:·data: 등은 버린다.
+// 사진 값: 공개 주소(http/https) 또는 비공개 참조(sb://post-images/…, 후기·CREW 2026-09-26). blob:·data:·아직 안 올린 대기 사진은 버린다.
 const httpUrl = (v) => (isImageRef(v) ? v : '');
 
 // migrate: 불러오기 전에 옛 형식 원고를 새 칸으로 옮긴다(저장된 data 는 그대로 두고 읽을 때만).
@@ -23,6 +23,8 @@ const makeSpec = ({ empty, content, urls = [], lists = [], bools = [], fix = (o)
     };
     return {
         empty,
+        // 사진 칸(한 장 칸 + 목록 칸). 임시저장 때 이 칸의 대기 사진을 먼저 올린다(2026-09-27 지연 업로드, pendingImages.js)
+        imageKeys: [...urls, ...lists],
         toData: (form) => clean(form),
         fromData: (data) => clean({ ...empty, ...migrate(data && typeof data === 'object' ? data : {}) }),
         isBlank: (form) => !form || content.every((k) => {

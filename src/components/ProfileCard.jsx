@@ -7,6 +7,7 @@ import { apiUrl } from '../lib/api';
 import AddressInput from './AddressInput';
 import Avatar from './Avatar';
 import { imageFileError, uploadImageFile } from '../lib/imageUpload';
+import { discardImages } from '../lib/imageDiscard';
 import { passwordWeak } from '../lib/loginId';
 import { checkNicknameTaken } from '../lib/nicknameApi';
 import {
@@ -292,11 +293,17 @@ export default function ProfileCard({ embedded = false, active = true }) {
     const bad = imageFileError(file);
     if (bad) { setDone(''); setError(bad); return; }
     setAvatarBusy(true); setError(''); setDone('');
+    // 사진을 고르는 것이 곧 저장이다(프로필 사진은 폼이 없다). 저장되면 이전 사진은 바로 지운다(2026-09-27).
+    const prev = profile?.avatar_url || null;
+    let url = null;
     try {
-      const url = await uploadImageFile(file, { userId: user.id, bucket: 'images', maxDimension: 512 });
+      url = await uploadImageFile(file, { userId: user.id, bucket: 'images', maxDimension: 512 });
       await updateProfile({ avatar_url: url });
       setDone('프로필 사진을 바꿨습니다.');
+      if (prev && prev !== url) void discardImages([prev], user.id);
     } catch (err) {
+      // 올렸는데 프로필 저장이 실패 → 올린 사진은 바로 지운다(실제로는 저장됐다면 서버가 남긴다)
+      if (url) void discardImages([url], user.id);
       console.error('프로필 사진 변경 실패:', err);
       setError('프로필 사진을 바꾸지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
     } finally {
@@ -307,9 +314,11 @@ export default function ProfileCard({ embedded = false, active = true }) {
   const resetAvatar = async () => {
     if (!user) return;
     setAvatarBusy(true); setError(''); setDone('');
+    const prev = profile?.avatar_url || null;
     try {
       await updateProfile({ avatar_url: null });
       setDone('기본 프로필 사진으로 바꿨습니다.');
+      if (prev) void discardImages([prev], user.id);   // 되돌린 뒤 이전 사진은 바로 지운다(소셜 로그인 사진 등 우리 저장소 밖 주소는 건너뛴다)
     } catch (err) {
       console.error('프로필 사진 되돌리기 실패:', err);
       setError('프로필 사진을 바꾸지 못했습니다. 잠시 뒤 다시 시도해 주세요.');

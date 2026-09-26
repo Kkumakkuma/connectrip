@@ -2,6 +2,15 @@ import { normalizeAdminReport } from './adminReports';
 import { supabase } from './supabase';
 import { searchTerm, ilikeOr } from './continents';
 import { ITINERARY_ENABLED, PROMO_REVIEWS_ENABLED } from './featureFlags';
+import { discardImages, imageObjectsIn } from './imageDiscard';
+
+// 글을 지운 뒤 그 글의 사진을 바로 지운다(2026-09-27 쿠마님 지시). 지운 행을 돌려받아(RETURNING) 사진 칸·서식 문서 안
+// 사진까지 모은다. 내 사진이 아니거나(관리자가 남의 글을 지운 경우 등) 다른 곳에서 쓰는 사진은 서버가 남긴다 —
+// 그런 사진은 72시간 자동 정리 몫. 결과를 기다리지 않고 실패해도 글 삭제는 성공이다.
+const discardDeletedRows = (rows) => {
+  const objs = imageObjectsIn(rows);
+  if (objs.length) void discardImages(objs);
+};
 
 // ============================================================
 // 게시판 목록 조회 상한
@@ -161,8 +170,9 @@ export const marketApi = {
   },
 
   async delete(id) {
-    const { error } = await supabase.from('market_listings').delete().eq('id', id);
+    const { data, error } = await supabase.from('market_listings').delete().eq('id', id).select();
     if (error) throw error;
+    discardDeletedRows(data);
   },
 
   // ---- 당근식 장터(2026-09-06) ----
@@ -456,8 +466,9 @@ export const crewApi = {
   },
 
   async delete(id) {
-    const { error } = await supabase.from('crew_posts').delete().eq('id', id);
+    const { data, error } = await supabase.from('crew_posts').delete().eq('id', id).select();
     if (error) throw error;
+    discardDeletedRows(data);
   },
 };
 
@@ -542,8 +553,9 @@ export const reviewsApi = {
   },
 
   async delete(id) {
-    const { error } = await supabase.from('reviews').delete().eq('id', id);
+    const { data, error } = await supabase.from('reviews').delete().eq('id', id).select();
     if (error) throw error;
+    discardDeletedRows(data);
   },
 };
 
@@ -633,8 +645,9 @@ export const destinationsApi = {
   },
 
   async delete(id) {
-    const { error } = await supabase.from('destinations').delete().eq('id', id);
+    const { data, error } = await supabase.from('destinations').delete().eq('id', id).select();
     if (error) throw error;
+    discardDeletedRows(data);
   },
 };
 
