@@ -94,8 +94,22 @@ describe('RichBody', () => {
         const out3 = html(RichBody, { prepared: prepareRichDoc(slide, 'review', OWNER), altBase: '후기' });
         expect(out3).toContain('aria-roledescription="carousel"');
         expect(out3).toContain('touch-action:pan-x pan-y;overscroll-behavior-x:contain');
-        expect(out3).toContain('aria-label="이전 사진"');
+        // 네이버식: 첫 장에서는 '이전' 화살표가 숨고(DOM 에는 남아 포커스가 튀지 않게) '다음'만, 오른쪽 위에 "1 / 2"
+        expect(out3).toContain('aria-label="이전 사진" aria-hidden="true" tabindex="-1"');
+        expect(out3).toMatch(/aria-label="다음 사진" class=/);
         expect(out3).toContain('1 / 2');
+
+        // 옆으로 나열: 여러 장이 가로로(한 칸 폭 42% / 넓은 화면 29%), 밀어서 보기 + 처음엔 '다음' 화살표만
+        const strip = env([{ type: 'gallery', attrs: { layout: 'strip', images: [priv(9), priv(10), priv(11), priv(12)] } }]);
+        const out4 = html(RichBody, { prepared: prepareRichDoc(strip, 'review', OWNER), altBase: '후기' });
+        expect(out4).toContain('aria-roledescription="carousel"');
+        expect(out4).toContain('touch-action:pan-x pan-y;overscroll-behavior-x:contain');
+        expect(out4).toContain('w-[42%]');
+        expect(out4.match(/aria-roledescription="slide"/g)).toHaveLength(4);
+        // 재기 전(서버 렌더·첫 화면)에는 두 화살표 모두 숨김, 화살표는 640px 이상에서만(hidden sm:inline-flex)
+        expect(out4).toContain('aria-label="이전 사진" aria-hidden="true" tabindex="-1"');
+        expect(out4).toContain('aria-label="다음 사진" aria-hidden="true" tabindex="-1"');
+        expect(out4).toContain('hidden sm:inline-flex');
     });
 
     it('지도: 키가 없으면 카드(장소명·열기 링크·출처 표기), iframe 없음', async () => {

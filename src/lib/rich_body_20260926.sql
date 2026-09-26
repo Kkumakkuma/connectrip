@@ -207,7 +207,7 @@ DECLARE
   c_colors    CONSTANT text[] := ARRAY['#000000', '#555555', '#777777', '#ba0000', '#b85c00', '#36851e', '#00756a', '#0078cb', '#004e82', '#aa1f91', '#bb005c'];
   c_bg_colors CONSTANT text[] := ARRAY['#fff8b2', '#ffe3c8', '#ffcdc0', '#e3fdc8', '#c2f4db', '#b0f1ff', '#fdd5f5', '#e2e2e2'];
   c_aligns    CONSTANT text[] := ARRAY['center', 'right'];
-  c_layouts   CONSTANT text[] := ARRAY['grid', 'slide'];
+  c_layouts   CONSTANT text[] := ARRAY['grid', 'slide', 'strip'];
   c_re_ctrl      CONSTANT text := '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]';
   c_re_ctrl_line CONSTANT text := '[\x01-\x1F\x7F]';
   c_re_href      CONSTANT text := '^https?://[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*(:[0-9]{1,5})?([/?#][^\x01-\x20\x7F]*)?$';

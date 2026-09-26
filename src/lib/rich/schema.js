@@ -48,7 +48,7 @@ export const BG_COLORS = Object.freeze([
     '#fff8b2', '#ffe3c8', '#ffcdc0', '#e3fdc8', '#c2f4db', '#b0f1ff', '#fdd5f5', '#e2e2e2',
 ]);
 export const ALIGNS = Object.freeze(['center', 'right']);     // 왼쪽 = 속성 없음
-export const GALLERY_LAYOUTS = Object.freeze(['grid', 'slide']);
+export const GALLERY_LAYOUTS = Object.freeze(['grid', 'slide', 'strip']);   // 콜라주 · 한 장씩(슬라이드) · 옆으로 나열
 
 // 노드 분류
 export const CONTAINER_NODES = Object.freeze(['doc', 'blockquote', 'bulletList', 'orderedList', 'listItem']);

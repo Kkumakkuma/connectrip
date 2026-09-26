@@ -98,6 +98,8 @@ describe('validateDoc — 스크립트·주입 표본(서버와 같은 규칙)',
         const g = (images, layout = 'grid') => ({ type: 'gallery', attrs: { layout, images } });
         expect(v(env([g([priv(1)])]), 'private').reason).toBe('GALLERY');
         expect(v(env([g([priv(1), priv(2)], 'masonry')]), 'private').reason).toBe('GALLERY');
+        // 세 가지 레이아웃(콜라주·한 장씩·옆으로 나열)은 모두 통과
+        for (const layout of ['grid', 'slide', 'strip']) expect(v(env([g([priv(1), priv(2)], layout)]), 'private').ok).toBe(true);
         expect(v(env([g(Array.from({ length: 11 }, (_, i) => priv(10 + i)))]), 'private').reason).toBe('GALLERY');
         expect(v(env([{ type: 'image', attrs: { src: priv(1) } }, g([priv(1), priv(2)])]), 'private').reason).toBe('IMAGE_DUP');
         const twenty = [g(Array.from({ length: 10 }, (_, i) => priv(10 + i))), g(Array.from({ length: 10 }, (_, i) => priv(30 + i)))];
