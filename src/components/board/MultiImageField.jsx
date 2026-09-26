@@ -22,7 +22,7 @@ const MultiImageField = ({ images, onChange, max, onUploadingChange, label = '�
                 <ul className="flex gap-2 flex-wrap mb-2">
                     {list.map((url, idx) => (
                         <li key={url} className="relative w-20 h-20 rounded-md overflow-hidden bg-surface-strong">
-                            <img src={url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                            <img src={url} alt="" decoding="async" className="w-full h-full object-cover" />
                             {idx === 0 ? (
                                 <span className="absolute bottom-0 left-0 right-0 bg-black/55 text-white text-[10px] text-center py-0.5">대표</span>
                             ) : (
