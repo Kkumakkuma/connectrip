@@ -17,7 +17,9 @@ import VisibilityPicker from '../components/board/VisibilityPicker';
 import PrivateBadge from '../components/board/PrivateBadge';
 import WriteModal from '../components/board/WriteModal';
 import ListState from '../components/ListState';
-import ImageUpload from '../components/ImageUpload';
+import MultiImageField from '../components/board/MultiImageField';
+import CharCount from '../components/board/CharCount';
+import { IMAGES_MAX, TIP_MAX, TITLE_MAX, bodyMaxOf, imagesOf, imagesPatch } from '../lib/postLimits';
 import CrewBadge from '../components/CrewBadge';
 import AuthorActions from '../components/AuthorActions';
 import ReportButton from '../components/ReportButton';
@@ -29,8 +31,7 @@ import SEOHead from '../components/SEOHead';
 const CREW_CATEGORY = { restaurant: '맛집', sightseeing: '관광지', hotel: '숙소/호텔', transport: '교통', tips: '꿀팁', other: '기타' };
 const TITLE_LABEL = { destination: '장소명' };
 const BODY_LABEL = { destination: '간단한 설명', review: '후기 내용', qna: '질문 내용' };
-const BODY_MAX = { destination: 200, companion: 3000 };
-const EMPTY_FORM = { title: '', content: '', extra: '', country: '', date: '', members: '', image_url: '', region_id: '', airline_id: '', category: 'restaurant', is_private: false };
+const EMPTY_FORM = { title: '', content: '', extra: '', country: '', date: '', members: '', images: [], region_id: '', airline_id: '', category: 'restaurant', is_private: false };
 // qna_posts 를 board 컬럼으로 나눠 쓰는 두 게시판 — 주소의 게시판과 글의 board 가 다를 수 있다
 const QNA_BOARDS = ['qna', 'free'];
 
@@ -158,7 +159,7 @@ const PostDetail = () => {
             country: post.country || '',
             date: post.travel_date || '',
             members: post.members_needed ? String(post.members_needed) : '',
-            image_url: config.imageField ? (post[config.imageField] || '') : '',
+            images: config.imagesField ? imagesOf(post) : [],
             region_id: post.region_id || '',
             airline_id: post.airline_id || '',
             category: post.category && CREW_CATEGORY[post.category] ? post.category : 'restaurant',
@@ -179,7 +180,8 @@ const PostDetail = () => {
         if (config.hasRegion) patch.region_id = form.region_id;
         if (usesAirline) patch.airline_id = airlineTagOf(form.airline_id) ? form.airline_id : null;
         if (config.extraField) patch[config.extraField] = form.extra.trim();
-        if (config.imageField) patch[config.imageField] = form.image_url || null;
+        // 사진은 image_urls(전체) + image_url(대표 = 첫 장)을 함께 저장한다
+        if (config.imagesField) Object.assign(patch, imagesPatch(form.images));
         if (config.key === 'companion') {
             patch.country = form.country.trim();
             patch.travel_date = form.date;
@@ -211,7 +213,8 @@ const PostDetail = () => {
     const isOwner = !!user && !!p && p.user_id === user.id;
     const title = p ? p[config.titleField] : '';
     const body = p ? p[config.bodyField] : '';
-    const image = p && config.imageField ? p[config.imageField] : null;
+    // 대표(첫 장)는 본문 위, 나머지는 본문 아래. image_urls 가 비면 옛 글의 image_url 한 장.
+    const images = p && config.imagesField ? imagesOf(p) : [];
 
     return (
         <section className="bg-white text-ink min-h-screen pt-24 sm:pt-28 pb-20">
@@ -269,8 +272,8 @@ const PostDetail = () => {
                             </div>
                         </header>
 
-                        {image && (
-                            <img src={image} alt={title} className="w-full rounded-md max-h-[70vh] object-contain bg-surface-soft mt-5" />
+                        {images[0] && (
+                            <img src={images[0]} alt={title} className="w-full rounded-md max-h-[70vh] object-contain bg-surface-soft mt-5" />
                         )}
 
                         <div className="mt-5">
@@ -279,6 +282,13 @@ const PostDetail = () => {
                                 <div className="mt-5 rounded-md bg-surface-soft px-4 py-3.5">
                                     <p className="text-[13px] font-bold text-ink mb-1">{config.extraLabel}</p>
                                     <p className="text-[15px] text-body leading-[1.8] whitespace-pre-wrap break-keep">{p[config.extraField]}</p>
+                                </div>
+                            )}
+                            {images.length > 1 && (
+                                <div className="mt-6 space-y-3">
+                                    {images.slice(1).map((url, i) => (
+                                        <img key={url} src={url} alt={`${title} 사진 ${i + 2}`} loading="lazy" decoding="async" className="w-full rounded-md max-h-[80vh] object-contain bg-surface-soft" />
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -346,7 +356,7 @@ const PostDetail = () => {
                         )}
                         <div>
                             <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">{TITLE_LABEL[config.key] || '제목'}</label>
-                            <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={100} required />
+                            <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={TITLE_MAX} required />
                         </div>
                         {config.key === 'companion' && (
                             <>
@@ -377,23 +387,29 @@ const PostDetail = () => {
                         <div>
                             <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">{BODY_LABEL[config.key] || '내용'}</label>
                             {config.key === 'destination' ? (
-                                <input id={`${formId}-content`} type="text" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air" maxLength={BODY_MAX.destination} required />
+                                <input id={`${formId}-content`} type="text" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air" maxLength={bodyMaxOf('destination')} required />
                             ) : (
-                                <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-none" rows={8} maxLength={BODY_MAX[config.key] || 5000} required />
+                                <>
+                                    <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-y" rows={10} maxLength={bodyMaxOf(config.key)} aria-describedby={`${formId}-content-count`} required />
+                                    <CharCount id={`${formId}-content-count`} value={form.content} max={bodyMaxOf(config.key)} />
+                                </>
                             )}
                         </div>
                         {config.extraField && (
                             <div>
                                 <label htmlFor={`${formId}-extra`} className="block text-sm font-bold text-ink mb-1.5">{config.extraLabel}</label>
-                                <textarea id={`${formId}-extra`} value={form.extra} onChange={(e) => setForm({ ...form, extra: e.target.value })} className="input-air resize-none" rows={4} maxLength={1000} required />
+                                <textarea id={`${formId}-extra`} value={form.extra} onChange={(e) => setForm({ ...form, extra: e.target.value })} className="input-air resize-y" rows={8} maxLength={TIP_MAX} aria-describedby={`${formId}-extra-count`} required />
+                                <CharCount id={`${formId}-extra-count`} value={form.extra} max={TIP_MAX} />
                             </div>
                         )}
-                        {config.imageField && (
-                            <div>
-                                <span className="block text-sm font-bold text-ink mb-1.5">사진</span>
-                                {form.image_url && <img src={form.image_url} alt="" className="w-full max-h-48 object-contain rounded-sm bg-surface-soft mb-2" />}
-                                <ImageUpload label={null} onUpload={(url) => { if (url !== undefined) setForm((f) => ({ ...f, image_url: url || '' })); }} onUploadingChange={setUploading} />
-                            </div>
+                        {config.imagesField && (
+                            <MultiImageField
+                                label="사진"
+                                images={form.images}
+                                onChange={(next) => setForm((f) => ({ ...f, images: typeof next === 'function' ? next(f.images) : next }))}
+                                max={IMAGES_MAX}
+                                onUploadingChange={setUploading}
+                            />
                         )}
                         {canSetPrivate(config, p) && (
                             <VisibilityPicker name={`${formId}-visibility`} value={form.is_private} onChange={(v) => setForm((f) => ({ ...f, is_private: v }))} />

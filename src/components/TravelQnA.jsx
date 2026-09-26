@@ -23,7 +23,9 @@ import WriteModal from './board/WriteModal';
 import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
-import ImageUpload from './ImageUpload';
+import MultiImageField from './board/MultiImageField';
+import CharCount from './board/CharCount';
+import { IMAGES_MAX, TITLE_MAX, bodyMaxOf, imagesPatch } from '../lib/postLimits';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 
@@ -34,7 +36,7 @@ const TABS = [
 ];
 const PAGE_REVIEW = 12;
 const PAGE_QNA = 10;
-const EMPTY_FORM = { title: '', content: '', image_url: '', region_id: '', is_private: false };
+const EMPTY_FORM = { title: '', content: '', image_urls: [], region_id: '', is_private: false };
 const WRITE_LABEL = { review: '후기 쓰기', qna: '질문하기', free: '글쓰기' };
 const MODAL_TITLE = { review: '여행 후기 작성', qna: '질문 작성', free: '자유게시판 글쓰기' };
 const CONTENT_LABEL = { review: '후기 내용', qna: '질문 내용', free: '내용' };
@@ -141,7 +143,7 @@ const TravelQnA = () => {
             if (mode === 'review') {
                 created = await reviewsApi.create({
                     user_id: user.id, type: 'review', region_id: form.region_id,
-                    title: form.title.trim(), description: form.content.trim(), image_url: form.image_url || null,
+                    title: form.title.trim(), description: form.content.trim(), ...imagesPatch(form.image_urls),
                     is_private: !!form.is_private,            // 나만 보기(2026-09-25) — RLS 로 작성자에게만 보인다
                     author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
                 });
@@ -254,17 +256,20 @@ const TravelQnA = () => {
                     )}
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
-                        <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={100} required />
+                        <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={TITLE_MAX} required />
                     </div>
                     <div>
                         <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">{CONTENT_LABEL[mode]}</label>
-                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-none" rows={8} maxLength={5000} required />
+                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-y" rows={10} maxLength={bodyMaxOf(mode)} aria-describedby={`${formId}-content-count`} required />
+                        <CharCount id={`${formId}-content-count`} value={form.content} max={bodyMaxOf(mode)} />
                     </div>
                     {mode === 'review' && (
-                        <div>
-                            <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                            <ImageUpload label={null} currentUrl={form.image_url} onUpload={(url) => setForm((f) => ({ ...f, image_url: url || '' }))} onUploadingChange={setUploading} />
-                        </div>
+                        <MultiImageField
+                            images={form.image_urls}
+                            onChange={(next) => setForm((f) => ({ ...f, image_urls: typeof next === 'function' ? next(f.image_urls) : next }))}
+                            max={IMAGES_MAX}
+                            onUploadingChange={setUploading}
+                        />
                     )}
                     {mode === 'review' && (
                         <VisibilityPicker name={`${formId}-visibility`} value={form.is_private} onChange={(v) => setForm((f) => ({ ...f, is_private: v }))} />

@@ -20,6 +20,8 @@ import ListState from './ListState';
 import CrewBadge from './CrewBadge';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
+import CharCount from './board/CharCount';
+import { TITLE_MAX, bodyMaxOf } from '../lib/postLimits';
 
 const PAGE = 20;
 const EMPTY_FORM = { region_id: '', title: '', country: '', date: '', members: '', content: '' };
@@ -237,7 +239,7 @@ const CompanionBoard = () => {
                     <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
-                        <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={80} required />
+                        <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={TITLE_MAX} required />
                     </div>
                     <div>
                         <label htmlFor={`${formId}-country`} className="block text-sm font-bold text-ink mb-1.5">국가/도시</label>
@@ -255,7 +257,8 @@ const CompanionBoard = () => {
                     </div>
                     <div>
                         <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">내용</label>
-                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-none" rows={6} maxLength={3000} required />
+                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-y" rows={8} maxLength={bodyMaxOf('companion')} aria-describedby={`${formId}-content-count`} required />
+                        <CharCount id={`${formId}-content-count`} value={form.content} max={bodyMaxOf('companion')} />
                     </div>
                 </form>
             </WriteModal>

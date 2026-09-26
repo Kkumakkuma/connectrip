@@ -122,6 +122,8 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
                     <ImageUpload
                         label={null}
                         bucket="images"
+                        multiple
+                        maxFiles={MAX_IMAGES - images.length}
                         resetAfterUpload
                         onUploadingChange={setUploading}
                         onUpload={(url) => { if (!url) return; setImages((prev) => (prev.length < MAX_IMAGES && !prev.includes(url) ? [...prev, url] : prev)); }}

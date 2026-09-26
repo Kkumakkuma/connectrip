@@ -20,13 +20,15 @@ import SearchPill from './board/SearchPill';
 import WriteModal from './board/WriteModal';
 import Pagination from './Pagination';
 import ListState from './ListState';
-import ImageUpload from './ImageUpload';
+import MultiImageField from './board/MultiImageField';
+import CharCount from './board/CharCount';
+import { IMAGES_MAX, TIP_MAX, TITLE_MAX, bodyMaxOf, imagesPatch } from '../lib/postLimits';
 import LoginPrompt from './LoginPrompt';
 import CrewBadge from './CrewBadge';
 import SEOHead from './SEOHead';
 
 const PAGE = 24;
-const EMPTY_FORM = { region_id: '', name: '', desc: '', crewComment: '', image_url: '' };
+const EMPTY_FORM = { region_id: '', name: '', desc: '', crewComment: '', image_urls: [] };
 // 외부(unsplash) 주소를 쓰면 앱에서 못 받아 로고로 떨어진다(2026-09-17 앱 점검)
 const FALLBACK_IMG = '/boards/recommend.webp';
 
@@ -176,7 +178,7 @@ const Destinations = () => {
                 name: form.name.trim(),
                 description: form.desc.trim(),
                 crew_comment: form.crewComment.trim(),
-                image_url: form.image_url || null,
+                ...imagesPatch(form.image_urls),
             });
             drafts.consume(draftTicket);
             if ((!region || region === created.region_id) && !q && page === 1) {
@@ -257,20 +259,23 @@ const Destinations = () => {
                     <ContinentPicker name={`${formId}-continent`} value={form.region_id} error={pickerError} onChange={(id) => { setPickerError(''); setForm((f) => ({ ...f, region_id: id })); }} />
                     <div>
                         <label htmlFor={`${formId}-name`} className="block text-sm font-bold text-ink mb-1.5">장소명</label>
-                        <input id={`${formId}-name`} type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-air" maxLength={80} required />
+                        <input id={`${formId}-name`} type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-air" maxLength={TITLE_MAX} required />
                     </div>
                     <div>
                         <label htmlFor={`${formId}-desc`} className="block text-sm font-bold text-ink mb-1.5">간단한 설명</label>
-                        <input id={`${formId}-desc`} type="text" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} className="input-air" maxLength={200} required />
+                        <input id={`${formId}-desc`} type="text" value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} className="input-air" maxLength={bodyMaxOf('destination')} required />
                     </div>
                     <div>
                         <label htmlFor={`${formId}-tip`} className="block text-sm font-bold text-ink mb-1.5">승무원 꿀팁</label>
-                        <textarea id={`${formId}-tip`} value={form.crewComment} onChange={(e) => setForm({ ...form, crewComment: e.target.value })} className="input-air resize-none" rows={4} maxLength={1000} required />
+                        <textarea id={`${formId}-tip`} value={form.crewComment} onChange={(e) => setForm({ ...form, crewComment: e.target.value })} className="input-air resize-y" rows={8} maxLength={TIP_MAX} aria-describedby={`${formId}-tip-count`} required />
+                        <CharCount id={`${formId}-tip-count`} value={form.crewComment} max={TIP_MAX} />
                     </div>
-                    <div>
-                        <span className="block text-sm font-bold text-ink mb-1.5">사진 (선택)</span>
-                        <ImageUpload label={null} currentUrl={form.image_url} onUpload={(url) => { if (url !== undefined) setForm((f) => ({ ...f, image_url: url })); }} onUploadingChange={setUploading} />
-                    </div>
+                    <MultiImageField
+                        images={form.image_urls}
+                        onChange={(next) => setForm((f) => ({ ...f, image_urls: typeof next === 'function' ? next(f.image_urls) : next }))}
+                        max={IMAGES_MAX}
+                        onUploadingChange={setUploading}
+                    />
                 </form>
             </WriteModal>
             <DraftCloseDialog {...closeDialog} />

@@ -1,6 +1,7 @@
 // 게시판 공통 설정 (2026-09-14 게시판 정비).
 // 목록은 한 줄 행으로 보여주고, 누르면 /post/:board/:id 상세 페이지(src/pages/PostDetail.jsx)로 들어간다.
 // 상세 페이지·수정 폼·댓글이 여기 설정만 보고 동작하도록 게시판별 차이를 한 곳에 모은다.
+// imageField = 대표 사진 1장(목록 썸네일), imagesField = 사진 여러 장(2026-09-26, 최대 postLimits.IMAGES_MAX).
 import { companionApi, qnaApi, reviewsApi, crewApi, destinationsApi } from './db';
 
 export const BOARDS = {
@@ -13,7 +14,7 @@ export const BOARDS = {
   review: {
     key: 'review', label: '여행 후기', listPath: '/qna', api: reviewsApi,
     likeTable: 'reviews', reportType: 'review',
-    titleField: 'title', bodyField: 'description', imageField: 'image_url', comments: reviewsApi,
+    titleField: 'title', bodyField: 'description', imageField: 'image_url', imagesField: 'image_urls', comments: reviewsApi,
     hasRegion: true,
     // 공개 / 나만 보기(2026-09-25). 후기(type='review')만 — src/lib/postVisibility.js
     hasVisibility: true,
@@ -33,7 +34,7 @@ export const BOARDS = {
   crew: {
     key: 'crew', label: 'CREW 전용', listPath: '/crew', api: crewApi,
     likeTable: 'crew_posts', reportType: 'crew',
-    titleField: 'title', bodyField: 'content', imageField: 'image_url', comments: crewApi,
+    titleField: 'title', bodyField: 'content', imageField: 'image_url', imagesField: 'image_urls', comments: crewApi,
     hasRegion: false, crewOnly: true,
     // 자유게시판(post_type='free') 글만 항공사 말머리를 쓴다(2026-09-17)
     hasAirline: true, airlinePostType: 'free',
@@ -42,7 +43,7 @@ export const BOARDS = {
     key: 'destination', label: '승무원 추천지', listPath: '/recommend', api: destinationsApi,
     likeTable: 'destinations', reportType: 'destination',
     titleField: 'name', bodyField: 'description', extraField: 'crew_comment', extraLabel: '승무원 꿀팁',
-    imageField: 'image_url', comments: destinationsApi,
+    imageField: 'image_url', imagesField: 'image_urls', comments: destinationsApi,
     hasRegion: true, crewOnly: false, crewWriteOnly: true,
   },
 };

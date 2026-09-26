@@ -19,6 +19,9 @@ import { airlineTagOf, isAirlineTagId } from '../lib/airlineTags';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
 import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import MultiImageField from './board/MultiImageField';
+import CharCount from './board/CharCount';
+import { IMAGES_MAX, TITLE_MAX, bodyMaxOf, imagesPatch } from '../lib/postLimits';
 import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
@@ -32,7 +35,7 @@ const TABS = [
 ];
 const CATEGORY_LABEL = { restaurant: '맛집', sightseeing: '관광지', hotel: '숙소/호텔', transport: '교통', tips: '꿀팁', other: '기타', general: '' };
 const PAGE = 10;
-const EMPTY_FORM = { title: '', content: '', category: 'restaurant', airline_id: '' };
+const EMPTY_FORM = { title: '', content: '', category: 'restaurant', airline_id: '', image_urls: [] };
 // 임시저장에서 불러온 분류가 레이오버 분류가 아니면 기본값으로(2026-09-25)
 const fixCategory = (f) => ({ ...f, category: CATEGORY_LABEL[f.category] && f.category !== 'general' ? f.category : 'restaurant' });
 // 항공사 말머리는 자유게시판에서만 쓴다(레이오버·할인은 성격이 다르다).
@@ -67,11 +70,12 @@ const CrewOnly = () => {
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
+    const [uploading, setUploading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const formId = useId();
     // 임시저장(2026-09-25): 탭(자유·레이오버·할인)마다 따로. "임시저장" 버튼으로 서버에 저장, 창 위 "불러오기"로 고른다
     const drafts = usePostDrafts({ board: `crew:${mode}`, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.crew, form, setForm: (f) => setForm(fixCategory(f)), blocked: submitting });
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog } = useDraftActions({ drafts, spec: DRAFT_SPECS.crew, form, setForm: (f) => setForm(fixCategory(f)), blocked: uploading || submitting });
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
     useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -134,13 +138,14 @@ const CrewOnly = () => {
     const submit = async (e) => {
         e?.preventDefault?.();
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
-        if (submitting || drafts.busy) return;
+        if (submitting || uploading || drafts.busy) return;
         if (!requireNickname(() => submit())) return;
         const draftTicket = drafts.ticket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
         setSubmitting(true);
         try {
             const created = await crewApi.create({
                 title: form.title.trim(), content: form.content.trim(), post_type: mode,
+                ...imagesPatch(form.image_urls),
                 category: mode === 'layover' ? form.category : 'general',
                 airline_id: mode === AIRLINE_TAB && airlineTagOf(form.airline_id) ? form.airline_id : null,
                 author_name: profile?.nickname || null, user_id: user.id,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
@@ -255,17 +260,17 @@ const CrewOnly = () => {
                     <>
                         <button type="button" onClick={() => requestClose(() => setShowModal(false))} className="btn-air-secondary">취소</button>
                         <span className="flex items-center gap-2">
-                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting} />
-                            <button type="submit" form={`${formId}-form`} disabled={submitting || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : '등록'}</button>
+                            <DraftSaveButton drafts={drafts} onSave={saveDraft} disabled={submitting || uploading} />
+                            <button type="submit" form={`${formId}-form`} disabled={submitting || uploading || drafts.busy} className="btn-air-primary">{submitting ? '등록 중...' : uploading ? '사진 올리는 중...' : '등록'}</button>
                         </span>
                     </>
                 }
             >
                 <form id={`${formId}-form`} onSubmit={submit} className="space-y-5">
-                    <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting} />
+                    <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />
                     <div>
                         <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-ink mb-1.5">제목</label>
-                        <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={100} required />
+                        <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={TITLE_MAX} required />
                     </div>
                     {mode === AIRLINE_TAB && (
                         <AirlinePicker
@@ -283,8 +288,15 @@ const CrewOnly = () => {
                     )}
                     <div>
                         <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">내용</label>
-                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-none" rows={7} maxLength={5000} required />
+                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-y" rows={10} maxLength={bodyMaxOf('crew')} aria-describedby={`${formId}-content-count`} required />
+                        <CharCount id={`${formId}-content-count`} value={form.content} max={bodyMaxOf('crew')} />
                     </div>
+                    <MultiImageField
+                        images={form.image_urls}
+                        onChange={(next) => setForm((f) => ({ ...f, image_urls: typeof next === 'function' ? next(f.image_urls) : next }))}
+                        max={IMAGES_MAX}
+                        onUploadingChange={setUploading}
+                    />
                 </form>
             </WriteModal>
             <DraftCloseDialog {...closeDialog} />

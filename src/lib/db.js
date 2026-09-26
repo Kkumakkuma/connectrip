@@ -17,6 +17,14 @@ import { ITINERARY_ENABLED, PROMO_REVIEWS_ENABLED } from './featureFlags';
 // ============================================================
 const LIST_FETCH_LIMIT = 300;
 
+// 목록(최대 LIST_FETCH_LIMIT 건)은 본문을 받지 않는다(2026-09-26). 본문 한도가 2만 자로 늘어
+// '*' 로 받으면 목록 한 번에 수 MB 가 내려올 수 있다. 목록 화면은 제목·작성자·날짜·썸네일만 그리고
+// 본문은 상세(getById)에서만 받는다. 검색(ilike 본문)은 select 와 무관하게 서버에서 그대로 걸린다.
+// 테이블에 목록이 쓰는 컬럼을 새로 만들면 여기에도 적어야 목록에 나온다.
+const QNA_LIST_COLUMNS = 'id, user_id, title, author_name, view_count, created_at, updated_at, board';
+const CREW_LIST_COLUMNS = 'id, user_id, post_type, title, category, brand, discount_percent, image_url, author_name, created_at, updated_at, airline_id';
+const REVIEW_LIST_COLUMNS = 'id, user_id, region_id, type, title, rating, image_url, author_name, created_at, updated_at, is_private';
+
 // ============================================================
 // Companion Posts (동행 게시판)
 // ============================================================
@@ -275,7 +283,7 @@ export const qnaApi = {
   async getAll(board = 'qna', q = '') {
     let query = supabase
       .from('qna_posts')
-      .select('*, qna_comments(count), profiles(user_type, crew_verified)')
+      .select(`${QNA_LIST_COLUMNS}, qna_comments(count), profiles(user_type, crew_verified)`)
       .eq('board', board)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
@@ -369,7 +377,7 @@ export const crewApi = {
   // airlineId: 자유게시판 항공사 말머리 필터(2026-09-17). null 이면 전체.
   async getAll(postType = null, airlineId = null, q = '') {
     let query = supabase.from('crew_posts')
-      .select('*, crew_comments(count), profiles(user_type, crew_verified)')
+      .select(`${CREW_LIST_COLUMNS}, crew_comments(count), profiles(user_type, crew_verified)`)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
@@ -451,13 +459,15 @@ export const crewApi = {
 // ============================================================
 
 const REVIEW_SELECT = '*, review_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)';
+const REVIEW_LIST_SELECT = `${REVIEW_LIST_COLUMNS}, review_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)`;
 // PostgREST 집계 임베드 [{count}] → comment_count 로 편다 (qnaApi 와 동일)
 const flattenReview = ({ review_comments: commentAgg, ...post }) => ({ ...post, comment_count: commentAgg?.[0]?.count ?? 0 });
 
 export const reviewsApi = {
-  async getAll(regionId = null, type = null, q = '') {
+  // withBody: 목록에 본문을 그리는 화면(홍보 게시판 Promotions — 현재 기능 플래그로 꺼짐)만 true
+  async getAll(regionId = null, type = null, q = '', { withBody = false } = {}) {
     let query = supabase.from('reviews')
-      .select(REVIEW_SELECT)
+      .select(withBody ? REVIEW_SELECT : REVIEW_LIST_SELECT)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);

@@ -18,6 +18,7 @@ import { displayAuthor } from '../lib/authorName';
 import NicknameRequiredModal from './NicknameRequiredModal';
 import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
+import { TITLE_MAX, bodyMaxOf } from '../lib/postLimits';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
@@ -90,7 +91,7 @@ const Promotions = () => {
         try {
             setLoading(true);
             setError(null);
-            const data = await reviewsApi.getAll(regionId, type);
+            const data = await reviewsApi.getAll(regionId, type, '', { withBody: true });
             setPosts(data || []);
             if (data?.length) {
                 const m = await postLikeApi.getForBoard('reviews', data.map((p) => p.id), user?.id);
@@ -384,13 +385,13 @@ const Promotions = () => {
                                 <DraftLoadBar drafts={drafts} onLoad={loadDraft} onRemove={removeDraft} disabled={submitting || uploading} />
                                 <div>
                                     <label htmlFor={`${formId}-title`} className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품명' : '후기 제목'}</label>
-                                    <input id={`${formId}-title`} type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    <input id={`${formId}-title`} type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} maxLength={TITLE_MAX}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                                         placeholder={mode === 'promotion' ? '예: 다낭 3박 5일 풀빌라 투어' : '예: 다낭 여행 정말 최고였어요!'} required />
                                 </div>
                                 <div>
                                     <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-gray-700 mb-2">{mode === 'promotion' ? '상품 설명' : '후기 내용'}</label>
-                                    <textarea id={`${formId}-content`} value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    <textarea id={`${formId}-content`} value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} maxLength={bodyMaxOf('review')}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none" rows="6"
                                         placeholder={mode === 'promotion' ? '상품의 특장점, 포함 내역, 가격 등을 자세히 작성해주세요' : '여행 경험을 자세히 공유해주세요'} required />
                                 </div>
