@@ -2,10 +2,12 @@
 // 웹에서는 전부 no-op. 네이티브에서만 @capacitor/push-notifications·preferences·app 을 동적 import 한다(웹 번들 비대화 방지).
 // 흐름: 로그인·세션 복원(PushBridge) → 권한 요청 → FCM 토큰 → RPC push_token_upsert / 로그아웃(AuthContext.signOut) → push_token_remove.
 // 서버 쪽은 push_20260920.sql. 발송 워커가 아직 없어도 여기까지는 그대로 돌고 토큰만 쌓인다.
-// google-services.json 이 없는 빌드에서는 register() 가 registrationError 를 내고 조용히 null 을 돌려준다(로그인 흐름을 막지 않는다).
+// ⚠ google-services.json 이 없는 빌드에서 register() 를 부르면 앱이 종료된다(2026-09-27 에뮬레이터 실측 — 조용히 실패하지 않는다).
+//   그래서 등록·탭 처리는 PUSH_ENABLED(빌드 플래그, featureFlags.js)일 때만 한다. 로그아웃 때 토큰 삭제는 저장된 토큰이 있을 때만이라 그대로 둔다.
 import { Capacitor } from '@capacitor/core';
 import { supabase } from './supabase';
 import { isNativeApp } from './native';
+import { PUSH_ENABLED } from './featureFlags';
 
 const TOKEN_KEY = 'ct_fcm_token'; // 이 기기에서 마지막으로 서버에 등록한 토큰(로테이션·로그아웃 삭제용)
 const REGISTER_TIMEOUT_MS = 10000;
@@ -28,6 +30,7 @@ export async function getStoredPushToken() {
 // 권한 확인(없으면 요청, Android 13+ 다이얼로그) → register → 'registration' 이벤트의 토큰.
 // 거부·실패·시간초과는 null. 리스너는 어떤 경로로 끝나도 finally 에서 정리한다.
 export async function acquirePushToken() {
+  if (!PUSH_ENABLED) return null;
   const { PushNotifications } = await import('@capacitor/push-notifications');
   let perm = await PushNotifications.checkPermissions();
   // 아직 안 물어본 상태(prompt·prompt-with-rationale)에서만 OS 다이얼로그를 띄운다. 이미 거부한 기기는 매 실행마다 다시 묻지 않는다(agy 검토).
@@ -63,7 +66,7 @@ export async function acquirePushToken() {
 // 로그인·세션 복원 때(PushBridge). 성공하면 토큰, 아니면 null — 실패해도 다음 실행 때 다시 시도한다.
 // 매 실행마다 upsert 하므로 서버의 updated_at 이 갱신돼 90일 정리(push_purge)에 안 걸린다.
 export async function registerPushForUser() {
-  if (!isNativeApp()) return null;
+  if (!isNativeApp() || !PUSH_ENABLED) return null;
   try {
     const token = await acquirePushToken();
     if (!token) return null;
@@ -112,7 +115,7 @@ export function isSafeInternalLink(link) {
 }
 
 export async function listenPushTap(navigate) {
-  if (!isNativeApp()) return () => {};
+  if (!isNativeApp() || !PUSH_ENABLED) return () => {};
   const { PushNotifications } = await import('@capacitor/push-notifications');
   const handle = await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
     const link = action?.notification?.data?.link;

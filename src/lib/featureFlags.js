@@ -68,3 +68,10 @@ export const COMMENDATION_ENABLED = false;
 //   켤 때: 이 값을 true 로 바꾸고 재배포. 포인트는 칭찬매칭(매칭신청권 구매)·추천 보너스와 묶여 있으니 보통 COMMENDATION_ENABLED 와 함께 켠다.
 //   ⚠ 약관·방침 문구가 바뀌므로 켜는 배포에서 '최종 개정일'과 v_policy_version 을 함께 올린다.
 export const POINTS_ENABLED = false;
+
+// PUSH_ENABLED — 앱 푸시(FCM) 등록·푸시 탭 처리(src/lib/push.js, PushBridge). 웹은 원래 no-op.
+//   2026-09-27 에뮬레이터 실측(1.3.0 검증): android/app/google-services.json(Firebase 설정) 없이 PushNotifications.register() 를 부르면
+//   FirebaseApp 미초기화 IllegalStateException 이 플러그인 스레드에서 터져 앱이 통째로 종료된다(로그인 상태로 켜는 즉시).
+//   → Firebase 설정 파일을 넣은 빌드에서만 켠다: .env.app 에 VITE_PUSH_ENABLED=true + google-services.json 배치 후 재빌드.
+export const PUSH_ENABLED = import.meta.env.VITE_PUSH_ENABLED === 'true';
+

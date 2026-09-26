@@ -34,6 +34,9 @@ vi.mock('@capacitor/push-notifications', () => ({
   },
 }));
 vi.mock('@capacitor/app', () => ({ App: { getInfo: async () => ({ version: '1.2.1' }) } }));
+// 빌드 플래그(PUSH_ENABLED). 이 파일의 흐름 테스트는 켠 상태, 끈 상태는 맨 아래 테스트에서 바꿔 본다.
+const flags = vi.hoisted(() => ({ push: true }));
+vi.mock('./featureFlags', () => ({ get PUSH_ENABLED() { return flags.push; } }));
 
 import { getStoredPushToken, listenPushTap, registerPushForUser, unregisterPush } from './push';
 
@@ -41,7 +44,7 @@ const KEY = 'ct_fcm_token';
 
 describe('push (앱 푸시 골격)', () => {
   beforeEach(() => {
-    env.native = true; env.platform = 'android';
+    env.native = true; env.platform = 'android'; flags.push = true;
     fcm.perm = 'granted'; fcm.fail = false; fcm.listeners = {}; fcm.requests = 0;
     store.clear();
     rpc.mockReset(); rpc.mockResolvedValue({ error: null });
@@ -128,5 +131,18 @@ describe('push (앱 푸시 골격)', () => {
     expect(navigate).toHaveBeenCalledWith('/mypage');
     off();
     expect(fcm.listeners.pushNotificationActionPerformed).toBeUndefined();
+  });
+
+  it('PUSH_ENABLED 꺼짐(Firebase 설정 없는 빌드): 네이티브여도 권한·register 를 부르지 않는다 — 부르면 앱이 종료된다(9/27 실측)', async () => {
+    flags.push = false;
+    const registerSpy = vi.fn();
+    fcm.listeners = {};
+    expect(await registerPushForUser()).toBeNull();
+    expect(fcm.requests).toBe(0);
+    expect(Object.keys(fcm.listeners)).toHaveLength(0);
+    expect(rpc).not.toHaveBeenCalled();
+    const cleanup = await listenPushTap(registerSpy);
+    expect(Object.keys(fcm.listeners)).toHaveLength(0);
+    cleanup();
   });
 });
