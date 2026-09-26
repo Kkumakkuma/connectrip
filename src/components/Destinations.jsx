@@ -36,6 +36,10 @@ const FALLBACK_IMG = '/boards/recommend.webp';
 // 좋아요는 post_likes(toggle_post_like RPC)만 센다 — 상세 페이지와 같은 숫자. 옛 destinations.likes_count 는 더하지 않는다(codex 지적).
 const likeCountOf = (dest, likeMap) => likeMap[dest.id]?.count || 0;
 
+// 목록은 꿀팁 앞 200자(crew_comment_preview)만 받는다(2026-09-26 — 꿀팁 서식 문서·긴 본문은 상세에서만).
+// 방금 올린 글(create 응답)은 전체 칸이 있어 preview 도 함께 온다.
+const tipPreviewOf = (dest) => dest.crew_comment_preview ?? dest.crew_comment ?? '';
+
 const DestinationCard = ({ dest, likeCount }) => (
     <Link to={postPath('destination', dest.id)} className="card-air overflow-hidden flex flex-col group">
         <div className="aspect-[4/3] overflow-hidden bg-surface-strong">
@@ -60,8 +64,8 @@ const DestinationCard = ({ dest, likeCount }) => (
                 </span>
             </div>
             <p className="text-[13px] text-muted mt-1 line-clamp-2 leading-relaxed">{dest.description}</p>
-            {dest.crew_comment && (
-                <p className="mt-2 text-[13px] text-body bg-surface-soft rounded-sm px-3 py-2 line-clamp-3">✈️ {dest.crew_comment}</p>
+            {tipPreviewOf(dest) && (
+                <p className="mt-2 text-[13px] text-body bg-surface-soft rounded-sm px-3 py-2 line-clamp-3">✈️ {tipPreviewOf(dest)}</p>
             )}
             <div className="mt-auto pt-3 flex items-center gap-1 min-w-0 text-[12px] text-muted">
                 <span className="truncate">{displayAuthor(dest.profiles?.nickname)}</span>

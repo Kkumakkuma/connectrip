@@ -122,6 +122,10 @@
         {
           "key": "Permissions-Policy",
           "value": "camera=(), microphone=(), geolocation=(self)"
+        },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "img-src 'self' data: blob: https://owhtldabzcvavsazdufy.supabase.co https://images.unsplash.com https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.google.co.kr https://*.googleusercontent.com https://*.ggpht.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://*.kakaocdn.net https://*.daumcdn.net https://*.daum.net https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://*.g.doubleclick.net; frame-src 'self' https://www.google.com https://*.daum.net https://*.daumcdn.net https://*.portone.io https://*.iamport.co https://*.iamport.kr https://*.kcp.co.kr https://*.inicis.com"
         }
       ]
     }

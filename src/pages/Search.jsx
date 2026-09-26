@@ -11,24 +11,28 @@ import { ITINERARY_ENABLED } from '../lib/featureFlags';
 
 // fields = 검색 대상 컬럼(모든 게시판 본문은 content 로 통일됨),
 // bodyField = 결과 카드에 본문 미리보기로 보여줄 컬럼,
-// select  = 받아올 컬럼(생략하면 '*'). 큰 비텍스트 컬럼을 가진 보드만 적는다,
+// select  = 받아올 컬럼. 모든 보드에 적는다(2026-09-26 서식 편집기 1단계 — '*' 로 받으면 서식 문서 칸(*_doc, 최대 512KB)과
+//           itinerary snapshot 같은 큰 칸이 검색 응답에 실린다). 카드가 그리는 칸 + 상세 경로에 쓰는 칸만,
 // detail  = 결과 한 건을 여는 경로. 없으면 종전대로 게시판 목록으로 이동한다.
 const BOARDS = [
-  { key: 'companion_posts', label: '동행 게시판', icon: Users, color: 'blue', link: '/companion', detail: (item) => `/post/companion/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
-  { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content', detail: (item) => `/market/${item.id}` },
-  { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', detail: (item) => `/post/${item.board === 'free' ? 'free' : 'qna'}/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
-  { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', detail: (item) => `/post/crew/${item.id}`, fields: ['title', 'content'], bodyField: 'content' },
+  { key: 'companion_posts', label: '동행 게시판', icon: Users, color: 'blue', link: '/companion', detail: (item) => `/post/companion/${item.id}`, fields: ['title', 'content'], bodyField: 'content', select: 'id,created_at,title,content,author_name' },
+  { key: 'market_listings', label: '장터 게시판', icon: ShoppingBag, color: 'green', link: '/market', fields: ['title', 'content', 'description'], bodyField: 'content', detail: (item) => `/market/${item.id}`, select: 'id,created_at,title,content,author' },
+  { key: 'qna_posts', label: 'Q&A 게시판', icon: HelpCircle, color: 'amber', link: '/qna', detail: (item) => `/post/${item.board === 'free' ? 'free' : 'qna'}/${item.id}`, fields: ['title', 'content'], bodyField: 'content', select: 'id,created_at,title,content,author_name,board' },
+  { key: 'crew_posts', label: '승무원 전용', icon: Shield, color: 'purple', link: '/crew', detail: (item) => `/post/crew/${item.id}`, fields: ['title', 'content'], bodyField: 'content', select: 'id,created_at,title,content,author_name' },
   // 여행 후기·승무원 추천지가 전체 검색에서 빠져 있었다(2026-09-17 실측 — 게시판 안에서는 검색되는데
   // 상단 검색에는 안 잡혔다). reviews 는 후기(type='review')만 본다 — 홍보 글은 화면이 숨겨져 있다.
   {
     key: 'reviews', label: '여행 후기', icon: BookOpen, color: 'rose', link: '/qna?tab=review',
     detail: (item) => `/post/review/${item.id}`, fields: ['title', 'description'], bodyField: 'description',
+    select: 'id,created_at,title,description,author_name,is_private',
     eq: { type: 'review' },
   },
   {
     key: 'destinations', label: '승무원 추천지', icon: MapPin, color: 'teal', link: '/recommend',
     detail: (item) => `/post/destination/${item.id}`, titleField: 'name',
-    fields: ['name', 'description'], bodyField: 'description',
+    // 승무원 꿀팁(crew_comment)에만 든 단어로도 찾는다 — 게시판 안 검색(destinationsApi.getAll)과 같은 범위
+    fields: ['name', 'description', 'crew_comment'], bodyField: 'description',
+    select: 'id,created_at,name,description',
   },
   // itinerary_posts 는 snapshot(jsonb = 여행 전체)을 갖고 있어 '*' 로 받으면 검색 응답이 통째로
   // 커진다. 카드가 쓰는 컬럼만 적고, 아래 쿼리가 board.select 를 읽는다(둘 중 하나만 고치면 무효).
@@ -81,8 +85,8 @@ const Search = () => {
           const orFilter = board.fields.map((f) => `${f}.ilike.%${safe}%`).join(',');
           // market_listings 는 profiles FK 가 2개(user_id/buyer_id)라 작성자 임베드에 FK 힌트 필수
           const authorEmbed = board.key === 'market_listings'
-            ? '*, profiles!market_listings_user_id_fkey(user_type, crew_verified)'
-            : `${board.select || '*'}, profiles(user_type, crew_verified)`;
+            ? `${board.select}, profiles!market_listings_user_id_fkey(user_type, crew_verified)`
+            : `${board.select}, profiles(user_type, crew_verified)`;
           let req = supabase
             .from(board.key)
             .select(authorEmbed)

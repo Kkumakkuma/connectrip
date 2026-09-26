@@ -13,8 +13,17 @@ export const draftTitle = (data) => {
     return body ? body.slice(0, 30) : '제목 없음';
 };
 
+// 서식 원고(data.fmt = 2) — 서식 편집기(2단계부터) 화면이 저장한 원고. 이 판(1단계) 화면은 서식 문서를 읽지 못해
+// 불러오면 본문이 비어 보이고, 그대로 등록하면 등록 뒤 정리(removeIf, 서버 함수라 원고 가드를 지난다)로 원고가 지워진다
+// (codex 9/26). 그래서 이 화면에서는 불러오지 않는다(목록의 삭제 버튼은 본인이 고른 것이라 그대로 둔다).
+// 서버는 data->>'fmt' = '2' 로 본다 — 숫자 2·문자 '2' 둘 다.
+export const isRichDraft = (data) => String(data?.fmt ?? '') === '2';
+export const RICH_DRAFT_MESSAGE = '새 글쓰기 화면에서 저장한 원고예요. 페이지를 새로 고친 뒤(앱은 업데이트한 뒤) 다시 불러와 주세요.';
+
 export const draftErrorMessage = (err) => {
     const m = String(err?.message || '');
+    // 서버 원고 가드: 다른 기기의 새 화면이 서식 원고로 저장한 것을 이 화면이 덮어쓰려 한 경우
+    if (m.includes('DRAFT_APP_UPDATE_REQUIRED')) return '새 글쓰기 화면에서 고친 원고라 여기서는 저장할 수 없어요. 페이지를 새로 고친 뒤 다시 시도해 주세요.';
     if (m.includes('draft limit board')) return `임시저장은 게시판마다 ${DRAFT_PER_BOARD}개까지 둘 수 있어요. 불러오기 목록에서 지운 뒤 다시 저장해 주세요.`;
     if (m.includes('draft limit total')) return '임시저장이 너무 많아요. 다른 게시판의 불러오기 목록에서 지운 뒤 다시 저장해 주세요.';
     if (m.includes('check constraint')) return '글이 너무 길어 임시저장하지 못했습니다.';
@@ -72,17 +81,21 @@ export const draftsApi = {
         throw ins.error;
     },
 
+    // 삭제는 서버 함수 post_draft_delete 로만 한다(2026-09-26 서식 편집기 1단계, SQL rich_body_20260926.sql).
+    // 서식 원고(data.fmt = 2)는 이 함수로만 지워진다 — 서식을 모르는 옛 화면의 직접 DELETE 는 서버가 막는다
+    // (옛 화면이 서식 원고를 빈 본문으로 불러와 등록한 뒤 지워 버리는 경로 차단). 본인 원고만(RLS + user_id 조건).
+
     // 목록의 삭제 버튼(본인이 고른 것 — 버전과 무관하게 지운다)
     async remove(id) {
         if (!id) return;
-        const { error } = await supabase.from('post_drafts').delete().eq('id', id);
+        const { error } = await supabase.rpc('post_draft_delete', { p_id: id, p_rev: null });
         if (error) throw error;
     },
 
     // 등록 성공 뒤 정리: 불러온 그 버전일 때만 지운다(다른 기기에서 더 고친 원고는 남긴다, codex 9/25).
     async removeIf(id, rev) {
         if (!id || rev == null) return;
-        const { error } = await supabase.from('post_drafts').delete().eq('id', id).eq('revision', rev);
+        const { error } = await supabase.rpc('post_draft_delete', { p_id: id, p_rev: rev });
         if (error) throw error;
     },
 };

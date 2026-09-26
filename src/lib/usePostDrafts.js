@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { draftErrorMessage, draftsApi, draftTitle, newDraftId } from './postDrafts';
+import { RICH_DRAFT_MESSAGE, draftErrorMessage, draftsApi, draftTitle, isRichDraft, newDraftId } from './postDrafts';
 
 // 글쓰기 임시저장 v2 훅(2026-09-25). 서버 저장 + 불러오기. 자동 저장·자동 복원은 없다.
 //
@@ -183,6 +183,8 @@ export function useDraftActions({ drafts, spec, form, setForm, blocked = false }
     };
     const loadDraft = (item) => {
         if (blocked || drafts.busy) return;
+        // 서식 원고는 이 화면에서 불러오지 않는다 — 불러오기(ticket)보다 먼저 거른다(postDrafts.js isRichDraft)
+        if (isRichDraft(item?.data)) { alert(RICH_DRAFT_MESSAGE); return; }
         if (!spec.isBlank(form) && !window.confirm('작성 중인 내용 대신 불러올까요?')) return;
         const next = spec.fromData(drafts.load(item));
         setSnap({ session: drafts.session, id: item.id, json: JSON.stringify(spec.toData(next)) });

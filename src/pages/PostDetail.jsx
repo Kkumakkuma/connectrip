@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Heart, Users } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -21,6 +21,9 @@ import MultiImageField from '../components/board/MultiImageField';
 import CharCount from '../components/board/CharCount';
 import { IMAGES_MAX, TIP_MAX, TITLE_MAX, bodyMaxOf, imagesOf, imagesPatch } from '../lib/postLimits';
 import { useResolvedImages } from '../lib/imageRefs';
+import { prepareRichDoc } from '../lib/rich/doc';
+import { useDocFonts } from '../lib/rich/fonts';
+import RichBody from '../components/rich/RichBody';
 import CrewBadge from '../components/CrewBadge';
 import AuthorActions from '../components/AuthorActions';
 import ReportButton from '../components/ReportButton';
@@ -214,8 +217,27 @@ const PostDetail = () => {
     const isOwner = !!user && !!p && p.user_id === user.id;
     const title = p ? p[config.titleField] : '';
     const body = p ? p[config.bodyField] : '';
+    // 서식 글(2026-09-26 서식 편집기 1단계): 문서 칸이 있으면 여기서 한 번 검증하고(prepareRichDoc) RichBody 로 그린다.
+    // 문서가 없으면(옛날식 평문 글) 지금 표시 그대로, 검증에 실패하면 경고만 남기고 평문 칸 + 사진을 지금처럼 그린다.
+    // 추천지는 한 줄 소개(description)가 아니라 꿀팁(crew_comment) 칸이 문서다.
+    const docRaw = p && config.docField ? p[config.docField] : null;
+    const extraDocRaw = p && config.extraDocField ? p[config.extraDocField] : null;
+    const boardKey = config?.key;
+    const ownerId = p?.user_id;
+    const bodyDoc = useMemo(() => (docRaw ? prepareRichDoc(docRaw, boardKey, ownerId) : null), [docRaw, boardKey, ownerId]);
+    const extraDoc = useMemo(() => (extraDocRaw ? prepareRichDoc(extraDocRaw, boardKey, ownerId) : null), [extraDocRaw, boardKey, ownerId]);
+    const richBody = !!bodyDoc?.ok;
+    const richExtra = !!extraDoc?.ok;
+    // 사진이 문서 안에 있는 서식 글은 대표 사진을 본문 위에 따로 그리지 않는다(문서 자리대로 그린다)
+    const imagesInDoc = config?.extraDocField ? richExtra : richBody;
+    // 서식 글꼴을 쓴 글은 그 글꼴을 최대 800ms 기다렸다가 그린다(글꼴을 안 쓰면 바로 true)
+    const fontsReady = useDocFonts(richBody ? bodyDoc : null, richExtra ? extraDoc : null);
+    useEffect(() => {
+        if (bodyDoc && !bodyDoc.ok) console.warn('서식 본문 검증 실패 — 평문으로 표시:', bodyDoc.reason);
+        if (extraDoc && !extraDoc.ok) console.warn('서식 꿀팁 검증 실패 — 평문으로 표시:', extraDoc.reason);
+    }, [bodyDoc, extraDoc]);
     // 대표(첫 장)는 본문 위, 나머지는 본문 아래. image_urls 가 비면 옛 글의 image_url 한 장.
-    const images = p && config.imagesField ? imagesOf(p) : [];
+    const images = p && config.imagesField && !imagesInDoc ? imagesOf(p) : [];
     // 후기·CREW 사진은 비공개 참조 — 로그인 권한으로 받아 그린다(볼 권한이 없으면 null)
     const imageSrcs = useResolvedImages(images, user?.id);
 
@@ -282,11 +304,23 @@ const PostDetail = () => {
                         )}
 
                         <div className="mt-5">
-                            <p className="text-[15px] sm:text-[16px] text-body leading-[1.8] whitespace-pre-wrap break-keep">{body}</p>
-                            {config.extraField && p[config.extraField] && (
+                            {richBody ? (
+                                fontsReady
+                                    ? <RichBody prepared={bodyDoc} fallback={body} userId={user?.id} altBase={title} />
+                                    : <div className="min-h-[6rem]" aria-busy="true" />
+                            ) : (
+                                <p className="text-[15px] sm:text-[16px] text-body leading-[1.8] whitespace-pre-wrap break-keep">{body}</p>
+                            )}
+                            {config.extraField && (richExtra || p[config.extraField]) && (
                                 <div className="mt-5 rounded-md bg-surface-soft px-4 py-3.5">
                                     <p className="text-[13px] font-bold text-ink mb-1">{config.extraLabel}</p>
-                                    <p className="text-[15px] text-body leading-[1.8] whitespace-pre-wrap break-keep">{p[config.extraField]}</p>
+                                    {richExtra ? (
+                                        fontsReady
+                                            ? <RichBody prepared={extraDoc} fallback={p[config.extraField]} userId={user?.id} altBase={title} />
+                                            : <div className="min-h-[3rem]" aria-busy="true" />
+                                    ) : (
+                                        <p className="text-[15px] text-body leading-[1.8] whitespace-pre-wrap break-keep">{p[config.extraField]}</p>
+                                    )}
                                 </div>
                             )}
                             {images.length > 1 && (

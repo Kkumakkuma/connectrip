@@ -24,6 +24,13 @@ const LIST_FETCH_LIMIT = 300;
 const QNA_LIST_COLUMNS = 'id, user_id, title, author_name, view_count, created_at, updated_at, board';
 const CREW_LIST_COLUMNS = 'id, user_id, post_type, title, category, brand, discount_percent, image_url, author_name, created_at, updated_at, airline_id';
 const REVIEW_LIST_COLUMNS = 'id, user_id, region_id, type, title, rating, image_url, author_name, created_at, updated_at, is_private';
+// 서식 문서 칸(*_doc, 2026-09-26 서식 편집기 1단계 — 글 하나에 최대 512KB)은 목록·검색·키워드 폴링에서 받지 않는다.
+// 상세(getById)와 생성·수정 응답만 받는다. 목록 칸 상수에 '*' 나 '_doc' 이 들어가면 src/lib/rich/selects.test.js 가 막는다.
+const COMPANION_LIST_COLUMNS = 'id, user_id, region_id, title, country, travel_date, members_needed, author_name, status, created_at, updated_at';
+// 추천지 카드는 꿀팁 앞 200자(crew_comment_preview, 서버가 채우는 칸)만 그린다
+const DESTINATION_LIST_COLUMNS = 'id, user_id, region_id, name, description, crew_comment_preview, image_url, likes_count, created_at';
+// 홍보 게시판(Promotions, 현재 숨김)은 목록 카드에 본문(평문)을 그린다 — 문서 칸은 빼고 평문만
+const REVIEW_BODY_LIST_COLUMNS = `${REVIEW_LIST_COLUMNS}, description`;
 
 // ============================================================
 // Companion Posts (동행 게시판)
@@ -44,7 +51,7 @@ export const companionApi = {
   async getAll({ regionId = null, q = '', page = 1, limit = 20 } = {}) {
     let query = supabase
       .from('companion_posts')
-      .select('*, companion_comments(count), profiles(user_type, crew_verified)', { count: 'exact' })
+      .select(`${COMPANION_LIST_COLUMNS}, companion_comments(count), profiles(user_type, crew_verified)`, { count: 'exact' })
       .order('created_at', { ascending: false })
       // id 2차 정렬 = 정렬값이 같을 때 페이지 경계에서 뽑히는 행이 매번 달라지지 않게 고정
       .order('id', { ascending: false })
@@ -460,6 +467,7 @@ export const crewApi = {
 
 const REVIEW_SELECT = '*, review_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)';
 const REVIEW_LIST_SELECT = `${REVIEW_LIST_COLUMNS}, review_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)`;
+const REVIEW_BODY_LIST_SELECT = `${REVIEW_BODY_LIST_COLUMNS}, review_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)`;
 // PostgREST 집계 임베드 [{count}] → comment_count 로 편다 (qnaApi 와 동일)
 const flattenReview = ({ review_comments: commentAgg, ...post }) => ({ ...post, comment_count: commentAgg?.[0]?.count ?? 0 });
 
@@ -467,7 +475,7 @@ export const reviewsApi = {
   // withBody: 목록에 본문을 그리는 화면(홍보 게시판 Promotions — 현재 기능 플래그로 꺼짐)만 true
   async getAll(regionId = null, type = null, q = '', { withBody = false } = {}) {
     let query = supabase.from('reviews')
-      .select(withBody ? REVIEW_SELECT : REVIEW_LIST_SELECT)
+      .select(withBody ? REVIEW_BODY_LIST_SELECT : REVIEW_LIST_SELECT)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(LIST_FETCH_LIMIT);
@@ -549,7 +557,7 @@ export const destinationsApi = {
     // likes_count 는 같은 값이 흔하고 실시간으로 변한다. id 2차 정렬이 없으면
     // 같은 좋아요 수끼리 순서가 조회할 때마다 뒤바뀐다.
     let query = supabase.from('destinations')
-      .select('*, destination_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)', { count: 'exact' })
+      .select(`${DESTINATION_LIST_COLUMNS}, destination_comments(count), profiles(nickname, user_type, crew_verified, avatar_url)`, { count: 'exact' })
       .order('likes_count', { ascending: false })
       .order('id', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
@@ -772,22 +780,28 @@ export const keywordsApi = {
 // 키워드 알림: 최근 게시글을 가볍게 폴링해서 키워드와 매칭한다.
 // (Supabase realtime 퍼블리케이션 설정 없이도 동작하도록 폴링 방식 채택.
 //  RPC/보안 로직과 무관한 단순 SELECT 만 수행한다.)
-// 기본은 select('*') 로 받아 모든 문자열 컬럼을 매칭 대상으로 삼는다 →
-// 보드별 컬럼명(content/description 등) 차이/스키마 변경에 영향받지 않는다.
-// 단 큰 비텍스트 컬럼(itinerary_posts.snapshot jsonb = 여행 전체)을 가진 보드는 board.select 로
-// 좁힌다. 폴링이 1분 주기 × 보드당 최대 20행이라 전송량이 그대로 Supabase egress 비용이 된다.
+// 받아 온 행의 문자열 컬럼(KEYWORD_SKIP_FIELDS 제외)을 모두 매칭 대상으로 삼는다.
+// 보드마다 select 를 적는다(2026-09-26 서식 편집기 1단계): 예전엔 '*' 로 받았는데 서식 문서 칸(*_doc, 최대 512KB)이
+// 폴링(1분 주기 × 보드당 최대 20행)에 실려 Supabase egress 가 불어난다. 적힌 칸 = '*' 시절 매칭되던 문자열 칸 그대로
+// (날짜·시각 문자열 칸 포함 — 매칭 범위를 바꾸지 않는다). 새 문자열 칸을 매칭에 넣으려면 여기에 더한다.
 // (board.select 를 적어 두기만 하면 아무 일도 일어나지 않는다 — 아래 쿼리도 함께 읽어야 한다.)
 // type = add_keyword_notification(p_post_type) 이 받는 값 (서버가 링크를 조립한다)
 const KEYWORD_BOARDS = [
-  { table: 'companion_posts', path: '/companion', type: 'companion' },
-  { table: 'qna_posts', path: '/qna', type: 'qna' },
-  { table: 'market_listings', path: '/market', type: 'market' },
+  { table: 'companion_posts', path: '/companion', type: 'companion', select: 'id,created_at,title,country,travel_date,members_needed,content,author_name' },
+  { table: 'qna_posts', path: '/qna', type: 'qna', select: 'id,created_at,title,content,author_name,board' },
+  {
+    table: 'market_listings', path: '/market', type: 'market',
+    select: 'id,created_at,title,description,location,content,author,country,transaction_type,refreshed_at,bumped_at,paid_at',
+  },
   // reviews 테이블은 "여행상품 홍보 및 후기"(숨김 중)와 "여행후기 및 Q&A"의 여행 후기 탭이 함께 쓴다 — 알림은 유지한다.
   // 숨김 동안 /reviews 링크는 App.jsx 가 /qna?tab=review 로 보낸다(agy 9/6: 통째로 빼면 후기 알림까지 끊긴다).
   // 나만 보기 후기(2026-09-25)는 뺀다 — 작성자 본인 세션엔 RLS 로 보여서, 안 거르면 자기 비공개 글에
   // "키워드의 새 글" 토스트가 뜬다(agy·codex 검토). LIMIT 전에 걸러야 공개 글이 밀려나지 않는다.
-  { table: 'reviews', path: PROMO_REVIEWS_ENABLED ? '/reviews' : '/qna?tab=review', type: 'reviews', eq: { is_private: false } },
-  { table: 'destinations', path: '/recommend', type: 'destinations' },
+  {
+    table: 'reviews', path: PROMO_REVIEWS_ENABLED ? '/reviews' : '/qna?tab=review', type: 'reviews', eq: { is_private: false },
+    select: 'id,created_at,title,description,author_name',
+  },
+  { table: 'destinations', path: '/recommend', type: 'destinations', select: 'id,created_at,name,description,crew_comment' },
   // author_name 포함은 의도적이다 — 기존 5개 보드가 전부 author_name 을 매칭 대상으로 삼고
   // 있어서(KEYWORD_SKIP_FIELDS 에도 없다) 여기서만 빼면 보드별 매칭 범위가 갈라진다.
   // 게시판이 닫혀 있는 동안은 대상에서 뺀다 — 알림을 눌러도 NotFound 로 떨어진다.
@@ -824,7 +838,7 @@ export const keywordAlertsApi = {
         try {
           let query = supabase
             .from(board.table)
-            .select(board.select || '*')
+            .select(board.select)
             .gt('created_at', sinceIso);
           for (const [col, val] of Object.entries(board.eq || {})) query = query.eq(col, val);
           const { data, error } = await query

@@ -1,0 +1,2185 @@
+{
+ "owner": "11111111-1111-4111-8111-111111111111",
+ "cases": [
+  {
+   "name": "simple",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "안녕하세요 커넥트립"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "empty-lines",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "첫 줄"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "셋째 줄"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "marks-heading",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "heading",
+       "attrs": {
+        "level": 2,
+        "textAlign": "center"
+       },
+       "content": [
+        {
+         "type": "text",
+         "text": "소제목"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "attrs": {
+        "textAlign": "right"
+       },
+       "content": [
+        {
+         "type": "text",
+         "text": "굵게",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        },
+        {
+         "type": "text",
+         "text": " 기울임",
+         "marks": [
+          {
+           "type": "italic"
+          },
+          {
+           "type": "underline"
+          },
+          {
+           "type": "strike"
+          }
+         ]
+        },
+        {
+         "type": "text",
+         "text": " 명조 큰 글자",
+         "marks": [
+          {
+           "type": "textStyle",
+           "attrs": {
+            "fontFamily": "myeongjo",
+            "fontSize": 24,
+            "color": "#ba0000",
+            "backgroundColor": "#fff8b2"
+           }
+          }
+         ]
+        },
+        {
+         "type": "text",
+         "text": " 링크",
+         "marks": [
+          {
+           "type": "link",
+           "attrs": {
+            "href": "https://www.connecttrip.co.kr/guide?a=1#top"
+           }
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "attrs": {
+        "textAlign": null
+       },
+       "content": [
+        {
+         "type": "text",
+         "text": "기본 15",
+         "marks": [
+          {
+           "type": "textStyle",
+           "attrs": {
+            "fontSize": 15,
+            "color": null
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "quote-list",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "blockquote",
+       "content": [
+        {
+         "type": "paragraph",
+         "content": [
+          {
+           "type": "text",
+           "text": "인용 첫 문단"
+          }
+         ]
+        },
+        {
+         "type": "bulletList",
+         "content": [
+          {
+           "type": "listItem",
+           "content": [
+            {
+             "type": "paragraph",
+             "content": [
+              {
+               "type": "text",
+               "text": "인용 안 목록"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "orderedList",
+       "attrs": {
+        "start": 3
+       },
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph",
+           "content": [
+            {
+             "type": "text",
+             "text": "셋"
+            }
+           ]
+          },
+          {
+           "type": "bulletList",
+           "content": [
+            {
+             "type": "listItem",
+             "content": [
+              {
+               "type": "paragraph",
+               "content": [
+                {
+                 "type": "text",
+                 "text": "셋-하나"
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "type": "listItem",
+             "content": [
+              {
+               "type": "paragraph",
+               "content": [
+                {
+                 "type": "text",
+                 "text": "셋-둘"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph",
+           "content": [
+            {
+             "type": "text",
+             "text": "넷"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "bulletList",
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "끝"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "breaks-tabs",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "한 줄\t탭"
+        },
+        {
+         "type": "hardBreak"
+        },
+        {
+         "type": "text",
+         "text": "다음 줄"
+        },
+        {
+         "type": "hardBreak"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "텍스트 안\n줄바꿈"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "media-private",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "사진 앞"
+        }
+       ]
+      },
+      {
+       "type": "image",
+       "attrs": {
+        "src": "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg"
+       }
+      },
+      {
+       "type": "horizontalRule"
+      },
+      {
+       "type": "gallery",
+       "attrs": {
+        "layout": "grid",
+        "images": [
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000002_abc.jpg",
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000003_abc.jpg",
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000004_abc.jpg"
+        ]
+       }
+      },
+      {
+       "type": "map",
+       "attrs": {
+        "placeId": "ChIJN1t_tDeuEmsRUsoyG83frY4",
+        "name": "시드니 오페라하우스",
+        "address": "Bennelong Point",
+        "lat": -33.856784,
+        "lng": 151.215297,
+        "url": "https://maps.app.goo.gl/abcdEFGH"
+       }
+      },
+      {
+       "type": "map",
+       "attrs": {
+        "name": "좌표만",
+        "lat": 37.5665,
+        "lng": 126.978
+       }
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "사진 뒤"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "media-public",
+   "mode": "public",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "image",
+       "attrs": {
+        "src": "https://owhtldabzcvavsazdufy.supabase.co/storage/v1/object/public/images/11111111-1111-4111-8111-111111111111_170000000001_abc.webp"
+       }
+      },
+      {
+       "type": "gallery",
+       "attrs": {
+        "layout": "slide",
+        "images": [
+         "https://owhtldabzcvavsazdufy.supabase.co/storage/v1/object/public/images/11111111-1111-4111-8111-111111111111_170000000002_abc.webp",
+         "https://owhtldabzcvavsazdufy.supabase.co/storage/v1/object/public/images/11111111-1111-4111-8111-111111111111_170000000003_abc.webp"
+        ]
+       }
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "추천지 꿀팁"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "emoji-korean",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "이모지 😀👍🏽 한글 가나다 ñ é ☃"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "escapes",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "따옴표 \"인용\" 역슬래시 \\ 경로 / 슬래시 \t 탭"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "image-only",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "image",
+       "attrs": {
+        "src": "sb://post-images/11111111-1111-4111-8111-111111111111_170000000005_abc.jpg"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "whitespace-only",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "   "
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "　 "
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "hr-only",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "horizontalRule"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "map-only",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "장소",
+        "placeId": "ChIJ0000000000"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "attrs-null",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "attrs": null,
+       "content": [
+        {
+         "type": "text",
+         "text": "a",
+         "marks": [
+          {
+           "type": "bold",
+           "attrs": null
+          },
+          {
+           "type": "italic",
+           "attrs": {}
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "ordered-start-null",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "orderedList",
+       "attrs": {
+        "start": null,
+        "type": null
+       },
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph",
+           "content": [
+            {
+             "type": "text",
+             "text": "x"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "trailing-hardbreaks",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "끝에 줄바꿈"
+        },
+        {
+         "type": "hardBreak"
+        },
+        {
+         "type": "hardBreak"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-envelope-extra",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a"
+        }
+       ]
+      }
+     ]
+    },
+    "x": 1
+   }
+  },
+  {
+   "name": "bad-version",
+   "mode": "none",
+   "doc": {
+    "v": 2,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-root-empty",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": []
+    }
+   }
+  },
+  {
+   "name": "bad-js-link",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "link",
+           "attrs": {
+            "href": "javascript:alert(1)"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-userinfo-link",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "link",
+           "attrs": {
+            "href": "https://a@evil.com/"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-link-extra-attr",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "link",
+           "attrs": {
+            "href": "https://a.com/",
+            "target": "_blank"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-color",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "textStyle",
+           "attrs": {
+            "color": "red; background:url(x)"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-font",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "textStyle",
+           "attrs": {
+            "fontFamily": "Comic Sans"
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-textstyle-empty",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "textStyle",
+           "attrs": {
+            "color": null
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-node-script",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "script",
+       "content": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-node-iframe",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "iframe",
+       "attrs": {
+        "src": "https://evil.com"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-nested-doc",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "doc",
+       "content": [
+        {
+         "type": "paragraph",
+         "content": [
+          {
+           "type": "text",
+           "text": "a"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-attr-onclick",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "attrs": {
+        "onclick": "x()"
+       },
+       "content": [
+        {
+         "type": "text",
+         "text": "a"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-style-attr",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "attrs": {
+        "style": "color:red"
+       },
+       "content": [
+        {
+         "type": "text",
+         "text": "a"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-text-content",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a",
+         "content": []
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-text-empty",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": ""
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-text-ctrl",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a\u0001b"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-text-at-root",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "text",
+       "text": "a"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-listitem-first-list",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "bulletList",
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "bulletList",
+           "content": [
+            {
+             "type": "listItem",
+             "content": [
+              {
+               "type": "paragraph",
+               "content": [
+                {
+                 "type": "text",
+                 "text": "a"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-list-empty",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "bulletList",
+       "content": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-heading-level",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "heading",
+       "attrs": {
+        "level": 3
+       },
+       "content": [
+        {
+         "type": "text",
+         "text": "a"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-heading-in-quote",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "blockquote",
+       "content": [
+        {
+         "type": "heading",
+         "attrs": {
+          "level": 2
+         },
+         "content": [
+          {
+           "type": "text",
+           "text": "a"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-image-none-board",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "image",
+       "attrs": {
+        "src": "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-image-other-owner",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "image",
+       "attrs": {
+        "src": "sb://post-images/22222222-2222-4222-8222-222222222222_170000000001_abc.jpg"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-image-https-private",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "image",
+       "attrs": {
+        "src": "https://evil.com/x.jpg"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-image-public-query",
+   "mode": "public",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "image",
+       "attrs": {
+        "src": "https://owhtldabzcvavsazdufy.supabase.co/storage/v1/object/public/images/11111111-1111-4111-8111-111111111111_170000000001_abc.webp?x=1"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-image-dup",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "image",
+       "attrs": {
+        "src": "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg"
+       }
+      },
+      {
+       "type": "gallery",
+       "attrs": {
+        "layout": "grid",
+        "images": [
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg",
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000002_abc.jpg"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-image-nested",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "blockquote",
+       "content": [
+        {
+         "type": "image",
+         "attrs": {
+          "src": "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-gallery-one",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "gallery",
+       "attrs": {
+        "layout": "grid",
+        "images": [
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-gallery-layout",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "gallery",
+       "attrs": {
+        "layout": "masonry",
+        "images": [
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg",
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000002_abc.jpg"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-file-node",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "file",
+       "attrs": {
+        "src": "sb://post-files/11111111-1111-4111-8111-111111111111_1700000000000_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+        "name": "a.pdf",
+        "size": 10
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-zero",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "영점",
+        "lat": 0,
+        "lng": 0
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-lat-only",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "lat": 37.1
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-7dec",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "lat": 37.1234567,
+        "lng": 127.1
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-lat-range",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "lat": 91,
+        "lng": 127.1
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-placeid-inject",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "placeId": "abc&key=zzzzzz"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-url-host",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "placeId": "ChIJ0000000000",
+        "url": "https://maps.google.com.evil.com/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-no-target",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-name-newline",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "a\nb",
+        "placeId": "ChIJ0000000000"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-lat-string",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "lat": "37.1",
+        "lng": 127.1
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-mark-dup",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "bold"
+          },
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-marks-7",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "bold"
+          },
+          {
+           "type": "italic"
+          },
+          {
+           "type": "underline"
+          },
+          {
+           "type": "strike"
+          },
+          {
+           "type": "textStyle",
+           "attrs": {
+            "fontSize": 13
+           }
+          },
+          {
+           "type": "link",
+           "attrs": {
+            "href": "https://a.b"
+           }
+          },
+          {
+           "type": "code"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-mark-code",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "x",
+         "marks": [
+          {
+           "type": "code"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-ordered-start-0",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "orderedList",
+       "attrs": {
+        "start": 0
+       },
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph",
+           "content": [
+            {
+             "type": "text",
+             "text": "a"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-ordered-start-frac",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "orderedList",
+       "attrs": {
+        "start": 2.5
+       },
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph",
+           "content": [
+            {
+             "type": "text",
+             "text": "a"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-proto-key",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a",
+         "__proto__": {
+          "x": 1
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-hr-nested",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "blockquote",
+       "content": [
+        {
+         "type": "horizontalRule"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-marks-on-break",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "hardBreak",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-too-deep",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "bulletList",
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph",
+           "content": [
+            {
+             "type": "text",
+             "text": "층7"
+            }
+           ]
+          },
+          {
+           "type": "bulletList",
+           "content": [
+            {
+             "type": "listItem",
+             "content": [
+              {
+               "type": "paragraph",
+               "content": [
+                {
+                 "type": "text",
+                 "text": "층6"
+                }
+               ]
+              },
+              {
+               "type": "bulletList",
+               "content": [
+                {
+                 "type": "listItem",
+                 "content": [
+                  {
+                   "type": "paragraph",
+                   "content": [
+                    {
+                     "type": "text",
+                     "text": "층5"
+                    }
+                   ]
+                  },
+                  {
+                   "type": "bulletList",
+                   "content": [
+                    {
+                     "type": "listItem",
+                     "content": [
+                      {
+                       "type": "paragraph",
+                       "content": [
+                        {
+                         "type": "text",
+                         "text": "층4"
+                        }
+                       ]
+                      },
+                      {
+                       "type": "bulletList",
+                       "content": [
+                        {
+                         "type": "listItem",
+                         "content": [
+                          {
+                           "type": "paragraph",
+                           "content": [
+                            {
+                             "type": "text",
+                             "text": "층3"
+                            }
+                           ]
+                          },
+                          {
+                           "type": "bulletList",
+                           "content": [
+                            {
+                             "type": "listItem",
+                             "content": [
+                              {
+                               "type": "paragraph",
+                               "content": [
+                                {
+                                 "type": "text",
+                                 "text": "층2"
+                                }
+                               ]
+                              },
+                              {
+                               "type": "bulletList",
+                               "content": [
+                                {
+                                 "type": "listItem",
+                                 "content": [
+                                  {
+                                   "type": "paragraph",
+                                   "content": [
+                                    {
+                                     "type": "text",
+                                     "text": "층1"
+                                    }
+                                   ]
+                                  },
+                                  {
+                                   "type": "bulletList",
+                                   "content": [
+                                    {
+                                     "type": "listItem",
+                                     "content": [
+                                      {
+                                       "type": "paragraph",
+                                       "content": [
+                                        {
+                                         "type": "text",
+                                         "text": "층0"
+                                        }
+                                       ]
+                                      },
+                                      {
+                                       "type": "bulletList",
+                                       "content": [
+                                        {
+                                         "type": "listItem",
+                                         "content": [
+                                          {
+                                           "type": "paragraph",
+                                           "content": [
+                                            {
+                                             "type": "text",
+                                             "text": "바닥"
+                                            }
+                                           ]
+                                          }
+                                         ]
+                                        }
+                                       ]
+                                      }
+                                     ]
+                                    }
+                                   ]
+                                  }
+                                 ]
+                                }
+                               ]
+                              }
+                             ]
+                            }
+                           ]
+                          }
+                         ]
+                        }
+                       ]
+                      }
+                     ]
+                    }
+                   ]
+                  }
+                 ]
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "deep-ok",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "bulletList",
+       "content": [
+        {
+         "type": "listItem",
+         "content": [
+          {
+           "type": "paragraph",
+           "content": [
+            {
+             "type": "text",
+             "text": "층5"
+            }
+           ]
+          },
+          {
+           "type": "bulletList",
+           "content": [
+            {
+             "type": "listItem",
+             "content": [
+              {
+               "type": "paragraph",
+               "content": [
+                {
+                 "type": "text",
+                 "text": "층4"
+                }
+               ]
+              },
+              {
+               "type": "bulletList",
+               "content": [
+                {
+                 "type": "listItem",
+                 "content": [
+                  {
+                   "type": "paragraph",
+                   "content": [
+                    {
+                     "type": "text",
+                     "text": "층3"
+                    }
+                   ]
+                  },
+                  {
+                   "type": "bulletList",
+                   "content": [
+                    {
+                     "type": "listItem",
+                     "content": [
+                      {
+                       "type": "paragraph",
+                       "content": [
+                        {
+                         "type": "text",
+                         "text": "층2"
+                        }
+                       ]
+                      },
+                      {
+                       "type": "bulletList",
+                       "content": [
+                        {
+                         "type": "listItem",
+                         "content": [
+                          {
+                           "type": "paragraph",
+                           "content": [
+                            {
+                             "type": "text",
+                             "text": "층1"
+                            }
+                           ]
+                          },
+                          {
+                           "type": "bulletList",
+                           "content": [
+                            {
+                             "type": "listItem",
+                             "content": [
+                              {
+                               "type": "paragraph",
+                               "content": [
+                                {
+                                 "type": "text",
+                                 "text": "층0"
+                                }
+                               ]
+                              },
+                              {
+                               "type": "bulletList",
+                               "content": [
+                                {
+                                 "type": "listItem",
+                                 "content": [
+                                  {
+                                   "type": "paragraph",
+                                   "content": [
+                                    {
+                                     "type": "text",
+                                     "text": "바닥"
+                                    }
+                                   ]
+                                  }
+                                 ]
+                                }
+                               ]
+                              }
+                             ]
+                            }
+                           ]
+                          }
+                         ]
+                        }
+                       ]
+                      }
+                     ]
+                    }
+                   ]
+                  }
+                 ]
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "map-placeid-300",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "긴 ID",
+        "placeId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-placeid-301",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "placeId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-map-placeid-short",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "map",
+       "attrs": {
+        "name": "x",
+        "placeId": "ChIJ12345"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

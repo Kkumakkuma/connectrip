@@ -30,7 +30,8 @@ const ShareButtons = ({ title, description, url }) => {
   // 앱에서는 window.location.href 가 https://localhost/... 라 그대로 공유하면 못 여는 주소가 나간다
   const shareUrl = publicUrl(url || window.location.href);
   const shareTitle = title || 'ConnectTrip';
-  const shareDesc = description || '여행자부터 승무원까지 모두를 연결하는 여행 플랫폼';
+  // 공유 설명은 공백을 한 칸으로 줄여 120자까지(2026-09-26 서식 편집기 1단계 — 본문이 2만 자까지 늘어 통째로 넘기지 않는다)
+  const shareDesc = String(description ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || '여행자부터 승무원까지 모두를 연결하는 여행 플랫폼';
 
   // 메뉴를 열 때 SDK 를 미리 당긴다. 카카오 버튼은 메뉴가 열린 뒤에만 보이므로 사용자가 메뉴를 읽는 동안
   // 로드가 끝난다. 클릭 핸들러 안에서 await 로 기다리면 네트워크 대기 뒤에 window.open 이 호출돼
