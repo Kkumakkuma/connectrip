@@ -51,6 +51,7 @@ const Search = lazy(() => import('./pages/Search'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
+const AccountDeletion = lazy(() => import('./pages/AccountDeletion'));
 const Points = lazy(() => import('./pages/Points'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 // 결제 테스트 라우트는 빌드플래그(VITE_PAYTEST=1)가 있을 때만 존재.
@@ -321,6 +322,7 @@ function App() {
               />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/account-deletion" element={<AccountDeletion />} />
               <Route path="/points" element={PAYMENTS_ENABLED ? <Points /> : <NotFound />} />
               {PLANNER_ENABLED && PlannerRoutes && (
                 <Route path="/planner/*" element={<PlannerRoutes />} />
