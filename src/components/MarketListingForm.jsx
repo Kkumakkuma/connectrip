@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import ImageUpload from './ImageUpload';
 import ContinentPicker from './board/ContinentPicker';
 import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import CharCount from './board/CharCount';
 import { marketApi } from '../lib/db';
 import { useAuth } from '../lib/AuthContext';
 import { useNicknameGate } from '../lib/useNicknameGate';
@@ -163,7 +164,8 @@ const MarketListingForm = ({ mode, initial = null, defaultRegion = null, onDone,
 
             <div>
                 <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">설명</label>
-                <textarea id={`${formId}-content`} value={content} onChange={(e) => setContent(e.target.value)} rows={6} required maxLength={2000} className="input-air resize-none" />
+                <textarea id={`${formId}-content`} value={content} onChange={(e) => setContent(e.target.value)} rows={6} required maxLength={2000} aria-describedby={`${formId}-content-count`} className="input-air resize-none" />
+                <CharCount id={`${formId}-content-count`} value={content} max={2000} />
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-1">

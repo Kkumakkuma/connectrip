@@ -18,6 +18,7 @@ import { regionFromSearch } from '../lib/continents';
 import { useDraftActions, usePostDrafts } from '../lib/usePostDrafts';
 import { DRAFT_SPECS } from '../lib/draftForms';
 import { DraftCloseDialog, DraftLoadBar, DraftSaveButton } from './board/DraftControls';
+import CharCount from './board/CharCount';
 import BoardShell from './board/BoardShell';
 import BoardTabs from './board/BoardTabs';
 import SearchPill from './board/SearchPill';
@@ -275,7 +276,8 @@ const MarketBoard = () => {
                         )}
                         <div>
                             <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">상세 설명</label>
-                            <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-none" rows={6} maxLength={3000} required />
+                            <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-none" rows={6} maxLength={3000} aria-describedby={`${formId}-content-count`} required />
+                            <CharCount id={`${formId}-content-count`} value={form.content} max={3000} />
                         </div>
                     </form>
                 )}

@@ -13,7 +13,7 @@ export const PRIVATE_REF_PREFIX = 'sb://post-images/';
 const SAFE_NAME = /^[A-Za-z0-9_.-]{1,200}$/;
 const RETRY_MS = 30 * 1000;         // 실패·거부는 30초 뒤 다시 시도(받은 사진은 파일이 바뀌지 않으므로 다시 받지 않는다)
 const MAX_RETRIES = 2;              // 화면이 떠 있는 동안 실패한 사진을 자동으로 다시 받는 횟수
-const MAX_ENTRIES = 150;            // 메모리 주소 보관 상한 — 화면에 안 쓰이는 오래된 것부터 해제
+const MAX_ENTRIES = 100;            // 메모리 주소 보관 상한(1280px 압축본 기준 수십 MB 이내) — 화면에 안 쓰이는 오래된 것부터 해제
 const PARALLEL = 4;
 
 export const isPrivateRef = (v) => (
