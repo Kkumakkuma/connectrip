@@ -17,6 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { runPurge } from './_purge_core.js';
 import { runCatalogRefresh } from './_refresh_core.js';
+import { runImagesPurge } from './_images_purge_core.js';
 import { googleServerKey } from './_common.js';
 
 const RATE_KEY = 'purge:cron';
@@ -71,8 +72,9 @@ export default async function handler(req, res) {
 
   // ?task=refresh : 구글 장소 카탈로그 재조회(약관 3.2.3, _refresh_core.js). Vercel Hobby 함수 12개 상한이 꽉 차서
   // 별도 함수 대신 같은 토큰·같은 관문 아래 작업만 갈라 탄다. pg_cron 'planner-catalog-refresh' 가 매일 부른다.
+  // ?task=images : 게시판 사진 고아 파일 정리(_images_purge_core.js, 2026-09-26). pg_cron 'images-purge' 가 매일 부른다.
   const task = String(req.query?.task || 'purge');
-  if (task !== 'purge' && task !== 'refresh') return fail(res, 400, 'BAD_TASK', '알 수 없는 작업입니다.');
+  if (task !== 'purge' && task !== 'refresh' && task !== 'images') return fail(res, 400, 'BAD_TASK', '알 수 없는 작업입니다.');
 
   // 전역 레이트리밋. 사용자 축이 아니라 경로 축으로 세되, 작업별로 버킷을 나눠 한 작업의 재시도가 다른 작업을 막지 않게 한다.
   const { data: hits, error: rErr } = await supabase.rpc('planner_rate_hit', {
@@ -93,6 +95,17 @@ export default async function handler(req, res) {
   }
 
   const dryRun = String(req.query?.dry || '') === '1';
+
+  if (task === 'images') {
+    // age: 유예 시간(시간 단위, 기본 72). 토큰 보유자(운영자)만 바꿀 수 있고 1시간 밑으로는 DB 함수가 막는다.
+    const minAgeHours = req.query?.age ? Number(req.query.age) : undefined;
+    const report = await runImagesPurge(supabase, { dryRun, log: console, deadlineMs: DEADLINE_MS, minAgeHours });
+    if (report.failed > 0) {
+      return res.status(500).json({ ok: false, code: 'PURGE_FAILED', error: '일부 사진 정리가 실패했습니다.', report });
+    }
+    return res.status(200).json({ ok: true, task, report });
+  }
+
   const report = await runPurge(supabase, { dryRun, log: console, deadlineMs: DEADLINE_MS });
   if (report.failed > 0) {
     return res.status(500).json({ ok: false, code: 'PURGE_FAILED', error: '일부 정리가 실패했습니다.', report });

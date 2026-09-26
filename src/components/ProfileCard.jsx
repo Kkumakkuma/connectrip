@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { UserRound, Pencil, Loader2, Check, X, ShieldCheck } from 'lucide-react';
+import { UserRound, Pencil, Loader2, Check, X, ShieldCheck, Camera } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { apiUrl } from '../lib/api';
 import AddressInput from './AddressInput';
+import Avatar from './Avatar';
+import { imageFileError, uploadImageFile } from '../lib/imageUpload';
 import { passwordWeak } from '../lib/loginId';
 import { checkNicknameTaken } from '../lib/nicknameApi';
 import {
@@ -66,6 +68,10 @@ export default function ProfileCard({ embedded = false, active = true }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');               // 저장 성공 안내(행 닫힌 뒤 카드 하단에 표시)
+  // 프로필 사진(2026-09-26). 공개 버킷 images 에 한 장(최대 변 512px), profiles.avatar_url 에 주소.
+  // 바꾸거나 기본으로 돌린 옛 사진 파일은 매일 정리 작업(images_orphans)이 지운다.
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef(null);
   const [birthdate, setBirthdate] = useState('');
 
   // 닉네임
@@ -280,6 +286,38 @@ export default function ProfileCard({ embedded = false, active = true }) {
     initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 },
     style: { background: 'white', borderRadius: '1.5rem', padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' },
   };
+  const changeAvatar = async (file) => {
+    if (avatarInputRef.current) avatarInputRef.current.value = '';
+    if (!file || !user) return;
+    const bad = imageFileError(file);
+    if (bad) { setDone(''); setError(bad); return; }
+    setAvatarBusy(true); setError(''); setDone('');
+    try {
+      const url = await uploadImageFile(file, { userId: user.id, bucket: 'images', maxDimension: 512 });
+      await updateProfile({ avatar_url: url });
+      setDone('프로필 사진을 바꿨습니다.');
+    } catch (err) {
+      console.error('프로필 사진 변경 실패:', err);
+      setError('프로필 사진을 바꾸지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const resetAvatar = async () => {
+    if (!user) return;
+    setAvatarBusy(true); setError(''); setDone('');
+    try {
+      await updateProfile({ avatar_url: null });
+      setDone('기본 프로필 사진으로 바꿨습니다.');
+    } catch (err) {
+      console.error('프로필 사진 되돌리기 실패:', err);
+      setError('프로필 사진을 바꾸지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
   return (
     <Wrap {...wrapProps}>
       {!embedded && (
@@ -294,6 +332,21 @@ export default function ProfileCard({ embedded = false, active = true }) {
       </div>
       )}
 
+      <Row label="프로필 사진" value={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <Avatar src={profile.avatar_url} size={64} alt="내 프로필 사진" />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={avatarBusy} className="btn-air-secondary btn-air-sm">
+              {avatarBusy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} 사진 변경
+            </button>
+            {profile.avatar_url && (
+              <button type="button" onClick={resetAvatar} disabled={avatarBusy} className="btn-air-secondary btn-air-sm">기본 이미지로</button>
+            )}
+          </div>
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" aria-label="프로필 사진 파일 선택"
+            onChange={(e) => changeAvatar(e.target.files?.[0])} />
+        </div>
+      } />
       <Row label="아이디" value={profile.login_id || '-'} />
       <Row label="이름" value={profile.name || '-'} />
       {birthdate && <Row label="생년월일" value={birthdate} />}

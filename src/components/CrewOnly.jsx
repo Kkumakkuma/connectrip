@@ -296,6 +296,7 @@ const CrewOnly = () => {
                         onChange={(next) => setForm((f) => ({ ...f, image_urls: typeof next === 'function' ? next(f.image_urls) : next }))}
                         max={IMAGES_MAX}
                         onUploadingChange={setUploading}
+                        bucket="post-images"
                     />
                 </form>
             </WriteModal>

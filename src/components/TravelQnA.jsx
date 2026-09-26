@@ -24,6 +24,7 @@ import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
 import MultiImageField from './board/MultiImageField';
+import ResolvedImg from './board/ResolvedImg';
 import CharCount from './board/CharCount';
 import { IMAGES_MAX, TITLE_MAX, bodyMaxOf, imagesPatch } from '../lib/postLimits';
 import LoginPrompt from './LoginPrompt';
@@ -224,7 +225,7 @@ const TravelQnA = () => {
                                             </div>
                                         </div>
                                         {mode === 'review' && post.image_url && (
-                                            <img src={post.image_url} alt="" loading="lazy" decoding="async" className="w-12 h-12 rounded-sm object-cover bg-surface-strong flex-shrink-0" />
+                                            <ResolvedImg src={post.image_url} alt="" loading="lazy" decoding="async" className="w-12 h-12 rounded-sm object-cover bg-surface-strong flex-shrink-0" />
                                         )}
                                     </Link>
                                 </li>
@@ -269,6 +270,7 @@ const TravelQnA = () => {
                             onChange={(next) => setForm((f) => ({ ...f, image_urls: typeof next === 'function' ? next(f.image_urls) : next }))}
                             max={IMAGES_MAX}
                             onUploadingChange={setUploading}
+                            bucket="post-images"
                         />
                     )}
                     {mode === 'review' && (

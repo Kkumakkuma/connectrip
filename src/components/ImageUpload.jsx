@@ -1,113 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
-import { storageApi } from '../lib/db';
+import { X, Loader2, ImageIcon } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_DIMENSION = 1280; // 리사이즈 시 최대 변(px)
-const JPEG_QUALITY = 0.8;
-
-// 클라이언트 리사이즈/압축 대상 MIME (canvas 로 안전하게 다룰 수 있는 래스터 포맷만)
-// HEIC/HEIF/SVG/GIF(애니메이션) 등은 원본 그대로 업로드한다.
-const RESIZABLE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-// 저장소(images 버킷)가 받는 형식 — post_limits_images_20260926.sql 의 allowed_mime_types 와 같게 둔다.
-// SVG 는 스크립트를 담을 수 있어 받지 않는다.
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif']);
-const TYPE_ERROR = 'JPG·PNG·WEBP·GIF·HEIC 사진만 올릴 수 있습니다.';
-
-const CLOSED = 'image-upload-closed';
-
-// 파일 이름 뒷부분. 공개 버킷이라 주소를 알면 열리므로 추측할 수 없게 길게 만든다(버킷 목록 조회는 막혀 있다).
-const randomPart = () => (
-  typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID().replace(/-/g, '')
-    : `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
-);
-
-/**
- * 이미지를 canvas 로 리사이즈/압축한다.
- * - 최대 변을 MAX_DIMENSION 으로 축소 (원본이 더 작으면 건드리지 않음)
- * - 투명 PNG 는 PNG 로 유지(투명도 보존), 그 외는 JPEG(q0.8)로 압축
- * - EXIF 회전: createImageBitmap({imageOrientation:'from-image'}) 로 보정
- * - 어떤 단계에서든 실패하면 null 을 반환 → 호출부는 원본 업로드로 폴백
- * @returns {Promise<File|null>}
- */
-async function resizeImage(file) {
-  try {
-    if (!RESIZABLE_TYPES.has(file.type)) return null; // HEIC 등 미지원 → 원본
-    if (typeof document === 'undefined') return null;
-
-    // 비트맵 디코딩 (EXIF 회전 보정 포함)
-    let bitmap;
-    try {
-      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-    } catch {
-      // createImageBitmap 미지원/실패 → Image 폴백
-      bitmap = await loadImageElement(file);
-    }
-    if (!bitmap) return null;
-
-    const srcW = bitmap.width;
-    const srcH = bitmap.height;
-    if (!srcW || !srcH) return null;
-
-    const longest = Math.max(srcW, srcH);
-    const scale = longest > MAX_DIMENSION ? MAX_DIMENSION / longest : 1;
-    const targetW = Math.round(srcW * scale);
-    const targetH = Math.round(srcH * scale);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    ctx.drawImage(bitmap, 0, 0, targetW, targetH);
-    if (bitmap.close) bitmap.close();
-
-    // 투명도 보존: PNG/WebP 는 알파 채널이 있을 수 있으므로 원본 포맷을 유지하고,
-    // 불투명 포맷(JPEG 등)만 JPEG 로 압축한다.
-    // (투명 WebP 를 JPEG 로 변환하면 투명 영역이 검은 배경으로 채워진다 — codex 지적)
-    const outType =
-      file.type === 'image/png' ? 'image/png'
-      : file.type === 'image/webp' ? 'image/webp'
-      : 'image/jpeg';
-    const outExt = outType === 'image/png' ? 'png' : outType === 'image/webp' ? 'webp' : 'jpg';
-    // PNG 는 무손실(quality 무시), WebP/JPEG 는 손실 압축 품질 지정.
-    const quality = outType === 'image/png' ? undefined : (outType === 'image/webp' ? 0.85 : JPEG_QUALITY);
-
-    const blob = await new Promise((resolve) => {
-      canvas.toBlob(resolve, outType, quality);
-    });
-    if (!blob) return null;
-
-    // 재인코딩 결과가 원본보다 크면(이미 최적화된 파일 등) 원본 사용.
-    // 축소 여부(scale)와 무관하게 항상 비교한다 — 안 하면 더 큰 파일을 업로드할 수 있음.
-    if (blob.size >= file.size) return null;
-
-    const baseName = (file.name || 'image').replace(/\.[^./\\]+$/, '');
-    return new File([blob], `${baseName}.${outExt}`, { type: outType });
-  } catch (err) {
-    console.error('이미지 리사이즈 실패(원본 업로드로 폴백):', err);
-    return null;
-  }
-}
-
-// createImageBitmap 폴백용 Image 로더
-function loadImageElement(file) {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
-}
+import { ALLOWED_TYPES, MAX_FILE_SIZE, TYPE_ERROR, UPLOAD_CLOSED, imageFileError, uploadImageFile } from '../lib/imageUpload';
 
 // resetAfterUpload: 업로드 성공 후 미리보기를 비워 다음 파일을 바로 고를 수 있게(여러 장 첨부용)
 // onUploadingChange: 업로드 중 여부를 부모에 알림(업로드 끝나기 전 저장 방지)
@@ -150,20 +44,8 @@ const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUp
     notifyRef.current?.(v);
   };
 
-  // 한 장 리사이즈 → 업로드 → 공개 주소. 실패하면 예외.
-  // 파일 이름: 저장소 규칙(storage.objects 'images' 정책)이 '<내 user id>_' 로 시작하는 이름만 받는다.
-  // 여러 장을 연달아 올려도 겹치지 않게 뒤에 임의 문자열을 붙인다.
-  const uploadOne = async (file) => {
-    let uploadFile = file;
-    const resized = await resizeImage(file);
-    if (resized) uploadFile = resized;
-    // 리사이즈하는 사이 창을 닫았으면 보내지 않는다(codex 9/26 재검토)
-    if (!aliveRef.current) throw new Error(CLOSED);
-    const ext = (uploadFile.name.split('.').pop() || 'jpg').toLowerCase();
-    const filePath = `${user.id}_${Date.now()}_${randomPart()}.${ext}`;
-    await storageApi.upload(bucket, filePath, uploadFile);
-    return storageApi.getPublicUrl(bucket, filePath);
-  };
+  // 한 장 올리기(리사이즈·파일 이름 규칙은 lib/imageUpload.js). 창이 닫혔으면 보내지 않는다.
+  const uploadOne = (file) => uploadImageFile(file, { userId: user.id, bucket, isAlive: () => aliveRef.current });
 
   const resetInput = () => { if (fileInputRef.current) fileInputRef.current.value = ''; };
 
@@ -194,7 +76,7 @@ const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUp
           if (!aliveRef.current) return;
           onUpload?.(url);
         } catch (err) {
-          if (err?.message === CLOSED) return;
+          if (err?.message === UPLOAD_CLOSED) return;
           console.error('이미지 업로드 실패:', err);
           failed += 1;
         }
@@ -214,13 +96,9 @@ const ImageUpload = ({ bucket = 'images', onUpload, className = '', resetAfterUp
     setError('');
     if (!file) return;
 
-    if (!ALLOWED_TYPES.has(file.type)) {
-      setError(TYPE_ERROR);
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setError('파일 크기는 5MB 이하만 가능합니다.');
+    const bad = imageFileError(file);
+    if (bad) {
+      setError(bad);
       return;
     }
 

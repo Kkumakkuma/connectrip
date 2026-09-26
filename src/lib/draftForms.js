@@ -2,9 +2,11 @@
 // 불러오기는 폼을 통째로 바꾼다(기본값 포함) — 이전 원고의 말머리·사진이 섞이지 않게(codex 9/25).
 
 import { IMAGES_MAX } from './postLimits';
+import { isImageRef } from './imageRefs';
 
 const str = (v) => (v == null ? '' : String(v));
-const httpUrl = (v) => (typeof v === 'string' && /^https?:\/\//.test(v) ? v : '');
+// 사진 값: 공개 주소(http/https) 또는 비공개 참조(sb://post-images/…, 후기·CREW 2026-09-26). blob:·data: 등은 버린다.
+const httpUrl = (v) => (isImageRef(v) ? v : '');
 
 // migrate: 불러오기 전에 옛 형식 원고를 새 칸으로 옮긴다(저장된 data 는 그대로 두고 읽을 때만).
 const makeSpec = ({ empty, content, urls = [], lists = [], bools = [], fix = (o) => o, maxList = 5, migrate = (d) => d }) => {

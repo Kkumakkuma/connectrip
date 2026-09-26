@@ -11,6 +11,7 @@ import { Shield, Bell, CheckCircle, Heart, Send, Plane, Calendar, Search, Credit
 import KeywordSettings from './KeywordSettings';
 import CrewVerification from './CrewVerification';
 import ProfileCard from './ProfileCard';
+import Avatar from './Avatar';
 import WriteModal from './board/WriteModal';
 import CommendationMatching from './CommendationMatching';
 import FlightBoard from './FlightBoard';
@@ -581,9 +582,8 @@ const MyPage = () => {
                     {/* 회원 정보 — 버튼 한 줄만 두고, 누르면 팝업에서 표시·수정(2026-09-15). 카드 본체는 ProfileCard embedded */}
                     <div style={{ background: 'white', borderRadius: '1.5rem', padding: '1rem 1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ background: 'linear-gradient(135deg,#2563eb,#3b82f6)', width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
-                                <UserRound size={20} />
-                            </div>
+                            {/* 내 프로필 사진(없으면 기본 사람 그림). 바꾸기는 '회원 정보 수정' 팝업 맨 위(2026-09-26) */}
+                            <Avatar src={profile?.avatar_url} size={40} alt="내 프로필 사진" />
                             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#1f2937' }}>회원 정보</h3>
                         </div>
                         <button type="button" onClick={() => setShowProfile(true)} aria-haspopup="dialog" aria-expanded={showProfile}

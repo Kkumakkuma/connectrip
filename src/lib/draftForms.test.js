@@ -41,6 +41,11 @@ describe('DRAFT_SPECS', () => {
         expect(back.image_urls).toEqual(['https://a/2', 'https://a/3']);
         expect('image_url' in back).toBe(false);
     });
+    it('비공개 사진 참조(후기·CREW)는 남기고, 이상한 값은 버린다(2026-09-26)', () => {
+        const d = DRAFT_SPECS.crew.fromData({ image_urls: ['sb://post-images/u_1_a.jpg', 'sb://post-images/../x', 'blob:y', 'javascript:1', 'https://a/1'] });
+        expect(d.image_urls).toEqual(['sb://post-images/u_1_a.jpg', 'https://a/1']);
+        expect(DRAFT_SPECS.qna.toData({ ...DRAFT_SPECS.qna.empty, image_urls: ['sb://post-images/u_1_a.jpg'] }).image_url).toBe('sb://post-images/u_1_a.jpg');
+    });
     it('동행: 날짜 형식이 아니면 비운다', () => {
         expect(DRAFT_SPECS.companion.fromData({ date: '내일' }).date).toBe('');
         expect(DRAFT_SPECS.companion.fromData({ date: '2026-10-01' }).date).toBe('2026-10-01');

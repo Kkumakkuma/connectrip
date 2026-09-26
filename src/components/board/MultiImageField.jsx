@@ -1,11 +1,16 @@
 import { X } from 'lucide-react';
 import ImageUpload from '../ImageUpload';
+import { useAuth } from '../../lib/AuthContext';
+import { useResolvedImages } from '../../lib/imageRefs';
 
 // 글쓰기·수정 폼의 사진 칸(2026-09-26). 여러 장을 한 번에 골라 올리고, 첫 장이 대표 사진이다.
 // images: 사진 주소 배열, onChange(next | (prev) => next), max: 최대 장수(postLimits.IMAGES_MAX).
 // 업로드는 한 장씩 끝날 때마다 onChange 로 붙는다 — 함수형 갱신이라 연달아 와도 앞 장이 사라지지 않는다.
-const MultiImageField = ({ images, onChange, max, onUploadingChange, label = '사진 (선택)' }) => {
+// bucket: 'images'(공개 — 추천지) | 'post-images'(비공개 — 후기·CREW, 값은 sb:// 참조. src/lib/imageRefs.js)
+const MultiImageField = ({ images, onChange, max, onUploadingChange, label = '사진 (선택)', bucket = 'images' }) => {
+    const { user } = useAuth();
     const list = images || [];
+    const srcs = useResolvedImages(list, user?.id);
     const remove = (idx) => onChange((prev) => prev.filter((_, i) => i !== idx));
     const makeCover = (idx) => onChange((prev) => [prev[idx], ...prev.filter((_, i) => i !== idx)]);
     const add = (url) => {
@@ -22,7 +27,7 @@ const MultiImageField = ({ images, onChange, max, onUploadingChange, label = '�
                 <ul className="flex gap-2 flex-wrap mb-2">
                     {list.map((url, idx) => (
                         <li key={url} className="relative w-20 h-20 rounded-md overflow-hidden bg-surface-strong">
-                            <img src={url} alt="" decoding="async" className="w-full h-full object-cover" />
+                            {srcs[idx] ? <img src={srcs[idx]} alt="" decoding="async" className="w-full h-full object-cover" /> : null}
                             {idx === 0 ? (
                                 <span className="absolute bottom-0 left-0 right-0 bg-black/55 text-white text-[10px] text-center py-0.5">대표</span>
                             ) : (
@@ -54,7 +59,7 @@ const MultiImageField = ({ images, onChange, max, onUploadingChange, label = '�
             {list.length < max && (
                 <ImageUpload
                     label={null}
-                    bucket="images"
+                    bucket={bucket}
                     multiple
                     maxFiles={max - list.length}
                     resetAfterUpload

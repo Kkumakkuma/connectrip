@@ -19,6 +19,8 @@ import NicknameRequiredModal from './NicknameRequiredModal';
 import { reviewsApi, postLikeApi } from '../lib/db';
 import ImageUpload from './ImageUpload';
 import { TITLE_MAX, bodyMaxOf } from '../lib/postLimits';
+import { useResolvedImages } from '../lib/imageRefs';
+import ResolvedImg from './board/ResolvedImg';
 import LoginPrompt from './LoginPrompt';
 import ListState from './ListState';
 import SEOHead from './SEOHead';
@@ -53,6 +55,8 @@ const Promotions = () => {
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [formData, setFormData] = useState(EMPTY_FORM);
+    // 이 게시판도 reviews 테이블이라 사진은 비공개 버킷(post-images) 참조로 저장된다(2026-09-26) — 미리보기도 받아서 그린다
+    const [formPreview] = useResolvedImages(formData.image_url ? [formData.image_url] : [], user?.id);
     const [searchQuery, setSearchQuery] = useState('');
     const [posts, setPosts] = useState([]);
     const [likes, setLikes] = useState({});
@@ -307,7 +311,7 @@ const Promotions = () => {
                                         <div key={item.id} className="rounded-3xl overflow-hidden shadow-lg border border-gray-100 hover:scale-[1.02] transition-transform bg-white">
                                             <div className="relative h-48 overflow-hidden bg-gray-100">
                                                 {item.image_url ? (
-                                                    <img src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                                                    <ResolvedImg src={item.image_url} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-gray-300">
                                                         {mode === 'promotion' ? <Megaphone size={48} /> : <MessageCircle size={48} />}
@@ -400,7 +404,7 @@ const Promotions = () => {
                                     <span className="block text-sm font-bold text-gray-700 mb-2">이미지 (선택)</span>
                                     {/* 함수형 갱신 — 업로드 도중 바꾼 공개 설정·입력값을 업로드 완료 콜백이 옛 값으로 되돌리지 않게(codex 9/25) */}
                                     {/* currentUrl: 임시저장에서 불러온 사진도 업로드 칸 미리보기(지우기 버튼 포함)로 보인다 — 따로 그리던 미리보기는 겹쳐서 뺐다(codex·agy 9/25) */}
-                                    <ImageUpload label={null} currentUrl={formData.image_url} onUpload={(url) => setFormData((f) => ({ ...f, image_url: url }))} onUploadingChange={setUploading} />
+                                    <ImageUpload label={null} bucket="post-images" currentUrl={formData.image_url ? (formPreview || '') : ''} onUpload={(url) => setFormData((f) => ({ ...f, image_url: url }))} onUploadingChange={setUploading} />
                                 </div>
                                 {mode === 'review' && (
                                     <VisibilityPicker name={`${formId}-visibility`} value={formData.is_private} onChange={(v) => setFormData((f) => ({ ...f, is_private: v }))} />

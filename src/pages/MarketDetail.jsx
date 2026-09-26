@@ -12,6 +12,7 @@ import AuthorActions from '../components/AuthorActions';
 import MarketListingForm from '../components/MarketListingForm';
 import ContinentBadge from '../components/board/ContinentBadge';
 import SEOHead from '../components/SEOHead';
+import Avatar from '../components/Avatar';
 
 
 // 매물 상세(당근식). 판매자: 상태 변경·끌어올리기·수정·삭제. 구매자: 찜·채팅하기. 결제는 없다(2026-09-07 쿠마님 지시로 포인트 결제 폐지).
@@ -173,9 +174,7 @@ const MarketDetail = () => {
                     </div>
 
                     <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
-                        <span className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden text-gray-500 font-bold">
-                            {seller.avatar_url ? <img src={seller.avatar_url} alt="" className="w-full h-full object-cover" /> : sellerName.charAt(0)}
-                        </span>
+                        <Avatar src={seller.avatar_url} size={40} />
                         <span className="min-w-0 flex-1 flex items-center gap-1.5">
                             <span className="text-sm font-bold text-gray-900 truncate">{sellerName}</span>
                             <CrewBadge profile={seller} />

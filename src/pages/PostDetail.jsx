@@ -20,6 +20,7 @@ import ListState from '../components/ListState';
 import MultiImageField from '../components/board/MultiImageField';
 import CharCount from '../components/board/CharCount';
 import { IMAGES_MAX, TIP_MAX, TITLE_MAX, bodyMaxOf, imagesOf, imagesPatch } from '../lib/postLimits';
+import { useResolvedImages } from '../lib/imageRefs';
 import CrewBadge from '../components/CrewBadge';
 import AuthorActions from '../components/AuthorActions';
 import ReportButton from '../components/ReportButton';
@@ -215,6 +216,8 @@ const PostDetail = () => {
     const body = p ? p[config.bodyField] : '';
     // 대표(첫 장)는 본문 위, 나머지는 본문 아래. image_urls 가 비면 옛 글의 image_url 한 장.
     const images = p && config.imagesField ? imagesOf(p) : [];
+    // 후기·CREW 사진은 비공개 참조 — 로그인 권한으로 받아 그린다(볼 권한이 없으면 null)
+    const imageSrcs = useResolvedImages(images, user?.id);
 
     return (
         <section className="bg-white text-ink min-h-screen pt-24 sm:pt-28 pb-20">
@@ -273,7 +276,9 @@ const PostDetail = () => {
                         </header>
 
                         {images[0] && (
-                            <img src={images[0]} alt={title} className="w-full rounded-md max-h-[70vh] object-contain bg-surface-soft mt-5" />
+                            imageSrcs[0]
+                                ? <img src={imageSrcs[0]} alt={title} className="w-full rounded-md max-h-[70vh] object-contain bg-surface-soft mt-5" />
+                                : <div className="w-full aspect-[4/3] rounded-md bg-surface-soft mt-5" aria-hidden="true" />
                         )}
 
                         <div className="mt-5">
@@ -286,8 +291,10 @@ const PostDetail = () => {
                             )}
                             {images.length > 1 && (
                                 <div className="mt-6 space-y-3">
-                                    {images.slice(1).map((url, i) => (
-                                        <img key={url} src={url} alt={`${title} 사진 ${i + 2}`} loading="lazy" decoding="async" className="w-full rounded-md max-h-[80vh] object-contain bg-surface-soft" />
+                                    {images.slice(1).map((ref, i) => (
+                                        imageSrcs[i + 1]
+                                            ? <img key={ref} src={imageSrcs[i + 1]} alt={`${title} 사진 ${i + 2}`} loading="lazy" decoding="async" className="w-full rounded-md max-h-[80vh] object-contain bg-surface-soft" />
+                                            : <div key={ref} className="w-full aspect-[4/3] rounded-md bg-surface-soft" aria-hidden="true" />
                                     ))}
                                 </div>
                             )}
@@ -408,6 +415,7 @@ const PostDetail = () => {
                                 images={form.images}
                                 onChange={(next) => setForm((f) => ({ ...f, images: typeof next === 'function' ? next(f.images) : next }))}
                                 max={IMAGES_MAX}
+                                bucket={config.privateImages ? 'post-images' : 'images'}
                                 onUploadingChange={setUploading}
                             />
                         )}

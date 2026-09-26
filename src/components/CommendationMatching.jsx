@@ -10,6 +10,7 @@ import { crewVerificationStatus } from '../lib/crewVerification';
 import { commendationApi } from '../lib/db';
 import { supabase } from '../lib/supabase';
 import ImageUpload from './ImageUpload';
+import Avatar from './Avatar';
 
 const STATUS_CONFIG = {
   pending_crew: { label: '매칭 대기중', color: 'bg-orange-100 text-orange-700', icon: Clock },
@@ -416,9 +417,7 @@ const MatchCard = ({ match, isCrew, partner, isAfterFlight, onViewDetail, onSubm
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-            {isPending ? <Clock size={18} /> : partner.hidden ? <Plane size={18} /> : partner.avatar ? (
-              <img src={partner.avatar} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-            ) : partner.name.charAt(0)}
+            {isPending ? <Clock size={18} /> : partner.hidden ? <Plane size={18} /> : <Avatar src={partner.avatar} size={40} />}
           </div>
           <div>
             <p className="font-bold text-gray-800 text-sm">
@@ -510,9 +509,7 @@ const MatchDetail = ({ match, isCrew, partner }) => {
     <div>
       <div className="text-center mb-5">
         <div className="w-20 h-20 rounded-full mx-auto mb-3 overflow-hidden bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-2xl font-bold">
-          {partner.hidden ? <Plane size={32} /> : partner.avatar ? (
-            <img src={partner.avatar} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-          ) : partner.name.charAt(0)}
+          {partner.hidden ? <Plane size={32} /> : <Avatar src={partner.avatar} size={80} />}
         </div>
         <h3 className="text-xl font-extrabold text-gray-800">{partner.name}</h3>
         {!isCrew && partner.airline_name && !partner.hidden && (

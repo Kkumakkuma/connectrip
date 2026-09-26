@@ -15,6 +15,8 @@ export const BOARDS = {
     key: 'review', label: '여행 후기', listPath: '/qna', api: reviewsApi,
     likeTable: 'reviews', reportType: 'review',
     titleField: 'title', bodyField: 'description', imageField: 'image_url', imagesField: 'image_urls', comments: reviewsApi,
+    // 사진은 비공개 버킷(post-images) — 글을 볼 수 있는 사람만 받는다(나만 보기 포함, src/lib/imageRefs.js)
+    privateImages: true,
     hasRegion: true,
     // 공개 / 나만 보기(2026-09-25). 후기(type='review')만 — src/lib/postVisibility.js
     hasVisibility: true,
@@ -35,6 +37,7 @@ export const BOARDS = {
     key: 'crew', label: 'CREW 전용', listPath: '/crew', api: crewApi,
     likeTable: 'crew_posts', reportType: 'crew',
     titleField: 'title', bodyField: 'content', imageField: 'image_url', imagesField: 'image_urls', comments: crewApi,
+    privateImages: true,   // CREW 사진은 인증 승무원만(비공개 버킷)
     hasRegion: false, crewOnly: true,
     // 자유게시판(post_type='free') 글만 항공사 말머리를 쓴다(2026-09-17)
     hasAirline: true, airlinePostType: 'free',
