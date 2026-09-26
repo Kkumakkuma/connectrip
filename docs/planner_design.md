@@ -350,7 +350,12 @@ Interval = { from:number, to:number }   // 자정 기준 분
 
 ### 7.2 내보내기
 JSON(스냅샷 그대로) / ICS(`ics` 패키지, 핀=이벤트) / 인쇄용 화면(@media print, 브라우저 PDF 저장). '무료' 표기 없음.
-- **ICS 타임존 주의** (codex-23 별건): `ics@3.12.0` 은 기본 출력이 local→UTC 라 여행 타임존과 어긋난다. `start` 를 UTC 배열로 넘기거나 `startInputType:'local'` 을 지정하고, **시차 있는 여행 1건으로 vitest 케이스를 둔다**(§3 `timezone` 사용).
+- **2026-09-27 개편(캘린더로 내보내기)**: `ics` 패키지는 쓰지 않고 `lib/ics.js`(직렬화)·`lib/calendarEvents.js`(원본 행 → 일정)로 직접 만든다.
+  시각은 타임존을 알면 UTC(Z), 모르면 부동 시각, 시각 없으면 종일. 장소 = 좌표 타임존(tz-lookup) → 여행 타임존, 티켓 = 여행 타임존,
+  항공권 = 출발 공항 타임존(`lib/airportZones.js`) → 여행 타임존. 부동 시각을 버린 이유: 구글 캘린더가 부동 시각을 캘린더 설정
+  시간대로 고정해 해외 일정이 시차만큼 어긋난다. UID = 여행id-p|t-항목id@connecttrip.co.kr. 비공개 메모·탑승권 원문은 넣지 않는다.
+  일정별 '구글 캘린더에 추가' 링크(장소 시트·티켓 지갑), 앱은 Filesystem 캐시 + Share 공유 창(`lib/fileSave.js`).
+- (옛 메모) **ICS 타임존 주의** (codex-23 별건): `ics@3.12.0` 은 기본 출력이 local→UTC 라 여행 타임존과 어긋난다. `start` 를 UTC 배열로 넘기거나 `startInputType:'local'` 을 지정하고, **시차 있는 여행 1건으로 vitest 케이스를 둔다**(§3 `timezone` 사용).
 
 ---
 

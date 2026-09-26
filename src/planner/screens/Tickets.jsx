@@ -17,6 +17,9 @@ import TicketDateConfirm from '../tickets/TicketDateConfirm';
 import FullScreenTicket from '../tickets/FullScreenTicket';
 import { resolveTicketView, uploadAndDetect } from '../tickets/intake';
 import { offerFlightSchedule } from '../lib/flightSchedule';
+import { googleCalendarUrl, ticketEvent } from '../lib/calendarEvents';
+import { SITE_ORIGIN } from '../../lib/api';
+import GoogleCalendarLink from './board/GoogleCalendarLink';
 
 // /planner/t/:tripId/tickets — 티켓 지갑 (설계 §5)
 //
@@ -28,7 +31,7 @@ import { offerFlightSchedule } from '../lib/flightSchedule';
 
 // 파일 규칙·종류 라벨·업로드/열기 I/O 는 lib/ticketFile · tickets/intake 로 옮겨 장소 시트(PlaceSheet)와 함께 쓴다(2026-09-06).
 
-function TicketRow({ ticket, placeName, onOpen, onDelete, busy }) {
+function TicketRow({ ticket, placeName, calendarUrl, onOpen, onDelete, busy }) {
   const isPdf = ticket.mime === 'application/pdf';
   return (
     <li className="border-t border-hairline first:border-t-0">
@@ -61,6 +64,8 @@ function TicketRow({ ticket, placeName, onOpen, onDelete, busy }) {
             </span>
           </span>
         </button>
+        {/* 날짜가 확인된 티켓만 — 날짜 없는 티켓은 ticketEvent 가 null 이라 링크가 없다 */}
+        <GoogleCalendarLink url={calendarUrl} variant="icon" />
         <button
           type="button"
           onClick={() => onDelete(ticket)}
@@ -181,6 +186,9 @@ export default function Tickets() {
 
   const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const placeById = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
+  // 목록은 불러오기(타임존 계산 포함)가 끝난 뒤에 그려지므로 tripZone 이 정해진 상태다.
+  const calendarUrlOf = (t) =>
+    googleCalendarUrl(ticketEvent(t, { tripId, tripZone, place: placeById.get(t.place_id) || null, origin: SITE_ORIGIN }));
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -357,7 +365,7 @@ export default function Tickets() {
               <Card className="px-4">
                 <ul>
                   {todayTickets.map((t) => (
-                    <TicketRow key={`today-${t.id}`} ticket={t} placeName={placeById.get(t.place_id)?.name || ''} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
+                    <TicketRow key={`today-${t.id}`} ticket={t} placeName={placeById.get(t.place_id)?.name || ''} calendarUrl={calendarUrlOf(t)} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
                   ))}
                 </ul>
               </Card>
@@ -373,7 +381,7 @@ export default function Tickets() {
                 <Card className="px-4">
                   <ul>
                     {grouped[key].map((t) => (
-                      <TicketRow key={t.id} ticket={t} placeName={placeById.get(t.place_id)?.name || ''} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
+                      <TicketRow key={t.id} ticket={t} placeName={placeById.get(t.place_id)?.name || ''} calendarUrl={calendarUrlOf(t)} onOpen={handleOpen} onDelete={handleDelete} busy={busy} />
                     ))}
                   </ul>
                 </Card>
