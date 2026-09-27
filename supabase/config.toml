@@ -1,0 +1,7 @@
+# Supabase CLI 설정 — 이 저장소는 Edge Function(push-send)만 둔다. DB 는 src/lib/*.sql 을 운영에 직접 적용한다.
+# push-send 는 게이트웨이 JWT 검증을 끈다: DB 의 pg_net 이 x-push-secret 헤더로 부르고 함수가 그 비밀을 직접 확인한다.
+# 배포: supabase functions deploy push-send --project-ref owhtldabzcvavsazdufy  (또는 Supabase MCP deploy_edge_function, verify_jwt=false)
+project_id = "owhtldabzcvavsazdufy"
+
+[functions.push-send]
+verify_jwt = false

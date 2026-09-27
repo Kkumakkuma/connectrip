@@ -4,6 +4,8 @@ import { Lock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import SEOHead from '../components/SEOHead';
 import { passwordWeak } from '../lib/loginId';
+import { isNativeApp } from '../lib/native';
+import { unregisterPush } from '../lib/push';
 
 // 재설정 메일 링크 착지 페이지 — recovery 세션 상태에서 새 비밀번호 설정(2026-07-20 신설).
 // 링크의 recovery 토큰은 supabase-js(detectSessionInUrl)가 세션으로 전환하며,
@@ -71,6 +73,8 @@ const ResetPassword = () => {
             if (err) throw err;
             // 복구 세션을 남기지 않는다 — 공유 기기 잔존 세션 방지 + '새 비밀번호로 로그인' 안내와 일치
             try { sessionStorage.removeItem('ct_pw_recovery'); } catch { /* 무시 */ }
+            // 앱 푸시: 세션이 아직 있을 때 이 기기 토큰을 서버에서 지우고 기기 토큰도 해제한다(AuthContext.signOut 과 같은 방식, 3초 상한).
+            if (isNativeApp()) await Promise.race([unregisterPush(), new Promise((r) => setTimeout(r, 3000))]);
             await supabase.auth.signOut();
             setDone(true);
         } catch (err) {

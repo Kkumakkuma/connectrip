@@ -61,4 +61,11 @@ export default defineConfig([
       globals: globals.serviceworker,
     },
   },
+  {
+    // Supabase Edge Function(Deno) — fetch·crypto 같은 웹 표준 API 에 Deno·EdgeRuntime 전역이 더 있다
+    files: ['supabase/functions/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser, Deno: 'readonly', EdgeRuntime: 'readonly' },
+    },
+  },
 ])

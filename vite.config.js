@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 import { join, resolve, sep } from 'node:path'
 import { readdir, rm } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 
 const r = (p) => fileURLToPath(new URL(p, import.meta.url))
 
@@ -58,6 +59,22 @@ export default defineConfig(({ mode }) => {
   // 키는 git 제외 파일 .env.app.local 에만 있으므로(2026-09-18 시크릿 스캐닝 경보 후 이동) 없으면 조용히 빈 값으로 굽지 말고 여기서 멈춘다.
   if (mode === 'app' && plannerOn && !String(env.VITE_GOOGLE_MAPS_BROWSER_KEY || '').trim()) {
     throw new Error('[build:app] VITE_GOOGLE_MAPS_BROWSER_KEY 가 비어 있다. travelers-hub/.env.app.local 에 키를 넣고 다시 빌드할 것 (.env.app 주석 참고).')
+  }
+  // 푸시를 켠 앱 빌드에 Firebase 설정 파일이 없으면 로그인 상태 실행 즉시 앱이 죽는다(2026-09-27 1.3.0 실사고:
+  // FirebaseApp 미초기화 상태에서 PushNotifications.register()). 켜 놓고 파일을 빠뜨렸거나 다른 앱의 파일을 넣은 빌드는 여기서 멈춘다.
+  // (파일은 git 제외 — android/.gitignore. Firebase 콘솔 connecttrip-f87ac 프로젝트에서 받는다.)
+  if (mode === 'app' && env.VITE_PUSH_ENABLED === 'true') {
+    const gsPath = r('./android/app/google-services.json')
+    let gsOk = false
+    try {
+      const gs = JSON.parse(readFileSync(gsPath, 'utf8'))
+      gsOk = (gs.client || []).some((c) => c?.client_info?.android_client_info?.package_name === 'com.connecttrip.app')
+    } catch {
+      gsOk = false
+    }
+    if (!gsOk) {
+      throw new Error('[build:app] VITE_PUSH_ENABLED=true 인데 android/app/google-services.json 이 없거나 com.connecttrip.app 용이 아니다. Firebase 콘솔에서 받은 파일을 넣고 다시 빌드할 것.')
+    }
   }
 
   return {

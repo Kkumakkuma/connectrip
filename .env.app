@@ -27,3 +27,9 @@ VITE_ITINERARY_ENABLED=true
 #   Vite 가 mode=app 일 때 .env.app 다음에 .env.app.local 을 읽으므로 빌드 결과는 같다.
 #   새 PC 에서는 `vercel env pull --environment=production .env.vercel.tmp` 로 받아 두 줄만 .env.app.local 에 옮겨 적고 tmp 는 지운다
 #   (vercel env pull 의 기본 출력 파일은 .env.local 이라 파일명을 꼭 지정). 키가 비면 vite.config.js 가 앱 빌드를 멈춘다.
+
+# --- 앱 푸시(FCM) ---
+# 2026-09-27: Firebase 프로젝트 connecttrip-f87ac 연결(발송기 = Supabase Edge Function push-send).
+#   켜려면 android/app/google-services.json(git 제외, Firebase 콘솔에서 받음)이 있어야 한다 — 없거나 다른 앱 파일이면
+#   vite.config.js 가 앱 빌드를 멈춘다(파일 없이 켜면 로그인 상태 실행 즉시 앱 종료, 1.3.0 실사고).
+VITE_PUSH_ENABLED=true

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 알림창에서 작은 아이콘(ic_stat_notify)에 입히는 색 — 앱 아이콘의 남색 -->
+    <color name="push_accent">#124A64</color>
+</resources>

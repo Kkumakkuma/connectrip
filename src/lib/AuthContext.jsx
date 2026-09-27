@@ -280,6 +280,9 @@ export const AuthProvider = ({ children }) => {
           //   그래서 **명시적 로그아웃(SIGNED_OUT)** 이고 **온라인일 때만** 지운다.
           //   오프라인에서 진짜 로그아웃된 경우는 다시 온라인이 되어 SIGNED_OUT 이 오거나,
           //   다른 계정으로 로그인할 때 sweep 이 정리한다.
+          // 앱 푸시: 세션이 끊기면(명시적 로그아웃이 아닌 세션 만료·무효화 포함) 기기 토큰을 해제한다 — 이전 계정 알림이
+          // 이 기기로 계속 오지 않게(2026-09-27 codex 검토). signOut() 이 이미 해제를 시작했으면 같은 작업을 돌려받을 뿐이다.
+          if (_event === 'SIGNED_OUT' && isNativeApp()) unregisterPush().catch(() => {});
           const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
           if (_event === 'SIGNED_OUT' && !offline) {
             import('@planner-offline')
