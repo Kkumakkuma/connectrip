@@ -12,6 +12,12 @@ const FAMILY_SITES = [
     { name: 'DiskRescue', desc: '데이터 복구 프로그램', url: 'https://diskrescue.vercel.app', logo: '/family/diskrescue.svg', color: '#059669' },
 ];
 
+// 끝의 괄호 묶음은 한 덩어리로 — 모바일에서 주소가 '(송죽동,' / '수원아너스빌위즈)' 처럼 괄호 안에서 갈라지지 않게
+const keepParen = (text) => {
+    const m = /^(.*?)(\([^()]*\))$/.exec(text);
+    return m ? <>{m[1]}<span style={{ whiteSpace: 'nowrap' }}>{m[2]}</span></> : text;
+};
+
 const Footer = () => {
     return (
         <footer style={{ background: 'var(--text-primary)', color: 'white', padding: '4rem 0 2rem' }}>
@@ -95,20 +101,30 @@ const Footer = () => {
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem', textAlign: 'center', fontSize: '0.9rem', opacity: 0.5 }}>
                     {/* 항목을 한 문자열로 join 하면 keep-all 이어도 하이픈 뒤에서 줄이 바뀌어
                         '552-17-' / '02943' 처럼 번호가 두 줄로 갈라진다(2026-09-07 모바일 실측).
-                        번호·이메일처럼 끊기면 안 되는 값만 nowrap 으로 감싸고, 주소는 길어서 그대로 둔다. */}
+                        번호·이메일처럼 끊기면 안 되는 값만 nowrap 으로 감싸고, 주소는 길어서 그대로 둔다.
+                        두 줄로 나눈다(상호~신고번호 / 소재지~이메일) — 한 줄로 이어 쓰면 PC 에서 이메일만
+                        둘째 줄로 떨어져 균형이 안 맞았다(2026-09-27 쿠마님 지적). */}
                     <p style={{ fontSize: '0.75rem', lineHeight: 1.7, marginBottom: '0.75rem', wordBreak: 'keep-all' }}>
                         {[
-                            { text: BUSINESS_INFO.상호, nowrap: false },
-                            isBusinessValueFilled(BUSINESS_INFO.대표자) && { text: `대표자 ${BUSINESS_INFO.대표자}`, nowrap: true },
-                            isBusinessValueFilled(BUSINESS_INFO.사업자등록번호) && { text: `사업자등록번호 ${BUSINESS_INFO.사업자등록번호}`, nowrap: true },
-                            isBusinessValueFilled(BUSINESS_INFO.통신판매업신고번호) && { text: `통신판매업신고번호 ${BUSINESS_INFO.통신판매업신고번호}`, nowrap: true },
-                            isBusinessValueFilled(BUSINESS_INFO.사업장소재지) && { text: `소재지 ${BUSINESS_INFO.사업장소재지}`, nowrap: false },
-                            isBusinessValueFilled(BUSINESS_INFO.유선전화) && { text: `전화 ${BUSINESS_INFO.유선전화}`, nowrap: true },
-                            { text: BUSINESS_INFO.이메일, nowrap: true },
-                        ].filter(Boolean).map((item, i, arr) => (
-                            <span key={item.text}>
-                                <span style={item.nowrap ? { whiteSpace: 'nowrap' } : undefined}>{item.text}</span>
-                                {i < arr.length - 1 && ' · '}
+                            [
+                                { text: BUSINESS_INFO.상호, nowrap: false },
+                                isBusinessValueFilled(BUSINESS_INFO.대표자) && { text: `대표자 ${BUSINESS_INFO.대표자}`, nowrap: true },
+                                isBusinessValueFilled(BUSINESS_INFO.사업자등록번호) && { text: `사업자등록번호 ${BUSINESS_INFO.사업자등록번호}`, nowrap: true },
+                                isBusinessValueFilled(BUSINESS_INFO.통신판매업신고번호) && { text: `통신판매업신고번호 ${BUSINESS_INFO.통신판매업신고번호}`, nowrap: true },
+                            ],
+                            [
+                                isBusinessValueFilled(BUSINESS_INFO.사업장소재지) && { text: `소재지 ${BUSINESS_INFO.사업장소재지}`, nowrap: false },
+                                isBusinessValueFilled(BUSINESS_INFO.유선전화) && { text: `전화 ${BUSINESS_INFO.유선전화}`, nowrap: true },
+                                { text: BUSINESS_INFO.이메일, nowrap: true },
+                            ],
+                        ].map((line) => line.filter(Boolean)).filter((line) => line.length).map((line) => (
+                            <span key={line[0].text} style={{ display: 'block' }}>
+                                {line.map((item, i) => (
+                                    <span key={item.text}>
+                                        <span style={item.nowrap ? { whiteSpace: 'nowrap' } : undefined}>{item.nowrap ? item.text : keepParen(item.text)}</span>
+                                        {i < line.length - 1 && ' · '}
+                                    </span>
+                                ))}
                             </span>
                         ))}
                     </p>
