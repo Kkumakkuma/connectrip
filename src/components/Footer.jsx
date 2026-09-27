@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { PAYMENTS_ENABLED, FAMILY_SITES_ENABLED } from '../lib/featureFlags';
 import { BUSINESS_INFO, isBusinessValueFilled } from '../lib/businessInfo';
@@ -40,12 +39,10 @@ const Footer = () => {
                             objectFit: 'contain'
                         }}
                     />
+                    {/* 줄마다 블록으로 — 아주 좁은 화면에서 한 줄이 다시 꺾여도 그 줄 안에서 길이를 고르게 나눈다(<br /> 한 문단은 균형 맞춤이 안 됨) */}
                     <p style={{ opacity: 0.7, textAlign: 'center', maxWidth: '500px' }}>
-                        {BRAND_TAGLINE_LINES.map((line, i) => (
-                            <Fragment key={line}>
-                                {i > 0 && <br />}
-                                {line}
-                            </Fragment>
+                        {BRAND_TAGLINE_LINES.map((line) => (
+                            <span key={line} style={{ display: 'block', textWrapStyle: 'balance' }}>{line}</span>
                         ))}
                     </p>
                     <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -123,7 +120,7 @@ const Footer = () => {
                                     <span key={item.text}>
                                         <span style={item.nowrap ? { whiteSpace: 'nowrap' } : undefined}>{item.nowrap ? item.text : keepParen(item.text)}</span>
                                         {/* 점은 앞 항목에 붙인다(줄바꿈 안 되는 공백) — 줄이 '· 전화…' 처럼 점으로 시작하지 않게 */}
-                                        {i < line.length - 1 && ' · '}
+                                        {i < line.length - 1 && '\u00a0· '}
                                     </span>
                                 ))}
                             </span>

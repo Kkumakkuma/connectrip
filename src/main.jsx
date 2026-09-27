@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import { AuthProvider } from './lib/AuthContext.jsx'
 import { initAnalytics } from './lib/analytics.js'
+import { startKeepMiddot } from './lib/keepMiddot.js'
 
 // VITE_GA_ID 가 설정된 빌드에서만 gtag 스크립트를 주입한다(없으면 무동작).
 initAnalytics()
@@ -45,3 +46,6 @@ createRoot(document.getElementById('root')).render(
     </AuthProvider>
   </ErrorBoundary>
 )
+
+// 줄이 가운뎃점(·)으로 시작하지 않게 — 화면 글자의 '·' 앞에 보이지 않는 이음 문자를 넣는다(lib/keepMiddot.js)
+startKeepMiddot()

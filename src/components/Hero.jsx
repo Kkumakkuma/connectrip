@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { motion } from 'framer-motion';
 import { Plane } from 'lucide-react';
 
-import { HERO_BADGE, HERO_DESCRIPTION, HERO_TITLE_LINES } from '../lib/homeContent';
+import { HERO_BADGE, HERO_DESCRIPTION_LINES, HERO_TITLE_LINES } from '../lib/homeContent';
 
 // 첫 화면 히어로(2026-09-07 에어비앤비 톤): 사진 위 큰 제목 하나, 여백을 넓게. 문구는 기존 그대로.
 // 문구 자체는 src/lib/homeContent.js 가 단일 출처다 — 프리렌더(scripts/prerender-seo.mjs)가
@@ -26,8 +26,12 @@ const Hero = () => (
                         </Fragment>
                     ))}
                 </h1>
+                {/* 문장마다 한 줄 블록으로 나누고 각 문장 안에서 줄 길이를 고르게(한 줄이 길고 다음 줄에 한 단어만 남지 않게).
+                    <br /> 로 나눈 한 문단에는 크롬이 균형 맞춤을 적용하지 않아 문장별 블록으로 둔다(2026-09-27 실측). */}
                 <p className="text-[15px] sm:text-[18px] text-white/90 leading-relaxed max-w-2xl">
-                    {HERO_DESCRIPTION}
+                    {HERO_DESCRIPTION_LINES.map((line) => (
+                        <span key={line} className="block" style={{ textWrapStyle: 'balance' }}>{line}</span>
+                    ))}
                 </p>
             </motion.div>
         </div>

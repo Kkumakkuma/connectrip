@@ -934,7 +934,7 @@ const MyPage = () => {
                                     />
                                 </div>
                                 <div style={{ flex: '1 1 160px', minWidth: '140px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#4b5563', marginBottom: '6px' }}>항공 편명 (예: KE081, 7C2604)</label>
+                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#4b5563', marginBottom: '6px' }}>항공 편명 <span style={{ whiteSpace: 'nowrap' }}>(예: KE081, 7C2604)</span></label>
                                     <input
                                         type="text"
                                         required
@@ -987,7 +987,9 @@ const MyPage = () => {
                                 나의 등록 스케줄 ({myFlights.length})
                             </h5>
                             <p style={{ fontSize: '0.82rem', color: '#6b7280', marginTop: '-0.4rem', marginBottom: '0.9rem', lineHeight: 1.5 }}>
-                                스케줄 목록에서 게시판 참여를 활성화하면 같은 비행편에 타는 다른 승객과 소통할 수 있습니다. 게시판은 익명이고, 2주 전부터 게시판이 생성되고 출발일이 지나면 사라집니다.
+                                {/* 문장마다 블록으로 나눠 각 문장 안에서 줄 길이를 고르게(<br /> 한 문단은 균형 맞춤이 안 됨) */}
+                                <span style={{ display: 'block', textWrapStyle: 'balance' }}>스케줄 목록에서 게시판 참여를 활성화하면 같은 비행편에 타는 다른 승객과 소통할 수 있습니다.</span>
+                                <span style={{ display: 'block', textWrapStyle: 'balance' }}>게시판은 익명이고, 2주 전부터 게시판이 생성되고 출발일이 지나면 사라집니다.</span>
                             </p>
 
                             {flightsLoading ? (

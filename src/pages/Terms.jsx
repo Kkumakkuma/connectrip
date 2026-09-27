@@ -105,7 +105,7 @@ const Terms = () => {
         </Section>
 
         <Section title={article('회원의 금지행위')}>
-          <p>회원은 다음 행위를 해서는 안 되며, 위반 시 게시물 삭제·이용 제한·계정 정지 등의 조치가 이루어질 수 있습니다.</p>
+          <p>회원은 다음 행위를 해서는 안 되며, 위반 시 게시물 삭제·<span className="whitespace-nowrap">이용 제한·계정 정지</span> 등의 조치가 이루어질 수 있습니다.</p>
           <ul className="ml-4 list-disc space-y-1">
             <li>타인 사칭, 본인확인 정보·신분 위조</li>
             <li>직거래 사기, 금전 편취, 허위 매물·정보 게시</li>

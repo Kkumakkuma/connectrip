@@ -55,7 +55,7 @@ const Privacy = () => {
             <li><strong className="text-gray-900">주소</strong>: 우편번호, 도로명 주소, 상세 주소(이벤트 경품 배송 목적)</li>
             <li><strong className="text-gray-900">승무원 회원</strong>: 항공사 이메일, 항공사명(승무원 인증용)</li>
             <li><strong className="text-gray-900">항공사 추가 요청</strong>: 항공사명, 회사 이메일 주소(승무원 인증 대상 항공사 등록 검토와 결과 안내 목적)</li>
-            <li><strong className="text-gray-900">여행 플래너</strong>: 이용자가 올린 티켓 파일(항공권·입장권 등 이미지·PDF)과 그 파일에서 읽어낸 날짜·편명, 장소 검색어</li>
+            <li><strong className="text-gray-900">여행 플래너</strong>: 이용자가 올린 티켓 파일(항공권·입장권 등 <span className="whitespace-nowrap">이미지·PDF</span>)과 그 파일에서 읽어낸 날짜·편명, 장소 검색어</li>
             <li><strong className="text-gray-900">자동 수집</strong>: 접속 기록(서비스 이용·접속 로그)</li>
           </ul>
         </Section>

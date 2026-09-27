@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import SEOHead from '../components/SEOHead';
+import SentenceLines from '../components/SentenceLines';
 import { SITE_ORIGIN } from '../lib/api';
 import { APP_RETURN_PAGE, externalReturnUrl } from '../lib/appReturn';
 import { launchIdentityForApp, parseAppIdentityParams } from '../lib/identity';
@@ -52,13 +53,13 @@ export default function AppIdentity() {
             {shown ? (
                 <>
                     <h1 className="mt-4 text-lg font-bold text-ink">본인확인을 시작하지 못했어요</h1>
-                    <p className="mt-2 text-sm leading-relaxed text-muted" role="alert">{shown}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-muted" role="alert"><SentenceLines text={shown} /></p>
                 </>
             ) : stale ? (
                 <>
                     <h1 className="mt-4 text-lg font-bold text-ink">본인확인 창이 보이지 않나요?</h1>
                     <p className="mt-2 text-sm leading-relaxed text-muted">
-                        창이 열리지 않았거나 인증 창에서 돌아왔다면 커넥트립 앱으로 돌아가 본인확인을 다시 시작해 주세요.
+                        창이 열리지 않았거나 인증 창에서 돌아왔다면 커넥트립 앱으로 돌아가 본인확인을 다시 시작해 주세요.<br />
                         인증을 이미 마쳤다면 앱에서 결과를 자동으로 확인해요.
                     </p>
                 </>

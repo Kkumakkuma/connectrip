@@ -54,6 +54,16 @@ body {
   overflow-wrap: break-word;
 }
 
+/* 줄바꿈 다듬기(2026-09-27 쿠마님 지적 "줄바꿈 전체적으로 항상 제대로"):
+   제목은 줄 길이를 고르게 나누고(balance — '게시판 쓰는 / 법' 같은 외톨이 방지),
+   문단·목록·라벨은 마지막 줄에 한두 글자만 남지 않게(pretty).
+   text-wrap-style 은 줄바꿈 여부(nowrap 등)는 건드리지 않고 '어디서 나눌지'만 정한다. 모르는 브라우저는 무시한다. */
+h1, h2, h3, h4, h5, h6 { text-wrap-style: balance; }
+p, li, dd, dt, blockquote, figcaption, label, td, th, summary { text-wrap-style: pretty; }
+/* 가운데 정렬 문구(빈 화면 안내·입장 제한 안내·카드 등)는 줄 길이를 고르게 — 마지막 줄에 몇 글자만 떨어지지 않게 */
+.text-center, .text-center p, .text-center li, p.text-center,
+[style*="text-align: center"], [style*="text-align: center"] p { text-wrap-style: balance; }
+
 /* Utilities */
 .container {
   max-width: 1200px;

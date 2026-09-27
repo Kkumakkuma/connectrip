@@ -65,7 +65,7 @@ const CategoryBoard = ({ activeCategory, onCategoryChange }) => {
                             <div className="p-3.5 sm:p-4">
                                 <h3 className="text-[15px] sm:text-[17px] font-bold text-ink tracking-[-0.01em] leading-snug">{cat.name}</h3>
                                 {/* 390px 2열(설명 폭 141px)에선 후기·Q&A 문장이 3줄이라 2줄 클램프에 잘렸다(2026-09-07 실측) — 좁은 폭만 3줄 허용 */}
-                                <p className="text-[13px] sm:text-[14px] text-muted mt-1 line-clamp-3 sm:line-clamp-2 leading-relaxed">{cat.desc}</p>
+                                <p className="text-[13px] sm:text-[14px] text-muted mt-1 line-clamp-3 sm:line-clamp-2 leading-relaxed" style={{ textWrapStyle: 'balance' }}>{cat.desc}</p>
                             </div>
                         </Link>
                         );

@@ -5,6 +5,7 @@ import {
   IDENTITY_PG_NAME, IDENTITY_PURPOSE_SIGNUP,
 } from '../lib/identity';
 import { isNativeApp } from '../lib/native';
+import SentenceLines from './SentenceLines';
 
 // 앱: 인증 창은 크롬 탭(Custom Tab)으로 열리고 이 화면은 그대로 남는다(IntentUrlPlugin, 2026-09-27).
 // 돌아오면(탭 닫기·최근 앱·'앱으로 돌아가기' 단추) 진행 중인 본인확인 id 로 서버에 결과를 확인한다.
@@ -188,7 +189,7 @@ export default function IdentityVerifyStep({
       )}
       {infoMsg && !error && (
         <div style={{ marginTop: 10, padding: '8px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, color: '#1e40af', fontSize: 12, lineHeight: 1.5 }}>
-          {infoMsg}
+          <SentenceLines text={infoMsg} />
         </div>
       )}
       {disabled && (
@@ -198,7 +199,7 @@ export default function IdentityVerifyStep({
       )}
       {error && (
         <div style={{ marginTop: 10, padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>
-          ⚠️ {error}
+          ⚠️ <SentenceLines text={error} />
         </div>
       )}
       {notice !== false && (
