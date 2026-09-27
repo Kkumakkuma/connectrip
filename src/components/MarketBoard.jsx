@@ -174,7 +174,7 @@ const MarketBoard = () => {
             <SEOHead title="물품거래 및 나눔 - 커넥트립 ConnectTrip" description="여행 물품 거래, 나눔, 중고 거래를 ConnectTrip에서 만나보세요." path="/market" />
             <BoardShell
                 id="market"
-                title="물품거래 및 나눔"
+                title={"물품거래 및\u00a0나눔"} // 좁은 화면에서 '및 / 나눔' 으로 갈리지 않게
                 action={canWrite ? <button type="button" onClick={openWrite} className="btn-air-primary"><Plus size={16} /> 글쓰기</button> : null}
                 tabs={<BoardTabs items={TABS} value={mode} onChange={setTab} />}
                 search={isFeed ? null : <SearchPill value={qInput} onChange={setQInput} placeholder="제목, 내용 검색" className="max-w-md" />}

@@ -231,7 +231,7 @@ const TravelQnA = () => {
             <SEOHead title="여행후기 및 Q&A - 커넥트립 ConnectTrip" description="여행 후기를 공유하고, 여행 관련 질문과 답변을 나누세요." path="/qna" />
             <BoardShell
                 id="qna"
-                title="여행후기 및 Q&A"
+                title={"여행후기 및\u00a0Q&A"} // 좁은 화면에서 '및 / Q&A' 로 갈리지 않게('여행후기 / 및 Q&A')
                 action={<button type="button" onClick={openWrite} onPointerEnter={prefetchRichEditor} onTouchStart={prefetchRichEditor} className="btn-air-primary"><Plus size={16} /> {WRITE_LABEL[mode]}</button>}
                 tabs={<BoardTabs items={TABS} value={mode} onChange={setTab} />}
                 bar={mode === 'review' ? <ContinentBar value={region} onChange={setRegion} /> : null}
