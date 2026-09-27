@@ -25,9 +25,11 @@ export function Sheet({ title, onClose, children, footer }) {
     useEffect(() => pushBack(() => closeRef.current?.()), []);      // 앱 뒤로가기 = 이 시트 닫기
     useEffect(() => {
         const prev = document.activeElement;
+        // 첫 초점: 입력 칸이 있으면 거기로(링크 붙여넣기), 없으면 시트 자체로 — 단추에 주면 사진을 고른 뒤 자동으로 열린
+        // 묶음 시트의 닫기 단추에 초점 테두리가 떠 보였다(2026-09-27 캡처). 키보드 사용자는 Tab 으로 단추에 간다.
         const t = setTimeout(() => {
-            const first = boxRef.current?.querySelector('input:not([disabled]), button:not([disabled])');
-            (first || boxRef.current)?.focus();
+            const input = boxRef.current?.querySelector('input:not([disabled])');
+            (input || boxRef.current)?.focus();
         }, 0);
         const onKey = (e) => {
             if (e.key === 'Escape' && !e.isComposing && e.keyCode !== 229) {
@@ -41,7 +43,13 @@ export function Sheet({ title, onClose, children, footer }) {
             if (!nodes.length) return;
             const first = nodes[0];
             const last = nodes[nodes.length - 1];
-            if (!boxRef.current.contains(document.activeElement)) { e.preventDefault(); first.focus(); e.stopPropagation(); return; }
+            // 시트 밖이거나 시트 자체에 초점이 있으면 안쪽 처음(Shift+Tab 이면 마지막)으로 — 시트 자체에서 Shift+Tab 이 밖으로 새지 않게
+            if (!boxRef.current.contains(document.activeElement) || document.activeElement === boxRef.current) {
+                e.preventDefault();
+                (e.shiftKey ? last : first).focus();
+                e.stopPropagation();
+                return;
+            }
             if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
             else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
             e.stopPropagation();
