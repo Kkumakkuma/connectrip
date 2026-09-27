@@ -122,7 +122,8 @@ const Footer = () => {
                                 {line.map((item, i) => (
                                     <span key={item.text}>
                                         <span style={item.nowrap ? { whiteSpace: 'nowrap' } : undefined}>{item.nowrap ? item.text : keepParen(item.text)}</span>
-                                        {i < line.length - 1 && ' · '}
+                                        {/* 점은 앞 항목에 붙인다(줄바꿈 안 되는 공백) — 줄이 '· 전화…' 처럼 점으로 시작하지 않게 */}
+                                        {i < line.length - 1 && ' · '}
                                     </span>
                                 ))}
                             </span>
