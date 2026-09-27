@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { saveWithImages } from './pendingImages';
+import { saveDocWithImages, saveWithImages } from './pendingImages';
 
 // 글쓰기 폼의 "사진 올리고 저장" 한 번(2026-09-27 지연 업로드, 규칙은 pendingImages.js).
 //   const photos = useImageSave(user?.id);
@@ -36,11 +36,32 @@ export function useImageSave(userId, open = true) {
         }
     }, [userId]);
 
+    // 서식 편집기 문서 저장(대기 사진 키 → 업로드 → 치환 → 최종 검증 → save). doc = { env, pending, boardKey }.
+    const runDoc = useCallback(async (tag, doc, save) => {
+        if (busyRef.current) throw new Error('image-save-busy');
+        busyRef.current = true;
+        cancelRef.current = false;
+        setState({ tag, done: 0, total: 0 });
+        try {
+            return await saveDocWithImages(
+                {
+                    ...doc, userId,
+                    onProgress: ({ done, total }) => setState({ tag, done, total }),
+                    isCancelled: () => cancelRef.current,
+                },
+                save,
+            );
+        } finally {
+            busyRef.current = false;
+            setState(null);
+        }
+    }, [userId]);
+
     const label = (tag) => (
         state && state.tag === tag && state.total > 0 && state.done < state.total
             ? `사진 올리는 중 ${state.done + 1}/${state.total}`
             : ''
     );
 
-    return { run, busy: state !== null, label };
+    return { run, runDoc, busy: state !== null, label };
 }

@@ -195,6 +195,7 @@ DECLARE
   c_gallery_min     CONSTANT int := 2;
   c_gallery_max     CONSTANT int := 10;
   c_maps            CONSTANT int := 10;
+  c_videos          CONSTANT int := 10;     -- 영상 링크(유튜브·인스타그램, 2026-09-27)
   c_href_max        CONSTANT int := 2048;
   c_map_name_max    CONSTANT int := 120;
   c_map_address_max CONSTANT int := 300;
@@ -208,11 +209,14 @@ DECLARE
   c_bg_colors CONSTANT text[] := ARRAY['#fff8b2', '#ffe3c8', '#ffcdc0', '#e3fdc8', '#c2f4db', '#b0f1ff', '#fdd5f5', '#e2e2e2'];
   c_aligns    CONSTANT text[] := ARRAY['center', 'right'];
   c_layouts   CONSTANT text[] := ARRAY['grid', 'slide', 'strip'];
+  c_video_providers CONSTANT text[] := ARRAY['youtube', 'instagram'];
   c_re_ctrl      CONSTANT text := '[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]';
   c_re_ctrl_line CONSTANT text := '[\x01-\x1F\x7F]';
   c_re_href      CONSTANT text := '^https?://[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*(:[0-9]{1,5})?([/?#][^\x01-\x20\x7F]*)?$';
   c_re_map_url   CONSTANT text := '^https://((maps\.app\.goo\.gl|maps\.google\.com)(/[^?#\x01-\x20\x7F]*)?|(goo\.gl|www\.google\.com|google\.com|www\.google\.co\.kr|google\.co\.kr)/maps(/[^?#\x01-\x20\x7F]*)?)([?#][^\x01-\x20\x7F]*)?$';
   c_re_place_id  CONSTANT text := '^[A-Za-z0-9_-]+$';
+  c_re_youtube_id   CONSTANT text := '^[A-Za-z0-9_-]{11}$';
+  c_re_instagram_id CONSTANT text := '^[A-Za-z0-9_-]{5,64}$';
   -- 순회 스택(재귀 대신 반복). [노드, 부모 종류, 부모 안 순서, 깊이(doc = 0)]
   s_node  jsonb[] := '{}';
   s_ptype text[]  := '{}';
@@ -226,6 +230,7 @@ DECLARE
   v_lat jsonb; v_lng jsonb; v_nlat numeric; v_nlng numeric; v_has_pid boolean; v_has_xy boolean;
   v_imgs  text[] := '{}';
   v_maps  int := 0;
+  v_videos int := 0;
   v_media int := 0;
 BEGIN
   IF p_doc IS NULL OR jsonb_typeof(p_doc) <> 'object' THEN
@@ -513,6 +518,25 @@ BEGIN
       IF NOT v_has_pid AND NOT v_has_xy THEN RAISE EXCEPTION 'BAD_BODY_DOC' USING DETAIL = 'MAP_TARGET'; END IF;
       v_maps := v_maps + 1;
       IF v_maps > c_maps THEN RAISE EXCEPTION 'BAD_BODY_DOC' USING DETAIL = 'TOO_MANY_MAPS'; END IF;
+      v_media := v_media + 1;
+
+    WHEN 'video' THEN
+      -- 영상 링크(유튜브·인스타그램, 2026-09-27) — 업로드가 아니라 링크라 게시판 사진 규칙(p_mode)과 무관하게 받는다
+      IF v_ptype <> 'doc' THEN RAISE EXCEPTION 'BAD_BODY_DOC' USING DETAIL = 'PLACEMENT'; END IF;
+      IF (v_node - ARRAY['type', 'attrs']) <> '{}'::jsonb THEN RAISE EXCEPTION 'BAD_BODY_DOC' USING DETAIL = 'KEYS'; END IF;
+      v_attrs := v_node->'attrs';
+      IF jsonb_typeof(v_attrs) IS DISTINCT FROM 'object' OR (v_attrs - ARRAY['provider', 'id']) <> '{}'::jsonb
+         OR jsonb_typeof(v_attrs->'provider') IS DISTINCT FROM 'string'
+         OR NOT ((v_attrs->>'provider') = ANY (c_video_providers)) THEN
+        RAISE EXCEPTION 'BAD_BODY_DOC' USING DETAIL = 'VIDEO';
+      END IF;
+      IF jsonb_typeof(v_attrs->'id') IS DISTINCT FROM 'string'
+         OR ((v_attrs->>'provider') = 'youtube' AND (v_attrs->>'id') !~ c_re_youtube_id)
+         OR ((v_attrs->>'provider') = 'instagram' AND (v_attrs->>'id') !~ c_re_instagram_id) THEN
+        RAISE EXCEPTION 'BAD_BODY_DOC' USING DETAIL = 'VIDEO_ID';
+      END IF;
+      v_videos := v_videos + 1;
+      IF v_videos > c_videos THEN RAISE EXCEPTION 'BAD_BODY_DOC' USING DETAIL = 'TOO_MANY_VIDEOS'; END IF;
       v_media := v_media + 1;
 
     WHEN 'file' THEN

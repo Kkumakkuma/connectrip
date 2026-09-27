@@ -1,16 +1,18 @@
 // 글쓰기 임시저장 v2(2026-09-25 쿠마님 지시) — 서버(public.post_drafts)에 저장하고 어느 기기에서든 "불러오기"로 고른다.
 // 자동 저장·자동 복원은 하지 않는다. DB 규칙은 src/lib/post_drafts_20260925.sql, 폼 변환은 draftForms.js.
 import { supabase } from './supabase';
+import { docToPlain } from './rich/doc';
 
 export const DRAFT_PER_BOARD = 20;
 
-// 목록에 보일 이름: 제목(추천지는 장소명) → 없으면 본문 앞부분 → 둘 다 없으면 '제목 없음'.
+// 목록에 보일 이름: 제목(추천지는 장소명) → 없으면 본문 앞부분(서식 원고는 문서의 평문) → 둘 다 없으면 '제목 없음'.
 export const draftTitle = (data) => {
     const pick = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
     const t = pick(data?.title) || pick(data?.name);
     if (t) return t.slice(0, 120);
-    const body = pick(data?.content) || pick(data?.desc) || pick(data?.crewComment);
-    return body ? body.slice(0, 30) : '제목 없음';
+    const doc = data?.doc && typeof data.doc === 'object' ? pick(docToPlain(data.doc)) : '';
+    const body = pick(data?.content) || pick(data?.desc) || pick(data?.crewComment) || doc;
+    return body ? Array.from(body).slice(0, 30).join('') : '제목 없음';
 };
 
 // 서식 원고(data.fmt = 2) — 서식 편집기(2단계부터) 화면이 저장한 원고. 이 판(1단계) 화면은 서식 문서를 읽지 못해

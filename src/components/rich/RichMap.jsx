@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ExternalLink, MapPin, Maximize2, X } from 'lucide-react';
 import { MAP_EMBED_IN_APP, mapEmbedUrl, mapOpenUrl } from '../../lib/rich/mapLink';
 import { isNativeApp } from '../../lib/native';
+import { pushBack } from '../../lib/backStack';
 
 // 서식 글 안의 지도(2026-09-26 서식 편집기 1단계, 설계 plan_v3 5-3 + plan_v3_1 0장 1번·8장 MINOR).
 // 모든 기기 공통 한 가지 경로:
@@ -29,6 +30,7 @@ function MapSheet({ attrs, embed, openUrl, onClose }) {
     const closeRef = useRef(null);
     const onCloseRef = useRef(onClose);
     useEffect(() => { onCloseRef.current = onClose; });
+    useEffect(() => pushBack(() => onCloseRef.current?.()), []);   // 앱 뒤로가기 = 크게 보기 닫기
 
     useEffect(() => {
         // 여는 순간의 포커스(덮개 버튼)를 기억했다가 닫힐 때 돌려준다(WriteModal 과 같은 방식)

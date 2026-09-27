@@ -2180,6 +2180,471 @@
      ]
     }
    }
+  },
+  {
+   "name": "video-youtube-only",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "dQw4w9WgXcQ"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "video-instagram",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "인스타"
+        }
+       ]
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "instagram",
+        "id": "C8m9K1dPZ2x"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "video-strip-gallery-map",
+   "mode": "private",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "글"
+        }
+       ]
+      },
+      {
+       "type": "gallery",
+       "attrs": {
+        "layout": "strip",
+        "images": [
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg",
+         "sb://post-images/11111111-1111-4111-8111-111111111111_170000000002_abc.jpg"
+        ]
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "dQw4w9WgXcQ"
+       }
+      },
+      {
+       "type": "map",
+       "attrs": {
+        "name": "서울시청",
+        "placeId": "ChIJN1t_tDeuEmsRUsoyG83frY4"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "video-10-ok",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000000"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000001"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000002"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000003"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000004"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000005"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000006"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000007"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000008"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000009"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-11",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000000"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000001"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000002"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000003"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000004"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000005"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000006"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000007"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000008"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000009"
+       }
+      },
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "vid00000010"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-provider",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "vimeo",
+        "id": "12345678901"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-provider-number",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": 1,
+        "id": "dQw4w9WgXcQ"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-id-length",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "abc"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-id-chars",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "dQw4w9WgXc!"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-no-id",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-instagram-short",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "instagram",
+        "id": "abcd"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-extra-attr",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "dQw4w9WgXcQ",
+        "url": "https://youtu.be/dQw4w9WgXcQ"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-attrs-null",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": null
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-marks-key",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "video",
+       "attrs": {
+        "provider": "youtube",
+        "id": "dQw4w9WgXcQ"
+       },
+       "marks": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "bad-video-in-quote",
+   "mode": "none",
+   "doc": {
+    "v": 1,
+    "doc": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "blockquote",
+       "content": [
+        {
+         "type": "paragraph",
+         "content": [
+          {
+           "type": "text",
+           "text": "인용"
+          }
+         ]
+        },
+        {
+         "type": "video",
+         "attrs": {
+          "provider": "youtube",
+          "id": "dQw4w9WgXcQ"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   }
   }
  ]
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2 } from 'lucide-react';
+import { pushBack } from '../../lib/backStack';
 
 // 글쓰기 임시저장 v2 화면(2026-09-25). 동작은 src/lib/usePostDrafts.js.
 
@@ -115,6 +116,10 @@ export const DraftCloseDialog = ({ open, saving, onSave, onDiscard, onCancel }) 
     const saveRef = useRef(null);
     const cancelRef = useRef(onCancel);
     useEffect(() => { cancelRef.current = onCancel; });
+    useEffect(() => {                                   // 앱 뒤로가기 = 취소(계속 쓰기)
+        if (!open) return undefined;
+        return pushBack(() => cancelRef.current?.());
+    }, [open]);
     useEffect(() => {
         if (!open) return undefined;
         const prev = document.activeElement;

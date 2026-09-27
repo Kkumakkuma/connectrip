@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapAttrsError, mapEmbedUrl, mapOpenUrl, placeIdOk } from './mapLink';
+import { candidateCoordKind, coordOf, mapAttrsError, mapEmbedUrl, mapOpenUrl, parseGoogleMapsUrl, placeIdOk } from './mapLink';
 
 const PID = 'ChIJN1t_tDeuEmsRUsoyG83frY4';
 
@@ -92,5 +92,58 @@ describe('mapOpenUrl — Google 지도에서 열기(Maps URLs)', () => {
         expect(b.searchParams.get('query')).toBe('오페라하우스');
         expect(b.searchParams.get('query_place_id')).toBe(PID);
         expect(mapOpenUrl({ name: 'x' })).toBeNull();
+    });
+});
+
+describe('parseGoogleMapsUrl — 붙인 구글 지도 링크를 종류별로(설계 6-7)', () => {
+    it('핀 좌표(!3d!4d)와 장소 이름, 지도 중심(@)은 따로', () => {
+        const r = parseGoogleMapsUrl('https://www.google.com/maps/place/%EC%98%A4%EC%82%AC%EC%B9%B4%EC%84%B1/@34.6873153,135.5262013,17z/data=!3m1!4b1!4m6!3m5!1s0x6000e0ce!8m2!3d34.6873153!4d135.5262013!16zL20vMDFtc2R2');
+        expect(r.pin).toEqual({ lat: 34.687315, lng: 135.526201 });
+        expect(r.center).toEqual({ lat: 34.687315, lng: 135.526201 });
+        expect(r.name).toBe('오사카성');
+        expect(r.placeId).toBeNull();
+        expect(r.needsServer).toBe(false);
+    });
+    it('좌표 질의(?q=lat,lng · api=1&query=lat,lng)와 글자 질의', () => {
+        expect(parseGoogleMapsUrl('https://maps.google.com/?q=37.5665,126.978').query).toEqual({ lat: 37.5665, lng: 126.978 });
+        expect(parseGoogleMapsUrl('https://www.google.com/maps/search/?api=1&query=37.5665%2C126.978').query).toEqual({ lat: 37.5665, lng: 126.978 });
+        const t = parseGoogleMapsUrl('https://www.google.com/maps/search/?api=1&query=%EC%84%9C%EC%9A%B8%EC%8B%9C%EC%B2%AD');
+        expect(t.query).toBeNull();
+        expect(t.name).toBe('서울시청');
+        expect(t.needsServer).toBe(true);                // 대상(좌표·ID)이 없어 서버가 확인
+    });
+    it('query_place_id 는 링크 자체의 장소 ID', () => {
+        const r = parseGoogleMapsUrl(`https://www.google.com/maps/search/?api=1&query=37.5,127&query_place_id=${PID}`);
+        expect(r.placeId).toBe(PID);
+        expect(r.query).toEqual({ lat: 37.5, lng: 127 });
+        expect(parseGoogleMapsUrl('https://www.google.com/maps/search/?api=1&query=x&query_place_id=bad%20id').placeId).toBeNull();
+    });
+    it('중심(@)만 있으면 장소가 아니다 — 핀으로 쓰지 않는다', () => {
+        const r = parseGoogleMapsUrl('https://www.google.com/maps/@37.5665,126.978,15z');
+        expect(r.pin).toBeNull();
+        expect(r.query).toBeNull();
+        expect(r.center).toEqual({ lat: 37.5665, lng: 126.978 });
+        expect(r.needsServer).toBe(false);
+    });
+    it('단축 주소는 서버로, 스킴 없는 주소·http 는 https 로 받아 준다', () => {
+        expect(parseGoogleMapsUrl('https://maps.app.goo.gl/abcdEFGH123').needsServer).toBe(true);
+        expect(parseGoogleMapsUrl('maps.app.goo.gl/abcdEFGH123').url).toBe('https://maps.app.goo.gl/abcdEFGH123');
+        expect(parseGoogleMapsUrl('http://maps.google.com/?q=37.5,127').url).toBe('https://maps.google.com/?q=37.5,127');
+    });
+    it('구글 지도가 아니면 null(위장 호스트·다른 경로·포트·계정 정보·범위 밖 좌표는 좌표 없음)', () => {
+        for (const u of ['https://maps.google.com.evil.com/?q=1,2', 'https://evil.com/maps?q=1,2', 'https://www.google.com/search?q=1,2',
+            'https://www.google.com:8443/maps?q=1,2', 'https://u@maps.google.com/?q=1,2', 'javascript:alert(1)', '', null]) {
+            expect(parseGoogleMapsUrl(u), String(u)).toBeNull();
+        }
+        expect(parseGoogleMapsUrl('https://maps.google.com/?q=91,127').query).toBeNull();
+        expect(parseGoogleMapsUrl('https://maps.google.com/?q=0,0').query).toBeNull();
+    });
+    it('서버 후보의 좌표 종류: coord 없는 옛 캐시 결과는 지도 중심으로 본다', () => {
+        expect(candidateCoordKind({ coord: 'pin' })).toBe('pin');
+        expect(candidateCoordKind({ coord: 'query' })).toBe('query');
+        expect(candidateCoordKind({ coord: 'center' })).toBe('center');
+        expect(candidateCoordKind({})).toBe('center');
+        expect(candidateCoordKind(null)).toBe('center');
+        expect(coordOf('37.12345678', '127.1')).toEqual({ lat: 37.123457, lng: 127.1 });
     });
 });

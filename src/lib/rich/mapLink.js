@@ -78,6 +78,81 @@ export function mapEmbedUrl(attrs, key) {
     return u.toString();
 }
 
+// ── 링크 붙여넣기 해석(2단계, 설계 6-7) ─────────────────────────────────
+// 붙인 구글 지도 링크에서 뽑은 것을 종류별로 나눈다. 자동으로 장소를 확정하지 않는다(작성자가 미리보기를 보고 넣는다).
+//   placeId: 링크의 query_place_id(링크 자체에 든 식별자)
+//   pin    : !3d<lat>!4d<lng>(핀 좌표)          query : ?q=lat,lng · ?api=1&query=lat,lng(좌표 질의)
+//   center : @lat,lng,zoom(지도 화면 중심 — 장소가 아니다)
+//   name   : /maps/place/<이름>/ 또는 q·query 의 글자
+//   needsServer: 단축 주소(maps.app.goo.gl · goo.gl/maps)이거나 대상(placeId·핀·질의·중심)이 없음 → 서버 extract-links
+// 반환 null = 구글 지도 링크가 아님(호스트·경로가 RE.mapUrl 규칙 밖).
+const round6 = (x) => Math.round(x * 1e6) / 1e6;
+
+// 문자열 두 개 → 좌표(범위 안, (0,0) 아님, 소수 6자리로 반올림) 또는 null
+export function coordOf(latText, lngText) {
+    const lat = Number(latText);
+    const lng = Number(lngText);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180 || (lat === 0 && lng === 0)) return null;
+    return { lat: round6(lat), lng: round6(lng) };
+}
+
+const COORD_TEXT = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+
+const safeDecode = (s) => {
+    try { return decodeURIComponent(s.replace(/\+/g, ' ')); } catch { return s; }
+};
+
+// 이름 후보 정리: 한 줄·제어문자 없음·120자
+const cleanName = (s) => {
+    const t = String(s || '').replace(/[\x01-\x1F\x7F]/g, ' ').replace(/\s+/g, ' ').trim();   // eslint-disable-line no-control-regex
+    return Array.from(t).slice(0, LIMITS.mapNameMax).join('');
+};
+
+export function parseGoogleMapsUrl(input) {
+    if (typeof input !== 'string') return null;
+    let s = input.trim();
+    if (!s || s.length > LIMITS.mapUrlMax || /\s/.test(s)) return null;
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = `https://${s}`;
+    let u;
+    try { u = new URL(s); } catch { return null; }
+    if (u.protocol === 'http:') u.protocol = 'https:';
+    if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
+    const url = u.toString();
+    if (cpOver(url, LIMITS.mapUrlMax) || !RE.mapUrl.test(url)) return null;
+
+    const host = u.hostname.toLowerCase();
+    const short = host === 'maps.app.goo.gl' || host === 'goo.gl';
+    const out = { url, placeId: null, pin: null, query: null, center: null, name: '', needsServer: false };
+
+    const qpid = u.searchParams.get('query_place_id');
+    if (placeIdOk(qpid)) out.placeId = qpid;
+
+    const href = decodeURIComponentSafe(u.pathname) + u.search;
+    const pin = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(href);
+    if (pin) out.pin = coordOf(pin[1], pin[2]);
+    const q = u.searchParams.get('q') ?? u.searchParams.get('query');
+    if (q != null) {
+        const m = COORD_TEXT.exec(q);
+        if (m) out.query = coordOf(m[1], m[2]);
+        else if (q.trim()) out.name = cleanName(q);
+    }
+    const center = /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(u.pathname);
+    if (center) out.center = coordOf(center[1], center[2]);
+    const place = /\/maps\/place\/([^/]+)/.exec(u.pathname);
+    if (place && !out.name) out.name = cleanName(safeDecode(place[1]));
+
+    out.needsServer = short || !(out.placeId || out.pin || out.query || out.center);
+    return out;
+}
+
+function decodeURIComponentSafe(s) {
+    try { return decodeURIComponent(s); } catch { return s; }
+}
+
+// 서버(extract-links) 후보 하나 → 지도 좌표 종류. coord 가 없는 옛 캐시 결과는 보수적으로 지도 중심으로 본다(6-7 2번).
+export const candidateCoordKind = (c) => (c && (c.coord === 'pin' || c.coord === 'query') ? c.coord : 'center');
+
 // "Google 지도에서 열기" 주소. placeId 가 있으면 query_place_id(구글이 ID 를 못 찾을 때만 query 를 쓴다 —
 // 그때도 이름보다 정확한 저장 좌표를 먼저 쓴다), 좌표만 있으면 좌표 질의(이름을 쓰면 저장 좌표를 잃는다).
 export function mapOpenUrl(attrs) {

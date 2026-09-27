@@ -43,6 +43,7 @@ const Promotions = PROMO_REVIEWS_ENABLED ? lazy(() => import('./components/Promo
 const CompanionBoard = lazy(() => import('./components/CompanionBoard'));
 import RegionRedirect from './components/board/RegionRedirect';
 import { purgeLegacyLocalDrafts } from './lib/postDrafts';
+import { handleBack } from './lib/backStack';
 // 여행 일정 게시판. 플래너와 달리 앱에도 실린다(앱은 게시판 + 가져오기만 갖는다).
 const ItineraryBoard = lazy(() => import('./components/ItineraryBoard'));
 const ItineraryPost = lazy(() => import('./components/ItineraryPost'));
@@ -111,6 +112,8 @@ function App() {
     (async () => {
       const { App: CapApp } = await import('@capacitor/app');
       const h = await CapApp.addListener('backButton', ({ canGoBack }) => {
+        // 열린 창(글쓰기·시트·확인창)이 있으면 그 창부터 닫는다 — 글쓰기 창은 "임시저장하시겠습니까?"를 거친다(2026-09-27)
+        if (handleBack()) return;
         if (window.location.pathname !== '/' && canGoBack) {
           window.history.back();
         } else {

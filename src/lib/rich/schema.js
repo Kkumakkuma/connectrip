@@ -21,6 +21,7 @@ export const LIMITS = Object.freeze({
     galleryMax: 10,
     files: 5,                // 4단계 PDF 에서 사용
     maps: 10,
+    videos: 10,              // 영상 링크(유튜브·인스타그램, 2026-09-27 2단계) — 지도와 따로 센다
     hrefMax: 2048,
     refMax: 2048,
     mapNameMax: 120,
@@ -49,17 +50,20 @@ export const BG_COLORS = Object.freeze([
 ]);
 export const ALIGNS = Object.freeze(['center', 'right']);     // 왼쪽 = 속성 없음
 export const GALLERY_LAYOUTS = Object.freeze(['grid', 'slide', 'strip']);   // 콜라주 · 한 장씩(슬라이드) · 옆으로 나열
+// 영상 링크 제공자(plan_stage2 D장). 원 주소는 저장하지 않고 제공자 + 영상 ID 만 — 화면이 공식 임베드 주소를 조립한다.
+export const VIDEO_PROVIDERS = Object.freeze(['youtube', 'instagram']);
 
 // 노드 분류
 export const CONTAINER_NODES = Object.freeze(['doc', 'blockquote', 'bulletList', 'orderedList', 'listItem']);
 export const TEXT_BLOCK_NODES = Object.freeze(['paragraph', 'heading']);
-export const MEDIA_NODES = Object.freeze(['image', 'gallery', 'file', 'map']);
+// 빈 글 판정에서 "내용"으로 치는 노드(사진·묶음·파일·지도·영상) — 서버 post_body_guard 의 v_media 와 같다
+export const MEDIA_NODES = Object.freeze(['image', 'gallery', 'file', 'map', 'video']);
 
 // 스키마에 정의된 노드 전부(4-3). file 은 자리만 있다 — PDF 첨부(4단계) 스위치 전까지 허용 목록 밖이라
 // 화면 검증(validateDoc)과 서버 검증(rich_doc_check) 모두 거부한다.
 export const NODE_TYPES = Object.freeze([
     'doc', 'paragraph', 'heading', 'blockquote', 'bulletList', 'orderedList', 'listItem',
-    'horizontalRule', 'hardBreak', 'text', 'image', 'gallery', 'file', 'map',
+    'horizontalRule', 'hardBreak', 'text', 'image', 'gallery', 'file', 'map', 'video',
 ]);
 export const FILES_ENABLED = false;
 export const ALLOWED_NODES = Object.freeze(NODE_TYPES.filter((t) => FILES_ENABLED || t !== 'file'));
@@ -80,6 +84,7 @@ export const NODE_KEYS = Object.freeze({
     gallery: ['type', 'attrs'],
     file: ['type', 'attrs'],
     map: ['type', 'attrs'],
+    video: ['type', 'attrs'],
 });
 export const ATTR_KEYS = Object.freeze({
     paragraph: ['textAlign'],
@@ -89,6 +94,7 @@ export const ATTR_KEYS = Object.freeze({
     gallery: ['layout', 'images'],
     file: ['src', 'name', 'size'],
     map: ['placeId', 'name', 'address', 'lat', 'lng', 'url'],
+    video: ['provider', 'id'],
 });
 
 export const MARK_TYPES = Object.freeze(['bold', 'italic', 'underline', 'strike', 'link', 'textStyle']);
@@ -128,6 +134,9 @@ export const RE_SRC = Object.freeze({
     // 지도 원 링크(기록용): api/planner/_url-guard.js 의 구글 호스트·경로 규칙(https·포트 없음·/maps 경로 제한)
     mapUrl: '^https://((maps\\.app\\.goo\\.gl|maps\\.google\\.com)(/[^?#\\x01-\\x20\\x7F]*)?|(goo\\.gl|www\\.google\\.com|google\\.com|www\\.google\\.co\\.kr|google\\.co\\.kr)/maps(/[^?#\\x01-\\x20\\x7F]*)?)([?#][^\\x01-\\x20\\x7F]*)?$',
     placeId: '^[A-Za-z0-9_-]+$',             // 길이는 LIMITS.placeIdMin~Max
+    // 영상 ID: 유튜브 11자, 인스타그램 게시물 코드(shortcode) 5~64자
+    youtubeId: '^[A-Za-z0-9_-]{11}$',
+    instagramId: '^[A-Za-z0-9_-]{5,64}$',
     privateRef: '^sb://post-images/[A-Za-z0-9_.-]+$',
     fileName: '^[A-Za-z0-9_.-]+$',
     // 빈 글 판정: 평문이 WS_CODEPOINTS 문자들뿐이면 빈 글(JS \s 와 같은 집합). 아래에서 코드포인트 목록으로 만든다.

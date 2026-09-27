@@ -11,6 +11,8 @@
 // ("창을 끈 것도 사람이 끈 거다"). 글·원고 저장 요청이 이미 나간 뒤에는 되돌릴 수 없다.
 import { uploadPreparedImage } from './imageUpload';
 import { discardImages } from './imageDiscard';
+import { replaceDocImages, validateDoc } from './rich/doc';
+import { mediaOf } from './rich/schema';
 
 let seq = 0;
 
@@ -120,6 +122,43 @@ export async function saveWithImages({ form, keys, userId, onProgress, upload, d
         return { result, form: next, map, uploaded };
     } catch (err) {
         if (uploaded.length) void discard(uploaded, userId);
+        throw err;
+    }
+}
+
+// ── 서식 문서 저장(2026-09-27 서식 편집기 2단계, plan_stage2 B·J장) ─────────────────────────
+// 편집기 문서에는 대기 사진이 키 문자열('pending:…')로 들어 있다(대기 사진 객체는 편집기의 대기 사진 표에).
+// env: 편집기가 정리한 문서(대기 키 포함), pending: 문서 순서 대기 사진 목록(RichEditor.prepareSave).
+// 순서: 대기 사진 업로드 → 키를 받은 참조로 치환 → 서버와 같은 규칙으로 최종 검증(대기 키 불허) → save(최종 문서).
+// 업로드 뒤 어느 단계든 실패하면(검증 실패·창 닫힘·저장 실패) 이번에 올린 사진을 바로 지운다(codex B5).
+// 반환 { result, env: 최종 문서, map: 키 → 참조, uploaded }.
+export const DOC_INVALID = 'DOC_INVALID';
+export const isDocInvalid = (err) => err?.code === DOC_INVALID;
+
+export async function saveDocWithImages({ env, pending, boardKey, userId, onProgress, upload, discard = discardImages, isCancelled = () => false }, save) {
+    const list = Array.isArray(pending) ? pending.filter(isPendingImage) : [];
+    const { map, uploaded } = list.length
+        ? await uploadPendingImages(list, { userId, onProgress, upload, discard, isCancelled })
+        : { map: new Map(), uploaded: [] };
+    const cleanup = () => { if (uploaded.length) void discard(uploaded, userId); };
+    const finalEnv = map.size ? replaceDocImages(env, map) : env;
+    const check = validateDoc(finalEnv, { mode: mediaOf(boardKey), ownerId: userId });
+    if (!check.ok) {
+        cleanup();
+        const err = new Error(DOC_INVALID);
+        err.code = DOC_INVALID;
+        err.reason = check.reason;
+        throw err;
+    }
+    if (isCancelled()) {
+        cleanup();
+        throw cancelledError();
+    }
+    try {
+        const result = await save(finalEnv);
+        return { result, env: finalEnv, map, uploaded };
+    } catch (err) {
+        cleanup();
         throw err;
     }
 }

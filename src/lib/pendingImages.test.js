@@ -7,6 +7,7 @@ vi.mock('./supabase', () => ({ supabase: { storage: { from: () => ({}) }, auth: 
 const {
     imageItemKey, isImageUploadError, isPendingImage, isSaveCancelled, makePendingImage, notifySaveError, pendingIn, pendingSignature,
     replacePending, replacePendingInForm, saveErrorMessage, saveWithImages, uploadPendingImages, PHOTO_UPLOAD_MESSAGE,
+    saveDocWithImages, isDocInvalid,
 } = await import('./pendingImages');
 const { DRAFT_SPECS } = await import('./draftForms');
 
@@ -49,10 +50,11 @@ describe('대기 사진 값', () => {
     });
     it('임시저장 데이터에는 대기 사진이 들어가지 않는다(참조만)', () => {
         const a = makePendingImage(file('a'), 'post-images');
-        const data = DRAFT_SPECS.qna.toData({ title: 't', content: 'c', image_urls: [REF(1), a], region_id: 'asia', is_private: false });
+        const data = DRAFT_SPECS.crew.toData({ title: 't', content: 'c', image_urls: [REF(1), a], category: 'hotel', airline_id: '' });
         expect(data.image_urls).toEqual([REF(1)]);
         expect(JSON.stringify(data)).not.toContain('pending');
-        expect(DRAFT_SPECS.qna.imageKeys).toEqual(['image_urls']);
+        // 후기·Q&A·자유는 서식 원고(2026-09-27) — 사진은 문서 안에 있고 폼 사진 칸이 없다
+        expect(DRAFT_SPECS.qna.imageKeys).toEqual([]);
         expect(DRAFT_SPECS.promo.imageKeys).toEqual(['image_url']);
         expect(DRAFT_SPECS.market.imageKeys).toEqual(['image_url']);
         expect(DRAFT_SPECS.listing.imageKeys).toEqual(['images']);
@@ -160,5 +162,77 @@ describe('창을 닫으면 멈춘다(isCancelled) — "창을 끈 것도 사람�
         notifySaveError(new Error('db'), '기본');
         expect(alert).toHaveBeenCalledWith('기본');
         vi.unstubAllGlobals();
+    });
+});
+
+// 서식 편집기 문서 저장(2026-09-27 2단계, plan_stage2 B·J장 — codex B5): 업로드 → 치환 → 최종 검증 → 저장.
+// 업로드 뒤 어느 단계든 실패하면 이번에 올린 사진을 바로 지운다.
+describe('saveDocWithImages — 서식 문서 저장 한 번', () => {
+    const UID = '04cfb914-d208-4377-8604-732b25862018';
+    const DREF = (n) => `sb://post-images/${UID}_17000000000${n}_a.jpg`;
+    const docOf = (content) => ({ v: 1, doc: { type: 'doc', content } });
+    const para = { type: 'paragraph', content: [{ type: 'text', text: '글' }] };
+    const setup = () => {
+        const a = makePendingImage(file('a'), 'post-images');
+        const b = makePendingImage(file('b'), 'post-images');
+        const env = docOf([para, { type: 'image', attrs: { src: a.key } }, { type: 'gallery', attrs: { layout: 'grid', images: [DREF(1), b.key] } }]);
+        let n = 5;
+        const upload = vi.fn(async () => DREF((n += 1)));
+        const discard = vi.fn(async () => {});
+        return { a, b, env, upload, discard };
+    };
+    it('대기 사진을 문서 순서대로 올리고 참조로 바꾼 문서를 save 에 넘긴다', async () => {
+        const { a, b, env, upload, discard } = setup();
+        const save = vi.fn(async (d) => ({ id: 1, d }));
+        const out = await saveDocWithImages({ env, pending: [a, b], boardKey: 'review', userId: UID, upload, discard }, save);
+        expect(upload).toHaveBeenCalledTimes(2);
+        expect(save).toHaveBeenCalledTimes(1);
+        const sent = save.mock.calls[0][0];
+        expect(sent.doc.content[1].attrs.src).toBe(DREF(6));
+        expect(sent.doc.content[2].attrs.images).toEqual([DREF(1), DREF(7)]);
+        expect(JSON.stringify(sent)).not.toContain('pending:');
+        expect(out.env).toEqual(sent);
+        expect([...out.map.entries()]).toEqual([[a.key, DREF(6)], [b.key, DREF(7)]]);
+        expect(discard).not.toHaveBeenCalled();
+        expect(env.doc.content[1].attrs.src).toBe(a.key);          // 편집기 쪽 문서(입력)는 그대로 — 성공 뒤에만 편집기가 바꾼다
+    });
+    it('최종 검증에 걸리면(표에 없는 키 등) 저장하지 않고 올린 사진을 지운다 — DOC_INVALID', async () => {
+        const { a, upload, discard } = setup();
+        const env = docOf([para, { type: 'image', attrs: { src: a.key } }, { type: 'image', attrs: { src: 'pending:zzz:9' } }]);
+        const save = vi.fn();
+        const err = await saveDocWithImages({ env, pending: [a], boardKey: 'review', userId: UID, upload, discard }, save).catch((e) => e);
+        expect(isDocInvalid(err)).toBe(true);
+        expect(err.reason).toBe('IMAGE_REF');
+        expect(save).not.toHaveBeenCalled();
+        expect(discard).toHaveBeenCalledWith([DREF(6)], UID);
+    });
+    it('글 저장이 실패하면 올린 사진을 지우고 오류를 그대로 던진다', async () => {
+        const { a, b, env, upload, discard } = setup();
+        const boom = new Error('BAD_BODY_DOC');
+        const err = await saveDocWithImages({ env, pending: [a, b], boardKey: 'review', userId: UID, upload, discard }, async () => { throw boom; }).catch((e) => e);
+        expect(err).toBe(boom);
+        expect(discard).toHaveBeenCalledWith([DREF(6), DREF(7)], UID);
+    });
+    it('업로드가 실패하면 저장하지 않는다(IMAGE_UPLOAD_FAILED), 창을 닫으면 멈춘다(IMAGE_SAVE_CANCELLED)', async () => {
+        const { a, b, env, discard } = setup();
+        const save = vi.fn();
+        const fail = await saveDocWithImages({ env, pending: [a, b], boardKey: 'review', userId: UID, upload: async () => { throw new Error('net'); }, discard }, save).catch((e) => e);
+        expect(isImageUploadError(fail)).toBe(true);
+        expect(save).not.toHaveBeenCalled();
+        let closed = false;
+        const upload = vi.fn(async () => { closed = true; return DREF(6); });
+        const cancel = await saveDocWithImages({ env, pending: [a, b], boardKey: 'review', userId: UID, upload, discard, isCancelled: () => closed }, save).catch((e) => e);
+        expect(isSaveCancelled(cancel)).toBe(true);
+        expect(upload).toHaveBeenCalledTimes(1);
+        expect(save).not.toHaveBeenCalled();
+    });
+    it('사진 없는 문서(Q&A)는 올리지 않고 검증만 거쳐 저장한다', async () => {
+        const env = docOf([para, { type: 'video', attrs: { provider: 'youtube', id: 'dQw4w9WgXcQ' } }]);
+        const upload = vi.fn();
+        const save = vi.fn(async (d) => d);
+        const out = await saveDocWithImages({ env, pending: [], boardKey: 'qna', userId: UID, upload }, save);
+        expect(upload).not.toHaveBeenCalled();
+        expect(out.env).toEqual(env);
+        expect(out.map.size).toBe(0);
     });
 });

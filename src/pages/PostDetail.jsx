@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Heart, Users } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -22,9 +22,11 @@ import CharCount from '../components/board/CharCount';
 import { IMAGES_MAX, TIP_MAX, TITLE_MAX, bodyMaxOf, imagesOf, imagesPatch } from '../lib/postLimits';
 import { useResolvedImages } from '../lib/imageRefs';
 import { useImageSave } from '../lib/useImageSave';
-import { notifySaveError } from '../lib/pendingImages';
+import { PHOTO_UPLOAD_MESSAGE, isImageUploadError, isSaveCancelled, notifySaveError } from '../lib/pendingImages';
 import { discardRemoved } from '../lib/imageDiscard';
-import { prepareRichDoc } from '../lib/rich/doc';
+import { docImages, legacyToDoc, prepareRichDoc, sanitizeDoc } from '../lib/rich/doc';
+import { loadRichEditor } from '../lib/rich/prefetch';
+import { richPostErrorMessage, richSaveMessage } from '../lib/rich/messages';
 import { useDocFonts } from '../lib/rich/fonts';
 import RichBody from '../components/rich/RichBody';
 import CrewBadge from '../components/CrewBadge';
@@ -41,6 +43,10 @@ const BODY_LABEL = { destination: '간단한 설명', review: '후기 내용', q
 const EMPTY_FORM = { title: '', content: '', extra: '', country: '', date: '', members: '', images: [], region_id: '', airline_id: '', category: 'restaurant', is_private: false };
 // qna_posts 를 board 컬럼으로 나눠 쓰는 두 게시판 — 주소의 게시판과 글의 board 가 다를 수 있다
 const QNA_BOARDS = ['qna', 'free'];
+// 서식 편집기로 고치는 게시판(2026-09-27 서식 편집기 2단계). CREW·추천지·동행은 3단계까지 지금 입력칸.
+const RICH_EDIT_BOARDS = ['review', 'qna', 'free'];
+const RichEditor = lazy(loadRichEditor);
+const EDITOR_IDLE = { version: null, blank: true, preparing: false };
 
 // 모든 게시판 공용 상세 페이지(/post/:board/:id, 2026-09-14).
 // 게시판별 차이는 src/lib/boards.js 의 BOARDS[board] 설정만 보고 처리한다.
@@ -60,8 +66,15 @@ const PostDetail = () => {
     const [editing, setEditing] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
     const [pickerError, setPickerError] = useState('');
-    const [preparing, setPreparing] = useState(false);   // 고른 사진 준비(리사이즈) 중
+    const [pickPreparing, setPreparing] = useState(false);   // 고른 사진 준비(리사이즈) 중(입력칸 게시판)
     const [submitting, setSubmitting] = useState(false);
+    // 서식 편집기(후기·Q&A·자유): 손잡이와 편집기 상태. 수정 창을 열 때마다 새 편집기(key).
+    const editorRef = useRef(null);
+    const editorKeyRef = useRef(0);
+    const [editInit, setEditInit] = useState({ key: 0, doc: null });
+    const [ed, setEd] = useState(EDITOR_IDLE);
+    const richEdit = !!config && RICH_EDIT_BOARDS.includes(config.key);
+    const preparing = richEdit ? ed.preparing : pickPreparing;
     // 사진은 저장을 누를 때 올라간다(2026-09-27 지연 업로드). 저장이 성공하면 원래 글에서 뺀 사진을 바로 지운다.
     const photos = useImageSave(user?.id, editing);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -160,6 +173,23 @@ const PostDetail = () => {
     const openEdit = () => {
         if (!config || !post) return;
         setPickerError('');
+        if (RICH_EDIT_BOARDS.includes(config.key)) {
+            // 서식 글이면 그 문서, 옛 글(문서 없음)이면 평문을 문단으로 + 사진을 맨 아래 사진 칸으로(설계 7장).
+            // 저장하면 서식 글이 된다. 게시판 규칙 밖 옛 사진은 옮기지 못한다(안내).
+            let doc;
+            let skipped = 0;
+            if (post[config.docField]) {
+                doc = sanitizeDoc(post[config.docField], config.key, post.user_id);
+            } else {
+                const r = legacyToDoc(post[config.bodyField] || '', config.imagesField ? imagesOf(post) : [], config.key, post.user_id);
+                doc = r.env;
+                skipped = r.skipped;
+            }
+            editorKeyRef.current += 1;
+            setEditInit({ key: editorKeyRef.current, doc });
+            setEd(EDITOR_IDLE);
+            if (skipped > 0) alert(`옮기지 못한 사진 ${skipped}장은 저장하면 빠져요.`);
+        }
         setForm({
             ...EMPTY_FORM,
             title: post[config.titleField] || '',
@@ -177,10 +207,53 @@ const PostDetail = () => {
         setEditing(true);
     };
 
+    // 서식 편집기 게시판 수정 저장: 문서만 보낸다(평문·사진 칸은 서버가 문서에서 만든다 — 보내면 서버가 거부한다)
+    const submitRichEdit = async () => {
+        const h = editorRef.current;
+        if (!h) return;
+        const f = form;
+        const before = config.imagesField && post ? imagesOf(post) : [];   // 수정 전 글의 사진
+        const from = routeKey;
+        setSubmitting(true);
+        let s = null;
+        try {
+            s = await h.prepareSave();
+            if (s.error) {
+                const msg = richSaveMessage(s);
+                if (msg) alert(msg);
+                s = null;
+                return;
+            }
+            if (s.blank) { alert('내용을 입력해 주세요.'); return; }
+            const out = await photos.runDoc('submit', { env: s.env, pending: s.pending, boardKey: config.key }, (env) => {
+                const patch = { [config.titleField]: f.title.trim(), [config.docField]: env };
+                if (config.hasRegion) patch.region_id = f.region_id;
+                if (canSetPrivate(config, post)) Object.assign(patch, visibilityPatch(post.is_private, f.is_private));
+                return config.api.update(id, patch);
+            });
+            h.finishSave(s.token, { savedEnv: out.env, map: out.map });
+            s = null;
+            // 저장 성공 — 원래 글에 있다가 뺀 사진을 지운다(다른 곳에서 쓰면 서버가 남긴다)
+            if (config.imagesField) void discardRemoved(before, docImages(out.env), user?.id);
+            if (from !== routeRef.current) return;
+            setPost(out.result);
+            setEditing(false);
+        } catch (err) {
+            console.error('수정 실패:', err);
+            if (!isSaveCancelled(err)) {
+                alert(isImageUploadError(err) ? PHOTO_UPLOAD_MESSAGE : richPostErrorMessage(err, '수정에 실패했습니다.'));
+            }
+        } finally {
+            if (s?.token) h.finishSave(s.token, null);
+            setSubmitting(false);
+        }
+    };
+
     const submitEdit = async (e) => {
         e.preventDefault();
         if (submitting || preparing || photos.busy) return;
         if (config.hasRegion && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
+        if (RICH_EDIT_BOARDS.includes(config.key)) { await submitRichEdit(); return; }
         const usesAirline = config.hasAirline && p?.post_type === config.airlinePostType;
         const buildPatch = (f) => {
             const patch = {
@@ -381,6 +454,7 @@ const PostDetail = () => {
                 <WriteModal
                     open={editing}
                     title="수정"
+                    fitKeyboard={richEdit}
                     onClose={() => setEditing(false)}
                     footer={
                         <>
@@ -437,17 +511,37 @@ const PostDetail = () => {
                                 </select>
                             </div>
                         )}
+                        {richEdit ? (
+                            <div>
+                                <p className="block text-sm font-bold text-ink mb-1.5">{BODY_LABEL[config.key] || '내용'}</p>
+                                <Suspense fallback={<div className="h-72 rounded-md border border-hairline bg-surface-soft" aria-busy="true" />}>
+                                    <RichEditor
+                                        key={editInit.key}
+                                        handleRef={editorRef}
+                                        instanceKey={editInit.key}
+                                        initialDoc={editInit.doc}
+                                        boardKey={config.key}
+                                        userId={user?.id}
+                                        maxChars={bodyMaxOf(config.key)}
+                                        ariaLabel={BODY_LABEL[config.key] || '내용'}
+                                        placeholder="내용을 입력해 주세요"
+                                        onState={setEd}
+                                    />
+                                </Suspense>
+                            </div>
+                        ) : (
                         <div>
-                            <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">{BODY_LABEL[config.key] || '내용'}</label>
-                            {config.key === 'destination' ? (
-                                <input id={`${formId}-content`} type="text" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air" maxLength={bodyMaxOf('destination')} required />
-                            ) : (
-                                <>
-                                    <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-y" rows={10} maxLength={bodyMaxOf(config.key)} aria-describedby={`${formId}-content-count`} required />
-                                    <CharCount id={`${formId}-content-count`} value={form.content} max={bodyMaxOf(config.key)} />
-                                </>
-                            )}
-                        </div>
+                                <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">{BODY_LABEL[config.key] || '내용'}</label>
+                                {config.key === 'destination' ? (
+                                    <input id={`${formId}-content`} type="text" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air" maxLength={bodyMaxOf('destination')} required />
+                                ) : (
+                                    <>
+                                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-y" rows={10} maxLength={bodyMaxOf(config.key)} aria-describedby={`${formId}-content-count`} required />
+                                        <CharCount id={`${formId}-content-count`} value={form.content} max={bodyMaxOf(config.key)} />
+                                    </>
+                                )}
+                            </div>
+                        )}
                         {config.extraField && (
                             <div>
                                 <label htmlFor={`${formId}-extra`} className="block text-sm font-bold text-ink mb-1.5">{config.extraLabel}</label>
@@ -455,7 +549,7 @@ const PostDetail = () => {
                                 <CharCount id={`${formId}-extra-count`} value={form.extra} max={TIP_MAX} />
                             </div>
                         )}
-                        {config.imagesField && (
+                        {config.imagesField && !richEdit && (
                             <MultiImageField
                                 label="사진"
                                 images={form.images}

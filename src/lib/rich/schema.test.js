@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
     ALIGNS, ALLOWED_NODES, BG_COLORS, BOARD_MEDIA, COLORS, FONT_SIZES, FONT_TOKENS, GALLERY_LAYOUTS, LIMITS,
-    PUBLIC_IMAGE_PREFIX, RE, RE_SRC, TABLE_MEDIA, WS_CODEPOINTS,
+    MEDIA_NODES, PUBLIC_IMAGE_PREFIX, RE, RE_SRC, TABLE_MEDIA, VIDEO_PROVIDERS, WS_CODEPOINTS,
 } from './schema';
 import { IMAGES_MAX } from '../postLimits';
 import { BOARDS } from '../boards';
@@ -11,6 +11,7 @@ import { BOARDS } from '../boards';
 const SQL = readFileSync(new URL('../rich_body_20260926.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const ROLLBACK = readFileSync(new URL('../rich_body_rollback_20260926.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const PRIVATE_SQL = readFileSync(new URL('../images_private_cleanup_20260926.sql', import.meta.url), 'utf8');
+const VIDEO_SQL = readFileSync(new URL('../rich_video_20260927.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 const constant = (name) => {
     const m = new RegExp(`^\\s*${name}\\s+CONSTANT\\s+\\S+\\s*:=\\s*(.+);`, 'm').exec(SQL);
@@ -142,5 +143,36 @@ describe('schema.js ↔ SQL 값 대조', () => {
         const body = ROLLBACK.slice(ROLLBACK.indexOf('BEGIN;'));
         const firstStmt = body.split('\n').find((l) => l.trim() && !l.startsWith('--') && l.trim() !== 'BEGIN;' && !l.startsWith('SET LOCAL'));
         expect(firstStmt).toMatch(/^LOCK TABLE public\.reviews, public\.crew_posts, public\.destinations, public\.qna_posts, public\.companion_posts, public\.post_drafts/);
+    });
+});
+
+// 영상 노드(2026-09-27, rich_video_20260927.sql). 운영 상태 파일(rich_body_20260926.sql)의 함수 본문과 대조한다.
+describe('영상 노드 — schema.js ↔ SQL', () => {
+    it('한도·제공자·ID 정규식이 같다', () => {
+        expect(intConst('c_videos')).toBe(LIMITS.videos);
+        expect(arrayConst('c_video_providers')).toEqual([...VIDEO_PROVIDERS]);
+        expect(textConst('c_re_youtube_id')).toBe(RE_SRC.youtubeId);
+        expect(textConst('c_re_instagram_id')).toBe(RE_SRC.instagramId);
+        expect(MEDIA_NODES).toContain('video');           // 빈 글 판정에서 내용으로 센다(서버 v_media)
+        expect(ALLOWED_NODES).toContain('video');
+    });
+    it('마이그레이션의 새 조각이 운영 상태 파일 함수 본문에 정확히 한 번씩 들어 있다(파일 = 운영 상태)', () => {
+        // E'...' 문자열(|| 로 이어진 것 포함)을 풀어 새 조각을 만든다
+        const unquote = (lit) => lit.replace(/''/g, "'").replace(/\\n/g, '\n');
+        const body = VIDEO_SQL.slice(VIDEO_SQL.indexOf('v_pairs text[][] := ARRAY['), VIDEO_SQL.indexOf('  ];\n  i int;'));
+        const pairs = [...body.matchAll(/ARRAY\[\s*((?:E'(?:[^']|'')*'\s*(?:\|\|\s*)?)+),\s*((?:E'(?:[^']|'')*'\s*(?:\|\|\s*)?)+)\s*\]/g)]
+            .map((m) => [m[1], m[2]].map((part) => [...part.matchAll(/E'((?:[^']|'')*)'/g)].map((x) => unquote(x[1])).join('')));
+        expect(pairs).toHaveLength(5);
+        const fn = SQL.slice(SQL.indexOf('CREATE OR REPLACE FUNCTION public.rich_doc_check('), SQL.indexOf('REVOKE ALL ON FUNCTION public.post_public_image_ok'));
+        for (const [, next] of pairs) {
+            expect(fn.split(next).length - 1, next.slice(0, 60)).toBe(1);
+        }
+        // video 분기는 file 분기 바로 앞, 사진 규칙(p_mode) 검사를 하지 않는다
+        const video = fn.slice(fn.indexOf("    WHEN 'video' THEN"), fn.indexOf("    WHEN 'file' THEN"));
+        expect(video).toContain("DETAIL = 'VIDEO'");
+        expect(video).toContain("DETAIL = 'VIDEO_ID'");
+        expect(video).toContain("DETAIL = 'TOO_MANY_VIDEOS'");
+        expect(video).toContain('v_media := v_media + 1;');
+        expect(video).not.toMatch(/IF p_mode|MEDIA_NOT_ALLOWED/);
     });
 });

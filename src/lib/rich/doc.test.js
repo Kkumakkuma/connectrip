@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-    docImages, docMaps, docToPlain, imageRefOk, isDocEmpty, isPreparedDoc, jsonbTextBytes, normalizeHref, plainToDoc,
-    prepareRichDoc, safeHref, sanitizeDoc, validateDoc,
+    docImages, docMaps, docToPlain, imageRefOk, isDocEmpty, isPreparedDoc, jsonbTextBytes, legacyToDoc, normalizeHref, plainToDoc,
+    prepareRichDoc, replaceDocImages, safeHref, sanitizeDoc, validateDoc,
 } from './doc';
 import { LIMITS, PUBLIC_IMAGE_PREFIX } from './schema';
 import { preloadDocFonts, ensureFontCss } from './fonts';
@@ -291,5 +291,63 @@ describe('sanitizeDoc — 편집기·원고 JSON 을 규칙 안으로', () => {
         const out = sanitizeDoc(env([{ type: 'image', attrs: { src: priv(1) } }, p(t('글'))]), 'qna', OWNER);
         expect(out.doc.content).toEqual([p(t('글'))]);
         expect(sanitizeDoc(null, 'qna', OWNER)).toEqual({ v: 1, doc: { type: 'doc', content: [{ type: 'paragraph' }] } });
+    });
+});
+
+describe('서식 편집기 2단계(2026-09-27) — 영상·대기 사진 키·지워진 사진·옛 글 변환', () => {
+    const yt = (id = 'dQw4w9WgXcQ') => ({ type: 'video', attrs: { provider: 'youtube', id } });
+    it('영상은 사진 없는 게시판(Q&A·자유)에서도 남고, 11번째·규칙 밖 영상은 정리에서 빠진다', () => {
+        const d = sanitizeDoc(env([p(t('글')), yt(), { type: 'video', attrs: { provider: 'vimeo', id: 'x' } }]), 'qna', OWNER);
+        expect(d.doc.content).toEqual([p(t('글')), yt()]);
+        expect(v(d, 'none').ok).toBe(true);
+        const many = Array.from({ length: 11 }, (_, i) => yt(`vid${String(i).padStart(8, '0')}`));
+        expect(sanitizeDoc(env(many), 'qna', OWNER).doc.content).toHaveLength(10);
+        // 인용구 안 영상은 제자리에 둘 수 없어 버린다
+        expect(sanitizeDoc(env([{ type: 'blockquote', content: [p(t('a')), yt()] }]), 'qna', OWNER).doc.content)
+            .toEqual([{ type: 'blockquote', content: [p(t('a'))] }]);
+    });
+    it('영상만 있는 글은 빈 글이 아니다(서버 v_media 와 같다), 평문은 비어 있다', () => {
+        const d = env([yt()]);
+        expect(isDocEmpty(d)).toBe(false);
+        expect(docToPlain(d)).toBe('');
+        expect(v(d).media).toBe(1);
+    });
+    it('대기 사진 키: pendingOk 가 참일 때만 사진 자리에 남는다(최종 검증은 받지 않는다)', () => {
+        const key = 'pending:abc:1';
+        const raw = env([p(t('a')), { type: 'image', attrs: { src: key } }, { type: 'gallery', attrs: { layout: 'slide', images: [priv(1), 'pending:abc:2'] } }]);
+        expect(sanitizeDoc(raw, 'review', OWNER).doc.content).toEqual([p(t('a')), { type: 'image', attrs: { src: priv(1) } }]);
+        const kept = sanitizeDoc(raw, 'review', OWNER, { pendingOk: (r) => r.startsWith('pending:') });
+        expect(kept.doc.content).toEqual(raw.doc.content);
+        expect(v(kept, 'private').ok).toBe(false);          // 키가 남은 문서는 저장할 수 없다
+        const map = new Map([[key, priv(8)], ['pending:abc:2', priv(9)]]);
+        const done = replaceDocImages(kept, map);
+        expect(done.doc.content[1]).toEqual({ type: 'image', attrs: { src: priv(8) } });
+        expect(done.doc.content[2].attrs.images).toEqual([priv(1), priv(9)]);
+        expect(v(done, 'private').ok).toBe(true);
+        expect(kept.doc.content[1].attrs.src).toBe(key);    // 입력은 바꾸지 않는다
+        // 사진 없는 게시판은 대기 키도 받지 않는다
+        expect(sanitizeDoc(raw, 'qna', OWNER, { pendingOk: () => true }).doc.content).toEqual([p(t('a'))]);
+    });
+    it('지워진 사진(dead)은 정리에서 빠진다 — 묶음은 남은 장수 규칙', () => {
+        const raw = env([{ type: 'image', attrs: { src: priv(1) } }, { type: 'gallery', attrs: { layout: 'grid', images: [priv(2), priv(3)] } }]);
+        const d = sanitizeDoc(raw, 'review', OWNER, { dead: new Set([priv(1), priv(3)]) });
+        expect(d.doc.content).toEqual([{ type: 'image', attrs: { src: priv(2) } }]);
+    });
+    it('옛 평문 글 → 문단 + 맨 아래 단일 사진 칸(규칙 밖 사진은 세어서 알려 준다)', () => {
+        const r = legacyToDoc('첫 줄\n\n셋째 줄', [priv(1), priv(1), priv(2, OTHER), 'https://evil.com/x.jpg', priv(3)], 'review', OWNER);
+        expect(r.env.doc.content).toEqual([
+            p(t('첫 줄')), p(), p(t('셋째 줄')),
+            { type: 'image', attrs: { src: priv(1) } },
+            { type: 'image', attrs: { src: priv(3) } },
+        ]);
+        expect(r.skipped).toBe(2);
+        expect(v(r.env, 'private').ok).toBe(true);
+        expect(docToPlain(r.env)).toBe('첫 줄\n\n셋째 줄');
+        // 사진이 20장을 넘으면 20장까지
+        const many = Array.from({ length: 22 }, (_, i) => `sb://post-images/${OWNER}_1700000000${String(i).padStart(3, '0')}_a.jpg`);
+        const big = legacyToDoc('', many, 'review', OWNER);
+        expect(big.env.doc.content.filter((n) => n.type === 'image')).toHaveLength(LIMITS.images);
+        expect(big.skipped).toBe(2);
+        expect(v(big.env, 'private').ok).toBe(true);
     });
 });

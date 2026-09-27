@@ -3,6 +3,7 @@
 
 import { IMAGES_MAX } from './postLimits';
 import { isImageRef } from './imageRefs';
+import { legacyToDoc, sanitizeDoc } from './rich/doc';
 
 const str = (v) => (v == null ? '' : String(v));
 // 사진 값: 공개 주소(http/https) 또는 비공개 참조(sb://post-images/…, 후기·CREW 2026-09-26). blob:·data:·아직 안 올린 대기 사진은 버린다.
@@ -50,14 +51,53 @@ const withCover = (spec) => ({
     },
 });
 
+// 서식 원고(2026-09-27 서식 편집기 2단계, 설계 plan_v3 8-1 · v3.1 5장 · plan_stage2 F장).
+// 본문은 편집기가 쥔 서식 문서다(폼에는 문서 외 칸만). 저장 데이터 = { fmt: 2, 문서 외 칸, doc: 최종 문서 }.
+// 평문(content)·사진 칸(image_urls·image_url)은 적지 않는다 — 서식을 모르는 옛 화면의 덮어쓰기는 서버 원고 가드가 막는다.
+//  - toData(form, doc): 저장할 데이터. doc = 대기 사진이 올라가 참조로 바뀐 최종 문서(useImageSave.runDoc 결과).
+//  - sigOf(form): "저장 안 한 내용" 비교값 중 문서 외 칸 부분(문서는 편집기 version 으로 비교 — 8-4).
+//  - fromData(data, { boardKey, ownerId }): { form, doc }. 서식 원고면 그 문서를 정리해서(남의 사진·대기 키는 빠진다),
+//    옛 원고(fmt 없음)면 legacy.migrate → 평문을 문단으로 + 사진을 맨 아래 사진 노드로(게시판 규칙 통과분만).
+//  - isBlank(form, docBlank): 문서 외 content 칸이 비었고 편집기 문서도 비었으면 빈 원고.
+export const isRichDraftData = (data) => String(data?.fmt ?? '') === '2';
+
+const makeRichSpec = ({ empty, content = ['title'], bools = [], legacy }) => {
+    const cleanForm = (src) => {
+        const out = {};
+        for (const k of Object.keys(empty)) {
+            const v = src?.[k];
+            out[k] = bools.includes(k) ? !!v : v == null ? empty[k] : str(v);
+        }
+        return out;
+    };
+    return {
+        rich: true,
+        empty,
+        imageKeys: [],
+        toData: (form, doc) => ({ fmt: 2, ...cleanForm(form), doc: doc ?? null }),
+        sigOf: (form) => JSON.stringify(cleanForm(form)),
+        fromData: (data, { boardKey, ownerId } = {}) => {
+            const d = data && typeof data === 'object' ? data : {};
+            const form = cleanForm({ ...empty, ...d });
+            if (isRichDraftData(d) && d.doc && typeof d.doc === 'object') {
+                return { form, doc: sanitizeDoc(d.doc, boardKey, ownerId), skipped: 0 };
+            }
+            const m = legacy.migrate(d);
+            const { env, skipped } = legacyToDoc(str(m[legacy.content]), m[legacy.images], boardKey, ownerId);
+            return { form, doc: env, skipped };
+        },
+        isBlank: (form, docBlank) => docBlank !== false && content.every((k) => str(form?.[k]).trim() === ''),
+    };
+};
+
 export const DRAFT_SPECS = {
-    // 여행후기 및 Q&A(후기·Q&A·자유) — TravelQnA
-    qna: withCover(makeSpec({
-        empty: { title: '', content: '', image_urls: [], region_id: '', is_private: false },
-        content: ['title', 'content', 'image_urls'],
-        lists: ['image_urls'], maxList: IMAGES_MAX, bools: ['is_private'],
-        migrate: legacyImage,
-    })),
+    // 여행후기 및 Q&A(후기·Q&A·자유) — TravelQnA. 서식 편집기(2단계). 후기만 사진(boards.js media private).
+    qna: makeRichSpec({
+        empty: { title: '', region_id: '', is_private: false },
+        content: ['title'],
+        bools: ['is_private'],
+        legacy: { content: 'content', images: 'image_urls', migrate: legacyImage },
+    }),
     // 여행상품 홍보 및 후기 — Promotions
     promo: makeSpec({
         empty: { title: '', content: '', image_url: '', is_private: false },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MessageSquare, HelpCircle, Plus, BookOpen, Heart } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
@@ -23,12 +23,12 @@ import WriteModal from './board/WriteModal';
 import Pagination from './Pagination';
 import ListState from './ListState';
 import CrewBadge from './CrewBadge';
-import MultiImageField from './board/MultiImageField';
 import ResolvedImg from './board/ResolvedImg';
-import CharCount from './board/CharCount';
-import { IMAGES_MAX, TITLE_MAX, bodyMaxOf, imagesPatch } from '../lib/postLimits';
+import { TITLE_MAX, bodyMaxOf } from '../lib/postLimits';
 import { useImageSave } from '../lib/useImageSave';
-import { notifySaveError } from '../lib/pendingImages';
+import { PHOTO_UPLOAD_MESSAGE, isImageUploadError, isSaveCancelled } from '../lib/pendingImages';
+import { loadRichEditor, prefetchRichEditor, prefetchRichEditorWhenIdle } from '../lib/rich/prefetch';
+import { richPostErrorMessage, richSaveMessage } from '../lib/rich/messages';
 import LoginPrompt from './LoginPrompt';
 import SEOHead from './SEOHead';
 
@@ -39,7 +39,10 @@ const TABS = [
 ];
 const PAGE_REVIEW = 12;
 const PAGE_QNA = 10;
-const EMPTY_FORM = { title: '', content: '', image_urls: [], region_id: '', is_private: false };
+// 본문은 서식 편집기가 쥔다(2026-09-27 서식 편집기 2단계). 폼에는 문서 외 칸만.
+const EMPTY_FORM = { title: '', region_id: '', is_private: false };
+const RichEditor = lazy(loadRichEditor);
+const EDITOR_IDLE = { version: null, blank: true, preparing: false };
 const WRITE_LABEL = { review: '후기 쓰기', qna: '질문하기', free: '글쓰기' };
 const MODAL_TITLE = { review: '여행 후기 작성', qna: '질문 작성', free: '자유게시판 글쓰기' };
 const CONTENT_LABEL = { review: '후기 내용', qna: '질문 내용', free: '내용' };
@@ -66,7 +69,12 @@ const TravelQnA = () => {
     const [showModal, setShowModal] = useState(false);
     const [showLoginPrompt, setShowLoginPrompt] = useState(false);
     const [form, setForm] = useState(EMPTY_FORM);
-    const [preparing, setPreparing] = useState(false);   // 고른 사진 준비(리사이즈) 중
+    // 서식 편집기: 손잡이(ref)와 편집기가 알려 주는 상태. 원고를 불러오면 새 편집기(key)로 다시 연다.
+    const editorRef = useRef(null);
+    const editorKeyRef = useRef(0);
+    const [editorInit, setEditorInit] = useState({ key: 0, doc: null });
+    const [ed, setEd] = useState(EDITOR_IDLE);
+    const preparing = ed.preparing;                       // 고른 사진 준비(리사이즈) 중
     const [submitting, setSubmitting] = useState(false);
     const [pickerError, setPickerError] = useState('');
     const formId = useId();
@@ -74,7 +82,20 @@ const TravelQnA = () => {
     const photos = useImageSave(user?.id, showModal);
     // 임시저장(2026-09-25): 탭(후기·Q&A·자유)마다 따로. "임시저장" 버튼으로 서버에 저장, 글쓰기 창 위 "불러오기"로 고른다.
     const drafts = usePostDrafts({ board: `qna:${mode}`, open: showModal, userId: user?.id });
-    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog, takeTicket, consumeDraft, draftBusyLabel } = useDraftActions({ drafts, spec: DRAFT_SPECS.qna, form, setForm, blocked: preparing || submitting || photos.busy, photos });
+    const openEditor = useCallback((doc) => {
+        editorKeyRef.current += 1;
+        setEditorInit({ key: editorKeyRef.current, doc });
+        return `${editorKeyRef.current}:0`;
+    }, []);
+    const rich = {
+        handle: () => editorRef.current,
+        version: ed.version,
+        blank: ed.blank,
+        boardKey: mode,
+        ownerId: user?.id,
+        loadDoc: openEditor,
+    };
+    const { saveDraft, loadDraft, removeDraft, requestClose, closeDialog, takeTicket, consumeDraft, draftBusyLabel } = useDraftActions({ drafts, spec: DRAFT_SPECS.qna, form, setForm, blocked: preparing || submitting || photos.busy, photos, rich });
     const reqRef = useRef(0);
     const modeRef = useRef(mode);               // 등록 응답이 늦게 와도 그 사이 바뀐 탭에 남의 글을 끼워넣지 않는다
     useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -127,11 +148,15 @@ const TravelQnA = () => {
 
     useEffect(() => { load(); }, [load]);
     useEffect(() => { setPage(1); }, [q, region, mode]);
+    // 편집기 청크는 목록이 뜬 뒤 한가할 때 미리 받아 둔다(설계 6-1)
+    useEffect(() => prefetchRichEditorWhenIdle(), []);
 
     const openWrite = () => {
         if (!isLoggedIn) { setShowLoginPrompt(true); return; }
         setPickerError('');
         setForm({ ...EMPTY_FORM, region_id: mode === 'review' ? (region || '') : '' });
+        setEd(EDITOR_IDLE);
+        openEditor(null);
         setShowModal(true);
     };
 
@@ -141,28 +166,41 @@ const TravelQnA = () => {
         if (submitting || preparing || photos.busy || drafts.busy) return;
         if (mode === 'review' && !continentOf(form.region_id)) { setPickerError('말머리를 선택해 주세요.'); return; }
         if (!requireNickname(() => submit())) return;
+        const h = editorRef.current;
+        if (!h) return;
         const draftTicket = takeTicket();   // 불러온 임시저장 글 — 등록되면 그 버전만 지운다
+        const f = form;
         setSubmitting(true);
+        let s = null;
         try {
-            let created;
-            let saved = form;
-            if (mode === 'review') {
-                // 고른 사진을 먼저 올리고(실패하면 등록하지 않음) 받은 참조로 등록한다. 등록이 실패하면 올린 사진은 바로 지운다.
-                const out = await photos.run('submit', form, ['image_urls'], (f) => reviewsApi.create({
-                    user_id: user.id, type: 'review', region_id: f.region_id,
-                    title: f.title.trim(), description: f.content.trim(), ...imagesPatch(f.image_urls),
-                    is_private: !!f.is_private,               // 나만 보기(2026-09-25) — RLS 로 작성자에게만 보인다
-                    author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
-                }));
-                created = out.result;
-                saved = out.form;
-            } else {
-                created = await qnaApi.create({
-                    title: form.title.trim(), content: form.content.trim(), board: mode,
-                    author_name: profile?.nickname || null, user_id: user.id,
-                });
+            // 조합 중인 글자를 확정하고 편집기를 잠근 뒤(저장이 끝날 때까지 글·사진이 바뀌지 않게) 문서를 받는다
+            s = await h.prepareSave();
+            if (s.error) {
+                const msg = richSaveMessage(s);
+                if (msg) alert(msg);
+                s = null;
+                return;
             }
-            consumeDraft(draftTicket, saved);
+            if (s.blank) { alert('내용을 입력해 주세요.'); return; }
+            // 고른 사진을 먼저 올리고(실패하면 등록하지 않음) 받은 참조로 바꾼 문서를 서버와 같은 규칙으로 확인한 뒤 등록한다.
+            // 등록이 실패하면 올린 사진은 바로 지운다. 평문·사진 칸은 보내지 않는다 — 서버가 문서에서 만든다.
+            const out = await photos.runDoc('submit', { env: s.env, pending: s.pending, boardKey: mode }, (env) => (
+                mode === 'review'
+                    ? reviewsApi.create({
+                        user_id: user.id, type: 'review', region_id: f.region_id,
+                        title: f.title.trim(), description_doc: env,
+                        is_private: !!f.is_private,               // 나만 보기(2026-09-25) — RLS 로 작성자에게만 보인다
+                        author_name: profile?.nickname || null,   // 서버 트리거가 profiles.nickname 으로 덮어쓴다
+                    })
+                    : qnaApi.create({
+                        title: f.title.trim(), content_doc: env, board: mode,
+                        author_name: profile?.nickname || null, user_id: user.id,
+                    })
+            ));
+            h.finishSave(s.token, { savedEnv: out.env, map: out.map });
+            s = null;
+            const created = out.result;
+            consumeDraft(draftTicket, { ...f, doc: out.env });
             // 등록하는 사이 탭이 바뀌었으면 목록에 끼워넣지 않는다(그 탭 글이 아니다)
             if (modeRef.current === mode) {
                 if (mode === 'review' && region && region !== created.region_id) setRegion(created.region_id);
@@ -171,8 +209,11 @@ const TravelQnA = () => {
             setShowModal(false);
         } catch (err) {
             console.error('등록 실패:', err);
-            notifySaveError(err, '등록에 실패했습니다. 다시 시도해주세요.');
+            if (!isSaveCancelled(err)) {
+                alert(isImageUploadError(err) ? PHOTO_UPLOAD_MESSAGE : richPostErrorMessage(err, '등록에 실패했습니다. 다시 시도해주세요.'));
+            }
         } finally {
+            if (s?.token) h.finishSave(s.token, null);
             setSubmitting(false);
         }
     };
@@ -191,7 +232,7 @@ const TravelQnA = () => {
             <BoardShell
                 id="qna"
                 title="여행후기 및 Q&A"
-                action={<button type="button" onClick={openWrite} className="btn-air-primary"><Plus size={16} /> {WRITE_LABEL[mode]}</button>}
+                action={<button type="button" onClick={openWrite} onPointerEnter={prefetchRichEditor} onTouchStart={prefetchRichEditor} className="btn-air-primary"><Plus size={16} /> {WRITE_LABEL[mode]}</button>}
                 tabs={<BoardTabs items={TABS} value={mode} onChange={setTab} />}
                 bar={mode === 'review' ? <ContinentBar value={region} onChange={setRegion} /> : null}
                 search={<SearchPill value={qInput} onChange={setQInput} placeholder="제목, 내용 검색" className="max-w-md" />}
@@ -247,6 +288,7 @@ const TravelQnA = () => {
             <WriteModal
                 open={showModal}
                 title={MODAL_TITLE[mode]}
+                fitKeyboard
                 onClose={() => requestClose(() => setShowModal(false))}
                 footer={
                     <>
@@ -268,19 +310,22 @@ const TravelQnA = () => {
                         <input id={`${formId}-title`} type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-air" maxLength={TITLE_MAX} required />
                     </div>
                     <div>
-                        <label htmlFor={`${formId}-content`} className="block text-sm font-bold text-ink mb-1.5">{CONTENT_LABEL[mode]}</label>
-                        <textarea id={`${formId}-content`} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-air resize-y" rows={10} maxLength={bodyMaxOf(mode)} aria-describedby={`${formId}-content-count`} required />
-                        <CharCount id={`${formId}-content-count`} value={form.content} max={bodyMaxOf(mode)} />
+                        <p id={`${formId}-content-label`} className="block text-sm font-bold text-ink mb-1.5">{CONTENT_LABEL[mode]}</p>
+                        <Suspense fallback={<div className="h-72 rounded-md border border-hairline bg-surface-soft" aria-busy="true" />}>
+                            <RichEditor
+                                key={editorInit.key}
+                                handleRef={editorRef}
+                                instanceKey={editorInit.key}
+                                initialDoc={editorInit.doc}
+                                boardKey={mode}
+                                userId={user?.id}
+                                maxChars={bodyMaxOf(mode)}
+                                ariaLabel={CONTENT_LABEL[mode]}
+                                placeholder="내용을 입력해 주세요"
+                                onState={setEd}
+                            />
+                        </Suspense>
                     </div>
-                    {mode === 'review' && (
-                        <MultiImageField
-                            images={form.image_urls}
-                            onChange={(next) => setForm((f) => ({ ...f, image_urls: typeof next === 'function' ? next(f.image_urls) : next }))}
-                            max={IMAGES_MAX}
-                            onPreparingChange={setPreparing}
-                            bucket="post-images"
-                        />
-                    )}
                     {mode === 'review' && (
                         <VisibilityPicker name={`${formId}-visibility`} value={form.is_private} onChange={(v) => setForm((f) => ({ ...f, is_private: v }))} />
                     )}

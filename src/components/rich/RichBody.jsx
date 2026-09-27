@@ -4,6 +4,7 @@ import { isPreparedDoc, safeHref } from '../../lib/rich/doc';
 import { ALIGNS, BG_COLORS, COLORS, FONT_FAMILIES, FONT_SIZES } from '../../lib/rich/schema';
 import RichGallery from './RichGallery';
 import RichMap from './RichMap';
+import RichVideo from './RichVideo';
 
 // 서식 글 본문 읽기 전용 렌더러(2026-09-26 서식 편집기 1단계, 설계 plan_v3 5장).
 // - prepareRichDoc(src/lib/rich/doc.js)이 검증하고 표식을 단 값만 그린다. 표식이 없거나(검증 안 된 원본) 검증에
@@ -100,6 +101,8 @@ function renderBlock(n, key, ctx) {
             );
         case 'map':
             return <RichMap key={key} attrs={n.attrs} />;
+        case 'video':
+            return <RichVideo key={key} attrs={n.attrs} />;
         default:
             return null;      // file 등 — 검증을 통과했다면 오지 않는다
     }

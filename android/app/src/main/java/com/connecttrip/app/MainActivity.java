@@ -50,6 +50,9 @@ public class MainActivity extends BridgeActivity {
     private static void applyBars(View v, WindowInsetsCompat windowInsets) {
         Insets bars = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-        v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+        // 키보드(IME)가 올라오면 그 높이만큼 아래 여백 — edge-to-edge 에서는 adjustResize 가 먹지 않아 웹 화면이 키보드
+        // 뒤까지 그대로 남고, 글쓰기 창의 쓰는 줄·등록 단추가 키보드에 가렸다(2026-09-27 에뮬레이터 실측, 설계 6-9).
+        Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+        v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
     }
 }

@@ -1,5 +1,5 @@
 {
- "source": "운영 DB(owhtldabzcvavsazdufy) BEGIN…ROLLBACK 리허설 2026-09-26 — rich_doc_plain / octet_length(doc::text) / rich_doc_images / rich_doc_check(doc, mode, owner) 결과. 함수 본문 md5 는 src/lib/rich_body_20260926.sql 과 일치 확인.",
+ "source": "운영 DB(owhtldabzcvavsazdufy) BEGIN…ROLLBACK 리허설 2026-09-26 — rich_doc_plain / octet_length(doc::text) / rich_doc_images / rich_doc_check(doc, mode, owner) 결과. 함수 본문 md5 는 src/lib/rich_body_20260926.sql 과 일치 확인. / 2026-09-27 영상 노드(rich_video_20260927.sql) 표본 15건: 운영 DB 리허설(마이그레이션 적용 → 전 표본 실행 → 예외로 되돌림)에서 받은 값. 적용 뒤 함수 본문 md5 7516a48a… = rich_body_20260926.sql, 기존 표본 결과 불변.",
  "owner": "11111111-1111-4111-8111-111111111111",
  "results": {
   "simple": {
@@ -529,6 +529,118 @@
    "images": [],
    "ok": false,
    "reason": "MAP_PLACE"
+  },
+  "video-youtube-only": {
+   "plain": "",
+   "bytes": 119,
+   "images": [],
+   "ok": true,
+   "reason": null,
+   "media": 1
+  },
+  "video-instagram": {
+   "plain": "인스타",
+   "bytes": 196,
+   "images": [],
+   "ok": true,
+   "reason": null,
+   "media": 1
+  },
+  "video-strip-gallery-map": {
+   "plain": "글",
+   "bytes": 501,
+   "images": [
+    "sb://post-images/11111111-1111-4111-8111-111111111111_170000000001_abc.jpg",
+    "sb://post-images/11111111-1111-4111-8111-111111111111_170000000002_abc.jpg"
+   ],
+   "ok": true,
+   "reason": null,
+   "media": 3
+  },
+  "video-10-ok": {
+   "plain": "",
+   "bytes": 785,
+   "images": [],
+   "ok": true,
+   "reason": null,
+   "media": 10
+  },
+  "bad-video-11": {
+   "plain": "",
+   "bytes": 859,
+   "images": [],
+   "ok": false,
+   "reason": "TOO_MANY_VIDEOS"
+  },
+  "bad-video-provider": {
+   "plain": "",
+   "bytes": 117,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO"
+  },
+  "bad-video-provider-number": {
+   "plain": "",
+   "bytes": 111,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO"
+  },
+  "bad-video-id-length": {
+   "plain": "",
+   "bytes": 111,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO_ID"
+  },
+  "bad-video-id-chars": {
+   "plain": "",
+   "bytes": 119,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO_ID"
+  },
+  "bad-video-no-id": {
+   "plain": "",
+   "bytes": 98,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO_ID"
+  },
+  "bad-video-instagram-short": {
+   "plain": "",
+   "bytes": 114,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO_ID"
+  },
+  "bad-video-extra-attr": {
+   "plain": "",
+   "bytes": 158,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO"
+  },
+  "bad-video-attrs-null": {
+   "plain": "",
+   "bytes": 79,
+   "images": [],
+   "ok": false,
+   "reason": "VIDEO"
+  },
+  "bad-video-marks-key": {
+   "plain": "",
+   "bytes": 132,
+   "images": [],
+   "ok": false,
+   "reason": "KEYS"
+  },
+  "bad-video-in-quote": {
+   "plain": "인용",
+   "bytes": 228,
+   "images": [],
+   "ok": false,
+   "reason": "PLACEMENT"
   }
  }
 }

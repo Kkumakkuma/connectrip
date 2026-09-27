@@ -13,6 +13,7 @@ import {
     TEXT_STYLE_KEYS, mediaOf,
 } from './schema';
 import { mapAttrsError, placeIdOk } from './mapLink';
+import { videoAttrsError } from './videoLink';
 
 // ── 작은 도구 ───────────────────────────────────────────────────────
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -190,6 +191,7 @@ export function validateDoc(env, { mode = 'none', ownerId = null, collectFonts =
     const images = [];
     const imageSet = new Set();
     const maps = [];
+    let videos = 0;
     let media = 0;
     const fonts = collectFonts ? new Map() : null;
     const addImage = (ref) => {
@@ -312,6 +314,17 @@ export function validateDoc(env, { mode = 'none', ownerId = null, collectFonts =
                 if (e) return fail(e);
                 maps.push(node.attrs);
                 if (maps.length > LIMITS.maps) return fail('TOO_MANY_MAPS');
+                media += 1;
+                break;
+            }
+            case 'video': {
+                // 영상 링크(유튜브·인스타그램) — 업로드가 아니라 링크라 게시판 사진 규칙(media)과 무관하게 받는다
+                if (ptype !== 'doc') return fail('PLACEMENT');
+                if (!onlyKeys(node, NODE_KEYS.video)) return fail('KEYS');
+                const e = videoAttrsError(node.attrs);
+                if (e) return fail(e);
+                videos += 1;
+                if (videos > LIMITS.videos) return fail('TOO_MANY_VIDEOS');
                 media += 1;
                 break;
             }
@@ -503,6 +516,21 @@ export function plainToDoc(text) {
     return { v: DOC_VERSION, doc: { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] } };
 }
 
+// 옛 평문 글·원고 → 서식 문서(7장·8-1, v3.1 5장): 줄마다 문단 + 사진을 문서 맨 아래 단일 사진 노드로(묶음으로 합치지 않는다 —
+// 묶음은 10장 한도). 게시판 사진 규칙(4-7)을 통과한 사진만 옮긴다.
+// 반환 { env, skipped: 규칙 밖이라 옮기지 못한 사진 수 }
+export function legacyToDoc(text, images, boardKey, ownerId) {
+    const base = plainToDoc(text);
+    const mode = mediaOf(boardKey);
+    const uniq = [...new Set((Array.isArray(images) ? images : []).filter((r) => typeof r === 'string' && r))];
+    const ok = mode === 'private' || mode === 'public'
+        ? uniq.filter((r) => imageRefOk(r, mode, ownerId)).slice(0, LIMITS.images)
+        : [];
+    const content = [...base.doc.content, ...ok.map((src) => ({ type: 'image', attrs: { src } }))];
+    const env = sanitizeDoc({ v: DOC_VERSION, doc: { type: 'doc', content } }, boardKey, ownerId);
+    return { env, skipped: uniq.length - ok.length };
+}
+
 // ── 정규화 ─────────────────────────────────────────────────────────
 // new URL 로 해석해 http(s)·userinfo 없음·호스트 있음이면 정규화한 주소, 아니면 null
 export function normalizeHref(input) {
@@ -605,12 +633,28 @@ function cleanMap(a, st) {
     return { type: 'map', attrs: out };
 }
 
+function cleanVideo(a, st) {
+    if (!isObj(a) || st.videos >= LIMITS.videos) return null;
+    const out = { provider: a.provider, id: a.id };
+    if (videoAttrsError(out)) return null;
+    st.videos += 1;
+    return { type: 'video', attrs: out };
+}
+
+// 사진 참조로 받아 주는가: 게시판 규칙(4-7)에 맞는 저장 참조, 또는 편집기가 아직 올리지 않은 대기 사진 키(st.pendingOk).
+// 서버에서 지운 참조(st.dead — 되돌리기로 되살아난 경우)는 버린다(plan_stage2 B장 6번).
+const refAllowed = (ref, st) => (
+    typeof ref === 'string' && !st.dead.has(ref)
+    && (imageRefOk(ref, st.mode, st.ownerId) || (st.pendingOk ? st.pendingOk(ref) === true : false))
+);
+
 function cleanMedia(n, st) {
     if (n.type === 'map') return cleanMap(n.attrs, st);
+    if (n.type === 'video') return cleanVideo(n.attrs, st);
     if (st.mode !== 'private' && st.mode !== 'public') return null;
     const a = isObj(n.attrs) ? n.attrs : {};
     const take = (ref) => {
-        if (!imageRefOk(ref, st.mode, st.ownerId) || st.seen.has(ref) || st.seen.size >= LIMITS.images) return false;
+        if (!refAllowed(ref, st) || st.seen.has(ref) || st.seen.size >= LIMITS.images) return false;
         st.seen.add(ref);
         return true;
     };
@@ -683,6 +727,7 @@ function cleanBlocks(list, parent, depth, st) {
             case 'image':
             case 'gallery':
             case 'map':
+            case 'video':
                 if (parent === 'doc') {
                     const m = cleanMedia(n, st);
                     if (m) out.push(m);
@@ -696,9 +741,36 @@ function cleanBlocks(list, parent, depth, st) {
 }
 
 // 편집기 JSON(doc 노드) 또는 봉투를 받아 규칙 안의 봉투로 다시 짓는다. 한도(노드 수·바이트)는 validateDoc 이 본다.
-export function sanitizeDoc(input, boardKey, ownerId) {
+// opts(편집기 저장 경로에서만, plan_stage2 C장):
+//   pendingOk(ref) — 참이면 아직 올리지 않은 대기 사진 키로 보고 사진 자리에 남긴다(저장 직전에 참조로 바뀐다).
+//   dead           — 서버에서 지운 참조 집합(되돌리기로 되살아난 사진) — 버린다.
+// 옵션 없이 부르면 지금까지와 같다. 최종 검증(validateDoc)은 대기 키를 받지 않는다.
+export function sanitizeDoc(input, boardKey, ownerId, { pendingOk = null, dead = null } = {}) {
     const root = rootOf(input);
-    const st = { mode: mediaOf(boardKey), ownerId, seen: new Set(), maps: 0 };
+    const st = {
+        mode: mediaOf(boardKey), ownerId, seen: new Set(), maps: 0, videos: 0,
+        pendingOk: typeof pendingOk === 'function' ? pendingOk : null,
+        dead: dead instanceof Set ? dead : new Set(),
+    };
     const content = root ? cleanBlocks(root.content, 'doc', 1, st) : [];
     return { v: DOC_VERSION, doc: { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] } };
+}
+
+// 문서(봉투 또는 doc 노드)의 사진 자리 값을 map(값 → 새 값)대로 바꾼 새 봉투. 대기 키 → 올린 참조 치환에 쓴다.
+// map 에 없는 값은 그대로 둔다. 입력은 바꾸지 않는다.
+export function replaceDocImages(input, map) {
+    const root = rootOf(input);
+    if (!root) return input;
+    const swap = (v) => (map.has(v) ? map.get(v) : v);
+    const content = (Array.isArray(root.content) ? root.content : []).map((n) => {
+        if (!isObj(n) || !isObj(n.attrs)) return n;
+        if (n.type === 'image' && typeof n.attrs.src === 'string' && map.has(n.attrs.src)) {
+            return { ...n, attrs: { ...n.attrs, src: swap(n.attrs.src) } };
+        }
+        if (n.type === 'gallery' && Array.isArray(n.attrs.images) && n.attrs.images.some((r) => map.has(r))) {
+            return { ...n, attrs: { ...n.attrs, images: n.attrs.images.map(swap) } };
+        }
+        return n;
+    });
+    return { v: DOC_VERSION, doc: { ...root, content } };
 }

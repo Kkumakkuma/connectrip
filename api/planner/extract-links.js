@@ -7,7 +7,7 @@
 // 사용자가 준 주소를 서버가 대신 여는 경로라, 가드를 우회하는 호출이 하나라도 생기면
 // 그 순간 SSRF 구멍이 된다.
 //
-// 응답: { ok: true, candidates: [{ name, address, lat, lng, source }] }
+// 응답: { ok: true, candidates: [{ name, address, lat, lng, source, coord? }] } — coord 는 구글 지도 후보만(pin|query|center)
 // 실패는 사유를 감추고 LINK_NOT_SUPPORTED 하나로 응답한다.
 
 import { fail, gate, sha256 } from './_common.js';
@@ -25,6 +25,11 @@ function clampLng(v) {
   return Number.isFinite(n) && n >= -180 && n <= 180 ? n : null;
 }
 
+// coord(구글 지도 후보만, 2026-09-27 게시판 지도 붙여넣기 — 설계 plan_v3 6-7):
+//   'pin' = 핀 좌표(!3d!4d), 'query' = 좌표 질의(?q=lat,lng), 'center' = 지도 화면 중심(@lat,lng — 장소가 아니다).
+//   추가 필드라 플래너 화면은 무시한다. 캐시에 남은 옛 결과(coord 없음)는 게시판 화면이 center 로 본다.
+const COORD_KINDS = new Set(['pin', 'query', 'center']);
+
 function pushCandidate(out, entry) {
   if (!entry?.name) return;
   const lat = clampLat(entry.lat);
@@ -33,13 +38,15 @@ function pushCandidate(out, entry) {
   if (lat === 0 && lng === 0) return;
   // 같은 좌표가 여러 번 나오는 글이 많다(지도 모듈 반복 삽입).
   if (out.some((c) => c.lat === lat && c.lng === lng)) return;
-  out.push({
+  const cand = {
     name: String(entry.name).trim().slice(0, 120),
     address: String(entry.address || '').trim().slice(0, 300),
     lat,
     lng,
     source: entry.source,
-  });
+  };
+  if (COORD_KINDS.has(entry.coord)) cand.coord = entry.coord;
+  out.push(cand);
 }
 
 // 네이버 블로그: 스마트에디터 지도 모듈이 data-linkdata 에 JSON 을 그대로 담는다.
@@ -89,7 +96,7 @@ export function extractGoogleFromUrl(finalUrl, html) {
   })();
 
   const pin = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/.exec(finalUrl);
-  if (pin) pushCandidate(out, { name: name || '구글 지도 장소', lat: pin[1], lng: pin[2], source: 'google-maps' });
+  if (pin) pushCandidate(out, { name: name || '구글 지도 장소', lat: pin[1], lng: pin[2], source: 'google-maps', coord: 'pin' });
 
   if (!out.length) {
     const q = /[?&]q=(-?\d+\.\d+)%2C(-?\d+\.\d+)|[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/.exec(finalUrl);
@@ -99,6 +106,7 @@ export function extractGoogleFromUrl(finalUrl, html) {
         lat: q[1] ?? q[3],
         lng: q[2] ?? q[4],
         source: 'google-maps',
+        coord: 'query',
       });
     }
   }
@@ -106,7 +114,7 @@ export function extractGoogleFromUrl(finalUrl, html) {
   if (!out.length) {
     const center = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(finalUrl);
     if (center) {
-      pushCandidate(out, { name: name || '구글 지도 위치', lat: center[1], lng: center[2], source: 'google-maps' });
+      pushCandidate(out, { name: name || '구글 지도 위치', lat: center[1], lng: center[2], source: 'google-maps', coord: 'center' });
     }
   }
   return out;

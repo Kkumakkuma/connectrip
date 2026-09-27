@@ -120,7 +120,8 @@ describe('extractGoogleFromUrl', () => {
   it('!3d/!4d 핀 좌표를 우선한다', () => {
     const url = 'https://www.google.com/maps/place/x/@37.1,127.1,17z/data=!3d37.5665!4d126.9780';
     const got = extractGoogleFromUrl(url, '<title>남산타워 - Google 지도</title>');
-    expect(got).toEqual([{ name: '남산타워', address: '', lat: 37.5665, lng: 126.978, source: 'google-maps' }]);
+    // coord(2026-09-27): 게시판 지도 붙여넣기가 핀·좌표 질의·지도 중심을 구분하는 추가 필드(플래너는 무시)
+    expect(got).toEqual([{ name: '남산타워', address: '', lat: 37.5665, lng: 126.978, source: 'google-maps', coord: 'pin' }]);
   });
 
   it('핀이 없으면 q= 좌표를 쓴다', () => {
