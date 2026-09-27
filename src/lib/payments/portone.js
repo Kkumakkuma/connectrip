@@ -4,6 +4,7 @@
 // 모바일·앱: REDIRECTION — 페이지가 이동하므로 이 함수는 돌아오지 않고, 복귀는 parsePaymentReturn 으로 처리한다.
 // 결제 시작 기록(sessionStorage)을 남겨 PC 에서 confirm 이 실패해도 "다시 확인"으로 복구할 수 있게 한다.
 import { isNativeApp } from '../native';
+import { externalReturnUrl } from '../appReturn';
 
 const PENDING_KEY = 'ct_pending_payment';
 const RETURN_PARAMS = ['flow', 'paymentId', 'code', 'message', 'pgCode', 'pgMessage', 'transactionType', 'txId', 'paymentToken'];
@@ -38,7 +39,8 @@ export async function requestPointPayment(order, { returnPath = '/mypage' } = {}
   const PortOne = await import('@portone/browser-sdk/v2');
   const sp = new URLSearchParams();
   sp.set('flow', 'charge');
-  const redirectUrl = `${window.location.origin}${returnPath}?${sp.toString()}`;
+  // 웹 = 자기 주소, 앱 = 사이트 다리 페이지(앱 밖에서 끝나도 앱으로 돌아오게 — appReturn.js, 2026-09-27)
+  const redirectUrl = externalReturnUrl(returnPath, sp);
   const useRedirect = isNativeApp() || isMobileUA();
   savePendingPayment(order.orderId);
   const resp = await PortOne.requestPayment({

@@ -28,6 +28,7 @@ import SnapshotView from './SnapshotView';
 import { buildLocalSnapshot } from '../lib/snapshot';
 import { legsCurrent, legsValid } from '../lib/legs';
 import { readSnapshot, saveSnapshot } from '../lib/offlineStore';
+import { publicUrl } from '../../lib/api';
 import {
   AddPlaceSheet,
   AssumptionsSheet,
@@ -653,7 +654,8 @@ export default function TripBoard() {
   const handleShare = () => {
     runSaving(async () => {
       const token = await createShare(tripId);
-      setShareUrl(`${window.location.origin}/planner/s/${token}`);
+      // 받는 사람이 여는 주소 — 앱 WebView 주소(https://localhost)가 아니라 공개 도메인(2026-09-27 앱 점검)
+      setShareUrl(publicUrl(`/planner/s/${token}`));
     });
   };
 

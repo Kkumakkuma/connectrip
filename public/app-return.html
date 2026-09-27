@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>커넥트립 앱으로 돌아가기</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+         background: #f8fafc; color: #1e293b; word-break: keep-all; overflow-wrap: anywhere; }
+  main { max-width: 420px; margin: 0 auto; padding: 56px 20px 32px; text-align: center; }
+  .logo { width: 64px; height: 64px; border-radius: 16px; }
+  h1 { font-size: 20px; margin: 20px 0 10px; }
+  p { font-size: 15px; line-height: 1.7; color: #475569; margin: 0 0 14px; }
+  .btn { display: block; width: 100%; padding: 15px 16px; border-radius: 12px; background: #ff385c; color: #fff;
+         font-size: 16px; font-weight: 700; text-decoration: none; margin: 22px 0 12px; }
+  .sub { font-size: 13px; color: #64748b; }
+  .warn { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 10px; padding: 10px 12px; font-size: 13px; text-align: left; }
+  a.home { color: #475569; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="/icon-192x192.png" alt="">
+  <h1 id="title">커넥트립 앱으로 돌아가 주세요</h1>
+  <p id="lead">본인확인 결과는 커넥트립 앱에서 이어서 확인합니다.</p>
+  <p id="fail" class="warn" hidden>본인확인이 완료되지 않았어요. 앱으로 돌아가 다시 시도해 주세요.</p>
+  <a id="go" class="btn" href="#">커넥트립 앱으로 돌아가기</a>
+  <p class="sub">단추가 동작하지 않으면 이 화면을 닫고 커넥트립 앱을 직접 열어 주세요. 앱에서 자동으로 결과를 확인합니다.</p>
+  <p class="sub"><a class="home" href="https://www.connecttrip.co.kr/">커넥트립 홈페이지로 가기</a></p>
+</main>
+<script>
+// 앱(Capacitor) 밖에서 끝난 PASS 본인확인·결제의 복귀 다리(2026-09-27). 앱의 src/lib/appReturn.js 와 짝:
+//   ?to=<앱 경로>&<나머지 쿼리> → connecttrip://app-return<경로>?<나머지 쿼리> (안드로이드는 intent:// 로 앱을 연다)
+// 경로 허용 목록은 appReturn.js APP_RETURN_PATH_RE · IntentUrlPlugin.java 와 같아야 한다(appReturn.test.js 가 대조).
+// 크롬은 사용자 동작 없는 앱 호출을 막을 수 있어 자동 이동은 한 번만 시도하고, 단추를 꼭 둔다.
+(function () {
+  var PATH_RE = /^\/(find-id|forgot-password|signup(\/[a-z-]+)?|mypage|points)$/;
+  var PKG = 'com.connecttrip.app';
+  var sp = new URLSearchParams(location.search);
+  var to = sp.get('to') || '';
+  sp.delete('to');
+  if (!PATH_RE.test(to)) to = '';
+  var q = sp.toString();
+  var tail = 'app-return' + (to || '/') + (q ? '?' + q : '');
+  if (sp.get('code')) document.getElementById('fail').hidden = false;
+  var android = /Android/i.test(navigator.userAgent || '');
+  var link = android
+    ? 'intent://' + tail + '#Intent;scheme=connecttrip;package=' + PKG + ';S.browser_fallback_url=' + encodeURIComponent('https://www.connecttrip.co.kr/') + ';end'
+    : 'connecttrip://' + tail;
+  var go = document.getElementById('go');
+  go.setAttribute('href', link);
+  if (!to) {
+    document.getElementById('lead').textContent = '커넥트립 앱으로 돌아가 이어서 진행해 주세요.';
+  }
+  if (android && to) {
+    try { location.href = link; } catch (e) { /* 크롬이 막으면 단추로 */ }
+  }
+})();
+</script>
+</body>
+</html>

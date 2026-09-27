@@ -13,6 +13,10 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
         </intent>
+        <!-- 크롬 탭(Custom Tab)을 지원하는 브라우저 찾기 — 본인확인·결제 창을 앱 위 크롬 탭으로 연다(2026-09-27) -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
     </queries>
 
     <application
@@ -32,6 +36,14 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 앱 밖(크롬 탭·PASS 앱)에서 끝난 본인확인·결제의 복귀(2026-09-27): 사이트 다리 페이지(app-return.html)의
+                 '앱으로 돌아가기' 단추가 connecttrip://app-return<경로>?<쿼리> 로 연다 → AppReturnBridge.jsx 가 처리 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="connecttrip" android:host="app-return" />
             </intent-filter>
         </activity>
 

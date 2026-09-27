@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, Lock } from 'lucide-react';
 import { apiUrl } from '../lib/api';
+import { isNativeApp } from '../lib/native';
 import { normalizeLoginId, passwordWeak } from '../lib/loginId';
 import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
@@ -15,16 +16,20 @@ import {
 // Supabase 표준 비밀번호 재설정 메일도 쓸 수 없다 — 본인 명의 휴대폰 확인이 유일한 신원 확인 수단이다.
 //
 // PASS 는 모바일에서 페이지 이동(REDIRECTION)이라 화면을 떠났다 돌아온다.
-// 그 사이 입력한 아이디가 사라지지 않게 세션 스토리지에 1시간만 보관한다(증빙 유효기간과 동일).
+// 그 사이 입력한 아이디가 사라지지 않게 1시간만 보관한다(증빙 유효기간과 동일). 웹은 세션 스토리지,
+// 앱은 localStorage — PASS 앱·크롬 탭에 가 있는 동안 앱 프로세스가 종료돼도 남아야 한다(2026-09-27, agy B3).
 const RESET_ID_KEY = 'pendingResetLoginId';
+const resetStore = () => {
+    try { return isNativeApp() ? window.localStorage : window.sessionStorage; } catch { return null; }
+};
 
 const loadResetLoginId = () => {
     try {
-        const raw = sessionStorage.getItem(RESET_ID_KEY);
+        const raw = resetStore()?.getItem(RESET_ID_KEY);
         if (!raw) return '';
         const p = JSON.parse(raw);
         if (!p?.loginId || Date.now() - (p.savedAt || 0) >= IDENTITY_PROOF_TTL_MS) {
-            sessionStorage.removeItem(RESET_ID_KEY);
+            resetStore()?.removeItem(RESET_ID_KEY);
             return '';
         }
         return p.loginId;
@@ -33,9 +38,10 @@ const loadResetLoginId = () => {
     }
 };
 const saveResetLoginId = (loginId) => {
-    try { sessionStorage.setItem(RESET_ID_KEY, JSON.stringify({ loginId, savedAt: Date.now() })); } catch { /* 스토리지 차단 환경 */ }
+    try { resetStore()?.setItem(RESET_ID_KEY, JSON.stringify({ loginId, savedAt: Date.now() })); } catch { /* 스토리지 차단 환경 */ }
 };
 const clearResetLoginId = () => {
+    try { resetStore()?.removeItem(RESET_ID_KEY); } catch { /* noop */ }
     try { sessionStorage.removeItem(RESET_ID_KEY); } catch { /* noop */ }
 };
 
@@ -58,7 +64,7 @@ const ForgotPassword = () => {
         if (!IDENTITY_ENABLED) return;
         const ret = parseIdentityReturn(location.search);
         if (!ret) return;
-        clearIdentityStart(); // 결과를 옮겼으니 시작 기록은 폐기(성공·실패 공통)
+        if (ret.failed) clearIdentityStart(); // 실패·취소 복귀만 시작 기록을 끝낸다. 성공 복귀는 서버 확인이 성공할 때 지워진다(아직 인증 전이면 다시 확인할 수 있게)
         navigate({ pathname: location.pathname, search: stripIdentityParams(location.search) }, { replace: true });
         if (!saved) {
             // 스토리지가 유실된 채 돌아온 경우 — 아이디부터 다시 받는다.

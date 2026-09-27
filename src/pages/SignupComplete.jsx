@@ -199,7 +199,7 @@ export default function SignupComplete() {
     const ret = parseIdentityReturn(location.search);
     if (!ret) return;
     setIdentityReturn(ret);
-    clearIdentityStart(); // 결과를 옮겼으니 시작 기록은 폐기(성공·실패·불일치 공통)
+    if (ret.failed) clearIdentityStart(); // 실패·취소 복귀만 시작 기록을 끝낸다. 성공 복귀는 서버 확인이 성공할 때 지워진다(아직 인증 전이면 다시 확인할 수 있게)
     navigate({ pathname: location.pathname, search: stripIdentityParams(location.search) }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

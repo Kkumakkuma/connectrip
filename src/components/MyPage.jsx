@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { requestPointPayment, parsePaymentReturn, stripPaymentParams, readPendingPayment, clearPendingPayment } from '../lib/payments/portone';
 import { isNativeApp } from '../lib/native';
+import { publicUrl } from '../lib/api';
 import { POINT_PACKAGES } from '../lib/products';
 import { PAYMENTS_ENABLED, REFERRAL_ENABLED, COMMENDATION_ENABLED, POINTS_ENABLED } from '../lib/featureFlags';
 import { createChargeOrder, confirmCharge } from '../lib/payments/api';
@@ -125,8 +126,9 @@ const MyPage = () => {
         return () => { alive = false; };
     }, [isCrew]);
 
+    // 받는 사람이 여는 주소 — 앱 WebView 주소(https://localhost)가 아니라 공개 도메인(2026-09-27 앱 점검)
     const inviteLink = referralCode
-        ? `${window.location.origin}/signup?ref=${encodeURIComponent(referralCode)}`
+        ? publicUrl(`/signup?ref=${encodeURIComponent(referralCode)}`)
         : '';
 
     const copyText = async (text, key) => {

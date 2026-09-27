@@ -17,6 +17,7 @@ import Footer from './components/Footer';
 import AppSplash from './components/AppSplash'; // 앱 오프닝 모션(웹 no-op)
 import { isNativeApp } from './lib/native';
 import PushBridge from './components/PushBridge';
+import AppReturnBridge from './components/AppReturnBridge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, Loader2 } from 'lucide-react';
 
@@ -25,6 +26,7 @@ import { Bell, X, Loader2 } from 'lucide-react';
 const Signup = lazy(() => import('./pages/Signup'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const FindLoginId = lazy(() => import('./pages/FindLoginId'));
+const AppIdentity = lazy(() => import('./pages/AppIdentity'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const SignupEmail = lazy(() => import('./pages/SignupEmail'));
 const SignupComplete = lazy(() => import('./pages/SignupComplete'));
@@ -258,6 +260,7 @@ function App() {
       <RouteResetGuard />
       <AnalyticsTracker />
       <PushBridge />
+      <AppReturnBridge />
       <div className="App">
         <Navbar />
         {/* 승무원 인증 만료 임박·만료 안내(해당자에게만 렌더). 없으면 요소 자체가 없어 기존 레이아웃 그대로다. */}
@@ -279,6 +282,7 @@ function App() {
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/find-id" element={<FindLoginId />} />
+              <Route path="/app-identity" element={<AppIdentity />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/signup/email" element={<SignupEmail />} />
               <Route path="/signup/complete" element={<SignupComplete />} />

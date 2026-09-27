@@ -7,6 +7,9 @@ import { publicUrl } from '../lib/api';
 // 로더 패턴은 구 토스 어댑터의 loadSdk() 와 동일(어댑터는 2026-09-02 포트원 전환으로 삭제) — 모듈 스코프 프라미스 캐시로 중복 삽입 방지.
 const KAKAO_SRC = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js';
 let kakaoPromise = null;
+// 카카오 JavaScript 키(카카오 개발자 콘솔). 없으면 공유가 실패하므로 카카오 단추를 숨긴다(2026-09-27 점검:
+// 웹·앱 모두 키가 없어 'YOUR_KAKAO_JS_KEY' 로 초기화되고 있었다). 앱은 도메인에 https://localhost 도 등록해야 한다.
+const KAKAO_JS_KEY = (import.meta.env.VITE_KAKAO_JS_KEY || '').trim();
 
 function loadKakaoSdk() {
   if (kakaoPromise) return kakaoPromise;
@@ -38,14 +41,14 @@ const ShareButtons = ({ title, description, url }) => {
   // 사파리에서 user activation 이 풀리고 팝업이 차단된다 — 그래서 프리페치 + 동기 호출 조합을 쓴다.
   const openMenu = () => {
     setShowMenu(true);
-    loadKakaoSdk().catch(() => {});
+    if (KAKAO_JS_KEY) loadKakaoSdk().catch(() => {});
   };
 
   // 동기 유지 필수. sendDefault 가 클릭과 같은 태스크에서 호출돼야 팝업이 뜬다.
   const handleKakaoShare = () => {
     if (window.Kakao) {
       if (!window.Kakao.isInitialized()) {
-        window.Kakao.init(import.meta.env.VITE_KAKAO_JS_KEY || 'YOUR_KAKAO_JS_KEY');
+        window.Kakao.init(KAKAO_JS_KEY);
       }
       window.Kakao.Share.sendDefault({
         objectType: 'feed',
@@ -116,6 +119,7 @@ const ShareButtons = ({ title, description, url }) => {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
           <div className="absolute right-0 bottom-full mb-2 z-50 bg-white rounded-xl shadow-xl border border-gray-100 py-2 w-48 animate-in fade-in slide-in-from-bottom-2">
+            {KAKAO_JS_KEY && (
             <button
               onClick={handleKakaoShare}
               className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-yellow-50 transition-colors text-left"
@@ -125,6 +129,7 @@ const ShareButtons = ({ title, description, url }) => {
               </div>
               <span className="text-sm font-medium text-gray-700">카카오톡</span>
             </button>
+            )}
 
             <button
               onClick={handleTwitterShare}

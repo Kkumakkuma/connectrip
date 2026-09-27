@@ -11,8 +11,9 @@
 // 환경변수(VITE_PORTONE_STORE_ID / VITE_PORTONE_CHANNEL_KEY)가 없으면 IDENTITY_ENABLED=false 이고
 // 가입 화면은 본인확인 카드를 "준비 중"으로 잠근다 — 대체 수단이 없으므로 가입이 막히는 게 정상이다.
 
-import { apiUrl } from './api';
+import { apiUrl, SITE_ORIGIN } from './api';
 import { isNativeApp } from './native';
+import { externalReturnUrl, isAppReturnPath } from './appReturn';
 
 export const IDENTITY_STORE_ID = (import.meta.env.VITE_PORTONE_STORE_ID || '').trim();
 export const IDENTITY_CHANNEL_KEY = (import.meta.env.VITE_PORTONE_CHANNEL_KEY || '').trim();
@@ -56,15 +57,19 @@ export function saveIdentityProof(proof) {
 }
 
 export function clearIdentityProof() {
-  try {
-    sessionStorage.removeItem(PROOF_KEY);
-    sessionStorage.removeItem(START_KEY);
-  } catch { /* noop */ }
+  try { sessionStorage.removeItem(PROOF_KEY); } catch { /* noop */ }
+  clearStart();
+}
+
+// 시작 기록 저장소. 앱은 localStorage — PASS 앱·크롬 탭에 가 있는 동안 앱 프로세스가 종료돼도 남아야
+// 돌아와서 결과를 확인할 수 있다(2026-09-27 PASS 복귀 수정, agy B3). 웹은 탭을 닫으면 끝나는 sessionStorage 그대로.
+function startStore() {
+  try { return isNativeApp() ? window.localStorage : window.sessionStorage; } catch { return null; }
 }
 
 function loadStart() {
   try {
-    const raw = sessionStorage.getItem(START_KEY);
+    const raw = startStore()?.getItem(START_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s || !s.id || !s.state || Date.now() - (s.savedAt || 0) >= IDENTITY_PROOF_TTL_MS) return null;
@@ -74,23 +79,37 @@ function loadStart() {
   }
 }
 function clearStart() {
+  try { startStore()?.removeItem(START_KEY); } catch { /* noop */ }
+  // 저장소를 옮기기 전(세션)에 남은 기록도 같이 지운다
   try { sessionStorage.removeItem(START_KEY); } catch { /* noop */ }
 }
-// 시작 기록은 1회용 — 복귀 결과를 화면 state 로 옮긴 직후 부모가 호출한다(멱등, StrictMode 안전).
+
+// 진행 중인 본인확인(시작 기록) — { id, purpose, returnPath, savedAt } | null.
+// 앱에서 PASS·크롬 탭을 다녀온 뒤 복귀 주소 없이 돌아와도(탭을 닫음·최근 앱으로 전환) 이 id 로 서버에 결과를 확인한다.
+export function loadPendingIdentity() {
+  const s = loadStart();
+  if (!s) return null;
+  return { id: s.id, purpose: s.purpose || IDENTITY_PURPOSE_SIGNUP, returnPath: s.returnPath || '', savedAt: s.savedAt || 0 };
+}
+// 시작 기록 정리 — 실패·취소 복귀(parseIdentityReturn 의 failed)일 때 부르는 쪽이 호출한다(멱등, StrictMode 안전).
+// 성공 복귀의 기록은 서버 확인이 성공할 때 confirmIdentity 가 지운다. 아직 인증 전(앱 resume=1)이거나 일시 오류면
+// 남겨 두어야 '인증 결과 확인'·앱 재개 자동 확인으로 다시 물을 수 있다(교차검토 지적, 2026-09-27).
 export function clearIdentityStart() { clearStart(); }
 
 // 복귀 파라미터: 우리가 붙인 flow/state + 포트원이 SDK 응답과 같은 키로 붙이는
 //   identityVerificationId(+ identityVerificationTxId, transactionType) / 실패 시 code, message(+pgCode, pgMessage)
+//   + resume=1: 앱이 복귀 주소 없이 다시 열렸을 때(프로세스 종료 뒤 등) 시작 기록의 id 로 결과를 확인하라는 표시(앱 전용).
 export const IDENTITY_RETURN_PARAMS = [
   'flow', 'state', 'identityVerificationId', 'identityVerificationTxId', 'transactionType',
-  'code', 'message', 'pgCode', 'pgMessage',
+  'code', 'message', 'pgCode', 'pgMessage', 'resume',
 ];
 
 // URL 이 본인확인 복귀인지(flow=identity). 아니면 null.
-//   { ok:true, id }              — 시작 기록과 id·state 일치 → 서버 검증 진행
-//   { ok:false, message }        — 실패/취소 복귀, 또는 시작 기록 불일치·유실(다시 시작 안내)
+//   { ok:true, id, resume? }       — 시작 기록과 id·state 일치(resume: 앱이 복귀 주소 없이 다시 열림 — 아직 인증 전일 수 있음)
+//   { ok:false, failed, message }  — failed=true: 지금 진행 중인 본인확인의 실패·취소 복귀 → 시작 기록 정리
+//                                    failed=false: 시작 기록 불일치·유실(다른 시도의 옛 링크 등) → 다시 시작 안내만
 // 순수 함수(스토리지를 지우지 않는다) — React 개발모드 StrictMode 처럼 마운트 효과가 두 번 돌아도 결과가 같다.
-// 시작 기록은 confirmIdentity 성공 시, 또는 다음 startIdentityVerification 에서 교체된다.
+// 시작 기록은 confirmIdentity 성공 시, 실패·취소 복귀 시(clearIdentityStart), 또는 다음 startIdentityVerification 에서 교체된다.
 export function parseIdentityReturn(search) {
   const sp = new URLSearchParams(search || '');
   if (sp.get('flow') !== IDENTITY_FLOW) return null;
@@ -98,11 +117,21 @@ export function parseIdentityReturn(search) {
   const state = (sp.get('state') || '').trim();
   const code = sp.get('code');
   const start = loadStart();
+  if (sp.get('resume') === '1') {
+    // 우리 저장소의 id 만 쓴다(외부 입력 없음) — 서버가 포트원에서 실제 인증 여부·용도·1회 소비를 확인한다
+    if (start) return { ok: true, id: start.id, resume: true };
+    return { ok: false, failed: false, message: '본인확인 정보를 확인할 수 없습니다. 본인확인을 다시 시작해주세요.' };
+  }
   if (code) {
-    return { ok: false, message: sp.get('message') || sp.get('pgMessage') || '본인확인이 취소되었거나 실패했습니다. 다시 시도해주세요.' };
+    // 다른 시도의 옛 실패 링크가 지금 진행 중인 본인확인을 끝내지 않게 — id 가 붙어 오면 같은 시도일 때만 failed
+    return {
+      ok: false,
+      failed: !(id && start && start.id !== id),
+      message: sp.get('message') || sp.get('pgMessage') || '본인확인이 취소되었거나 실패했습니다. 다시 시도해주세요.',
+    };
   }
   if (!id || !start || start.id !== id || start.state !== state) {
-    return { ok: false, message: '본인확인 정보를 확인할 수 없습니다. 본인확인을 다시 시작해주세요.' };
+    return { ok: false, failed: false, message: '본인확인 정보를 확인할 수 없습니다. 본인확인을 다시 시작해주세요.' };
   }
   return { ok: true, id };
 }
@@ -125,6 +154,64 @@ const isMobileUA = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent ||
 export const IDENTITY_PURPOSE_SIGNUP = 'signup_identity';
 export const IDENTITY_PURPOSE_PASSWORD_RESET = 'password_reset';
 
+// ── 앱의 본인확인(2026-09-27 PASS 복귀 실패 수정) ─────────────────────────────
+// 앱 WebView 안에서 SDK 를 돌리면 KCP 창이 폼 POST 로 WebView 를 통째로 바꾸고(네이티브가 가로챌 수 없다),
+// PASS 앱을 거치며 흐름이 크롬 쪽으로 새면 https://localhost 복귀 주소를 열 수 없었다(테스터 실기기 제보).
+// 그래서 앱은 사이트의 /app-identity 화면을 크롬 탭으로 열어(IntentUrlPlugin) 웹과 똑같이 인증하고,
+// 끝나면 다리 페이지(app-return.html) → 앱(connecttrip://app-return)으로 돌아온다. 앱 화면은 그대로 남아
+// 돌아오면(딥링크·탭 닫기) 시작 기록의 id 로 서버에 결과를 확인한다(IdentityVerifyStep).
+export const APP_IDENTITY_PATH = '/app-identity';
+const ID_RE = /^ct[0-9a-f]{32}$/;
+const STATE_RE = /^[0-9a-f]{32}$/;
+const APP_PURPOSES = ['signup_identity', 'password_reset', 'find_id'];
+
+// 앱 → 크롬 탭으로 여는 사이트 주소
+export function appIdentityUrl({ id, state, purpose, returnPath }) {
+  const [to, query = ''] = String(returnPath || '').split('?');
+  const sp = new URLSearchParams({ id, state, purpose, to });
+  if (query) sp.set('q', query);
+  return `${SITE_ORIGIN}${APP_IDENTITY_PATH}?${sp.toString()}`;
+}
+
+// /app-identity 화면이 받은 값 검사 → { id, state, purpose, to, q } | null
+export function parseAppIdentityParams(search) {
+  const sp = new URLSearchParams(search || '');
+  const v = {
+    id: sp.get('id') || '', state: sp.get('state') || '', purpose: sp.get('purpose') || '',
+    to: sp.get('to') || '', q: sp.get('q') || '',
+  };
+  if (!ID_RE.test(v.id) || !STATE_RE.test(v.state) || !APP_PURPOSES.includes(v.purpose) || !isAppReturnPath(v.to)) return null;
+  return v;
+}
+
+// /app-identity 화면(크롬 탭 = 모바일 웹)에서 포트원 창을 연다. 복귀는 다리 페이지 → 앱.
+export async function launchIdentityForApp({ id, state, to, q }) {
+  if (!IDENTITY_ENABLED) {
+    const e = new Error('본인확인 서비스가 아직 준비되지 않았습니다.');
+    e.code = 'IDENTITY_DISABLED';
+    throw e;
+  }
+  const PortOne = await import('@portone/browser-sdk/v2');
+  const sp = new URLSearchParams(stripIdentityParams(q ? `?${q}` : ''));
+  sp.set('flow', IDENTITY_FLOW);
+  sp.set('state', state);
+  const redirectUrl = externalReturnUrl(to, sp, { native: true });
+  const resp = await PortOne.requestIdentityVerification({
+    storeId: IDENTITY_STORE_ID,
+    channelKey: IDENTITY_CHANNEL_KEY,
+    identityVerificationId: id,
+    redirectUrl,
+    windowType: { mobile: 'REDIRECTION' },
+    forceRedirect: true,   // PC 로 열려도 결과를 다리 페이지로 보낸다(앱이 결과를 받는 곳은 다리뿐)
+  });
+  if (resp && resp.code !== undefined) {
+    const e = new Error(resp.message || '본인확인이 취소되었거나 실패했습니다.');
+    e.code = resp.code;
+    throw e;
+  }
+  return null;
+}
+
 export async function startIdentityVerification({ returnPath, purpose = IDENTITY_PURPOSE_SIGNUP }) {
   if (!IDENTITY_ENABLED) {
     const e = new Error('본인확인 서비스가 아직 준비되지 않았습니다.');
@@ -132,17 +219,27 @@ export async function startIdentityVerification({ returnPath, purpose = IDENTITY
     throw e;
   }
   clearIdentityProof(); // 새 인증을 시작하면 이전 증빙·시작 기록은 폐기
-  const PortOne = await import('@portone/browser-sdk/v2');
   const id = newIdentityId();
   const state = randomHex(16);
-  try { sessionStorage.setItem(START_KEY, JSON.stringify({ id, state, purpose, savedAt: Date.now() })); } catch { /* noop */ }
-
   const base = returnPath || (window.location.pathname + window.location.search);
   const [path, query = ''] = base.split('?');
-  const sp = new URLSearchParams(stripIdentityParams(query ? `?${query}` : ''));
+  const cleanQuery = stripIdentityParams(query ? `?${query}` : '');
+  try {
+    startStore()?.setItem(START_KEY, JSON.stringify({ id, state, purpose, returnPath: `${path}${cleanQuery}`, savedAt: Date.now() }));
+  } catch { /* noop */ }
+
+  if (isNativeApp()) {
+    // 앱: 사이트의 /app-identity 를 연다 — IntentUrlPlugin 이 크롬 탭으로 띄우고 이 화면은 그대로 남는다.
+    // (가로채기가 없는 옛 앱이면 Capacitor 가 허용 밖 주소로 보고 기본 브라우저로 연다 — 흐름은 같다)
+    window.location.href = appIdentityUrl({ id, state, purpose, returnPath: `${path}${cleanQuery}` });
+    return null;
+  }
+
+  const PortOne = await import('@portone/browser-sdk/v2');
+  const sp = new URLSearchParams(cleanQuery);
   sp.set('flow', IDENTITY_FLOW);
   sp.set('state', state);
-  const redirectUrl = `${window.location.origin}${path}?${sp.toString()}`;
+  const redirectUrl = externalReturnUrl(path, sp);
 
   const useRedirect = isNativeApp() || isMobileUA();
   const resp = await PortOne.requestIdentityVerification({
@@ -172,7 +269,22 @@ export async function startIdentityVerification({ returnPath, purpose = IDENTITY
 
 // 서버 검증 → 증빙 저장. 실패 시 Error(code, status) throw.
 // purpose 는 발급받을 증빙의 용도(가입/비밀번호 재설정) — 서버가 토큰에 함께 묶는다.
-export async function confirmIdentity(identityVerificationId, purpose = IDENTITY_PURPOSE_SIGNUP) {
+// 같은 id·용도는 한 번만 서버에 묻는다 — 앱에서는 복귀 주소·앱 재개·화면 진입이 거의 동시에 확인을 부를 수 있고,
+// 서버는 한 건을 한 번만 소비하므로 두 번째 요청이 "이미 처리됨"으로 실패한다(agy B4). 실패하면 다시 물을 수 있게 비운다.
+const confirmCache = new Map();
+export function confirmIdentity(identityVerificationId, purpose = IDENTITY_PURPOSE_SIGNUP) {
+  const key = `${purpose}:${identityVerificationId}`;
+  const hit = confirmCache.get(key);
+  if (hit) return hit;
+  const p = confirmIdentityOnce(identityVerificationId, purpose).catch((e) => {
+    confirmCache.delete(key);
+    throw e;
+  });
+  confirmCache.set(key, p);
+  return p;
+}
+
+async function confirmIdentityOnce(identityVerificationId, purpose) {
   const resp = await fetch(apiUrl('/api/verify-identity'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
