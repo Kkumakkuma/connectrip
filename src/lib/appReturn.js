@@ -60,3 +60,35 @@ export function appReturnTarget(url) {
   const q = sp.toString();
   return q ? `${path}?${q}` : path;
 }
+
+// ── 지금 화면으로 온 복귀 알림 + 보관함(2026-10-02, 앱 프로세스 종료 뒤 재시작 복귀 유실 수정) ─────────────────────
+// AppReturnBridge 는 딥링크 경로가 지금 화면과 같으면 화면을 다시 띄우지 않고 이 이벤트로 알린다(화면들의 복귀 처리는 처음
+// 한 번만 돈다). 그런데 그 경로의 화면(lazy 청크)이 아직 뜨기 전이면 듣는 쪽이 없어 알림이 사라졌다 — 에뮬레이터 QA 2/2 재현:
+// PASS(크롬 탭) 중 앱 프로세스만 종료 → 다리 '앱으로 돌아가기' → 콜드 스타트 복구(resume)가 /find-id 로 옮겨 놓은 사이 딥링크가
+// 도착 → 뒤늦게 뜬 화면은 resume=1 만 보고 '인증 결과 가져오기'를 안내했다.
+// 그래서 마지막 알림을 잠깐(1분) 맡겨 두고, 그 경로의 화면이 뒤늦게 뜨면 한 번 꺼내 처리한다. 이벤트를 들은 쪽도 꺼내 비운다
+// (화면을 다시 열 때 같은 복귀를 또 처리하지 않게). 딥링크 쿼리에 결속 비밀값(ds)이 있으므로 저장소에 두지 않고 모듈 변수에만
+// 둔다(WebView 를 새로 고치면 사라진다).
+export const APP_RETURN_EVENT = 'ct-app-return';
+const HELD_RETURN_MS = 60 * 1000;
+let heldReturn = null;   // { path, search, at }
+
+// path: 앱 안 경로('/find-id'), search: '?…'(없으면 '')
+export function notifyAppReturn(path, search = '') {
+  heldReturn = { path, search, at: Date.now() };
+  window.dispatchEvent(new CustomEvent(APP_RETURN_EVENT, { detail: { path, search } }));
+}
+
+// 맡겨 둔 알림을 꺼낸다 — 같은 경로이고 accept(search) 가 받는 것만 꺼내며, 꺼내면 비운다(한 번만). 다른 경로·다른 종류는
+// 그대로 두고, 1분이 지난 것은 버린다. → { path, search } | null
+export function takeHeldAppReturn(path, accept = () => true) {
+  const r = heldReturn;
+  if (!r) return null;
+  if (!(Date.now() - r.at < HELD_RETURN_MS)) {
+    heldReturn = null;
+    return null;
+  }
+  if (r.path !== path || !accept(r.search)) return null;
+  heldReturn = null;
+  return { path: r.path, search: r.search };
+}

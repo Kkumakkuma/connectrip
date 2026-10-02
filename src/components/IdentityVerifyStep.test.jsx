@@ -186,6 +186,48 @@ describe('IdentityVerifyStep (앱)', () => {
     expect(text()).not.toContain('⚠️');
   });
 
+  // 2026-10-02 프로세스 종료 뒤 재시작: AppReturnBridge 가 같은 경로라 알렸는데 이 카드(화면 lazy 청크)가 아직 없었던 경우
+  it('카드가 뜨기 전에 같은 경로로 맡겨진 복귀(보관함)는 마운트 때 한 번 처리 — 다시 떠도 재처리 없음', async () => {
+    const id = newId();
+    putApp();
+    const calls = stubFetch(() => verified());
+    const onVerified = vi.fn();
+    const { notifyAppReturn } = await import('../lib/appReturn');
+    window.history.replaceState(null, '', '/find-id');
+    notifyAppReturn('/find-id', `?flow=identity&state=${STATE}&identityVerificationId=${id}&ds=${DS}`);   // 듣는 카드 없음
+    await render({ onVerified });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toEqual({ identityVerificationId: id, purpose: 'find_id', ds: DS });
+    expect(onVerified).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(START_KEY)).toBeNull();
+    await act(async () => { root.unmount(); });
+    root = createRoot(div);
+    await render({ onVerified });
+    expect(calls).toHaveLength(1);
+    expect(onVerified).toHaveBeenCalledTimes(1);
+    expect(text()).not.toContain('⚠️');
+  });
+
+  // 앱 루트(main.jsx)는 StrictMode 를 쓰지 않지만, 개발 모드 이중 효과에서도 첫 효과가 꺼낸 복귀의 확인이 같은 카드에서
+  // 이어지는지 고정한다(agy 교차검토 지적 3 — 반려 근거)
+  it('StrictMode 이중 효과에서도 보관함 복귀는 한 번 처리된다', async () => {
+    const id = newId();
+    putApp();
+    const calls = stubFetch(() => verified());
+    const onVerified = vi.fn();
+    const { notifyAppReturn } = await import('../lib/appReturn');
+    window.history.replaceState(null, '', '/find-id');
+    notifyAppReturn('/find-id', `?flow=identity&state=${STATE}&identityVerificationId=${id}&ds=${DS}`);
+    await act(async () => {
+      root.render(React.createElement(React.StrictMode, null,
+        React.createElement(Step, { purpose: 'find_id', returnPath: '/find-id', onVerified })));
+    });
+    await flush();
+    expect(calls).toHaveLength(1);
+    expect(onVerified).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(START_KEY)).toBeNull();
+  });
+
   it('결과 딥링크(resume 아님)의 확인이 아직 인증 전이면 안내가 아니라 오류(⚠️) — 기록·결과 확인 단추는 남아 다시 물을 수 있다', async () => {
     const id = newId();
     putApp();

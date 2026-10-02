@@ -7,6 +7,7 @@ import {
   IDENTITY_ENABLED, IDENTITY_FLOW, IDENTITY_NEED_RESULT_MSG, IDENTITY_PG_NAME, IDENTITY_PURPOSE_SIGNUP,
 } from '../lib/identity';
 import { isNativeApp } from '../lib/native';
+import { APP_RETURN_EVENT, takeHeldAppReturn } from '../lib/appReturn';
 import SentenceLines from './SentenceLines';
 
 // 앱: 인증 창은 크롬 탭(Custom Tab)으로 열리고 이 화면은 그대로 남는다(IntentUrlPlugin, 2026-09-27).
@@ -32,6 +33,10 @@ const PURPOSE_MISMATCH = '본인확인 용도가 맞지 않습니다. 본인확�
 // 마운트 효과보다 뒤에 돈다(자식 효과가 먼저). 그래서 마운트 때는 주소를 직접 본다.
 const openedByReturn = () => {
   try { return new URLSearchParams(window.location.search).get('flow') === IDENTITY_FLOW; } catch { return false; }
+};
+// 보관함(appReturn.js)에 맡겨진 복귀 중 이 카드가 꺼내 갈 것 — 본인확인 복귀(flow=identity)만
+const isIdentitySearch = (search) => {
+  try { return new URLSearchParams(search || '').get('flow') === IDENTITY_FLOW; } catch { return false; }
 };
 
 // 통신사 휴대폰 본인확인(PASS) 카드. 가입 1단계와 비밀번호 찾기 2단계가 같이 쓴다.
@@ -205,6 +210,8 @@ export default function IdentityVerifyStep({
   // 앱: ① 앱 재개(크롬 탭을 닫거나 최근 앱으로 돌아옴) ② '앱으로 돌아가기' 딥링크가 지금 이 화면으로 왔을 때
   // (AppReturnBridge 가 같은 경로면 화면을 다시 띄우지 않고 이벤트로 알린다 — 화면들의 복귀 처리가 처음 한 번만 돌기 때문, agy B1)
   // ③ 크롬 탭(/app-identity)을 열지 못했을 때 — 'PASS로 본인확인'·'인증 결과 가져오기' 모두 이 화면에서만 크롬 탭을 연다
+  // ④ 이 카드가 뜨기 전에 ②가 와 버린 경우(2026-10-02, 프로세스 종료 뒤 재시작 — 화면 청크가 뜨는 사이 딥링크 도착) — 맡겨 둔
+  //    복귀를 마운트 때 한 번 꺼내 처리한다. 같은 id 는 finish 의 handledRef·confirmIdentity 캐시로 서버에 한 번만 묻는다.
   useEffect(() => {
     if (!native) return undefined;
     let removed = false;
@@ -213,7 +220,11 @@ export default function IdentityVerifyStep({
       .then(({ App }) => App.addListener('resume', () => checkRef.current(true)))
       .then((h) => { if (removed) Promise.resolve(h.remove()).catch(() => {}); else handle = h; })
       .catch(() => {});
-    const onReturn = (e) => returnRef.current(parseIdentityReturn(e.detail?.search || ''));
+    const onReturn = (e) => {
+      // 들은 복귀는 보관함에서도 뺀다 — 이 화면을 다시 열 때 같은 복귀를 또 처리하지 않게(④)
+      takeHeldAppReturn(e.detail?.path, isIdentitySearch);
+      returnRef.current(parseIdentityReturn(e.detail?.search || ''));
+    };
     // 2026-10-02 codex 지적 2: 브라우저가 없거나 실행이 거부되면 IntentUrlPlugin 이 처리됨으로 끝내고 이 이벤트로 알린다
     // (예전에는 Capacitor 기본 처리로 넘어가 외부 브라우저 실행 실패를 삼킨 채 아무 반응이 없었다). 크롬 탭 없이는 결과를 받을 수
     // 없으므로 진행 기록을 끝내고 오류를 보인다 — 결과 단추는 사라지고 'PASS로 본인확인'으로 다시 시도할 수 있다.
@@ -225,12 +236,14 @@ export default function IdentityVerifyStep({
       setInfoMsg('');
       setError(IDENTITY_BROWSER_UNAVAILABLE_MSG);
     };
-    window.addEventListener('ct-app-return', onReturn);
+    window.addEventListener(APP_RETURN_EVENT, onReturn);
     window.addEventListener(APP_IDENTITY_OPEN_FAILED_EVENT, onOpenFailed);
+    const held = takeHeldAppReturn(window.location.pathname, isIdentitySearch);   // ④
+    if (held) returnRef.current(parseIdentityReturn(held.search));
     return () => {
       removed = true;
       if (handle) Promise.resolve(handle.remove()).catch(() => {});
-      window.removeEventListener('ct-app-return', onReturn);
+      window.removeEventListener(APP_RETURN_EVENT, onReturn);
       window.removeEventListener(APP_IDENTITY_OPEN_FAILED_EVENT, onOpenFailed);
     };
   }, [native]);
