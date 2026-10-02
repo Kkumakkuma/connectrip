@@ -115,11 +115,20 @@ SELECT cron.schedule('identity-starts-purge', '23 * * * *',
   $job$ DELETE FROM public.identity_starts WHERE created_at < now() - interval '24 hours' $job$)
  WHERE NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'identity-starts-purge');
 
--- ==================== 2부 (새 서버 운영 확인 직후, 별도 마이그레이션) ====================
+-- ==================== 2부 (새 서버 운영 확인 직후, 별도 마이그레이션 identity_binding_enforce_20261002) ====================
+-- 절차(두 단계 — 권한 회수 시점에 이미 실행 중이던 옛 RPC 가 UPDATE 뒤에 커밋할 수 있어서, codex 지적):
+--   (1) 새 서버가 운영 도메인에 떴는지 확인(번들 해시 curl, start 프로브) 뒤 아래 REVOKE + UPDATE 를 한 트랜잭션으로 실행.
+--   (2) 1분 이상 지나 같은 UPDATE 를 한 번 더 실행하고, 결속 없는 미소비 토큰이 0건인지 조회해 전환 완료로 본다.
+-- 실행 기록(2026-10-02): (1) 16:23 apply_migration 성공 / (2) 16:25:48 KST 재실행 → unbound_live_tokens=0,
+--   service_role 의 옛 함수 EXECUTE=false, bound EXECUTE=true 확인.
 -- REVOKE EXECUTE ON FUNCTION public.record_identity_verification(TEXT,TEXT,TEXT,DATE,TEXT,TEXT,TEXT,BOOLEAN,TEXT,TEXT,TEXT,TEXT)
 --   FROM service_role;
 -- -- 옛 경로(결속 없이)로 발급돼 아직 쓰지 않은 증빙의 토큰을 무효화한다. 새 서버가 발급한 것(등록 행 있음)은 건드리지 않는다.
 -- UPDATE public.identity_verifications iv SET consume_token_hash = NULL
+--  WHERE iv.consumed_at IS NULL AND iv.consume_token_hash IS NOT NULL
+--    AND NOT EXISTS (SELECT 1 FROM public.identity_starts s WHERE s.provider_ref = iv.provider_ref);
+-- -- (2) 1분 뒤 위 UPDATE 재실행 후 확인:
+-- SELECT count(*) AS unbound_live_tokens_want_0 FROM public.identity_verifications iv
 --  WHERE iv.consumed_at IS NULL AND iv.consume_token_hash IS NOT NULL
 --    AND NOT EXISTS (SELECT 1 FROM public.identity_starts s WHERE s.provider_ref = iv.provider_ref);
 

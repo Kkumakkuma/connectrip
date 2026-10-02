@@ -46,7 +46,9 @@ const ID_RE = /^ct[0-9a-f]{32}$/;
 const STATE_RE = /^[0-9a-f]{32}$/;
 const DS_RE = /^[0-9a-f]{64}$/;
 // 미리 등록분(PC 웹)·크롬 보관분(앱 새로 고침)을 새 PASS 에 다시 쓰는 한도. 서버 결속은 등록 1시간 뒤 만료되므로
-// 30분이 지난 것은 버리고 새로 등록한다 — PASS 를 할 시간을 30분 이상 남긴다(codex v2 #4).
+// 30분이 지난 것은 다시 쓰지 않는다 — PASS 를 할 시간을 30분 이상 남긴다(codex v2 #4).
+// PC 웹 미리 등록분은 버리고 새로 등록한다. 크롬 보관분은 새로 등록하지 않고 IDENTITY_START_STALE 로 앱에서 다시 시작하게 한다
+// (같은 state 로는 id 를 바꾸지 않는다 — prepareAppIdentity, 2026-10-02 codex 코드 검토 지적 1).
 const REUSE_MS = 30 * 60 * 1000;
 
 const randomHex = (bytes) => {
@@ -502,6 +504,15 @@ async function confirmIdentityOnce(identityVerificationId, purpose, ds) {
 export const APP_IDENTITY_PATH = '/app-identity';
 // /app-identity 계약 버전. 1.3.4 이하 앱은 v 없이 id(앱이 만든 값)를 넘긴다 → 업데이트 안내(legacy).
 const APP_IDENTITY_VERSION = '2';
+// 앱이 /app-identity 크롬 탭을 열지 못했을 때(브라우저 없음·실행 거부) IntentUrlPlugin.java 가 앱 WebView 의 window 에 보내는
+// 이벤트 — 자바의 APP_IDENTITY_OPEN_FAILED_EVENT 와 같은 문자열이어야 한다(IdentityVerifyStep.test.jsx 가 대조). 2026-10-02 codex 지적 2.
+export const APP_IDENTITY_OPEN_FAILED_EVENT = 'ct-app-identity-open-failed';
+// 브라우저를 열 수 없어 본인확인을 못 함 — 앱 화면(IdentityVerifyStep, 위 이벤트)과 앱 WebView 안으로 열린 /app-identity
+// (AppIdentity 의 inApp 모드)가 같은 문구를 쓴다.
+export const IDENTITY_BROWSER_UNAVAILABLE_MSG = '브라우저를 열 수 없어 본인확인을 진행할 수 없어요. 크롬을 켜 두거나 기본 브라우저를 확인한 뒤 다시 시도해 주세요.';
+// 크롬 탭: 같은 시도(state)의 등록이 30분을 넘었다(prepareAppIdentity 의 IDENTITY_START_STALE). 화면 안내와, 앱으로 돌려보내는
+// 다리 주소의 message 에 같은 문구를 쓴다(앱이 같은 state 의 실패 복귀로 받아 기록을 지우고 이 문구를 띄운다 — C2).
+export const IDENTITY_START_STALE_MSG = '본인확인 시간이 지났어요. 커넥트립 앱으로 돌아가 본인확인을 다시 시작해 주세요.';
 
 // 앱 → 크롬 탭으로 여는 사이트 주소. /app-identity?v=2&state&purpose&to[&q][&resume=1] — id 는 싣지 않는다(서버가 발급).
 // resume: '인증 결과 가져오기' — 크롬 탭이 PASS 를 다시 띄우지 않고 보관해 둔 결과만 다리로 보낸다.
@@ -604,10 +615,27 @@ export function findAppIdResult(state, purpose, maxAgeMs = APP_RESULT_TTL_MS) {
   }
 }
 
+// 같은 시도(state·용도)로 등록한 보관분이 하나라도 있는가. 기간은 보지 않는다 — 1시간이 지나 아직 정리되지 않은 것도 센다
+// (그 시도는 이미 id 를 받았고, 앱 기록은 크롬 등록보다 먼저 저장되므로 그때는 앱 기록도 만료돼 새 id 로 PASS 를 해도 앱이
+// 받을 수 없다). 저장소를 읽지 못하면 false — 바로 뒤의 저장소 확인(appResultsWritable)이 STORAGE_UNAVAILABLE 로 거른다.
+function hasAppIdResult(state, purpose) {
+  try {
+    return Object.entries(readAppResults(window.localStorage)).some(([id, r]) => (
+      ID_RE.test(id) && !!r && typeof r === 'object' && r.state === state && r.purpose === purpose
+    ));
+  } catch {
+    return false;
+  }
+}
+
 // 크롬 탭(/app-identity): PASS 창을 띄울 id·ds 를 준비한다 → { id, ds }.
-// 같은 시도(state·purpose)의 30분 안 보관분이 있으면 다시 쓴다(새로 고침 — 후보가 여럿이면 가장 최근 것). 없으면
-// ds 생성 → 서버 등록 → 크롬 저장소 보관. 저장소를 못 쓰면 등록 전에 STORAGE_UNAVAILABLE(PASS 를 열지 않는다).
-// 같은 탭 안에서 준비가 겹치면 하나로 합친다(StrictMode 이중 실행 등 — 모듈 단위 진행 중 Promise).
+// 같은 시도(state·purpose)의 30분 안 보관분이 있으면 다시 쓴다(새로 고침 — 후보가 여럿이면 가장 최근 것).
+// 같은 시도의 보관분이 있는데 30분이 지났으면 새로 등록하지 않고 IDENTITY_START_STALE 을 던진다 — 같은 state 로는 id 를 바꾸지
+// 않는다(2026-10-02 codex 코드 검토 지적 1: 사용자가 stale '앱으로 돌아가기'로 먼저 돌아가 앱 기록에 id A·ds 가 붙은 뒤 31분 만에
+// 이 탭을 새로 고치면, 새 id B 로 PASS 를 마쳐도 앱은 기록의 A 와 달라 B 의 정상 결과를 거절했다). 화면은 그 사유(code)를 실어
+// 앱으로 돌려보내고, 앱은 같은 state 의 실패 복귀로 받아 기록을 지운 뒤 다시 시작하게 한다(C2).
+// 보관분이 아예 없을 때만(정리돼 사라진 것 포함) ds 생성 → 서버 등록 → 크롬 저장소 보관. 저장소를 못 쓰면 등록 전에
+// STORAGE_UNAVAILABLE(PASS 를 열지 않는다). 같은 탭 안에서 준비가 겹치면 하나로 합친다(StrictMode 이중 실행 등 — 모듈 단위 진행 중 Promise).
 let appPreparing = null;
 export function prepareAppIdentity({ state, purpose }) {
   const key = `${purpose}:${state}`;
@@ -619,6 +647,7 @@ export function prepareAppIdentity({ state, purpose }) {
     }
     const reuse = findAppIdResult(state, purpose, REUSE_MS);
     if (reuse) return { id: reuse.id, ds: reuse.ds };
+    if (hasAppIdResult(state, purpose)) throw identityError('IDENTITY_START_STALE', IDENTITY_START_STALE_MSG);
     if (!appResultsWritable()) throw storageError();
     const ds = newDs();
     const id = await registerIdentityStart({ purpose, ds });

@@ -4,6 +4,7 @@
 // 실패·취소는 같은 시도(state)일 때 진행 기록까지 끝, 성공 뒤 늦게 온 같은 복귀는 무시, C3 용도 대조, C4 재확인, R3 단추 정리.
 // 웹: PC 는 화면을 열 때 미리 등록 → 클릭 → 확인 본문에 ds, 확인 실패 뒤엔 다음 것을 미리 등록(재클릭은 start 없이 SDK),
 // 모바일 REDIRECTION 복귀는 세션 기록의 ds 로 확인. 마지막에 '가져오기' 왕복 통합 테스트(codex v2 #1).
+// 2026-10-02 codex 코드 검토 보완: 크롬 탭 열기 실패 이벤트(지적 2)·크롬 탭 시간 초과 복귀(지적 1).
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
@@ -303,6 +304,56 @@ describe('IdentityVerifyStep (앱)', () => {
     expect(text()).toContain('본인확인 용도가 맞지 않습니다');
   });
 
+  // 2026-10-02 codex 코드 검토 지적 2: 크롬 탭을 못 열면 IntentUrlPlugin 이 처리됨으로 끝내고 이 이벤트로 알린다
+  // (예전에는 Capacitor 기본 처리가 외부 브라우저 실행 실패를 삼켜 아무 반응이 없었다)
+  it('크롬 탭을 열지 못하면(ct-app-identity-open-failed) 진행 기록을 지우고 오류 — 결과 단추는 사라지고 다시 누를 수 있다', async () => {
+    // 자바가 보내는 이벤트 이름과 이 화면이 듣는 이름이 같아야 한다
+    const java = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../android/app/src/main/java/com/connecttrip/app/IntentUrlPlugin.java'), 'utf8');
+    expect(/APP_IDENTITY_OPEN_FAILED_EVENT = "([^"]+)";/.exec(java)?.[1]).toBe(lib.APP_IDENTITY_OPEN_FAILED_EVENT);
+    // 자바 단위 시험 환경이 없어 소스로 고정한다(교차검토 codex P3): /app-identity 분기는 탭을 못 열면 이벤트를 보내고 늘 true —
+    // null(Capacitor 기본 처리 = 외부 브라우저 실패를 삼켜 무반응)로 넘기지 않는다. 탭 실행 실패는 종류와 상관없이 잡는다.
+    const head = 'if (ourSite && APP_IDENTITY_PAGE.equals(url.getPath())) {';
+    const from = java.indexOf(head);
+    expect(from).toBeGreaterThan(-1);
+    let depth = 0;
+    let to = -1;
+    for (let i = from + head.length - 1; i < java.length && to < 0; i += 1) {
+      if (java[i] === '{') depth += 1;
+      else if (java[i] === '}' && (depth -= 1) === 0) to = i;
+    }
+    const block = java.slice(from, to + 1);
+    expect(block).toContain('openCustomTab(url)');
+    expect(block).toContain('triggerWindowJSEvent(APP_IDENTITY_OPEN_FAILED_EVENT');
+    expect(block).toMatch(/return true;\s*\}$/);                 // 분기의 마지막 문장 = 처리됨
+    expect(block).not.toContain('return null');
+    expect(/private boolean openCustomTab\(Uri url\) \{[\s\S]*?catch \(RuntimeException e\)/.test(java)).toBe(true);
+    putApp();                                            // 앞선 시도의 기록 — '인증 결과 가져오기' 단추가 보인다
+    const calls = stubFetch(() => verified());
+    const go = vi.spyOn(lib.identityNav, 'go').mockImplementation(() => {});
+    const timers = vi.spyOn(globalThis, 'setTimeout');
+    await render({});
+    expect(button('인증 결과 가져오기')).toBeTruthy();
+    await click('PASS로 본인확인');
+    expect(go).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(START_KEY)).not.toBeNull();   // 새 시도의 기록
+    expect(button('확인 중')).toBeTruthy();                   // 시작 중(busy)
+    await act(async () => { window.dispatchEvent(new Event(lib.APP_IDENTITY_OPEN_FAILED_EVENT)); });
+    await flush();
+    expect(localStorage.getItem(START_KEY)).toBeNull();
+    expect(text()).toContain('⚠️');
+    expect(text()).toContain('브라우저를 열 수 없어 본인확인을 진행할 수 없어요');
+    expect(text()).toContain('크롬을 켜 두거나 기본 브라우저를 확인한 뒤 다시 시도해 주세요');
+    expect(button('인증 결과 가져오기')).toBeUndefined();
+    expect(button('인증 결과 확인')).toBeUndefined();
+    expect(button('PASS로 본인확인').disabled).toBe(false);   // busy 해제 — 다시 시도할 수 있다
+    // 시작 직후의 1.5초 정리 타이머가 늦게 돌아도 결과 단추를 되살리지 않는다
+    const late = timers.mock.calls.find((c) => c[1] === 1500);
+    expect(late).toBeTruthy();
+    await act(async () => { late[0](); });
+    expect(button('인증 결과 가져오기')).toBeUndefined();
+    expect(calls).toHaveLength(0);
+  });
+
   it("앱 'PASS로 본인확인': 시작 기록에 state 만 남기고 크롬 탭 주소(id 없음)로 — 서버·SDK 0회", async () => {
     const calls = stubFetch(() => verified());
     const go = vi.spyOn(lib.identityNav, 'go').mockImplementation(() => {});
@@ -526,5 +577,40 @@ describe("'인증 결과 가져오기' 왕복(통합)", () => {
     expect(seen[0]).toMatchObject({ id, ds: ticket.ds, state: STATE });   // attach 가 confirm 보다 먼저
     expect(onVerified).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem(START_KEY)).toBeNull();
+  });
+});
+
+// ── 크롬 탭 시간 초과(IDENTITY_START_STALE) 복귀 — 2026-10-02 codex 코드 검토 지적 1 ──────────────────────
+// 크롬 탭을 30분 넘게 두었다가 새로 고치면 같은 state 로 새 id 를 내지 않고(prepareAppIdentity) 사유를 실어 앱으로 돌려보낸다.
+// 그 단추 주소(code·문구, id 없음) → 다리(code 가 있으면 ds 를 붙이지 않음) → 딥링크 → 앱은 같은 state 의 실패 복귀로 받는다(C2).
+describe('크롬 탭 시간 초과(IDENTITY_START_STALE) 복귀', () => {
+  it('stale 단추로 먼저 돌아와 id·ds 가 붙은 앱 기록도 같은 state 면 지우고 그 문구를 보인다(서버 0회)', async () => {
+    const id = newId();
+    const { appReturnTarget } = await import('../lib/appReturn');
+    // 크롬 탭의 stale '앱으로 돌아가기'로 먼저 돌아와 id·ds 가 붙었고, 확인이 '아직 인증 전'이라 남아 있는 기록
+    putApp({ id, ds: DS });
+    const calls = stubFetch(() => notVerified());
+    await render({});
+    expect(button('인증 결과 확인')).toBeTruthy();
+
+    // 크롬 탭(AppIdentity 시간 초과 화면)의 단추 주소 — 크롬 보관함에 같은 state 의 ds 가 있어도 code 가 있으면 붙이지 않는다
+    const bridgeUrl = lib.appBridgeUrl({ to: '/find-id', state: STATE, code: 'IDENTITY_START_STALE', message: lib.IDENTITY_START_STALE_MSG });
+    const chromeStore = JSON.stringify({ [id]: { ds: DS, state: STATE, purpose: 'find_id', savedAt: Date.now() - 31 * 60 * 1000 } });
+    const deepLink = deepLinkOf(openBridge(bridgeUrl, chromeStore));
+    const dl = new URL(deepLink).searchParams;
+    expect(dl.get('code')).toBe('IDENTITY_START_STALE');
+    expect(dl.get('state')).toBe(STATE);
+    expect(dl.has('ds')).toBe(false);
+    expect(dl.has('identityVerificationId')).toBe(false);
+
+    const target = appReturnTarget(deepLink);
+    await ret(target.slice(target.indexOf('?')));
+    expect(text()).toContain('본인확인 시간이 지났어요');
+    expect(text()).toContain('커넥트립 앱으로 돌아가 본인확인을 다시 시작해 주세요');
+    expect(localStorage.getItem(START_KEY)).toBeNull();
+    expect(button('인증 결과 확인')).toBeUndefined();
+    expect(button('인증 결과 가져오기')).toBeUndefined();
+    await resume();                                      // 그 뒤 앱 재개가 와도 서버에 되묻지 않는다
+    expect(calls).toHaveLength(0);
   });
 });

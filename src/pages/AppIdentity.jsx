@@ -8,6 +8,7 @@ import { APP_RETURN_PAGE } from '../lib/appReturn';
 import { isNativeApp } from '../lib/native';
 import {
     appBridgeUrl, findAppIdResult, identityNav, launchIdentityForApp, parseAppIdentityParams, prepareAppIdentity,
+    IDENTITY_BROWSER_UNAVAILABLE_MSG, IDENTITY_START_STALE_MSG,
 } from '../lib/identity';
 
 // 앱 전용 본인확인 창(2026-09-27 PASS 복귀 실패 수정). 앱이 크롬 탭으로 이 화면을 연다(IntentUrlPlugin).
@@ -21,8 +22,10 @@ import {
 const STALE_MS = 12000;
 const HOME = `${SITE_ORIGIN}/`;
 const BAD_REQUEST = '본인확인 요청이 올바르지 않습니다. 커넥트립 앱으로 돌아가 다시 시도해 주세요.';
-// 크롬 탭을 열지 못해 앱 WebView 안으로 떨어진 경우(IntentUrlPlugin openCustomTab 실패) — 여기서 PASS 를 하면 9/27 실패가 되풀이된다
-const IN_APP = '브라우저를 열 수 없어 본인확인을 진행할 수 없어요. 크롬을 켜 두거나 기본 브라우저를 확인한 뒤 다시 시도해 주세요.';
+// 앱 WebView 안에서 이 화면이 열린 경우(inApp) — 여기서 PASS 를 하면 9/27 실패가 되풀이되므로 등록·PASS 를 하지 않는다.
+// 2026-10-02 codex 지적 2 이후 IntentUrlPlugin 은 크롬 탭 실행이 실패해도 WebView 로 넘기지 않고 앱 화면(IdentityVerifyStep)에
+// 이벤트로 알린다 — 이 모드는 그 밖의 경로로 앱 안에서 열렸을 때를 위한 방어선이다. 문구는 앱 화면과 같다(identity.js).
+const IN_APP = IDENTITY_BROWSER_UNAVAILABLE_MSG;
 // 1.3.4 이하 앱(옛 계약: 앱이 id 를 만들어 넘김) — 결속 뒤 서버가 받지 않으므로 등록·PASS 없이 업데이트를 안내한다.
 // 같은 문구를 다리 주소 message 로 넘기면 옛 앱이 실패 복귀로 받아 진행 기록을 정리하고 이 문구를 띄운다.
 const UPDATE_REQUIRED = '이 앱 버전에서는 본인확인을 진행할 수 없어요. 커넥트립 앱을 최신 버전으로 업데이트해 주세요. 업데이트 전에는 커넥트립 웹사이트에서 진행할 수 있어요.';
@@ -88,6 +91,7 @@ export default function AppIdentity() {
     }, [mode, resumeHit, params]);
 
     // 기본: 등록(30분 안 같은 시도면 크롬 보관분 재사용) → PASS 창 자동 시작.
+    // 같은 시도의 보관분이 30분을 넘었으면 새로 등록하지 않는다(IDENTITY_START_STALE — 아래 시간 초과 화면, 2026-10-02 codex 지적 1).
     // 자동 시작은 유지한다 — 결속 뒤에는 공식 도메인 링크로 띄워도 빼앗을 결과가 없다(redteam4, 설계 v2 §6 권고).
     useEffect(() => {
         if (mode !== 'start' || started.current) return;
@@ -173,6 +177,15 @@ export default function AppIdentity() {
             <Screen title="인증 결과를 찾지 못했어요"
                 action={<BackToApp href={bridge({ code: 'IDENTITY_RESULT_NOT_FOUND', message: NOT_FOUND })} />}>
                 <Text text={NOT_FOUND} alert />
+            </Screen>
+        );
+    } else if (failure?.kind === 'start' && failure.code === 'IDENTITY_START_STALE') {
+        // 시간 초과: 같은 시도(state)로는 새 id 를 내지 않는다 — 앱 기록에 먼저 붙은 id 와 어긋나 정상 결과를 거절하게 된다.
+        // 사유를 실어(id 없이) 앱으로 보내면 앱이 같은 state 의 실패 복귀로 받아 기록을 지우고 이 문구를 띄운다(C2).
+        body = (
+            <Screen title="본인확인 시간이 지났어요"
+                action={<BackToApp href={bridge({ code: 'IDENTITY_START_STALE', message: IDENTITY_START_STALE_MSG })} />}>
+                <Text text={IDENTITY_START_STALE_MSG} alert />
             </Screen>
         );
     } else if (failure?.kind === 'start') {

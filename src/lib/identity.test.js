@@ -613,9 +613,30 @@ describe('크롬 탭 — prepareAppIdentity·findAppIdResult(ctAppIdResults)', (
     expect(await m.prepareAppIdentity({ state: STATE, purpose: 'find_id' })).toEqual({ id: ID2, ds: DS2 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
-  it('30분이 넘었거나 다른 시도(state·용도)의 보관분이면 새로 등록한다(30분~1시간 것은 가져오기용으로 남긴다)', async () => {
+  // 2026-10-02 codex 코드 검토 지적 1: 같은 state 로는 id 를 바꾸지 않는다. 30분이 지난 같은 시도의 보관분이 있으면 새로 등록하지
+  // 않고 IDENTITY_START_STALE — 새 id 로 PASS 를 마쳐도 앱 기록에 먼저 붙은 id 와 달라 정상 결과가 거절되기 때문이다.
+  it.each([
+    ['31분', 31, ID],
+    ['61분 — 만료됐지만 아직 정리되지 않은 것도 센다(앱 기록은 그보다 먼저 만료)', 61, null],
+  ])('같은 시도(state·용도)의 보관분이 30분을 넘었으면(%s) 등록 0회 + IDENTITY_START_STALE, 보관함은 그대로', async (_, ageMin, fetchable) => {
     localStorage.setItem(RESULTS_KEY, JSON.stringify({
-      [ID]: entry({ savedAt: Date.now() - 31 * MIN }),
+      [ID]: entry({ savedAt: Date.now() - ageMin * MIN }),
+      ctaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: entry({ state: STATE2 }),
+      ctbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb: entry({ purpose: 'password_reset' }),
+    }));
+    const before = localStorage.getItem(RESULTS_KEY);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const err = await m.prepareAppIdentity({ state: STATE, purpose: 'find_id' }).catch((e) => e);
+    expect(err).toMatchObject({ code: 'IDENTITY_START_STALE', message: m.IDENTITY_START_STALE_MSG, final: false });
+    expect(m.IDENTITY_START_STALE_MSG).toBe('본인확인 시간이 지났어요. 커넥트립 앱으로 돌아가 본인확인을 다시 시작해 주세요.');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(localStorage.getItem(RESULTS_KEY)).toBe(before);                              // 정리·추가 없음
+    // 1시간 안이면 '인증 결과 가져오기'는 그 보관분을 그대로 찾는다
+    expect(m.findAppIdResult(STATE, 'find_id')?.id ?? null).toBe(fetchable);
+  });
+  it('다른 시도(state·용도)의 보관분만 있으면 새로 등록한다 — 남의 보관분은 지우지 않는다', async () => {
+    localStorage.setItem(RESULTS_KEY, JSON.stringify({
       ctaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: entry({ state: STATE2 }),
       ctbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb: entry({ purpose: 'password_reset' }),
     }));
@@ -623,7 +644,7 @@ describe('크롬 탭 — prepareAppIdentity·findAppIdResult(ctAppIdResults)', (
     const t = await m.prepareAppIdentity({ state: STATE, purpose: 'find_id' });
     expect(t.id).toBe(ID2);
     expect(calls).toHaveLength(1);
-    expect(Object.keys(stored()).sort()).toEqual([ID, ID2, 'ctaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'ctbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'].sort());
+    expect(Object.keys(stored()).sort()).toEqual([ID2, 'ctaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'ctbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'].sort());
     expect(m.findAppIdResult(STATE, 'find_id')).toMatchObject({ id: ID2 });            // 가져오기: 1시간 안 최신
   });
   it('같은 탭 안에서 겹친 준비는 하나로 합친다(요청 1번)', async () => {

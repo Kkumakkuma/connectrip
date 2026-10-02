@@ -141,6 +141,26 @@ describe('기본 — 등록 → PASS 자동 시작', () => {
     expect(sdk.request.mock.calls[0][0].identityVerificationId).toBe(ID2);
   });
 
+  // 2026-10-02 codex 코드 검토 지적 1: 같은 state 로는 id 를 바꾸지 않는다 — 앱 기록에 먼저 붙은 id 와 어긋나 정상 결과를 거절하게 된다
+  it('새로 고침인데 같은 시도의 보관분이 30분을 넘었으면 → 시간 초과 화면 + 단추 code=IDENTITY_START_STALE(id·resume 없음, 등록·SDK 0회)', async () => {
+    localStorage.setItem(RESULTS_KEY, JSON.stringify({ [ID2]: entry({ savedAt: Date.now() - 31 * MIN }) }));
+    const before = localStorage.getItem(RESULTS_KEY);
+    await render(v2({ q: 'x=1' }), { until: () => !!backHref() });
+    await quiet();
+    expect(calls).toHaveLength(0);
+    expect(sdk.request).not.toHaveBeenCalled();
+    expect(localStorage.getItem(RESULTS_KEY)).toBe(before);
+    expect(text()).toContain('본인확인 시간이 지났어요');
+    expect(text()).toContain('커넥트립 앱으로 돌아가 본인확인을 다시 시작해 주세요');
+    expect(div.querySelector('[role="alert"]')).toBeTruthy();
+    const p = paramsOf(backHref());
+    expect(p).toEqual({
+      to: '/find-id', x: '1', flow: 'identity', state: STATE, code: 'IDENTITY_START_STALE', message: lib.IDENTITY_START_STALE_MSG,
+    });
+    expect(p.identityVerificationId).toBeUndefined();
+    expect(p.resume).toBeUndefined();
+  });
+
   it('StrictMode 이중 실행에도 등록·SDK 는 한 번', async () => {
     await render(v2(), { strict: true, until: sdkCalled });
     await quiet();

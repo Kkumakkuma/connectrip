@@ -37,6 +37,7 @@ public class IntentUrlPlugin extends Plugin {
     // 또 포트원 SDK 는 KCP 창으로 폼 POST 이동을 해서 WebView 에서는 가로챌 수 없다(POST 는 shouldOverrideUrlLoading 을 안 탄다).
     // ① 앱이 여는 사이트의 /app-identity(앱 전용 본인확인 화면)는 크롬 탭(Custom Tab)으로 연다 — 인증은 모바일 웹과 똑같이
     //    크롬에서 진행되고, 앱 화면은 그대로 남아 돌아오면 서버에 결과를 확인한다(IdentityVerifyStep).
+    //    탭을 열지 못하면 앱 화면에 이벤트(APP_IDENTITY_OPEN_FAILED_EVENT)로 알리고 처리됨으로 끝낸다(2026-10-02).
     // ② 복귀 주소(사이트 다리 페이지 app-return.html, connecttrip://app-return)가 앱 WebView 안에서 열리면 앱 안 경로로 바로 연다.
     // 경로 허용 목록은 src/lib/appReturn.js · public/app-return.html 과 같아야 한다(appReturn.test.js 가 대조).
     static final Pattern RETURN_PATH = Pattern.compile("^/(find-id|forgot-password|signup(/[a-z-]+)?|mypage|points)$");
@@ -44,6 +45,9 @@ public class IntentUrlPlugin extends Plugin {
     private static final String RETURN_HOST = "app-return";
     private static final String RETURN_PAGE = "/app-return.html";
     private static final String APP_IDENTITY_PAGE = "/app-identity";
+    // /app-identity 크롬 탭을 열지 못했을 때 앱 WebView 의 window 에 보내는 이벤트(2026-10-02 codex 지적 2).
+    // src/lib/identity.js APP_IDENTITY_OPEN_FAILED_EVENT 와 같은 문자열이어야 한다(IdentityVerifyStep.test.jsx 가 대조).
+    static final String APP_IDENTITY_OPEN_FAILED_EVENT = "ct-app-identity-open-failed";
 
     @Override
     public Boolean shouldOverrideLoad(Uri url) {
@@ -74,8 +78,16 @@ public class IntentUrlPlugin extends Plugin {
                 }
                 return null;   // 허용 밖 경로 — 기본 정책(외부 브라우저)
             }
-            if (ourSite && APP_IDENTITY_PAGE.equals(url.getPath()) && openCustomTab(url)) {
-                Log.i(TAG, "본인확인 창을 크롬 탭으로 엶");
+            if (ourSite && APP_IDENTITY_PAGE.equals(url.getPath())) {
+                if (openCustomTab(url)) {
+                    Log.i(TAG, "본인확인 창을 크롬 탭으로 엶");
+                } else {
+                    // 크롬 탭을 못 열었다(브라우저 없음·실행 거부). 기본 정책(null)에 넘기지 않는다 — 사이트 도메인은 allowNavigation 밖이라
+                    // Capacitor Bridge.launchIntent 가 외부 브라우저 실행을 시도하고 ActivityNotFoundException 을 삼킨 뒤 true 를 돌려
+                    // WebView 이동도 일어나지 않아 화면에 아무 반응이 없었다(2026-10-02 codex 지적 2). 그래서 앱 화면(IdentityVerifyStep)에
+                    // 이벤트로 알리고 처리됨으로 끝낸다 — 앱 화면이 진행 기록을 끝내고 '브라우저를 열 수 없어…' 오류를 보인다.
+                    getBridge().triggerWindowJSEvent(APP_IDENTITY_OPEN_FAILED_EVENT, "{}");
+                }
                 return true;
             }
             return null;
@@ -155,7 +167,10 @@ public class IntentUrlPlugin extends Plugin {
         return true;
     }
 
-    /** 크롬 탭(Custom Tab)으로 연다. 탭을 지원하는 브라우저가 없으면 일반 브라우저, 그것도 없으면 false(앱 WebView 로 진행). */
+    /**
+     * 크롬 탭(Custom Tab)으로 연다. 탭을 지원하는 브라우저가 없으면 launchUrl 이 일반 브라우저로 연다.
+     * 그것도 없거나 실행이 거부되면 false — 부르는 쪽이 앱 화면에 이벤트로 알리고 처리됨으로 끝낸다(앱 WebView 로 넘기지 않는다).
+     */
     private boolean openCustomTab(Uri url) {
         Activity activity = getActivity();
         if (activity == null || activity.isFinishing() || activity.isDestroyed()) return false;
@@ -163,8 +178,9 @@ public class IntentUrlPlugin extends Plugin {
             CustomTabsIntent tab = new CustomTabsIntent.Builder().setShowTitle(true).build();
             tab.launchUrl(activity, url);
             return true;
-        } catch (ActivityNotFoundException | SecurityException e) {
-            Log.w(TAG, "크롬 탭 열기 실패 — 앱 WebView 로 진행: " + e.getMessage());
+        } catch (RuntimeException e) {
+            // ActivityNotFoundException(브라우저 없음)·SecurityException(실행 거부) 등 — 어떤 실패든 탭은 열리지 않았다
+            Log.w(TAG, "크롬 탭 열기 실패: " + e.getClass().getSimpleName() + " " + e.getMessage());
             return false;
         }
     }
