@@ -18,12 +18,20 @@ export const isAppReturnPath = (p) => typeof p === 'string' && APP_RETURN_PATH_R
 
 // 외부 서비스(포트원 등)에 넘길 복귀 주소. 웹은 지금처럼 자기 주소, 앱이면 다리 페이지.
 //   path: '/find-id' 같은 앱 경로, params: URLSearchParams | 객체 | 문자열(우리 쿼리)
+// 앱인데 허용 목록 밖 경로(예: 결제 시험 /__paytest)면 다리 주소를 만들지 않는다 — 다리 페이지가 그 to 를 버려 그 화면으로
+// 못 돌아온다. 그때는 공개 사이트 주소(SITE_ORIGIN + 경로 + 쿼리)를 준다(2026-10-02 C8, codex #11). window.location.origin 은
+// 앱에서 https://localhost 라 쓰면 안 된다. 허용 목록(이 파일·app-return.html·IntentUrlPlugin.java)은 늘리지 않는다.
 export function externalReturnUrl(path, params, { native = isNativeApp(), origin } = {}) {
   const sp = new URLSearchParams(params || '');
+  const q = sp.toString();
   if (!native) {
     const base = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
-    const q = sp.toString();
     return `${base}${path}${q ? `?${q}` : ''}`;
+  }
+  // '/' 로 시작하는 경로만 이어 붙인다 — 그래야 호스트가 SITE_ORIGIN 에서 바뀌지 않는다('@evil.example'·'.evil.example' 같은
+  // 값이면 다른 사이트 주소가 된다). 그 밖의 값은 예전처럼 다리 주소로 둔다(다리 페이지가 버린다).
+  if (!isAppReturnPath(path) && typeof path === 'string' && path.startsWith('/')) {
+    return `${SITE_ORIGIN}${path}${q ? `?${q}` : ''}`;
   }
   const out = new URLSearchParams();
   out.set('to', path);

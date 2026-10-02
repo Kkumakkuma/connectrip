@@ -39,6 +39,13 @@ export default defineConfig([
         { selector: "CallExpression[callee.property.name='parseFromString']", message: 'DOMParser.parseFromString 금지 — <template> 조각을 쓴다.' },
         // 동적 import() 는 no-restricted-imports 가 보지 않는다 — 같은 경로를 여기서 막는다(정규식의 . = 경로 구분자 /)
         { selector: 'ImportExpression[source.value=/pdfjs-dist.(legacy.)?web.|pdf\\.sandbox/]', message: 'pdf.js 뷰어·샌드박스 계층 금지 — 표시 API 만 쓴다.' },
+        // 정규식 lookbehind(여는 괄호·물음표 뒤 '<=' 또는 '<!') — iOS 16.3 이하 사파리는 몰라서 SyntaxError 를 던진다(2026-10-02 R2:
+        // SentenceLines 가 앱 전체 오류 화면을 만들었다). 정규식 리터럴, new RegExp(…)·RegExp(…) 의 문자열·템플릿 문자열 인자를
+        // 모두 막는다(뒤의 두 줄은 P3 검토로 추가 — new 없는 호출과 템플릿 문자열). 테스트의 오라클만 그 줄에서 끈다.
+        { selector: "Literal[regex.pattern=/\\(\\?<[=!]/]", message: '정규식 lookbehind 금지 — iOS 16.3 이하 사파리에서 SyntaxError(2026-10-02)' },
+        { selector: "NewExpression[callee.name='RegExp'] > Literal[value=/\\(\\?<[=!]/]", message: '정규식 lookbehind 금지 — iOS 16.3 이하 사파리에서 SyntaxError(2026-10-02)' },
+        { selector: ":matches(NewExpression, CallExpression)[callee.name='RegExp'] > Literal[value=/[(][?]<[=!]/]", message: '정규식 lookbehind 금지 — iOS 16.3 이하 사파리에서 SyntaxError(2026-10-02)' },
+        { selector: ":matches(NewExpression, CallExpression)[callee.name='RegExp'] > TemplateLiteral > TemplateElement[value.raw=/[(][?]<[=!]/]", message: '정규식 lookbehind 금지 — iOS 16.3 이하 사파리에서 SyntaxError(2026-10-02)' },
       ],
       'no-restricted-imports': ['error', {
         patterns: [

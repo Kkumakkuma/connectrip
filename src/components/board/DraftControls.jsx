@@ -56,7 +56,7 @@ export const DraftLoadBar = ({ drafts, onLoad, onRemove, disabled = false, compa
                                 <span className="block truncate text-[14px] font-bold text-ink group-hover:underline underline-offset-4">{item.title || '제목 없음'}</span>
                                 <span className="block text-[12px] text-muted">
                                     {when(item.updated_at)}
-                                    {drafts.current?.id === item.id && <span className="ml-1.5 font-bold text-ink">· 지금 쓰는 글</span>}
+                                    {drafts.current?.id === item.id && <span className="ml-1.5 font-bold text-ink">{'\u2060'}· 지금 쓰는 글</span>}
                                 </span>
                             </button>
                             <button

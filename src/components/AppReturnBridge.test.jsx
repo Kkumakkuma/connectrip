@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 // 앱 복귀 딥링크(2026-09-27 PASS 복귀 수정·교차검토 반영): 콜드 스타트 복구, 딥링크 우선, 같은 링크 재클릭, StrictMode.
+// 2026-10-02 결속(설계 v2 §3.3·§7): 처리 기록(seen) 키는 ds 값을 ds=1 로 바꾼 정규화 키 하나 — ds 가 달라도 5초 안 1회,
+// 세션 저장소에 ds 값을 남기지 않는다. C6 의 Bridge 부분(허용 밖 launch url 이면 resumePending)은 반려 — 아래 '다른 주소로
+// 켜진 앱' 테스트가 9/27 결정('딥링크로 켜졌으면 그 주소가 답')을 고정한다.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,14 +22,19 @@ vi.mock('../lib/native', () => ({ isNativeApp: () => true }));
 const ID = 'ct0123456789abcdef0123456789abcdef';
 const STATE = '0123456789abcdef0123456789abcdef';
 const DEEP = `connecttrip://app-return/find-id?flow=identity&state=${STATE}&identityVerificationId=${ID}`;
+const DS1 = '89abcdef'.repeat(8);
+const DS2 = '01234567'.repeat(8);
+// 다리 페이지가 크롬 저장소의 ds 를 붙여 보낸 딥링크(설계 v2 §0-4)
+const deepDs = (ds) => `${DEEP}&ds=${ds}`;
 
 function deferred() {
   let resolve;
   const promise = new Promise((r) => { resolve = r; });
   return { promise, resolve };
 }
+// 앱 시작 기록(2026-10-02 형식): 결과를 받기 전에는 state 만 — id·ds 는 결과 딥링크로 받아 붙는다
 const putPending = (over = {}) => localStorage.setItem('pendingIdentityStart', JSON.stringify({
-  id: ID, state: STATE, purpose: 'find_id', returnPath: '/find-id', savedAt: Date.now(), ...over,
+  state: STATE, purpose: 'find_id', returnPath: '/find-id', savedAt: Date.now(), ...over,
 }));
 
 let ctx;
@@ -77,6 +85,14 @@ describe('AppReturnBridge', () => {
     cap.launch.resolve(undefined);
     await flush();
     expect(here()).toBe('/find-id?flow=identity&resume=1');
+  });
+
+  it('결과를 이미 받은 기록(id·ds)도 같은 resume=1 로 — 화면이 저장해 둔 값으로 확인한다', async () => {
+    putPending({ id: ID, ds: DS1 });
+    await mount();
+    cap.launch.resolve(undefined);
+    await flush();
+    expect(here()).toBe('/find-id?flow=identity&resume=1');   // 주소에 id·ds 를 싣지 않는다
   });
 
   it('StrictMode 이중 마운트에서도 복구한다(개발 모드)', async () => {
@@ -131,6 +147,48 @@ describe('AppReturnBridge', () => {
     cap.listeners.appUrlOpen({ url: DEEP });
     expect(seen).toHaveLength(2);
     window.removeEventListener('ct-app-return', onRet);
+  });
+
+  it('seen 정규화: ds 만 다른 같은 복귀가 5초 안에 두 번 와도 한 번, 그 뒤 다시 누르면 다시 알린다', async () => {
+    window.history.replaceState(null, '', '/find-id');
+    await mount();
+    cap.launch.resolve(undefined);
+    await flush();
+    const seen = [];
+    const onRet = (e) => seen.push(e.detail);
+    window.addEventListener('ct-app-return', onRet);
+    let now = Date.now();
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    cap.listeners.appUrlOpen({ url: deepDs(DS1) });
+    cap.listeners.appUrlOpen({ url: deepDs(DS2) });
+    expect(seen).toHaveLength(1);
+    // 화면에는 받은 주소 그대로(ds 포함) 넘긴다 — 정규화는 처리 기록 키에만
+    expect(seen[0]).toEqual({ path: '/find-id', search: `?flow=identity&state=${STATE}&identityVerificationId=${ID}&ds=${DS1}` });
+    now += 6000;
+    cap.listeners.appUrlOpen({ url: deepDs(DS2) });
+    expect(seen).toHaveLength(2);
+    expect(seen[1].search).toContain(`ds=${DS2}`);
+    window.removeEventListener('ct-app-return', onRet);
+  });
+
+  it('처리 기록(세션 저장소)에는 ds 값이 남지 않는다 — ds=1 로 바꿔 둔 키 하나', async () => {
+    window.history.replaceState(null, '', '/find-id');
+    await mount();
+    cap.launch.resolve(undefined);
+    await flush();
+    await ctx.React.act(async () => { cap.listeners.appUrlOpen({ url: deepDs(DS1) }); });
+    const raw = sessionStorage.getItem('ctAppReturnSeen');
+    expect(raw).not.toContain(DS1);
+    expect(Object.keys(JSON.parse(raw))).toEqual([`${DEEP}&ds=1`]);
+  });
+
+  it('처음 주소(getLaunchUrl)에 ds 가 붙어 있어도 새로 고친 뒤 다시 처리하지 않는다(조회도 같은 정규화 키)', async () => {
+    sessionStorage.setItem('ctAppReturnSeen', JSON.stringify({ [`${DEEP}&ds=1`]: Date.now() - 60000 }));
+    sessionStorage.setItem('ctAppBooted', '1');
+    await mount();
+    cap.launch.resolve({ url: deepDs(DS1) });
+    await flush();
+    expect(here()).toBe('/');
   });
 
   it('처음 주소(getLaunchUrl)는 새로 고쳐도 다시 처리하지 않는다', async () => {

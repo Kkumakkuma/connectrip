@@ -5,7 +5,7 @@ import { apiUrl } from '../lib/api';
 import SEOHead from '../components/SEOHead';
 import IdentityVerifyStep from '../components/IdentityVerifyStep';
 import {
-    IDENTITY_ENABLED,
+    IDENTITY_ENABLED, IDENTITY_PURPOSE_FIND_ID,
     clearIdentityProof, clearIdentityStart, parseIdentityReturn, stripIdentityParams,
 } from '../lib/identity';
 
@@ -15,8 +15,7 @@ import {
 // 화면에는 아이디·가입 유형·가입일만 띄운다 — 휴대폰번호·이메일은 어떤 경우에도 표시하지 않는다.
 //
 // 본인확인 용도(purpose)는 서버가 증빙 토큰에 함께 묶는다. 가입용 증빙으로 남의 아이디를
-// 조회하지 못하게 하려는 것이라, 이 화면 전용 값을 쓴다.
-const IDENTITY_PURPOSE_FIND_ID = 'find_id';
+// 조회하지 못하게 하려는 것이라, 이 화면 전용 값(identity.js IDENTITY_PURPOSE_FIND_ID — 서버·앱 주소 검사와 같은 값)을 쓴다.
 
 const USER_TYPE_LABEL = { crew: '승무원', traveler: '여행자' };
 

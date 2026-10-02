@@ -412,7 +412,7 @@ const RichEditor = ({ handleRef, boardKey, userId, initialDoc = null, maxChars, 
             <EditorContent editor={editor} className="px-3 py-3" />
             <p className={`border-t border-hairline-soft px-3 py-1.5 text-right text-[12px] tabular-nums ${over ? 'font-bold text-error' : 'text-muted'}`} aria-live={over ? 'polite' : undefined}>
                 {counts.plainLength.toLocaleString()} / {maxChars.toLocaleString()}자
-                {over && <span className="ml-1">· 글자 수를 넘었어요</span>}
+                {over && <span className="ml-1">{'\u2060'}· 글자 수를 넘었어요</span>}
             </p>
             {photos && (
                 <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onFiles} tabIndex={-1} aria-hidden="true" />

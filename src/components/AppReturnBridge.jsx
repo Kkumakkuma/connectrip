@@ -8,8 +8,9 @@ import { IDENTITY_FLOW, loadPendingIdentity } from '../lib/identity';
 // · 사이트 다리 페이지(public/app-return.html)의 '앱으로 돌아가기' → connecttrip://app-return<경로>?<쿼리> 로 앱이 열리면
 //   그 경로로 보낸다. 지금 그 화면이면 다시 띄우지 않고 'ct-app-return' 이벤트로 알린다(화면들의 복귀 처리는 처음 한 번만 돈다).
 // · 콜드 스타트(PASS·크롬에 가 있는 동안 앱 프로세스가 종료)로 첫 화면이 떴는데 10분 안에 시작한 본인확인이 남아 있으면
-//   그 화면으로 돌려보내 결과를 확인한다(resume=1 — 우리 저장소의 id 만 쓴다). 딥링크로 켜진 경우는 그 주소가 우선이다.
-const SEEN_KEY = 'ctAppReturnSeen';   // 처리한 딥링크 주소 → 처리 시각(세션 저장소)
+//   그 화면으로 돌려보낸다(resume=1 — 우리 저장소의 id·ds 만 쓴다. 결과(ds)를 아직 받지 못했으면 화면이 '인증 결과 가져오기'를
+//   안내한다). 딥링크로 켜진 경우는 그 주소가 우선이다(9/27 교차검토 결정 — 2026-10-02 C6 의 이 부분은 반려, 테스트가 고정).
+const SEEN_KEY = 'ctAppReturnSeen';   // 처리한 딥링크 주소(정규화) → 처리 시각(세션 저장소)
 const BOOT_KEY = 'ctAppBooted';
 const RESUME_WINDOW_MS = 10 * 60 * 1000;
 const REPEAT_GAP_MS = 5000;
@@ -18,15 +19,19 @@ const REPEAT_GAP_MS = 5000;
 // 화면 이동으로 효과가 다시 돌아도 첫 화면으로 되돌리지 않는다(교차검토 지적).
 let launchChecked = false;
 
+// 처리 기록 키 — 주소의 ds=<값> 을 ds=1 로 바꾼다(2026-10-02, codex #9·flows8). 조회와 저장 모두 이 키 하나로 한다.
+// ① 결속 비밀값을 WebView 세션 저장소에 남기지 않고 ② ds 만 다른 같은 복귀가 5초 안에 겹쳐 와도 한 번으로 친다.
+const seenKey = (url) => String(url).replace(/([?&])ds=[^&#]*/g, '$1ds=1');
+
 function seenMap() {
   try {
     const m = JSON.parse(sessionStorage.getItem(SEEN_KEY) || '{}');
     return m && typeof m === 'object' && !Array.isArray(m) ? m : {};
   } catch { return {}; }
 }
-function markSeen(url) {
+function markSeen(key) {
   try {
-    const recent = Object.entries({ ...seenMap(), [url]: Date.now() }).sort((a, b) => b[1] - a[1]).slice(0, 20);
+    const recent = Object.entries({ ...seenMap(), [key]: Date.now() }).sort((a, b) => b[1] - a[1]).slice(0, 20);
     sessionStorage.setItem(SEEN_KEY, JSON.stringify(Object.fromEntries(recent)));
   } catch { /* noop */ }
 }
@@ -44,11 +49,12 @@ export default function AppReturnBridge() {
     // getLaunchUrl 과 겹쳐 같은 주소가 잇달아 오는 경우(5초 안)만 한 번으로 친다(교차검토 지적: 재클릭 무반응).
     const go = (url, { launch = false } = {}) => {
       if (!url) return false;
-      const at = seenMap()[url];
+      const key = seenKey(url);
+      const at = seenMap()[key];
       if (at && (launch || Date.now() - at < REPEAT_GAP_MS)) return false;
       const target = appReturnTarget(url);
       if (!target) return false;
-      markSeen(url);
+      markSeen(key);
       const [path, query = ''] = target.split('?');
       const search = query ? `?${query}` : '';
       if (window.location.pathname === path) {

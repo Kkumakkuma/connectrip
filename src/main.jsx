@@ -6,7 +6,8 @@ import { AuthProvider } from './lib/AuthContext.jsx'
 import { initAnalytics } from './lib/analytics.js'
 import { startKeepMiddot } from './lib/keepMiddot.js'
 
-// VITE_GA_ID 가 설정된 빌드에서만 gtag 스크립트를 주입한다(없으면 무동작).
+// 웹에서만 gtag 스크립트를 주입한다(앱은 무동작). /app-identity 로 처음 열린 문서는 끝까지 넣지 않고, 본인확인 복귀 주소
+// (flow=identity·ds)로 열리면 여기서는 미룬다 — 화면이 주소를 정리한 뒤 AnalyticsTracker 가 넣는다(2026-10-02 PASS 결속 C1).
 initAnalytics()
 
 class ErrorBoundary extends Component {

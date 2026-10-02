@@ -40,6 +40,7 @@ export async function requestPointPayment(order, { returnPath = '/mypage' } = {}
   const sp = new URLSearchParams();
   sp.set('flow', 'charge');
   // 웹 = 자기 주소, 앱 = 사이트 다리 페이지(앱 밖에서 끝나도 앱으로 돌아오게 — appReturn.js, 2026-09-27)
+  // (허용 밖 경로 /__paytest 는 공개 사이트 주소 — appReturn.js C8, 2026-10-02)
   const redirectUrl = externalReturnUrl(returnPath, sp);
   const useRedirect = isNativeApp() || isMobileUA();
   savePendingPayment(order.orderId);
